@@ -44,7 +44,7 @@
         <button id="refresh" class="secondary">刷新设备信息</button>
       </div>
       <textarea id="report" readonly aria-label="可截图的诊断结果"></textarea>
-      <p class="note">样片为本地合成视频，无音轨、无账号信息。测试结果只反映当前设备的 WebView 与软解性能。</p>
+      <p class="note">样片为本地合成视频，无音轨。局域网只读接口：<code>http://设备IP:18998/api/results</code>。接口仅包含设备信息与测试结果，不含账号和媒体数据。</p>
     </section>
   </main>
   <script src="/diagnostic.js"></script>

@@ -20,13 +20,16 @@ import java.io.IOException;
 public final class WasmDiagnosticActivity extends Activity {
     private AssetHttpServer assetServer;
     private WebView webView;
+    private volatile String pageReport = "";
 
     @Override
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         applyFullscreen();
         try {
-            assetServer = new AssetHttpServer(getAssets());
+            assetServer = new AssetHttpServer(getAssets(), new AssetHttpServer.ResultsProvider() {
+                @Override public String getResultsJson() { return buildRemoteReport(); }
+            });
             assetServer.start();
         } catch (IOException failure) {
             TextView error = new TextView(this);
@@ -121,6 +124,27 @@ public final class WasmDiagnosticActivity extends Activity {
         public String getLastRequest() {
             return assetServer == null ? "本地服务未启动" : assetServer.getLastRequest();
         }
+
+        @JavascriptInterface
+        public void setPageReport(String report) {
+            pageReport = report == null ? "" : report.substring(0, Math.min(report.length(), 6000));
+        }
+    }
+
+    private String buildRemoteReport() {
+        JSONObject result = new JSONObject();
+        try {
+            result.put("app", "HEVC WebView diagnostic");
+            result.put("schemaVersion", 1);
+            result.put("capturedAtEpochMs", System.currentTimeMillis());
+            result.put("device", new JSONObject(new DiagnosticBridge().getDeviceInfo()));
+            result.put("http206Range", assetServer == null ? 0 : assetServer.getRangeRequestCount());
+            result.put("lastRequest", assetServer == null ? "本地服务未启动" : assetServer.getLastRequest());
+            result.put("report", pageReport);
+        } catch (Exception failure) {
+            return "{\"error\":\"诊断结果生成失败\"}";
+        }
+        return result.toString();
     }
 
     private PackageInfo currentWebViewPackage() {

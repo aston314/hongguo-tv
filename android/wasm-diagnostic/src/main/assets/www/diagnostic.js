@@ -100,6 +100,11 @@
       '测试：' + (latest.length ? latest.join('；') : '尚未运行')
     ];
     reportNode.value = lines.join('\n');
+    try {
+      if (window.HongguoWasmDiag && window.HongguoWasmDiag.setPageReport) {
+        window.HongguoWasmDiag.setPageReport(reportNode.value);
+      }
+    } catch (ignoredReport) {}
     rangeNode.innerHTML = 'Range 请求 ' + rangeCount() + ' 次';
   }
 

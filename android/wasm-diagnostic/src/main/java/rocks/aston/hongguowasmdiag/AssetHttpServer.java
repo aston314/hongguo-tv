@@ -10,6 +10,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
@@ -19,19 +20,29 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 final class AssetHttpServer implements AutoCloseable {
+    static final int PORT = 18998;
+
+    interface ResultsProvider {
+        String getResultsJson();
+    }
+
     private final AssetManager assets;
+    private final ResultsProvider resultsProvider;
     private final AtomicInteger rangeRequests = new AtomicInteger();
     private volatile String lastRequest = "尚无媒体请求";
     private volatile boolean running;
     private ServerSocket server;
     private Thread acceptThread;
 
-    AssetHttpServer(AssetManager assets) {
+    AssetHttpServer(AssetManager assets, ResultsProvider resultsProvider) {
         this.assets = assets;
+        this.resultsProvider = resultsProvider;
     }
 
     void start() throws IOException {
-        server = new ServerSocket(0, 8, java.net.InetAddress.getByName("127.0.0.1"));
+        server = new ServerSocket();
+        server.setReuseAddress(true);
+        server.bind(new InetSocketAddress(java.net.InetAddress.getByName("0.0.0.0"), PORT), 8);
         running = true;
         acceptThread = new Thread(new Runnable() {
             @Override public void run() {
@@ -52,7 +63,7 @@ final class AssetHttpServer implements AutoCloseable {
     }
 
     String getBaseUrl() {
-        return "http://127.0.0.1:" + server.getLocalPort();
+        return "http://127.0.0.1:" + PORT;
     }
 
     int getRangeRequestCount() {
@@ -66,13 +77,14 @@ final class AssetHttpServer implements AutoCloseable {
     boolean isLocalUrl(Uri uri) {
         return uri != null && "http".equalsIgnoreCase(uri.getScheme())
                 && "127.0.0.1".equals(uri.getHost()) && server != null
-                && uri.getPort() == server.getLocalPort();
+                && uri.getPort() == PORT;
     }
 
     private void handle(Socket socket) {
         try (Socket client = socket;
              BufferedInputStream input = new BufferedInputStream(client.getInputStream());
              BufferedOutputStream output = new BufferedOutputStream(client.getOutputStream())) {
+            client.setSoTimeout(5000);
             String requestLine = readLine(input);
             if (requestLine == null) return;
             String[] parts = requestLine.split(" ");
@@ -92,6 +104,28 @@ final class AssetHttpServer implements AutoCloseable {
             if (path == null || path.contains("..") || path.contains("\\")) {
                 writeResponse(output, 400, "Bad Request", "text/plain", new byte[0], null);
                 lastRequest = "拒绝非法路径：" + parts[1];
+                return;
+            }
+            java.net.InetAddress remoteAddress = client.getInetAddress();
+            boolean loopback = remoteAddress.isLoopbackAddress();
+            boolean localNetwork = remoteAddress.isSiteLocalAddress() || remoteAddress.isLinkLocalAddress();
+            if (!loopback && !localNetwork) {
+                writeResponse(output, 403, "Forbidden", "application/json", new byte[0], null);
+                return;
+            }
+            if (!loopback && !"/api/results".equals(path)) {
+                writeResponse(output, 403, "Forbidden", "application/json", new byte[0], null);
+                lastRequest = "拒绝局域网读取资源：" + path;
+                return;
+            }
+            if ("/api/results".equals(path)) {
+                if (!"GET".equals(parts[0])) {
+                    writeResponse(output, 405, "Method Not Allowed", "application/json", new byte[0],
+                            "Allow: GET\r\n");
+                    return;
+                }
+                byte[] json = resultsProvider.getResultsJson().getBytes(StandardCharsets.UTF_8);
+                writeResponse(output, 200, "OK", "application/json; charset=utf-8", json, null);
                 return;
             }
             byte[] body;
