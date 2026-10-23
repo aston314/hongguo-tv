@@ -17,6 +17,24 @@
   var nativeRequested = false;
   var fallbackTimer = null;
   var FALLBACK_DELAY = 15000;
+  // Fork patch (optimize/m7642-native-first): legacy WebView builds
+  // (Chromium < 100, e.g. the Chromium 66 that ships in many Android 9 TV
+  // firmware images such as the MStar M7642) routinely fail to produce a
+  // frame for these streams yet never raise an error, so every play and
+  // every episode switch burned the full 15 s fallback wait before Media3
+  // took over. On such WebViews arm the fallback almost immediately
+  // instead: the timer callback still verifies that playback was requested
+  // and that no DOM frame has appeared, so a legacy WebView that does
+  // manage to play keeps the DOM path, and a native failure still falls
+  // back to DOM via the existing error path. Modern WebViews keep the
+  // upstream 15 s behaviour unchanged.
+  var LEGACY_WEBVIEW = (function () {
+    try {
+      var match = /Chrome\/(\d+)/.exec(navigator.userAgent || '');
+      return !!match && Number(match[1]) > 0 && Number(match[1]) < 100;
+    } catch (ignored) { return false; }
+  })();
+  var EFFECTIVE_FALLBACK_DELAY = LEGACY_WEBVIEW ? 50 : FALLBACK_DELAY;
   var fixedNative = false;
   try { nativeEnabled = !!(bridge && bridge.isAvailable && bridge.isAvailable()); } catch (ignored) {}
   try { fixedNative = !!(nativeEnabled && bridge.engine && bridge.engine() === 'mpv'); } catch (ignoredEngine) {}
@@ -46,7 +64,7 @@
     fallbackTimer = setTimeout(function () {
       fallbackTimer = null;
       if (!usingNative && !nativeAttempted && state.source && !state.paused && (!state.started || !domHasFrame())) startNativeFallback(false);
-    }, FALLBACK_DELAY);
+    }, EFFECTIVE_FALLBACK_DELAY);
   }
   function notifyPlaybackActive(active) {
     try {
