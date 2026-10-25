@@ -14,7 +14,7 @@
   if (window.__linuxPlaybackProbe) return;
   window.__linuxPlaybackProbe = true;
   var report = { ok: false, engine: 'Wails 2 / WebKitGTK', userAgent: navigator.userAgent,
-    series_id: '7696023326375808024', steps: [], events: [], requests: [] };
+    series_id: '7697574151787121726', steps: [], events: [], requests: [] };
   var video = document.getElementById('hero-video');
   var automaticNext = window.HongguoLinuxProbeAutoNext === true;
   report.automaticNext = automaticNext;
@@ -27,11 +27,12 @@
     var relevant = /\/api\/v1\/(?:play\/info|series\/detail)(?:\?|$)/.test(url);
     return originalFetch.apply(this, arguments).then(function (response) {
       if (relevant) {
-        var entry = { endpoint: url.indexOf('/play/info') >= 0 ? 'play/info' : 'series/detail', status: response.status };
+        var entry = { endpoint: url.indexOf('/play/info') >= 0 ? 'play/info' : 'series/detail', status: response.status, target: url.indexOf(report.series_id) >= 0 };
         report.requests.push(entry);
         response.clone().json().then(function (body) {
           var data = body.data || body;
           entry.ok = body.ok;
+          if (!body.ok) entry.error = String(body.message || body.error || '').replace(/https?:\/\/\S+/g, '[URL omitted]').slice(0, 200);
           if (entry.endpoint === 'play/info') {
             entry.mode = data.mode || null;
             entry.vid = data.vid || null;
@@ -84,6 +85,8 @@
     var deadline = performance.now() + timeout;
     while (performance.now() < deadline) {
       if (condition()) return;
+      var failed = report.requests.filter(function (request) { return request.target && request.status >= 400; })[0];
+      if (failed) throw new Error(label + ': ' + failed.endpoint + ' HTTP ' + failed.status + ' ' + (failed.error || ''));
       if (video.error) throw new Error(label + ': MediaError ' + video.error.code);
       await sleep(200);
     }
@@ -100,9 +103,9 @@
     try {
       // The normal shell/API/account startup must finish before card launch.
       await sleep(4000);
-      if (!window.HongguoTV.openHomeProgram({ series_id: report.series_id, title: '神豪外挂第一季' })) throw new Error('card launch rejected');
+      if (!window.HongguoTV.openHomeProgram({ series_id: report.series_id, title: '灵葫仙缘：葫中藏尽世间粮' })) throw new Error('card launch rejected');
       await waitFor('episode 1 metadata', function () {
-        return isEpisodeSource('7696024766267804697') && text('.hero-title') === '神豪外挂第一季' && /第1集/.test(text('#hero-top-episode')) &&
+        return isEpisodeSource('7697626904827792409') && text('.hero-title') === '灵葫仙缘：葫中藏尽世间粮' && /第1集/.test(text('#hero-top-episode')) &&
           video.videoWidth > 0 && video.readyState >= 2;
       }, 100000);
       await sleep(700);
@@ -116,7 +119,7 @@
         report.initialUserPlay = await send('activate', {});
       }
       await waitFor('episode 1 first decoded picture', function () {
-        return isEpisodeSource('7696024766267804697') && text('.hero-title') === '神豪外挂第一季' && /第1集/.test(text('#hero-top-episode')) &&
+        return isEpisodeSource('7697626904827792409') && text('.hero-title') === '灵葫仙缘：葫中藏尽世间粮' && /第1集/.test(text('#hero-top-episode')) &&
           video.videoWidth > 0 && video.readyState >= 2 && video.currentTime > 2 && !video.paused;
       }, 40000);
       var first = await capture('first-a');
@@ -143,7 +146,7 @@
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
       }
       await waitFor('episode 2 decoded picture', function () {
-        return isEpisodeSource('7696024585514257433') && /第2集/.test(text('#hero-top-episode')) && video.currentSrc !== oldSource &&
+        return isEpisodeSource('7697626981172513817') && /第2集/.test(text('#hero-top-episode')) && video.currentSrc !== oldSource &&
           video.videoWidth > 0 && video.currentTime > 2 && video.readyState >= 2 && !video.paused;
       }, 100000);
       var second = await capture('second-a');
