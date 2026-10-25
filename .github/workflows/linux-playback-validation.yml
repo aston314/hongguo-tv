@@ -2,6 +2,15 @@ name: Linux playback validation
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing public Linux release to test (empty builds a local probe)
+        type: string
+        default: ''
+      automatic_next:
+        description: Let the episode end naturally and verify automatic continuation
+        type: boolean
+        default: false
   push:
     branches: [codex/linux-playback-validation]
 
@@ -36,12 +45,37 @@ jobs:
           mkdir -p "$HONGGUO_PROBE_OUTPUT" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME"
           { uname -a; pkg-config --modversion gtk+-3.0 webkit2gtk-4.1; gst-inspect-1.0 --version; gst-inspect-1.0 avdec_h265; gst-inspect-1.0 avdec_aac; } > "$HONGGUO_PROBE_OUTPUT/environment.txt"
       - name: Build actual Go core and opt-in Wails probe
+        if: github.event_name != 'workflow_dispatch' || inputs.release_tag == ''
         run: |
           node --check scripts/linux_playback_probe.js
           go build -ldflags '-X main.version=linux-playback-validation' -o "$HONGGUO_CORE_PATH" ./core/cmd/hongguotv
           node desktop/frontend/build.mjs
           cd desktop
           go test -c -tags 'production,webkit2_41,linux_playback_probe' -o "$RUNNER_TEMP/linux-playback-probe"
+      - name: Download and verify the published AppImage
+        if: github.event_name == 'workflow_dispatch' && inputs.release_tag != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HONGGUO_AUDIT_TAG: ${{ inputs.release_tag }}
+        run: |
+          [[ "$HONGGUO_AUDIT_TAG" =~ ^linux-v[0-9]+\.[0-9]+\.[0-9]+-test\.1$ ]]
+          version="${HONGGUO_AUDIT_TAG#linux-v}"
+          version="${version%-test.1}"
+          filename="hongguo-desktop-$version-x86_64.AppImage"
+          mkdir -p "$RUNNER_TEMP/published-appimage"
+          gh release download "$HONGGUO_AUDIT_TAG" --repo aston314/hongguo-tv-releases \
+            --pattern "$filename" --pattern "$filename.sha256" --dir "$RUNNER_TEMP/published-appimage"
+          (cd "$RUNNER_TEMP/published-appimage" && sha256sum --check "$filename.sha256")
+          chmod +x "$RUNNER_TEMP/published-appimage/$filename"
+          echo "HONGGUO_AUDIT_BINARY=$RUNNER_TEMP/published-appimage/$filename" >> "$GITHUB_ENV"
+          echo 'HONGGUO_PROBE_REQUIRE_AUTOPLAY=1' >> "$GITHUB_ENV"
+          echo 'HONGGUO_PROBE_APPIMAGE=1' >> "$GITHUB_ENV"
+      - name: Select automatic continuation coverage
+        if: inputs.automatic_next
+        run: |
+          { echo 'window.HongguoLinuxProbeAutoNext = true;'; cat scripts/linux_playback_probe.js; } > "$RUNNER_TEMP/linux-autonext-probe.js"
+          node --check "$RUNNER_TEMP/linux-autonext-probe.js"
+          echo "HONGGUO_PROBE_JS=$RUNNER_TEMP/linux-autonext-probe.js" >> "$GITHUB_ENV"
       - name: Run real desktop window with live Hongguo media
         run: |
           xvfb-run -a -s '-screen 0 1280x800x24' dbus-run-session -- bash -c '
@@ -50,7 +84,12 @@ jobs:
             pulseaudio --start --exit-idle-time=-1
             pactl load-module module-null-sink sink_name=linux_probe >/dev/null
             pactl set-default-sink linux_probe
-            "$RUNNER_TEMP/linux-playback-probe" -test.run "^TestLinuxPlaybackProbe$" -test.v -test.timeout 7m
+            if [ -n "${HONGGUO_AUDIT_BINARY:-}" ]; then
+              unset HONGGUO_CORE_PATH
+              "$HONGGUO_AUDIT_BINARY" --appimage-extract-and-run --linux-playback-self-test
+            else
+              "$RUNNER_TEMP/linux-playback-probe" -test.run "^TestLinuxPlaybackProbe$" -test.v -test.timeout 7m
+            fi
           ' > "$RUNNER_TEMP/linux-playback-private.log" 2>&1
       - name: Retain sanitized native diagnostics
         if: always()

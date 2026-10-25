@@ -16,6 +16,8 @@
   var report = { ok: false, engine: 'Wails 2 / WebKitGTK', userAgent: navigator.userAgent,
     series_id: '7696023326375808024', steps: [], events: [], requests: [] };
   var video = document.getElementById('hero-video');
+  var automaticNext = window.HongguoLinuxProbeAutoNext === true;
+  report.automaticNext = automaticNext;
   var started = performance.now(), presented = 0, lastPTS = null, sourceNumber = 0, lastSource = '';
   var originalFetch = window.fetch, mediaPaths = Object.create(null);
   // Keep status/mode evidence without retaining signed URLs, response bodies,
@@ -118,6 +120,7 @@
           video.videoWidth > 0 && video.readyState >= 2 && video.currentTime > 2 && !video.paused;
       }, 40000);
       var first = await capture('first-a');
+      if (first.muted || first.volume <= 0) throw new Error('episode 1 unexpectedly muted');
       await sleep(3500);
       var later = await capture('first-b');
       if (later.time - first.time < 2 || later.source !== first.source) throw new Error('episode 1 did not continue playing');
@@ -131,15 +134,23 @@
       }, 45000);
       await capture('after-seek');
       var oldSource = video.currentSrc;
-      document.getElementById('hero-feed-focus').focus();
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      if (automaticNext) {
+        // Seek near the end, then let the media element emit its real ended
+        // event. Never inject ended, change mute, or send a user play gesture.
+        video.currentTime = Math.max(0, video.duration - 2);
+      } else {
+        document.getElementById('hero-feed-focus').focus();
+        document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      }
       await waitFor('episode 2 decoded picture', function () {
         return isEpisodeSource('7696024585514257433') && /第2集/.test(text('#hero-top-episode')) && video.currentSrc !== oldSource &&
           video.videoWidth > 0 && video.currentTime > 2 && video.readyState >= 2 && !video.paused;
       }, 100000);
       var second = await capture('second-a');
-      await sleep(3500);
+      if (second.muted || second.volume <= 0) throw new Error('episode 2 unexpectedly muted');
+      await sleep(automaticNext ? 20000 : 3500);
       var secondLater = await capture('second-b');
+      if (secondLater.muted || secondLater.volume <= 0) throw new Error('episode 2 became muted while playing');
       if (secondLater.time - second.time < 2 || secondLater.source !== second.source) throw new Error('episode 2 did not continue playing');
       if (presented < 20 && secondLater.decodedFrames < 20) throw new Error('no decoded/presented frame evidence');
       report.ok = true;
