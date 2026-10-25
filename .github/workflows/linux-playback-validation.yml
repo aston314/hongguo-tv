@@ -40,8 +40,8 @@ jobs:
             desktop/go.sum
       - name: Install native WebKitGTK and media dependencies
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev gstreamer1.0-tools gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-pulseaudio xvfb xauth dbus-x11 pulseaudio pulseaudio-utils ffmpeg imagemagick python3-pil fonts-noto-cjk openbox xdotool
+          sudo timeout 3m apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 update -qq
+          sudo env DEBIAN_FRONTEND=noninteractive timeout 6m apt-get -o Acquire::Retries=1 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 install -y --no-install-recommends build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev gstreamer1.0-tools gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-pulseaudio xvfb xauth dbus-x11 pulseaudio pulseaudio-utils ffmpeg imagemagick python3-pil fonts-noto-cjk openbox xdotool
           mkdir -p "$HONGGUO_PROBE_OUTPUT" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME"
           { uname -a; pkg-config --modversion gtk+-3.0 webkit2gtk-4.1; gst-inspect-1.0 --version; gst-inspect-1.0 avdec_h265; gst-inspect-1.0 avdec_aac; } > "$HONGGUO_PROBE_OUTPUT/environment.txt"
       - name: Build actual Go core and opt-in Wails probe
