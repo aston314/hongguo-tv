@@ -130,3 +130,11 @@ test('speaker output latency is compensated at handoff rather than causing repea
   await f.advance(2000);assert.equal(f.native.rate,2);assert.deepEqual(f.failures,[]);assert(Math.abs(f.controller.diagnostics().sync_error_ms)<1);
   assert.equal(f.controller.diagnostics().output_latency_ms,100);assert.equal(f.workers[0].messages.filter(m=>m.type==='reset').length,1);f.controller.destroy();
 });
+test('a local audio decode failure retries the existing Service audio route once',async()=>{
+  const f=fixture();let localCalls=0,fallbackCalls=0,decodes=0;
+  f.options.requestAudio=async()=>{localCalls++;return {...f.data,local:true};};
+  f.options.requestAudioFallback=async()=>{fallbackCalls++;return {...f.data,local:false};};
+  f.options.decode=async()=>{decodes++;if(decodes===1)throw Error('WEB_AUDIO_DECODE');return {channels:[new Float32Array(24000)],sampleRate:24000};};
+  f.controller.sourceChanged(source(1));f.controller.setRate(2);await f.flush();await f.advance(180);
+  assert.equal(localCalls,1);assert.equal(fallbackCalls,1);assert.equal(decodes,2);assert.equal(f.native.rate,2);assert.equal(f.native.muted,true);assert.deepEqual(f.failures,[]);f.controller.destroy();
+});

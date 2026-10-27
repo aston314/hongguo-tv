@@ -89,7 +89,19 @@
         readNativeRate: function () { return rawRate.get.call(video); },
         setNativeRate: function (value) { if (rawRate.get.call(video) !== value) rawRate.set.call(video, value); if (rawDefault.get.call(video) !== value) rawDefault.set.call(video, value); },
         setNativeMuted: function (value) { if (rawMuted.get.call(video) !== value) rawMuted.set.call(video, value); },
-        requestAudio: requestAudio, decode: decode,
+        requestAudio: function (media, signal) {
+          // Prefer reading the audio track from the local decrypted proxy with single ranges; some CDN edges
+          // answer the Service's multi-range request in a format it cannot parse (BATCH_BOUNDARY).
+          var local = window.HongguoWebOSLocalAudio;
+          if (!local) return requestAudio(media, signal);
+          return local.extract(media, signal).then(function (audio) {
+            audio.local = true;
+            return audio;
+          }).catch(function (error) {
+            if (error && error.code === 'WEBOS_AUDIO_CANCELLED') throw error;
+            return requestAudio(media, signal);
+          });
+        }, requestAudioFallback: requestAudio, decode: decode,
         onState: function (data) { var next = data.phase + ':' + data.requested_rate + ':' + data.actual_video_rate; if (next !== stateKey) { stateKey = next; event('webosaudiostate', data); event('ratechange'); } },
         onFallback: function (code) { event('webosaudiofallback', { code: code }); event('ratechange'); }
       });

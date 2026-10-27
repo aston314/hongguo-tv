@@ -8,6 +8,7 @@ node_bin=${NODE:-node}
 "$node_bin" --check "$repo_dir/webos/service/range-media.js"
 "$node_bin" --check "$repo_dir/webos/app/webos-updates.js"
 "$node_bin" --check "$repo_dir/webos/app/webos-audio-controller.js"
+"$node_bin" --check "$repo_dir/webos/app/webos-audio-local.js"
 "$node_bin" --check "$repo_dir/webos/app/webos-audio.js"
 "$node_bin" --check "$repo_dir/webos/app/webos-audio-worker.js"
 "$node_bin" --check "$repo_dir/webos/app/webos-wsola.js"
@@ -71,6 +72,7 @@ NODE
 "$node_bin" "$repo_dir/webos/service/provider.test.js"
 "$node_bin" "$repo_dir/webos/service/search-season.test.js"
 "$node_bin" --test "$repo_dir/tests/webos-prefetch-recovery.test.cjs"
+"$node_bin" --test "$repo_dir/tests/webos-audio-controller.test.cjs" "$repo_dir/tests/webos-audio-local.test.cjs"
 "$node_bin" "$repo_dir/webos/service/media-cache.test.js"
 "$node_bin" "$repo_dir/webos/service/updates.test.js"
 "$node_bin" "$repo_dir/webos/service/range-media.test.js"
@@ -103,8 +105,10 @@ if (adapter.indexOf("var SERVICE_MODE = \"http-direct\";") < 0 || adapter.indexO
 if (fs.existsSync(path.join(root, 'app', 'webos-stage-manifest.json')) === false) throw new Error('staging manifest missing');
 var html = fs.readFileSync(path.join(root, 'app', 'index.html'), 'utf8');
 var controllerAt = html.indexOf('src="./webos-audio-controller.js"');
+var localAt = html.indexOf('src="./webos-audio-local.js"');
 var audioAt = html.indexOf('src="./webos-audio.js"');
-if (controllerAt < 0 || audioAt <= controllerAt || audioAt >= html.indexOf('src="./app.js"')) throw new Error('webOS audio modules must load before the shared application');
+if (controllerAt < 0 || localAt <= controllerAt || audioAt <= localAt || audioAt >= html.indexOf('src="./app.js"')) throw new Error('webOS audio modules must load before the shared application');
+if (!fs.existsSync(path.join(root, 'app', 'webos-audio-local.js'))) throw new Error('webOS local audio asset missing');
 ['webos-audio-worker.js', 'webos-wsola.js'].forEach(function (file) { if (!fs.existsSync(path.join(root, 'app', file))) throw new Error('audio worker asset missing'); });
 ['audio-media.js', 'audio-range.js', 'audio-cancel.js', 'audio-multipart.js'].forEach(function (file) { if (!fs.existsSync(path.join(root, 'service', file))) throw new Error('audio service asset missing'); });
 if (fs.readFileSync(path.join(root, 'app', 'webos-simulator-config.js'), 'utf8').indexOf('http://127.0.0.1:17658/report') < 0) throw new Error('staging report URL was not injected');

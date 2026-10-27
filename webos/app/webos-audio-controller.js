@@ -7,6 +7,20 @@
     var context = null, gain = null, request = null, preparing = false, armed = false, phase = 'idle', errorCode = '';
     var timer = null, watchdog = null, resumeGuard = null, handoff = null, outputGuard = null, activating = false, pending = null, nodes = [], waiting = false, realignments = 0;
     var timeline = null, scheduledAt = 0, pcmRate = 0, pcmBytes = 0, duration = 0, syncError = 0;
+    // LG webOS reports video.currentTime in 0.2-0.4 s steps and briefly stalls (then steps back) when the
+    // native rate changes. Measured on an OLED65C5 (webOS 25): a 0.12 s tolerance checked every 60 ms
+    // misfires even when picture and sound are aligned. So: interpolate between steps, tolerate 0.25 s,
+    // and let the first 2 s after a native rate change settle before re-anchoring once.
+    var SYNC_TOLERANCE = .25, SETTLE_SECONDS = 2, REALIGN_LIMIT = 6, REALIGN_DECAY = 8;
+    var clock = { last: -1, t: 0, wall: 0 }, settleUntil = 0, settlePending = false, lastRealignAt = 0;
+    function wallSeconds() { return (root.performance && root.performance.now ? root.performance.now() : Date.now()) / 1000; }
+    function videoTime() {
+      var t = Number(video.currentTime), w = wallSeconds();
+      if (t !== clock.last) { clock.last = t; clock.t = t; clock.wall = w; }
+      if (video.paused || waiting || video.seeking) return t;
+      return clock.t + Math.min(.6, w - clock.wall) * options.readNativeRate();
+    }
+    function startSettle() { if (context) { settleUntil = context.currentTime + SETTLE_SECONDS; settlePending = true; } }
     function current(id) { return !destroyed && foreground && id === generation && rate !== 1 && !!path; }
     function notify() { if (options.onState) options.onState({ phase: phase, requested_rate: rate, actual_video_rate: options.readNativeRate(), audio_active: routeReady }); }
     function playing() { return !video.paused && !video.ended && !video.seeking && video.readyState >= 2 && !waiting; }
@@ -62,11 +76,13 @@
       scheduledAt = context.currentTime + .15;
       // Native video changes speed at handoff; the speaker hears this PCM
       // one output-latency later. Predict both intervals, not just queue time.
-      timeline = { when: scheduledAt, position: Number(video.currentTime) + .15 * options.readNativeRate() + outputDelay() * rate, rate: rate };
+      timeline = { when: scheduledAt, position: videoTime() + .15 * options.readNativeRate() + outputDelay() * rate, rate: rate };
       worker.postMessage({ type: 'reset', epoch: epoch, position: timeline.position, rate: rate });
     }
     function realign() {
-      if (++realignments > 3) { fallback('WEB_AUDIO_TOO_SLOW'); return; }
+      if (context && context.currentTime - lastRealignAt > REALIGN_DECAY) realignments = 0;
+      lastRealignAt = context ? context.currentTime : 0;
+      if (++realignments > REALIGN_LIMIT) { fallback('WEB_AUDIO_TOO_SLOW'); return; }
       resetTimeline();
     }
     function pump() {
@@ -76,8 +92,9 @@
       if (!timeline) return;
       var now = context.currentTime;
       var audible = Math.max(0, now - outputDelay());
-      syncError = timeline.position + (audible - timeline.when) * timeline.rate - Number(video.currentTime);
-      if (routeReady && audible >= timeline.when && Math.abs(syncError) > .12) realign();
+      syncError = timeline.position + (audible - timeline.when) * timeline.rate - videoTime();
+      if (settlePending && routeReady && now >= settleUntil) { settlePending = false; realignments = 0; resetTimeline(); schedule(); return; }
+      if (routeReady && audible >= timeline.when && now >= settleUntil && Math.abs(syncError) > SYNC_TOLERANCE) realign();
       if (!timeline) return;
       if (routeReady && now > scheduledAt + .2) { fallback('WEB_AUDIO_UNDERRUN'); return; }
       if (!pending && scheduledAt < now + .35 && nodes.length < 4) {
@@ -120,7 +137,7 @@
             if (!current(id) || outputEpoch !== epoch || !playing()) return;
             if (context.currentTime - planned.when > .06) { realign(); pump(); return; }
             try {
-              routeReady = true; phase = 'playing'; nativeState(); volume();
+              routeReady = true; phase = 'playing'; nativeState(); volume(); startSettle();
               if (watchdog !== null) clear(watchdog); watchdog = null;
               notify(); pump();
             } catch (error) { fallback('VIDEO_RATE_UNSUPPORTED'); }
@@ -168,12 +185,23 @@
         if (context.state !== 'running') Promise.resolve(context.resume()).catch(function () {});
         request = options.createAbort ? options.createAbort() : null;
         watchdog = timeout(function () { if (current(id)) fallback('WEBOS_AUDIO_TIMEOUT'); }, 20000);
+        function decodeAudio(audio) {
+          return options.decode(audio.data, function () { return current(id); }).catch(function (error) {
+            // A local MP4 extraction can be structurally valid while a particular WebOS decoder
+            // rejects the generated ADTS. Give the existing Service endpoint one chance before
+            // falling back to audible 1x.
+            if (!audio.local || !options.requestAudioFallback || !current(id)) throw error;
+            return Promise.resolve(options.requestAudioFallback(path, request && request.signal)).then(function (fallbackAudio) {
+              return options.decode(fallbackAudio.data, function () { return current(id); });
+            });
+          });
+        }
         Promise.resolve(options.requestAudio(path, request && request.signal)).then(function (audio) {
           if (!current(id)) return null;
           var bytes = Number(audio.data && audio.data.byteLength), estimated = Number(audio.duration) * Number(audio.channels) * (options.decodeRate || 24000) * 4;
           if (!bytes || bytes > 10 * 1024 * 1024 || !isFinite(estimated) || estimated <= 0 || estimated > 64 * 1024 * 1024) throw new Error('AUDIO_MEMORY_LIMIT');
           duration = Number(audio.duration);
-          return options.decode(audio.data, function () { return current(id); });
+          return decodeAudio(audio);
         }).then(function (decoded) {
           if (!current(id) || !decoded) return;
           var channels = decoded.channels || [], total = channels.reduce(function (n, channel) { return n + channel.byteLength; }, 0);
@@ -196,7 +224,7 @@
       if (rate === value) { if (value !== 1) prepare(); return; }
       rate = value;
       if (value === 1) { cancel(); phase = 'idle'; if (context && context.suspend) context.suspend().catch(function () {}); notify(); return; }
-      if (routeReady) { try { nativeState(); realignments = 0; resetTimeline(); notify(); pump(); } catch (error) { fallback('VIDEO_RATE_UNSUPPORTED'); } }
+      if (routeReady) { try { nativeState(); realignments = 0; startSettle(); resetTimeline(); notify(); pump(); } catch (error) { fallback('VIDEO_RATE_UNSUPPORTED'); } }
       else prepare();
     }
     function setMuted(value) { muted = !!value; nativeState(); volume(); }
