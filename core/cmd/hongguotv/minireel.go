@@ -85,7 +85,7 @@ var miniReelState = struct {
 }{jobs: make(map[string]*miniReelMediaJob)}
 
 // plan/v is a metadata endpoint and keeps its existing process identity. This
-// must not be reused for video_model, whose device identity is one-shot.
+// unregistered identity must not be used for video_model.
 var miniReelSeasonIdentity = struct {
 	sync.Once
 	deviceID  string
@@ -94,12 +94,19 @@ var miniReelSeasonIdentity = struct {
 
 var errMiniReelVideoModelEmpty = errors.New("MiniReel video_model response is empty")
 
-// A video_model request consumes its device identity at the upstream. Keep the
-// static app profile stable, but never reuse these per-request identifiers.
+// Since 2026-10-26 video_model answers 200 with an empty body unless the
+// device identity came from device_register. A registered identity can be
+// reused, so keep one per process and replace it only after an empty response.
 type miniReelDevice struct {
 	deviceID  string
 	installID string
 }
+
+var miniReelRegistration = struct {
+	sync.Mutex
+	base   string
+	device miniReelDevice
+}{base: passportDeviceAPI}
 
 func handleMiniReelResolve(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -634,7 +641,8 @@ func miniReelNativeOptions(ctx context.Context, vid string) ([]miniReelOption, e
 func miniReelNativeOptionsEndpoint(ctx context.Context, vid, endpoint string) ([]miniReelOption, error) {
 	var lastErr error
 	for attempt := 0; attempt < miniReelVideoModelAttempts; attempt++ {
-		options, err := miniReelNativeOptionsAttempt(ctx, vid, endpoint, miniReelFreshDevice())
+		device := miniReelPlaybackDevice(ctx)
+		options, err := miniReelNativeOptionsAttempt(ctx, vid, endpoint, device)
 		if err == nil {
 			return options, nil
 		}
@@ -642,6 +650,7 @@ func miniReelNativeOptionsEndpoint(ctx context.Context, vid, endpoint string) ([
 		if !errors.Is(err, errMiniReelVideoModelEmpty) {
 			return nil, err
 		}
+		miniReelDropDevice(device)
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
@@ -763,6 +772,35 @@ func miniReelRandomID() string {
 		return strconv.FormatInt(time.Now().UnixNano(), 10)
 	}
 	return strconv.FormatUint(binary.BigEndian.Uint64(buf)%8000000000000000000+1000000000000000000, 10)
+}
+
+func miniReelPlaybackDevice(ctx context.Context) miniReelDevice {
+	miniReelRegistration.Lock()
+	defer miniReelRegistration.Unlock()
+	if miniReelRegistration.device.deviceID != "" {
+		return miniReelRegistration.device
+	}
+	d, err := newPassportDevice()
+	if err == nil {
+		c := newPassportClient(accountSession{Device: d, Cookies: map[string]string{}})
+		c.deviceBase = miniReelRegistration.base
+		if err = c.registerDevice(ctx); err == nil {
+			miniReelRegistration.device = miniReelDevice{deviceID: c.session.DeviceID, installID: c.session.InstallID}
+			return miniReelRegistration.device
+		}
+	}
+	// Some ad-blocking DNS lists block device_register; an unregistered
+	// identity still ends in the existing empty-response error.
+	log.Printf("[minireel] device registration failed, using unregistered identity: %v", err)
+	return miniReelFreshDevice()
+}
+
+func miniReelDropDevice(device miniReelDevice) {
+	miniReelRegistration.Lock()
+	defer miniReelRegistration.Unlock()
+	if miniReelRegistration.device == device {
+		miniReelRegistration.device = miniReelDevice{}
+	}
 }
 
 func miniReelFreshDevice() miniReelDevice {
