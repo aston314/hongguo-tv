@@ -4561,6 +4561,17 @@
       }
       var hasHeldFrame = document.getElementById('hero').classList.contains('is-episode-cover') ||
         document.getElementById('hero-last-frame').classList.contains('is-visible');
+      // Standard HTML5 can show the captured previous frame underneath the
+      // target episode cover. Let the real target frame paint first, then
+      // fade that cover away. webOS keeps its own transition path because its
+      // single HTML5 element is coordinated with the Luna/Range service.
+      if ((typeof webosShell === 'undefined' || !webosShell) && !nativePlaybackActive() && hero.classList.contains('is-episode-transition') &&
+          hero.classList.contains('is-episode-cover')) {
+        presentation.revealing = true;
+        hero.classList.add('is-native-frame-revealing');
+        presentation.revealTimer = setTimeout(complete, 180);
+        return;
+      }
       if (isNativeMedia3PlaybackActive() && playback.preserveNativeTransition && hasHeldFrame && !presentation.progressed) {
         presentation.pending = false;
         return;
@@ -4732,7 +4743,8 @@
       // was captured; otherwise keep the poster/episode cover over the reset.
       if (playbackEngineName() !== 'mpv' && !capturedLastFrame) keepRangeFrame = false;
     } else clearLastPlaybackFrame();
-    var keepEpisodeCover = playbackEngineName() === 'mpv' || !sameSeries || nativeAtSwitch || !capturedLastFrame;
+    var keepEpisodeCover = playbackEngineName() === 'mpv' || !sameSeries || nativeAtSwitch || !capturedLastFrame ||
+      ((typeof webosShell === 'undefined' || !webosShell) && !nativeAtSwitch && capturedLastFrame);
     var generation = ++feedGeneration;
     if (autoCinemaCandidate && autoCinemaGeneration && generation !== autoCinemaGeneration) cancelPendingAutoCinema();
     holdPlaybackAudio(generation);
