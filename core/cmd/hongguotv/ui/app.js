@@ -2406,6 +2406,10 @@
       use.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', '#' + icon);
     }
   }
+  function playbackSpeedAvailable() {
+    var audio = webosShell && window.HongguoWebOSAudio;
+    return !webosShell || !!(audio && audio.supported && audio.isEnabled());
+  }
   function updatePlaybackControls() {
     var video = document.getElementById('hero-video');
     var duration = Number.isFinite(video.duration) ? video.duration : 0;
@@ -2426,8 +2430,9 @@
     }
     var speedButton = document.querySelector('[data-action="speed"]');
     if (speedButton) {
-      speedButton.classList.toggle('is-hidden', webosShell);
-      if (webosShell) {
+      var speedHidden = !playbackSpeedAvailable();
+      speedButton.classList.toggle('is-hidden', speedHidden);
+      if (speedHidden) {
         speedButton.tabIndex = -1;
         speedButton.setAttribute('aria-hidden', 'true');
       } else {
@@ -2458,14 +2463,9 @@
       if (/^[1-9][0-9]{2,3}P$/.test(saved.quality || '')) playbackPreferences.quality = saved.quality;
       danmakuEnabled = saved.danmaku === true; playbackPreferences.danmaku = danmakuEnabled;
     } catch (error) { /* Invalid preferences fall back to normal playback. */ }
-    if (webosShell) {
-      // The webOS audible-speed experiment is paused while its startup and
-      // transition behavior is being repaired. Normalize both old local state
-      // and the current player to ordinary 1x playback.
-      playbackPreferences.speed = 1;
-      var webosAudio = window.HongguoWebOSAudio;
-      if (webosAudio && typeof webosAudio.choose === 'function') webosAudio.choose(false);
-    }
+    // Keep native webOS playback at audible 1x unless the user has opted in.
+    // An enabled experiment restores its saved speed through the audio controller.
+    if (!playbackSpeedAvailable()) playbackPreferences.speed = 1;
     var video = document.getElementById('hero-video');
     document.querySelector('[data-action="volume"]').classList.toggle('is-hidden', androidShell);
     if (androidShell) {
@@ -2733,7 +2733,7 @@
   }
   function openPlayerOptions(kind, entry) {
     if (!isPlaybackPage()) return;
-    if (kind === 'speed' && webosShell) return;
+    if (kind === 'speed' && !playbackSpeedAvailable()) return;
     if (kind === 'quality' && (!activePlayback || !document.getElementById('hero-video').getAttribute('src'))) { showNotice(uiText('ui.selectQualityHint', '视频准备好后可选择清晰度')); return; }
     if (kind === 'send-danmaku' && !playbackSnapshot()) { showNotice(uiText('ui.sendDanmakuHint', '开始播放后可发送弹幕')); return; }
     if (playerOptionsOpen) closePlayerOptions(false);
@@ -7640,12 +7640,8 @@
   });
   media.addEventListener('webosaudioenabledchange', function (event) {
     if (!webosShell) return;
-    if (event.detail && event.detail.enabled && window.HongguoWebOSAudio && typeof window.HongguoWebOSAudio.choose === 'function') {
-      // Do not allow an old or external toggle to re-enable the experiment
-      // while its UI is intentionally unavailable.
-      window.HongguoWebOSAudio.choose(false);
-    }
     if (event.detail && !event.detail.enabled) { playbackPreferences.speed = 1; savePlaybackPreferences(); }
+    updateWebOSAudioSettings();
     updatePlaybackControls();
   });
   media.addEventListener('ratechange', updatePlaybackControls);
@@ -7972,14 +7968,22 @@
     if (!autoCinemaPreferences.choose(autoCinemaPreferences.enabled() ? 'disabled' : 'enabled')) showNotice(uiText('settings.saveFailed', '设置未能保存，请重试。'));
   });
   var webosAudio = webosShell && window.HongguoWebOSAudio;
+  function updateWebOSAudioSettings() {
+    var audio = webosShell && window.HongguoWebOSAudio;
+    var supported = !!(audio && audio.supported);
+    document.getElementById('webos-audio-settings').classList.toggle('is-hidden', !supported);
+    if (!supported) return;
+    var toggle = document.getElementById('webos-audio-toggle');
+    var enabled = audio.isEnabled();
+    toggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
+    toggle.textContent = enabled ? uiText('settings.autoCinemaEnabled', '已开启') : uiText('settings.autoCinemaDisabled', '已关闭');
+  }
+  updateWebOSAudioSettings();
   if (webosAudio && webosAudio.supported) {
-    var webosAudioToggle = document.getElementById('webos-audio-toggle');
-    // Keep the experiment code available for later repair, but remove its
-    // settings surface and clear any value saved by an older build.
-    document.getElementById('webos-audio-settings').classList.add('is-hidden');
-    webosAudioToggle.tabIndex = -1;
-    webosAudioToggle.setAttribute('aria-hidden', 'true');
-    webosAudio.choose(false);
+    document.getElementById('webos-audio-toggle').addEventListener('click', function () {
+      if (!webosAudio.choose(!webosAudio.isEnabled())) showNotice(uiText('settings.saveFailed', '设置未能保存，请重试。'));
+      updateWebOSAudioSettings();
+    });
   }
   var licenses = document.getElementById('app-open-licenses');
   if (window.HongguoNativePlayer && window.HongguoNativePlayer.showLicenses) {
