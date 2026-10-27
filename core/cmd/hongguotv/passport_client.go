@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -58,7 +59,68 @@ func newPassportClient(session accountSession) *passportClient {
 	if copy.Registered {
 		copy.Cookies["install_id"] = copy.InstallID
 	}
-	return &passportClient{http: &http.Client{Timeout: 25 * time.Second, CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}, base: passportAPI, deviceBase: passportDeviceAPI, session: copy}
+	return &passportClient{http: &http.Client{Transport: passportTransport, Timeout: 25 * time.Second, CheckRedirect: func(r *http.Request, via []*http.Request) error { return http.ErrUseLastResponse }}, base: passportAPI, deviceBase: passportDeviceAPI, session: copy}
+}
+
+// Ad-blocking DNS often sinkholes log.snssdk.com to 0.0.0.0, which breaks
+// device_register and therefore playback. Only then ask a public resolver:
+// Cloudflare first, AliDNS when Cloudflare is unreachable (mainland China).
+var passportPublicDNS = []string{"1.1.1.1:53", "223.5.5.5:53"}
+
+func passportPublicLookup(ctx context.Context, host string) ([]net.IP, error) {
+	lastErr := errors.New("no public address for " + host)
+	for _, server := range passportPublicDNS {
+		resolver := &net.Resolver{PreferGo: true, Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			return (&net.Dialer{}).DialContext(ctx, "udp", server)
+		}}
+		lookupCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		ips, err := resolver.LookupIP(lookupCtx, "ip4", host)
+		cancel()
+		if err == nil && len(ips) > 0 {
+			return ips, nil
+		}
+		if err != nil {
+			lastErr = err
+		}
+	}
+	return nil, lastErr
+}
+
+var passportTransport = func() *http.Transport {
+	t := http.DefaultTransport.(*http.Transport).Clone()
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	t.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+		host, port, err := net.SplitHostPort(addr)
+		if err != nil {
+			return dialer.DialContext(ctx, network, addr)
+		}
+		if ips, err := net.DefaultResolver.LookupIP(ctx, "ip", host); err == nil && !allUnspecifiedIPs(ips) {
+			return dialer.DialContext(ctx, network, addr)
+		}
+		ips, err := passportPublicLookup(ctx, host)
+		if err != nil {
+			return nil, err
+		}
+		var lastErr error
+		for _, ip := range ips {
+			conn, err := dialer.DialContext(ctx, network, net.JoinHostPort(ip.String(), port))
+			if err == nil {
+				return conn, nil
+			}
+			lastErr = err
+		}
+		return nil, lastErr
+	}
+	return t
+}()
+
+func allUnspecifiedIPs(ips []net.IP) bool {
+	for _, ip := range ips {
+		if !ip.IsUnspecified() {
+			return false
+		}
+	}
+	return true
 }
 
 func passportQuery(s accountSession) url.Values {
