@@ -367,6 +367,8 @@
   var diagnosticEpoch = 0;
   var diagnosticRequest = null;
   var controlsTimer = null;
+  var controlsManuallyHidden = false;
+  var playbackFeedback = null;
   var rangeTransitionTimer = null;
   var rangeStallTimer = null;
   var lastPlaybackControl = null;
@@ -2332,6 +2334,7 @@
     controlsTimer = setTimeout(function () { hideControls(); }, 4000);
   }
   function revealControls() {
+    controlsManuallyHidden = false;
     shell.classList.remove('is-controls-hidden');
     scheduleControlsHide();
   }
@@ -2795,7 +2798,11 @@
     updatePlaybackControls(); if (reveal !== false) revealControls();
     return true;
   }
-  function seekBy(delta, reveal) { return seekTo(document.getElementById('hero-video').currentTime + delta, reveal); }
+  function seekBy(delta, reveal) {
+    var changed = seekTo(document.getElementById('hero-video').currentTime + delta, reveal);
+    if (changed && delta) showPlaybackFeedback(delta < 0 ? 'back' : 'forward');
+    return changed;
+  }
   function syncNativePlayerBounds() {
     var adapter = window.HongguoNativePlaybackAdapter;
     if (adapter && typeof adapter.syncBounds === 'function') adapter.syncBounds();
@@ -6958,11 +6965,25 @@
     startPlayer(item, returnFocus);
   }
 
+  function showPlaybackFeedback(action) {
+    if (!desktopShell || !window.HongguoPlaybackPointer) return;
+    try {
+      if (!playbackFeedback) playbackFeedback = window.HongguoPlaybackPointer.createFeedback(document.getElementById('hero'));
+      playbackFeedback.show(action);
+    } catch (error) {
+      // A cosmetic overlay must never interrupt media controls or be reported
+      // as a playback failure after video.play() has already succeeded.
+      console.warn('Playback feedback unavailable:', error);
+    }
+  }
   function toggleVideo() {
     var video = document.getElementById('hero-video');
     if (!video.src) { showNotice(uiText('content.noOpenDrama', '请先打开一部短剧并选择集数。')); return; }
-    if (video.paused) playMedia(video).catch(function () { showNotice(uiText('content.playerBlocked', '播放被设备阻止，请再次确认。')); });
-    else video.pause();
+    var feedbackSource = video.src;
+    if (video.paused) playMedia(video).then(function () {
+      if (video.src === feedbackSource && !video.paused && isPlaybackPage()) showPlaybackFeedback('play');
+    }).catch(function () { showNotice(uiText('content.playerBlocked', '播放被设备阻止，请再次确认。')); });
+    else { video.pause(); showPlaybackFeedback('pause'); }
   }
 
   function activatePage(item, restoring) {
@@ -7337,6 +7358,27 @@
   });
   document.getElementById('hero-feed-focus').addEventListener('click', toggleVideo);
   installRecommendationGestures();
+  if (desktopShell && window.HongguoPlaybackPointer) {
+    window.HongguoPlaybackPointer.attach(document.getElementById('hero'), {
+      isEnabled: function () {
+        return isPlaybackPage() && !!activePlayback && !applicationInBackground && !applicationHidden() &&
+          !detailModalOpen && !playerOptionsOpen && !confirmOpen && !discussionOpen &&
+          !scanModalOpen() && !supportModalOpen && !accountCountryModalOpen && !accountKeypadOpen() &&
+          !rankFilterOpen && !detailCastOpen && !actorWorksOpen && !playbackCommandMenuOpen &&
+          !(endRecommendations && endRecommendations.isOpen());
+      },
+      onTogglePlayback: toggleVideo,
+      onSeek: function (delta) { seekBy(delta, false); },
+      onToggleControls: function () {
+        if (shell.classList.contains('is-controls-hidden')) revealControls();
+        else {
+          goFocus(document.getElementById('hero-feed-focus'));
+          hideControls();
+          controlsManuallyHidden = shell.classList.contains('is-controls-hidden');
+        }
+      }
+    });
+  }
   if (desktopShell && window.HongguoEpisodeWheel) {
     window.HongguoEpisodeWheel.attach(document.getElementById('hero'), {
       isEnabled: function () {
@@ -7355,7 +7397,7 @@
     var rect = this.getBoundingClientRect();
     seekTo((event.clientX - rect.left) / rect.width * document.getElementById('hero-video').duration);
   });
-  document.addEventListener(window.PointerEvent ? 'pointermove' : 'mousemove', function (event) { if (isPlaybackPage() && event.target.closest('#hero')) revealControls(); });
+  document.addEventListener(window.PointerEvent ? 'pointermove' : 'mousemove', function (event) { if (!controlsManuallyHidden && isPlaybackPage() && event.target.closest('#hero')) revealControls(); });
   document.addEventListener('fullscreenchange', function () {
     if (document.fullscreenElement) { nativeFullscreen = true; setCinema(true); }
     else if (nativeFullscreen) {
