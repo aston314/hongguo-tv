@@ -19,6 +19,7 @@
       if (!candidate) return;
       candidate.cancelled = true;
       if (candidate.request) candidate.request.abort();
+      cancelCache(candidate);
     }
     function key(info) {
       return [info.series_id, info.vid, info.episode, info.quality || '', info.mode || '', info.generation, info.owner].join(':');
@@ -26,12 +27,48 @@
     function current(candidate) {
       return !candidate.cancelled && (entry === candidate || candidate.claimed) && !(candidate.request && candidate.request.signal.aborted);
     }
+    function cancelCache(candidate) {
+      var request = candidate && candidate.cacheRequest;
+      if (request) { candidate.cacheRequest = null; request.abort(); }
+    }
+    function suspendCache() {
+      if (entry) { entry.cacheReady = false; cancelCache(entry); }
+    }
+    function startCache(candidate) {
+      if (!options.cache || typeof AbortController !== 'function' || !current(candidate) || candidate.claimed ||
+          !candidate.cacheReady || candidate.cacheAttempted || !candidate.data || candidate.data.mode !== 'range') return;
+      candidate.cacheAttempted = true;
+      var request = new AbortController();
+      candidate.cacheRequest = request;
+      Promise.resolve().then(function () {
+        if (!current(candidate) || candidate.claimed || candidate.cacheRequest !== request) return null;
+        return options.cache(candidate.data, request.signal);
+      }).then(function (data) {
+        if (current(candidate) && !candidate.claimed && candidate.cacheRequest === request && data && data.path &&
+            data.mode === 'full' && data.vid === candidate.target.vid && data.quality === candidate.data.quality) {
+          candidate.data = data;
+          candidate.timing.ready_at = now();
+        }
+      }).catch(function () {
+        // Keep the prepared Range result; this attempt has no retry loop.
+      }).then(function () {
+        if (candidate.cacheRequest === request) candidate.cacheRequest = null;
+      });
+    }
     function maybe(info) {
+      // A pause/buffer/seek may stop timeupdate events. The app also calls
+      // suspendCache at those boundaries, without discarding Range metadata.
+      if (entry) {
+        entry.cacheReady = key(info) === entry.key && info.cache_ready === true && info.active && info.started &&
+          !info.paused && !info.ended && isFinite(info.stable_seconds) && info.stable_seconds >= stableThreshold(info);
+        if (!entry.cacheReady) cancelCache(entry);
+      }
       if (!info.active || !info.started || info.paused || info.ended || !isFinite(info.duration) ||
           !(info.duration > 0) || !isFinite(info.position) || info.position < 0 ||
           !isFinite(info.stable_seconds) || info.stable_seconds < stableThreshold(info)) return;
       var identity = key(info);
       if (entry && entry.key === identity) {
+        startCache(entry);
         if (entry.state === 'failed' && entry.attempts <= maxRetries && now() >= entry.retryAt) run(entry);
         // A long episode may outlive the early prepared URL. Use the same
         // single extra-attempt budget to refresh near the end, while there is
@@ -45,12 +82,15 @@
       }
       cancel();
       var candidate = { key: identity, info: info, target: null, attempts: 0, timing: { started_at: now(), ready_at: 0 },
+        cacheReady: info.cache_ready === true, cacheAttempted: false, cacheRequest: null, data: null,
         request: typeof AbortController === 'function' ? new AbortController() : null };
       entry = candidate;
       run(candidate);
     }
     function run(candidate) {
       candidate.state = 'pending';
+      candidate.data = null;
+      cancelCache(candidate);
       candidate.attempts++;
       candidate.target = null;
       candidate.timing.ready_at = 0;
@@ -66,7 +106,11 @@
       }).then(function (data) {
         if (!current(candidate)) return null;
         candidate.state = data && data.path ? 'ready' : 'unavailable';
-        if (candidate.state === 'ready') candidate.timing.ready_at = now();
+        if (candidate.state === 'ready') {
+          candidate.data = data;
+          candidate.timing.ready_at = now();
+          startCache(candidate);
+        }
         return data;
       }).catch(function () {
         // Retry only on a later eligible playback tick, never while paused,
@@ -93,9 +137,28 @@
       entry = null;
       previous.claimed = true;
       previous.expectedVid = target.vid;
+      cancelCache(previous);
+      // Never wait for the optional download, or replace a source after it
+      // has been handed to playback. Pending Range preparation still transfers.
+      if (previous.data) previous.promise = Promise.resolve(previous.data);
       return { promise: previous.promise, timing: previous.timing, cancel: function () { invalidate(previous); } };
     }
-    return { maybe: maybe, cancel: cancel, keepFor: keepFor, consume: consume };
+    return { maybe: maybe, cancel: cancel, keepFor: keepFor, consume: consume, suspendCache: suspendCache };
+  }
+  function isCacheReady(info) {
+    if (!info || info.paused || info.seeking || info.waiting) return false;
+    if (info.mode === 'full') return true;
+    var position = Number(info.position), duration = Number(info.duration), ranges = info.buffered;
+    if (!isFinite(position) || position < 0 || !isFinite(duration) || duration <= 0 || position > duration || !ranges) return false;
+    try {
+      var length = Number(ranges.length);
+      if (!isFinite(length) || length < 1) return false;
+      for (var i = 0; i < length; i++) {
+        var start = Number(ranges.start(i)), end = Number(ranges.end(i));
+        if (isFinite(start) && isFinite(end) && start <= position && end >= duration - 0.25) return true;
+      }
+    } catch (ignored) {}
+    return false;
   }
   function nextUnlockedEpisodes(detail, currentEpisode, maximum) {
     var videos = detail && detail.vid_list || [];
@@ -112,6 +175,6 @@
     }
     return result;
   }
-  root.HongguoEpisodePrefetch = { create: create, nextUnlockedEpisodes: nextUnlockedEpisodes };
+  root.HongguoEpisodePrefetch = { create: create, nextUnlockedEpisodes: nextUnlockedEpisodes, isCacheReady: isCacheReady };
   if (typeof module === 'object' && module.exports) module.exports = root.HongguoEpisodePrefetch;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -409,7 +409,12 @@
     },
     prepare: function (target, signal) {
       return fetchData('/api/v1/play/info?' + new URLSearchParams(Object.assign({}, target, { prefetch: '1' })), signal ? { signal: signal } : {});
-    }
+    },
+    cache: window.HongguoDesktop ? function (data, signal) {
+      var media = preparedMediaPath(data.path);
+      if (!media) return Promise.reject(new Error('完整缓存媒体地址无效'));
+      return fetchData('/api/v1/play/cache?' + new URLSearchParams({ media: media }), { method: 'POST', signal: signal });
+    } : null
   });
   var applicationInBackground = false;
   var playbackPreferences = { speed: 1, volume: 100, quality: '', danmaku: false };
@@ -460,6 +465,15 @@
     if (adapter && typeof adapter.setStartPosition === 'function') adapter.setStartPosition(position);
   }
 
+  function preparedMediaPath(source) {
+    if (typeof source !== 'string') return '';
+    var base = desktopShell && window.HongguoDesktop && window.HongguoDesktop.mediaBase;
+    var local = typeof base === 'string' && /^http:\/\/127\.0\.0\.1:([0-9]{1,5})$/.exec(base);
+    // Wails playback uses the current core port; this API accepts only the
+    // exact prepared token, never a caller-supplied upstream URL.
+    if (local && Number(local[1]) > 0 && Number(local[1]) <= 65535 && source.indexOf(base + '/') === 0) source = source.slice(base.length);
+    return /^\/minireel-proxy\/media\/[a-f0-9]{24}\.mp4$/.test(source) ? source : '';
+  }
   function fetchData(url, options) {
     return fetch(url, options).then(function (response) {
       return response.json().then(function (payload) {
@@ -4319,6 +4333,9 @@
     episodePrefetch.maybe({ item: playback.item, series_id: playback.item.series_id, vid: playback.vid,
       episode: playback.episode, quality: playbackPreferences.quality, generation: playback.generation, owner: accountEpoch,
       mode: (typeof rangePlaybackEnabled === 'function' && rangePlaybackEnabled()) ? 'range' : '',
+      cache_ready: !!window.HongguoDesktop && HongguoEpisodePrefetch.isCacheReady({ mode: playback.mode,
+        position: Number(video.currentTime), duration: Number(video.duration), buffered: video.buffered,
+        paused: video.paused, seeking: video.seeking, waiting: video.readyState < 3 }),
       prefetch_after_seconds: playbackEngineName() === 'mpv' ? 1 : 5,
       duration: Number(video.duration), position: Number(video.currentTime), paused: video.paused, ended: video.ended,
       stable_seconds: playback.stableSince ? Math.max(0, Date.now() - playback.stableSince) / 1000 : 0,
@@ -7622,6 +7639,7 @@
     saveProgress(false);
   });
   media.addEventListener('pause', function () {
+    if (desktopShell) episodePrefetch.suspendCache();
     if (activePlayback) activePlayback.stableSince = 0;
     interruptPlaybackPresentation(activePlayback);
     document.getElementById('danmaku-layer').classList.add('is-paused');
@@ -7664,6 +7682,7 @@
   });
   media.addEventListener('emptied', updatePlaybackControls);
   media.addEventListener('waiting', function () {
+    if (desktopShell) episodePrefetch.suspendCache();
     if (!activePlayback) return;
     activePlayback.stableSince = 0;
     interruptPlaybackPresentation(activePlayback);
@@ -7672,7 +7691,7 @@
     if (activePlayback.mode === 'range' && !activePlayback.rangeFallbackAttempted) scheduleRangeStallFallback(activePlayback);
   });
   media.addEventListener('stalled', function () { if (activePlayback && activePlayback.mode === 'range') scheduleRangeStallFallback(activePlayback); });
-  media.addEventListener('seeking', function () { if (activePlayback) activePlayback.stableSince = 0; interruptPlaybackPresentation(activePlayback); });
+  media.addEventListener('seeking', function () { if (desktopShell) episodePrefetch.suspendCache(); if (activePlayback) activePlayback.stableSince = 0; interruptPlaybackPresentation(activePlayback); });
   media.addEventListener('seeked', function () {
     if (activePlayback && activePlayback.started && !media.paused && !media.ended) activePlayback.stableSince = Date.now();
     if (activePlayback && activePlayback.presentation) activePlayback.presentation.position = Number(media.currentTime) || 0;

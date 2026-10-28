@@ -50,6 +50,7 @@ func main() {
 	instanceID := flag.String("instance-id", "", "Android child process identity")
 	parentPID := flag.Int("parent-pid", 0, "exit when the Android host process ends")
 	dataDir := flag.String("data-dir", defaultLibraryDir(), "persistent local library directory")
+	desktopEpisodeCache := flag.Bool("desktop-episode-cache", false, "enable bounded desktop next-episode file cache")
 	flag.Parse()
 
 	root, err := fs.Sub(uiFiles, "ui")
@@ -111,6 +112,9 @@ func main() {
 	mux.HandleFunc("/api/v1/player/diagnostics", s.playbackDiagnostics)
 	mux.HandleFunc("/api/v1/Search", s.search)
 	mux.HandleFunc("/api/v1/play/info", s.playInfo)
+	if *desktopEpisodeCache {
+		mux.HandleFunc("/api/v1/play/cache", s.cachePreparedEpisode)
+	}
 	mux.HandleFunc("/api/v1/PlayInfo", s.playInfo)
 	// The TV APK owns the MiniReel resolver and media cache.  These routes are
 	// served by the same process so the UI never needs a second playback host.
@@ -135,7 +139,7 @@ func serveUI(root fs.FS) http.Handler {
 
 func (s *server) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/v1/account") || r.URL.Path == "/api/v1/number-input" || strings.HasPrefix(r.URL.Path, "/api/v1/lists/") || r.URL.Path == "/api/v1/search" || r.URL.Path == "/api/v1/Search" || r.URL.Path == "/api/v1/follow" || r.URL.Path == "/api/v1/notifications" || strings.HasPrefix(r.URL.Path, "/api/v1/player/") || r.URL.Path == "/api/v1/series/seasons" || r.URL.Path == "/api/v1/replies" || r.URL.Path == "/api/v1/reservation" || r.URL.Path == "/api/v1/comments" || r.URL.Path == "/api/v1/danmaku" || r.URL.Path == "/api/v1/library" {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/account") || r.URL.Path == "/api/v1/play/cache" || r.URL.Path == "/api/v1/number-input" || strings.HasPrefix(r.URL.Path, "/api/v1/lists/") || r.URL.Path == "/api/v1/search" || r.URL.Path == "/api/v1/Search" || r.URL.Path == "/api/v1/follow" || r.URL.Path == "/api/v1/notifications" || strings.HasPrefix(r.URL.Path, "/api/v1/player/") || r.URL.Path == "/api/v1/series/seasons" || r.URL.Path == "/api/v1/replies" || r.URL.Path == "/api/v1/reservation" || r.URL.Path == "/api/v1/comments" || r.URL.Path == "/api/v1/danmaku" || r.URL.Path == "/api/v1/library" {
 			if !privateLocalRequest(r) {
 				writeError(w, http.StatusForbidden, "只允许应用本身访问账号和记录")
 				return

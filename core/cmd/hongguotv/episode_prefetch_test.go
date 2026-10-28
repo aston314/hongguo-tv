@@ -15,7 +15,7 @@ import (
 type mediaPreparation func(context.Context, *miniReelMediaJob, string, string, string, string, bool)
 
 // These tests never call the upstream resolver or touch the real media cache.
-func isolatedMediaJobs(t *testing.T) string {
+func isolatedMediaJobs(t testing.TB) string {
 	t.Helper()
 	root := t.TempDir()
 	miniReelState.Lock()
@@ -47,7 +47,7 @@ func isolatedMediaJobs(t *testing.T) string {
 	return root
 }
 
-func awaitMediaSignal(t *testing.T, signal <-chan struct{}) {
+func awaitMediaSignal(t testing.TB, signal <-chan struct{}) {
 	t.Helper()
 	select {
 	case <-signal:

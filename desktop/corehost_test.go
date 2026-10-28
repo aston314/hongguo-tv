@@ -144,6 +144,7 @@ func TestBundledCoreLifecycle(t *testing.T) {
 	host := newCoreHost()
 	host.path = path
 	host.dataDir = t.TempDir()
+	host.cacheDir = t.TempDir()
 	host.start()
 	deadline := time.Now().Add(10 * time.Second)
 	for host.target() == "" && time.Now().Before(deadline) {
@@ -161,6 +162,16 @@ func TestBundledCoreLifecycle(t *testing.T) {
 	if response.Code != 200 {
 		host.stop()
 		t.Fatal(response.Code, response.Body.String())
+	}
+	// The desktop child enables the private optional cache route. An unknown
+	// prepared token must fail locally, without resolving an upstream source.
+	request = httptest.NewRequest("POST", "http://wails.localhost/api/v1/play/cache?media=invalid", nil)
+	request.Header.Set("Origin", "http://wails.localhost")
+	response = httptest.NewRecorder()
+	host.proxy(response, request)
+	if response.Code != http.StatusConflict {
+		host.stop()
+		t.Fatal("desktop cache route unavailable", response.Code)
 	}
 	host.stop()
 	client := http.Client{Timeout: time.Second, Transport: localTransport}

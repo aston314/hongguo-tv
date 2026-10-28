@@ -76,6 +76,7 @@ type miniReelMediaJob struct {
 	Context     context.Context
 	Cancel      context.CancelFunc
 	Waiters     int
+	Optional    bool
 	ResolveMS   int64
 	DownloadMS  int64
 	DecryptMS   int64
@@ -203,6 +204,9 @@ func handleMiniReelMedia(w http.ResponseWriter, r *http.Request) {
 	job := miniReelState.jobs[token]
 	if job != nil {
 		job.Accessed = time.Now()
+		if isMiniReelReady(job.Ready) && job.Range != nil {
+			cancelEpisodeFileCachesLocked()
+		}
 	}
 	miniReelState.Unlock()
 	if job == nil || !isMiniReelReady(job.Ready) {
@@ -253,6 +257,11 @@ func resolveMiniReelMediaWith(ctx context.Context, seriesID, vid, quality string
 
 func resolveMiniReelMediaWithToken(ctx context.Context, token, seriesID, vid, quality string, fallback bool,
 	prepare func(context.Context, *miniReelMediaJob, string, string, string, string, bool)) (map[string]any, error) {
+	return resolveMiniReelMediaWithPriority(ctx, token, seriesID, vid, quality, fallback, false, prepare)
+}
+
+func resolveMiniReelMediaWithPriority(ctx context.Context, token, seriesID, vid, quality string, fallback, optional bool,
+	prepare func(context.Context, *miniReelMediaJob, string, string, string, string, bool)) (map[string]any, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -267,6 +276,9 @@ acquire:
 		return nil, err
 	}
 	miniReelState.Lock()
+	if !optional {
+		cancelEpisodeFileCachesLocked()
+	}
 	miniReelCleanupLocked()
 	job := miniReelState.jobs[token]
 	if job != nil && !isMiniReelReady(job.Ready) && job.Context != nil && job.Context.Err() != nil {
@@ -292,7 +304,7 @@ acquire:
 	}
 	if job == nil {
 		jobCtx, cancel := context.WithTimeout(context.Background(), 95*time.Second)
-		job = &miniReelMediaJob{Ready: make(chan struct{}), Accessed: time.Now(), Context: jobCtx, Cancel: cancel}
+		job = &miniReelMediaJob{Ready: make(chan struct{}), Accessed: time.Now(), Context: jobCtx, Cancel: cancel, Optional: optional}
 		miniReelState.jobs[token] = job
 		go func() {
 			prepare(jobCtx, job, token, seriesID, vid, quality, fallback)

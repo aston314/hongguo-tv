@@ -34,6 +34,7 @@ type coreHost struct {
 	done     chan struct{}
 	path     string
 	dataDir  string
+	cacheDir string
 	timeout  time.Duration
 }
 
@@ -85,10 +86,14 @@ func (h *coreHost) run(done chan struct{}) {
 		fail("无法创建应用数据目录，请检查目录权限。")
 		return
 	}
-	cacheDir, err := os.UserCacheDir()
-	if err != nil {
-		fail("无法读取系统缓存目录。")
-		return
+	cacheDir := h.cacheDir
+	if cacheDir == "" {
+		var err error
+		cacheDir, err = os.UserCacheDir()
+		if err != nil {
+			fail("无法读取系统缓存目录。")
+			return
+		}
 	}
 	token := make([]byte, 16)
 	if _, err := rand.Read(token); err != nil {
@@ -96,7 +101,7 @@ func (h *coreHost) run(done chan struct{}) {
 		return
 	}
 	instance := hex.EncodeToString(token)
-	cmd := exec.Command(path, "-port", "0", "-instance-id", instance, "-data-dir", dataDir, "-parent-pid", strconv.Itoa(os.Getpid()))
+	cmd := exec.Command(path, "-port", "0", "-instance-id", instance, "-data-dir", dataDir, "-parent-pid", strconv.Itoa(os.Getpid()), "-desktop-episode-cache")
 	cmd.Env = append(os.Environ(), "MINIREEL_CACHE_DIR="+filepath.Join(cacheDir, "HongguoDesktop", "media"))
 	configureProcess(cmd)
 	stdout, err := cmd.StdoutPipe()
