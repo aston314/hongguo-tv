@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {create,nextPrefetchEpisode} = require('../core/cmd/hongguotv/ui/episode-prefetch.js');
+const {create,nextPrefetchEpisode,nextUnlockedEpisodes} = require('../core/cmd/hongguotv/ui/episode-prefetch.js');
 const deferred = () => {let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const tick = () => new Promise(r=>setImmediate(r));
 const info = (extra={}) => ({series_id:'123',vid:'111',episode:1,quality:'720P',generation:3,owner:2,
@@ -40,6 +40,11 @@ test('prefetch targets only the immediate next episode and ignores only inferred
     'an explicit lock must prevent speculative preparation');
   assert.equal(nextPrefetchEpisode({vid_list:['10','bad','12']},1),null,
     'an invalid immediate next VID must not skip ahead');
+});
+test('legacy candidate helper remains available with its original four-entry bound',()=>{
+  assert.deepEqual(nextUnlockedEpisodes({vid_list:['1','2','3','4','5'],accessible_episode_cnt:3},0,8),[
+    {episode:1,vid:'1'},{episode:2,vid:'2'},{episode:3,vid:'3'}
+  ]);
 });
 test('seek and resume position alone do not bypass the stable interval',async()=>{
   const f=fixture();f.p.maybe(info({position:119,stable_seconds:0}));await tick();assert.equal(f.calls.length,0);

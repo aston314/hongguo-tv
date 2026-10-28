@@ -142,6 +142,23 @@
     if (!validVid(vid)) return null;
     return { episode: index + 1, vid: String(vid) };
   }
-  root.HongguoEpisodePrefetch = { create: create, nextPrefetchEpisode: nextPrefetchEpisode, retryableError: retryableError };
+  // Keep the old bounded-list helper for older shells/tests. New playback
+  // code deliberately uses nextPrefetchEpisode and never skips an episode.
+  function nextUnlockedEpisodes(detail, currentEpisode, maximum) {
+    var videos = detail && detail.vid_list || [];
+    var episodes = detail && detail.episodes || [];
+    var accessible = Number(detail && detail.accessible_episode_cnt) || 0;
+    var limit = Math.min(4, Math.max(0, Number(maximum) || 4));
+    var result = [];
+    for (var index = Math.max(0, Number(currentEpisode) || 0); index < videos.length && result.length < limit; index++) {
+      var episode = episodes[index];
+      if ((episode && episode.locked === true) || (!episode && accessible > 0 && index >= accessible)) continue;
+      var vid = episode && episode.video_id || videos[index];
+      if (!validVid(vid)) continue;
+      result.push({ episode: index + 1, vid: String(vid) });
+    }
+    return result;
+  }
+  root.HongguoEpisodePrefetch = { create: create, nextUnlockedEpisodes: nextUnlockedEpisodes, nextPrefetchEpisode: nextPrefetchEpisode, retryableError: retryableError };
   if (typeof module === 'object' && module.exports) module.exports = root.HongguoEpisodePrefetch;
 })(typeof window !== 'undefined' ? window : globalThis);
