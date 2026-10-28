@@ -70,7 +70,7 @@ test('Android preference survives changing WebView origins without writing brows
   assert.equal(settings.mode(), 'icons');
 });
 
-test('settings remote focus moves between display modes, updates and decoding without losing the sidebar return path', () => {
+test('settings remote focus follows the visible card order and keeps version updates last', () => {
   const source = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'), 'utf8');
   const fn = (a, b) => source.slice(source.indexOf('  function ' + a + '('), source.indexOf('  function ' + b + '('));
   const node = (id, classes = []) => ({ id, classList: { contains: c => classes.includes(c) } });
@@ -81,17 +81,17 @@ test('settings remote focus moves between display modes, updates and decoding wi
   const prefetchRange = node('prefetchRange', ['episode-prefetch-action', 'account-action']);
   const prefetchFull = node('prefetchFull', ['episode-prefetch-action', 'account-action']);
   const autoCinema = node('autoCinema', ['auto-cinema-action', 'account-action']);
+  const webosAudio = node('webosAudio', ['webos-audio-action', 'account-action']);
   const decode = node('decode', ['playback-mode-action', 'account-action']);
   const sidebar = node('sidebar', ['side-item']);
-  const nodes = [expanded, icons, locale, autoCinema, update, prefetchRange, prefetchFull, decode, sidebar];
-  const zones = { sidebarDisplay: [expanded, icons], localeActions: [locale], appUpdates: [update], autoCinema: [autoCinema], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], sidebar: [sidebar] };
-  let updateVisible = true;
+  const zones = { sidebarDisplay: [expanded, icons], localeActions: [locale], appUpdates: [update], autoCinema: [autoCinema], webosAudio: [webosAudio], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], sidebar: [sidebar] };
+  const visible = { update: true, webosAudio: true, prefetch: true, decode: true };
   const c = vm.createContext({
     coreConnectionModalOpen: false,
     scanModalOpen: () => false, supportModalOpen: false, confirmOpen: false,
     rankFilterOpen: false, playerOptionsOpen: false, detailModalOpen: false, discussionOpen: false,
     selectedSidebarDisplay: () => icons, activeSidebar: () => sidebar,
-    firstVisible: selector => selector.includes('locale-action') ? locale : selector.includes('app-update') ? updateVisible ? update : null : selector.includes('auto-cinema') ? autoCinema : selector.includes('episode-prefetch') ? prefetchRange : selector.includes('playback-mode') ? decode : null,
+    firstVisible: selector => selector.includes('locale-action') ? locale : selector.includes('app-update') ? visible.update ? update : null : selector.includes('auto-cinema') ? autoCinema : selector.includes('webos-audio') ? visible.webosAudio ? webosAudio : null : selector.includes('episode-prefetch') ? visible.prefetch ? prefetchRange : null : selector.includes('playback-mode') ? visible.decode ? decode : null : null,
     moveWithinZone: (zone, current, direction) => zones[zone][zones[zone].indexOf(current) + (direction === 'left' ? -1 : 1)] || null
   });
   vm.runInContext(fn('zoneOf', 'goFocus') + fn('moveFrom', 'accountKeypadOpen'), c);
@@ -102,14 +102,18 @@ test('settings remote focus moves between display modes, updates and decoding wi
   assert.equal(c.moveFrom(icons, 'down'), locale);
   assert.equal(c.moveFrom(locale, 'down'), autoCinema);
   assert.equal(c.moveFrom(autoCinema, 'up'), locale);
-  assert.equal(c.moveFrom(autoCinema, 'down'), update);
-  assert.equal(c.moveFrom(update, 'up'), autoCinema);
-  assert.equal(c.moveFrom(update, 'down'), prefetchRange);
+  assert.equal(c.moveFrom(autoCinema, 'down'), webosAudio);
+  assert.equal(c.moveFrom(webosAudio, 'up'), autoCinema);
+  assert.equal(c.moveFrom(webosAudio, 'down'), prefetchRange);
+  assert.equal(c.moveFrom(prefetchRange, 'up'), webosAudio);
   assert.equal(c.moveFrom(prefetchRange, 'right'), prefetchFull);
   assert.equal(c.moveFrom(prefetchRange, 'down'), decode);
   assert.equal(c.moveFrom(decode, 'up'), prefetchRange);
+  assert.equal(c.moveFrom(decode, 'down'), update);
+  assert.equal(c.moveFrom(update, 'up'), decode);
   assert.equal(c.moveFrom(icons, 'right'), null);
-  updateVisible = false;
+  visible.decode = false;
+  assert.equal(c.moveFrom(prefetchRange, 'down'), update);
+  visible.webosAudio = false;
   assert.equal(c.moveFrom(autoCinema, 'down'), prefetchRange);
-  assert.equal(c.moveFrom(decode, 'up'), prefetchRange);
 });

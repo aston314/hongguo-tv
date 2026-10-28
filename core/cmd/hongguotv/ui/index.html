@@ -320,13 +320,6 @@
           <p data-i18n="settings.audibleSpeedDescription">仅用于 webOS，默认关闭。开启后，倍速播放会额外读取音频并占用内存；准备失败或设备处理跟不上时恢复有声 1 倍速。</p>
           <div class="app-update-actions"><button class="webos-audio-action account-action" id="webos-audio-toggle" data-focus="webos-audio-toggle" aria-pressed="false" data-i18n="settings.autoCinemaDisabled">已关闭</button></div>
         </div>
-        <div class="settings-card app-update-card" id="app-update-card">
-          <h2 data-i18n="settings.updates">版本更新</h2>
-          <p><span data-i18n="settings.currentVersion">当前版本 </span><strong id="app-current-version" data-i18n="ui.readingVersion">读取中…</strong></p>
-          <p id="app-update-state" role="status" aria-live="polite" data-i18n="ui.updateDefault">启动后每天自动检查一次，播放时不打扰。</p>
-          <div class="app-update-actions"><button class="app-update-action account-action" id="app-check-update" data-focus="app-check-update" data-i18n="settings.checkUpdates">检查更新</button><button class="app-update-action account-action is-hidden" id="desktop-download-update" data-focus="desktop-download-update" data-i18n="ui.downloadZip">下载更新 ZIP</button><button class="app-update-action account-action is-hidden" id="desktop-open-update-folder" data-focus="desktop-open-update-folder" data-i18n="settings.openFolder">打开所在文件夹</button><button class="app-update-action account-action is-hidden" id="app-open-licenses" data-focus="app-open-licenses" data-i18n="settings.licenses">开源许可</button></div>
-          <pre id="desktop-update-notes" class="desktop-update-notes is-hidden"></pre>
-        </div>
         <div class="settings-card app-update-card is-hidden" id="episode-prefetch-settings">
           <h2 data-i18n="settings.episodePrefetch">下一集预取方式</h2>
           <p data-i18n="settings.episodePrefetchDescription">选择切集前的准备方式。边播边下占用较少；整集预下载切集更快，但会增加网络、存储和处理器占用。</p>
@@ -344,6 +337,13 @@
           <p>自动解码优先尝试硬件加速；画面异常时可选软件解码。设置在下次播放或切集时生效。</p>
           <div class="app-update-actions"><button class="playback-mode-action account-action" id="mpv-decode-auto" data-mode="mpv_auto" data-focus="mpv-decode-auto" aria-pressed="false">自动解码</button><button class="playback-mode-action account-action" id="mpv-decode-software" data-mode="mpv_software" data-focus="mpv-decode-software" aria-pressed="false">软件解码</button></div>
           <p id="mpv-decode-state" role="status" aria-live="polite"></p>
+        </div>
+        <div class="settings-card app-update-card" id="app-update-card">
+          <h2 data-i18n="settings.updates">版本更新</h2>
+          <p><span data-i18n="settings.currentVersion">当前版本 </span><strong id="app-current-version" data-i18n="ui.readingVersion">读取中…</strong></p>
+          <p id="app-update-state" role="status" aria-live="polite" data-i18n="ui.updateDefault">启动后每天自动检查一次，播放时不打扰。</p>
+          <div class="app-update-actions"><button class="app-update-action account-action" id="app-check-update" data-focus="app-check-update" data-i18n="settings.checkUpdates">检查更新</button><button class="app-update-action account-action is-hidden" id="desktop-download-update" data-focus="desktop-download-update" data-i18n="ui.downloadZip">下载更新 ZIP</button><button class="app-update-action account-action is-hidden" id="desktop-open-update-folder" data-focus="desktop-open-update-folder" data-i18n="settings.openFolder">打开所在文件夹</button><button class="app-update-action account-action is-hidden" id="app-open-licenses" data-focus="app-open-licenses" data-i18n="settings.licenses">开源许可</button></div>
+          <pre id="desktop-update-notes" class="desktop-update-notes is-hidden"></pre>
         </div>
       </section>
 

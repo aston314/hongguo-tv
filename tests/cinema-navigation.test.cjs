@@ -85,6 +85,9 @@ test('Back exits sidebar-free playback, reveals controls and focuses the active 
   }
 });
 
-test('sidebar playback setting is positioned immediately above update settings', () => {
-  assert.ok(html.indexOf('id="auto-cinema-settings"') < html.indexOf('id="app-update-card"'));
+test('version update settings are the last settings card', () => {
+  const settings = html.slice(html.indexOf('id="settings-page"'), html.indexOf('id="support-page"'));
+  const cards = [...settings.matchAll(/<div class="settings-card app-update-card(?: is-hidden)?" id="([^"]+)"/g)].map(match => match[1]);
+  assert.equal(cards[cards.length - 1], 'app-update-card');
+  assert.equal(cards.filter(id => id === 'app-update-card').length, 1);
 });
