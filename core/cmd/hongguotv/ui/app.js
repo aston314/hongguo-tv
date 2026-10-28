@@ -402,9 +402,10 @@
     maxAgeMs: window.HongguoWebOS ? 120000 : 0,
     lookup: function (info, signal) {
       return getDetail(info.item, signal).then(function (detail) {
-        var candidates = HongguoEpisodePrefetch.nextUnlockedEpisodes(detail, info.episode, 4);
-        var next = candidates.length && candidates[0].episode === info.episode + 1 ? candidates[0] : null;
-        return next ? { series_id: info.series_id, vid: next.vid, quality: info.quality || '', fallback: '1', mode: info.mode || '' } : null;
+        if (!detail || detail.series_id !== info.series_id) return null;
+        var next = HongguoEpisodePrefetch.nextPrefetchEpisode(detail, info.episode);
+        return next ? { series_id: info.series_id, vid: next.vid, episode: next.episode, quality: info.quality || '',
+          fallback: '1', mode: info.mode || '', owner: info.owner } : null;
       });
     },
     prepare: function (target, signal) {
@@ -467,6 +468,7 @@
           var error = new Error(apiError(payload, response.status, 'common.networkFailed', '连接失败') + (payload && (payload.error || payload.message) ? '' : '（' + response.status + '）'));
           error.code = payload.error || '';
           error.status = response.status;
+          error.upstreamStatus = Number(payload.upstream_status) || 0;
           throw error;
         }
         var data = payload.data || payload;

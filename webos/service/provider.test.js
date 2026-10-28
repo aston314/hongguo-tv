@@ -206,6 +206,7 @@ async function run() {
     var detail = await provider.detail(seriesID);
     assert.strictEqual(detail.episodes.length, 2);
     assert.strictEqual(detail.episodes[1].locked, true);
+    assert.strictEqual(detail.episodes[1].locked_inferred, true, 'the UI lock is marked as inferred from the aggregate access count');
     assert.deepStrictEqual(detail.actors.map(function (actor) { return actor.id; }), ['7377326001203713305', '7400000000000000001']);
     assert.strictEqual(detail.actors[0].name, '测试演员');
     assert.strictEqual(detail.actors[0].avatar, 'https://example.test/actor.jpg');

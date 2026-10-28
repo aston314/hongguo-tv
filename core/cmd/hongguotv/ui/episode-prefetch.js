@@ -7,6 +7,7 @@
     var maxRetries = options.maxRetries === 1 ? 1 : 0;
     var retryDelay = Math.max(0, Number(options.retryDelayMs) || 3000);
     var maxAge = Math.max(0, Number(options.maxAgeMs) || 0);
+    var isRetryableError = options.isRetryableError || retryableError;
     function stableThreshold(info) {
       var value = Number(info && info.prefetch_after_seconds);
       return isFinite(value) && value >= 0 ? value : 5;
@@ -59,7 +60,9 @@
         return options.lookup(candidate.info, candidate.request && candidate.request.signal);
       }).then(function (target) {
         var info = candidate.info;
-        if (!current(candidate) || !target || !/^[0-9]+$/.test(target.vid || '') || target.vid === info.vid || target.series_id !== info.series_id ||
+        if (!current(candidate) || !target || !validVid(target.vid) || target.vid === info.vid || target.series_id !== info.series_id ||
+            Number(target.episode) !== Number(info.episode) + 1 || (target.quality || '') !== (info.quality || '') ||
+            (target.mode || '') !== (info.mode || '') || !sameValue(target.owner, info.owner) ||
             candidate.expectedVid && candidate.expectedVid !== target.vid) return null;
         candidate.target = target;
         return options.prepare(target, candidate.request && candidate.request.signal);
@@ -68,12 +71,16 @@
         candidate.state = data && data.path ? 'ready' : 'unavailable';
         if (candidate.state === 'ready') candidate.timing.ready_at = now();
         return data;
-      }).catch(function () {
+      }).catch(function (error) {
         // Retry only on a later eligible playback tick, never while paused,
         // hidden, cancelled or already handed to foreground playback.
         if (current(candidate)) {
-          candidate.state = 'failed';
-          candidate.retryAt = now() + retryDelay;
+          if (isRetryableError(error) && candidate.attempts <= maxRetries) {
+            candidate.state = 'failed';
+            candidate.retryAt = now() + retryDelay;
+          } else {
+            candidate.state = 'unavailable';
+          }
         }
         return null;
       });
@@ -97,21 +104,44 @@
     }
     return { maybe: maybe, cancel: cancel, keepFor: keepFor, consume: consume };
   }
-  function nextUnlockedEpisodes(detail, currentEpisode, maximum) {
+  function retryableError(error) {
+    if (!error) return false;
+    if (error.name === 'AbortError') return false;
+    if (error.retryable === false) return false;
+    if (error.retryable === true) return true;
+    var code = String(error.code || '').toUpperCase();
+    var status = Number(error.upstreamStatus || error.status);
+    var message = String(error.message || error);
+    if (/AUTH|LOGIN|PERMISSION|FORBIDDEN|UNAUTHORIZED|LOCKED|ACCESS|REJECTED|INVALID|MISSING|NO[_ -]?QUALITY|PARAMETER|EPISODE[_ -]?LIMIT/.test(code) ||
+        /权限|无权|未授权|未登录|登录后|会员|付费|锁定|已锁|不可访问|暂不可播|暂不支持|超出可观看|试看结束|unauthorized|forbidden|locked|permission|access denied|login required|member only|paid episode|拒绝了播放请求|没有可播放清晰度|未返回.*(?:视频|片源)/i.test(message)) return false;
+    if (status >= 400 && status < 500) return status === 408 || status === 425 || status === 429;
+    if (code === 'VIDEO_MODEL_HTTP') return [408, 425, 429, 500, 502, 503, 504].indexOf(status) >= 0;
+    if (/^(?:RANGE_UNAVAILABLE|RANGE_TIMEOUT|VIDEO_MODEL_EMPTY|UPSTREAM_TIMEOUT|ETIMEDOUT|ESOCKETTIMEDOUT|ECONNRESET|ECONNREFUSED|EPIPE|EAI_AGAIN|ENETUNREACH|EHOSTUNREACH|ENETDOWN)$/.test(code)) return true;
+    return !status && (error.name === 'TypeError' || /timed? ?out|network|temporar|offline|failed to fetch/i.test(message));
+  }
+  function validVid(value) {
+    return /^[0-9]{1,32}$/.test(String(value || ''));
+  }
+  function sameValue(left, right) {
+    if (left == null || right == null) return left == null && right == null;
+    return String(left) === String(right);
+  }
+  function nextPrefetchEpisode(detail, currentEpisode) {
     var videos = detail && detail.vid_list || [];
     var episodes = detail && detail.episodes || [];
-    var accessible = Number(detail && detail.accessible_episode_cnt) || 0;
-    var limit = Math.min(4, Math.max(0, Number(maximum) || 4));
-    var result = [];
-    for (var index = Math.max(0, Number(currentEpisode) || 0); index < videos.length && result.length < limit; index++) {
-      var episode = episodes[index];
-      if ((episode && episode.locked === true) || (!episode && accessible > 0 && index >= accessible)) continue;
-      var vid = episode && episode.video_id || videos[index];
-      if (!/^[0-9]{1,32}$/.test(String(vid || ''))) continue;
-      result.push({ episode: index + 1, vid: String(vid) });
-    }
-    return result;
+    var current = Number(currentEpisode);
+    if (!isFinite(current) || current < 1 || Math.floor(current) !== current) return null;
+    var index = current;
+    if (index >= videos.length) return null;
+    var episode = episodes[index];
+    // `locked_inferred` is produced from accessible_episode_cnt. That field
+    // is useful for the episode picker but is not a reliable playability
+    // decision, so let play/info make the final decision for prefetching.
+    if (episode && episode.locked === true && episode.locked_inferred !== true) return null;
+    var vid = episode && episode.video_id || videos[index];
+    if (!validVid(vid)) return null;
+    return { episode: index + 1, vid: String(vid) };
   }
-  root.HongguoEpisodePrefetch = { create: create, nextUnlockedEpisodes: nextUnlockedEpisodes };
+  root.HongguoEpisodePrefetch = { create: create, nextPrefetchEpisode: nextPrefetchEpisode, retryableError: retryableError };
   if (typeof module === 'object' && module.exports) module.exports = root.HongguoEpisodePrefetch;
 })(typeof window !== 'undefined' ? window : globalThis);

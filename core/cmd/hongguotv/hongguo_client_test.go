@@ -215,7 +215,7 @@ func TestSeriesDetailCreatesLockedEpisodes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SeriesDetail failed: %v", err)
 	}
-	if len(result.Episodes) != 5 || !result.Episodes[3].Locked || result.Episodes[2].Locked || result.SeriesStatus != "0" {
+	if len(result.Episodes) != 5 || !result.Episodes[3].Locked || !result.Episodes[3].LockedInferred || result.Episodes[2].Locked || result.Episodes[2].LockedInferred || result.SeriesStatus != "0" {
 		t.Fatalf("locked episode state was wrong: %#v", result.Episodes)
 	}
 }

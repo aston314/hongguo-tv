@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {create,nextUnlockedEpisodes} = require('../core/cmd/hongguotv/ui/episode-prefetch.js');
+const {create,nextPrefetchEpisode} = require('../core/cmd/hongguotv/ui/episode-prefetch.js');
 const deferred = () => {let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const tick = () => new Promise(r=>setImmediate(r));
 const info = (extra={}) => ({series_id:'123',vid:'111',episode:1,quality:'720P',generation:3,owner:2,
@@ -28,22 +28,18 @@ test('MPV can request an earlier prefetch threshold without changing the default
   g.p.maybe(info({stable_seconds:4.99}));
   await tick();assert.equal(g.calls.length,0);
 });
-test('collects at most four future unlocked VIDs without crossing the current episode',()=>{
-  const detail={vid_list:['10','11','12','13','14','15','16'],episodes:[
-    {video_id:'10',locked:false},{video_id:'11',locked:false},{video_id:'12',locked:true},
-    {video_id:'13',locked:false},{video_id:'14',locked:false},{video_id:'15',locked:false},{video_id:'16',locked:false}
+test('prefetch targets only the immediate next episode and ignores only inferred locks',()=>{
+  const detail={series_id:'123',accessible_episode_cnt:3,vid_list:['10','11','12','13','14'],episodes:[
+    {video_id:'10',locked:false},{video_id:'11',locked:false},{video_id:'12',locked:false},
+    {video_id:'13',locked:true,locked_inferred:true},{video_id:'14',locked:true,locked_inferred:true}
   ]};
-  assert.deepEqual(nextUnlockedEpisodes(detail,1,8),[
-    {episode:2,vid:'11'},{episode:4,vid:'13'},{episode:5,vid:'14'},{episode:6,vid:'15'}
-  ]);
-  assert.deepEqual(nextUnlockedEpisodes(detail,1,2),[
-    {episode:2,vid:'11'},{episode:4,vid:'13'}
-  ]);
-});
-test('uses accessible count when episode lock flags are unavailable and rejects invalid VIDs',()=>{
-  assert.deepEqual(nextUnlockedEpisodes({vid_list:['1','bad','3','4'],accessible_episode_cnt:3},0,4),[
-    {episode:1,vid:'1'},{episode:3,vid:'3'}
-  ]);
+  assert.deepEqual(nextPrefetchEpisode(detail,3),{episode:4,vid:'13'});
+  assert.equal(nextPrefetchEpisode(detail,4).episode,5);
+  assert.equal(nextPrefetchEpisode(detail,5),null);
+  assert.equal(nextPrefetchEpisode({vid_list:['10','11','12'],episodes:[{}, {locked:true}]},1),null,
+    'an explicit lock must prevent speculative preparation');
+  assert.equal(nextPrefetchEpisode({vid_list:['10','bad','12']},1),null,
+    'an invalid immediate next VID must not skip ahead');
 });
 test('seek and resume position alone do not bypass the stable interval',async()=>{
   const f=fixture();f.p.maybe(info({position:119,stable_seconds:0}));await tick();assert.equal(f.calls.length,0);
@@ -97,7 +93,7 @@ test('a late metadata reply must match the episode adopted by the foreground',as
 });
 test('webOS retries a failed prefetch once after the delay and only on an eligible playback tick',async()=>{
   let now=1000, attempts=0;
-  const p=create({now:()=>now,maxRetries:1,retryDelayMs:3000,lookup:async()=>target(),prepare:async()=>{attempts++;throw Error('502');}});
+  const p=create({now:()=>now,maxRetries:1,retryDelayMs:3000,lookup:async()=>target(),prepare:async()=>{attempts++;throw Object.assign(Error('multi_video_model HTTP 502'),{code:'VIDEO_MODEL_HTTP',status:502,upstreamStatus:502});}});
   p.maybe(info());await tick();assert.equal(attempts,1);
   now=3999;p.maybe(info());await tick();assert.equal(attempts,1);
   now=4000;
@@ -107,9 +103,43 @@ test('webOS retries a failed prefetch once after the delay and only on an eligib
   now=10000;p.maybe(info());await tick();assert.equal(attempts,2);
   assert.equal(await p.consume(target()).promise,null);
 });
+test('permanent access errors never retry, even when surfaced as upstream 502',async()=>{
+  for(const error of [
+    Object.assign(new Error('该集暂不可播：需要会员权限'),{status:502,code:'VIDEO_MODEL_REJECTED'}),
+    Object.assign(new Error('episode locked'),{status:502,code:'VIDEO_MODEL_REJECTED'}),
+    Object.assign(new Error('unauthorized'),{status:502,code:'VIDEO_MODEL_REJECTED'}),
+    Object.assign(new Error('multi_video_model 拒绝了播放请求（1003）'),{status:502,code:'VIDEO_MODEL_REJECTED'}),
+    Object.assign(new Error('multi_video_model 未返回本集片源地址'),{status:502,code:'VIDEO_MODEL_MISSING'}),
+    Object.assign(new Error('upstream denied'),{status:502,upstreamStatus:403,code:'VIDEO_MODEL_HTTP'}),
+    Object.assign(new Error('unknown upstream failure'),{status:502,upstreamStatus:502,code:'PROVIDER_ERROR'}),
+    Object.assign(new Error('bad request'),{status:400}),
+    Object.assign(new Error('cancelled'),{name:'AbortError',status:503})
+  ]) {
+    let now=1000, attempts=0;
+    const p=create({now:()=>now,maxRetries:1,retryDelayMs:3000,lookup:async()=>target(),prepare:async()=>{attempts++;throw error;}});
+    p.maybe(info());await tick();now+=10000;p.maybe(info());await tick();
+    assert.equal(attempts,1,String(error.message));
+    assert.equal(await p.consume(target()).promise,null);
+  }
+});
+test('transient network and Range errors remain retryable once',async()=>{
+  for(const error of [
+    Object.assign(new Error('RANGE_UNAVAILABLE'),{code:'RANGE_UNAVAILABLE'}),
+    Object.assign(new Error('multi_video_model HTTP 502'),{status:502,upstreamStatus:502,code:'VIDEO_MODEL_HTTP'}),
+    Object.assign(new Error('empty response'),{status:502,upstreamStatus:502,code:'VIDEO_MODEL_EMPTY'}),
+    Object.assign(new Error('failed to fetch'),{name:'TypeError'}),
+    Object.assign(new Error('gateway unavailable'),{status:502,upstreamStatus:502,code:'VIDEO_MODEL_HTTP'})
+  ]) {
+    let now=1000, attempts=0;
+    const p=create({now:()=>now,maxRetries:1,retryDelayMs:3000,lookup:async()=>target(),prepare:async()=>{attempts++;if(attempts===1)throw error;return {path:'/retry.mp4'};}});
+    p.maybe(info());await tick();now+=3000;p.maybe(info());await tick();
+    assert.equal(attempts,2,String(error.message));
+    assert.equal((await p.consume(target()).promise).path,'/retry.mp4');
+  }
+});
 test('a successful retry is reused and never starts a third prepare',async()=>{
   let now=1000, attempts=0;
-  const p=create({now:()=>now,maxRetries:1,lookup:async()=>target(),prepare:async()=>{if(++attempts===1)throw Error('502');return {path:'/retry.mp4'};}});
+  const p=create({now:()=>now,maxRetries:1,lookup:async()=>target(),prepare:async()=>{if(++attempts===1)throw Object.assign(Error('multi_video_model HTTP 502'),{code:'VIDEO_MODEL_HTTP',status:502,upstreamStatus:502});return {path:'/retry.mp4'};}});
   p.maybe(info());await tick();now+=3000;p.maybe(info());await tick();
   now+=3000;p.maybe(info());await tick();
   assert.equal(attempts,2);assert.equal((await p.consume(target()).promise).path,'/retry.mp4');

@@ -67,10 +67,11 @@ type Drama struct {
 }
 
 type Episode struct {
-	Index   int    `json:"index"`
-	VideoID string `json:"video_id"`
-	Title   string `json:"title,omitempty"`
-	Locked  bool   `json:"locked"`
+	Index          int    `json:"index"`
+	VideoID        string `json:"video_id"`
+	Title          string `json:"title,omitempty"`
+	Locked         bool   `json:"locked"`
+	LockedInferred bool   `json:"locked_inferred,omitempty"`
 }
 
 type CategoryRequest struct {
@@ -521,7 +522,7 @@ func (c *hongguoClient) SeriesDetail(ctx context.Context, seriesID string) (Seri
 		drama.Episodes = append(drama.Episodes, Episode{
 			Index: index + 1, VideoID: vid,
 			Title:  fmt.Sprintf("第%d集", index+1),
-			Locked: index >= drama.AccessibleEpisodeCnt,
+			Locked: index >= drama.AccessibleEpisodeCnt, LockedInferred: index >= drama.AccessibleEpisodeCnt,
 		})
 	}
 	detailPage, ok := findObjectByKey(router, "detail_page")
