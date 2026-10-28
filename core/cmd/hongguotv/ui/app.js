@@ -4080,64 +4080,84 @@
         throw new Error(uiText('content.seriesIncomplete', '本季集列表不完整'));
       }
       setPlayerStatus(episodeLoadingText());
-      return fetch('/api/v1/series/next-season?series_id=' + encodeURIComponent(playback.item.series_id))
-        .then(function (response) { return response.json().then(function (payload) {
-          if (!response.ok || !payload.ok || !payload.data || !Object.prototype.hasOwnProperty.call(payload.data, 'next')) throw new Error(apiError(payload, response.status, 'content.seasonInvalid', '季关系响应无效'));
-          return payload.data;
-        }); })
-        .then(function (result) {
+      var epoch = accountEpoch;
+      return fetchData('/api/v1/series/seasons?series_id=' + encodeURIComponent(playback.item.series_id)).then(function (series) {
+        if (!canContinuePlayback(playback)) { deferContinuation(playback); return; }
+        if (epoch !== accountEpoch) return;
+        if (!Array.isArray(series.items)) throw new Error(uiText('content.seriesInvalid', '系列剧响应无效'));
+        if (!series.items.length) throw new Error(uiText('content.seriesInvalid', '系列剧响应无效'));
+        var currentRows = series.items.filter(function (item) { return item.series_id === playback.item.series_id; });
+        if (currentRows.length > 1) throw new Error(uiText('content.seasonMismatch', '系列季号不一致'));
+        var current = currentRows[0];
+        function continueFromSeason(season) {
           if (!canContinuePlayback(playback)) { deferContinuation(playback); return; }
-          var epoch = accountEpoch;
-          return fetchData('/api/v1/series/seasons?series_id=' + encodeURIComponent(playback.item.series_id)).then(function (series) {
+          if (epoch !== accountEpoch) return;
+          if (!(season > 0)) throw new Error(uiText('content.nextSeasonInvalid', '下一季数据无效'));
+          var successors = series.items.filter(function (item) { return item.season_index === season + 1; });
+          if (successors.length > 1) throw new Error(uiText('content.seasonConflict', '下一季关系存在冲突'));
+          var successor = successors[0];
+          // The complete same-series selector is authoritative: it includes
+          // reservable seasons, so never jump over a missing/unavailable season
+          // to a later playable result from the relationship endpoint.
+          if (successor && successor.upcoming) {
+            setPlayerStatus(''); revealControls();
+            var reservationPrompt = successor.reservation_id && offerNextSeasonReservation(playback, successor, epoch);
+            if (!successor.reservation_id) showNotice(uiText('content.nextSeasonOffline', '本季已播放完，下一季待上线，尚未开放预约'));
+            var followThenRecommendations = function () {
+              var followPrompt = offerFollowAtEnd(playback, detail, function () { offerEndRecommendations(playback, detail); });
+              if (!followPrompt) offerEndRecommendations(playback, detail);
+            };
+            if (reservationPrompt) confirmAfterClose = followThenRecommendations;
+            else followThenRecommendations();
+            return;
+          }
+          if (successor && !successor.playable) {
+            setPlayerStatus(''); revealControls(); showNotice(uiText('content.nextSeasonUnavailable', '下一季暂不可播放'));
+            var followingPrompt = offerFollowAtEnd(playback, detail, function () { offerEndRecommendations(playback, detail); });
+            if (!followingPrompt) offerEndRecommendations(playback, detail);
+            return;
+          }
+          if (!successor && series.items.some(function (item) { return item.season_index > season + 1; })) {
+            throw new Error(uiText('content.seriesListIncomplete', '系列剧季列表不完整'));
+          }
+          if (!successor && !(current && current.season_index > 0)) {
+            throw new Error(uiText('content.seriesListIncomplete', '系列剧季列表不完整'));
+          }
+          if (successor) {
+            if (!successor.series_id || successor.series_id === playback.item.series_id || !successor.vid || !(successor.episode_count > 0)) throw new Error(uiText('content.nextSeasonInvalid', '下一季数据无效'));
+            feedItems[feedIndex] = successor;
+            playFeedItem(feedIndex, 1, 0);
+            refreshDetailAfterSeason(playback.item.series_id, successor);
+            showNotice(uiText('content.continueSeason', '继续播放第{season}季', { season: successor.season_index }));
+          } else {
+            setPlayerStatus(''); revealControls();
+            if (pageMode() === 'recommend' && feedItems.length > 1) playFeedItem(feedIndex + 1);
+            else {
+              var recommendations = false;
+              var followPrompt = offerFollowAtEnd(playback, detail, function () { offerEndRecommendations(playback, detail); });
+              if (!followPrompt) recommendations = offerEndRecommendations(playback, detail);
+              if (!followPrompt && !recommendations) showNotice(uiText('content.seriesFinished', '本剧已播放完，暂无可播放的下一季'));
+            }
+          }
+        }
+        if (current && current.season_index > 0) {
+          continueFromSeason(current.season_index);
+          return;
+        }
+        // Older/incomplete selector responses may omit the current season
+        // number. Ask the relationship endpoint only to identify that number;
+        // the successor itself must still come from the complete selector.
+        return fetch('/api/v1/series/next-season?series_id=' + encodeURIComponent(playback.item.series_id))
+          .then(function (response) { return response.json().then(function (payload) {
+            if (!response.ok || !payload.ok || !payload.data || !Object.prototype.hasOwnProperty.call(payload.data, 'next')) throw new Error(apiError(payload, response.status, 'content.seasonInvalid', '季关系响应无效'));
+            return payload.data;
+          }); })
+          .then(function (result) {
             if (!canContinuePlayback(playback)) { deferContinuation(playback); return; }
             if (epoch !== accountEpoch) return;
-            if (!Array.isArray(series.items)) throw new Error(uiText('content.seriesInvalid', '系列剧响应无效'));
-            var current = series.items.filter(function (item) { return item.series_id === playback.item.series_id; })[0];
-            var season = current && current.season_index || result.current_season;
-            if (current && result.current_season > 0 && current.season_index !== result.current_season) throw new Error(uiText('content.seasonMismatch', '系列季号不一致'));
-            var successors = season > 0 ? series.items.filter(function (item) { return item.season_index === season + 1; }) : [];
-            if (successors.length > 1) throw new Error(uiText('content.seasonConflict', '下一季关系存在冲突'));
-            var successor = successors[0];
-            // The full series selector takes precedence, including upcoming
-            // seasons. Never skip a reservable season to a later playable one.
-            if (successor && successor.upcoming) {
-              setPlayerStatus(''); revealControls();
-              var reservationPrompt = successor.reservation_id && offerNextSeasonReservation(playback, successor, epoch);
-              if (!successor.reservation_id) showNotice(uiText('content.nextSeasonOffline', '本季已播放完，下一季待上线，尚未开放预约'));
-              var followThenRecommendations = function () {
-                var followPrompt = offerFollowAtEnd(playback, detail, function () { offerEndRecommendations(playback, detail); });
-                if (!followPrompt) offerEndRecommendations(playback, detail);
-              };
-              if (reservationPrompt) confirmAfterClose = followThenRecommendations;
-              else followThenRecommendations();
-              return;
-            }
-            if (successor && !successor.playable) {
-              setPlayerStatus(''); revealControls(); showNotice(uiText('content.nextSeasonUnavailable', '下一季暂不可播放'));
-              var followingPrompt = offerFollowAtEnd(playback, detail, function () { offerEndRecommendations(playback, detail); });
-              if (!followingPrompt) offerEndRecommendations(playback, detail);
-              return;
-            }
-            var next = successor || (!current ? result.next : null);
-            if (next) {
-              if (!next.series_id || next.series_id === playback.item.series_id || !next.vid || !(season > 0) || next.season_index !== season + 1 || !(next.episode_count > 0)) throw new Error(uiText('content.nextSeasonInvalid', '下一季数据无效'));
-              feedItems[feedIndex] = next;
-              playFeedItem(feedIndex, 1, 0);
-              refreshDetailAfterSeason(playback.item.series_id, next);
-              showNotice(uiText('content.continueSeason', '继续播放第{season}季', { season: next.season_index }));
-            } else {
-              setPlayerStatus(''); revealControls();
-              if (pageMode() === 'recommend' && feedItems.length > 1) playFeedItem(feedIndex + 1);
-              else {
-                var recommendations = false;
-                var followPrompt = offerFollowAtEnd(playback, detail, function () { offerEndRecommendations(playback, detail); });
-                if (!followPrompt) recommendations = offerEndRecommendations(playback, detail);
-                if (!followPrompt && !recommendations) showNotice(uiText('content.seriesFinished', '本剧已播放完，暂无可播放的下一季'));
-              }
-            }
+            continueFromSeason(current && current.season_index > 0 ? current.season_index : result.current_season);
           });
-
-        });
+      });
     }).catch(function (error) {
       if (!canContinuePlayback(playback)) { deferContinuation(playback); return; }
       setPlayerStatus(''); revealControls();

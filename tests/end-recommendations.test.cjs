@@ -144,24 +144,56 @@ test('Back and native requestBack close the sheet before fullscreen or player na
   assert.equal(f.c.handleBack(),true);assert.equal(f.panel.isOpen(),false);
 });
 
-async function completion({mode='player',episode=2,successor=null,relatedRows=related,incomplete=false,late=false,followPrompt=false}={}){
-  const calls=[],playback={item:{series_id:'self',episode_count:2},episode,owner:1,generation:1,completed:true,started:true};
+async function completion({mode='player',episode=2,season=1,successor=null,includeCurrent=true,relationSeason=1,relationNext=null,relationError=false,relatedRows=related,incomplete=false,late=false,followPrompt=false}={}){
+  const calls=[],notices=[],playback={item:{series_id:'self',episode_count:2},episode,owner:1,generation:1,completed:true,started:true};
+  let relationCalls=0;
   const c=vm.createContext({Promise,Object,Array,encodeURIComponent,activePlayback:playback,feedGeneration:1,accountEpoch:1,
     continuationGeneration:0,applicationInBackground:false,seasonSwitchRequest:null,confirmAfterClose:null,feedItems:[playback.item,{}],feedIndex:0,
     isPlaybackPage:()=>true,pageMode:()=>mode,applicationHidden:()=>false,
     getDetail:async()=>{if(late)c.activePlayback=null;return {vid_list:incomplete?['111']:['111','222'],episode_count:incomplete?8:2,related:relatedRows}},
-    setPlayerStatus(){},episodeLoadingText(){return 'loading'},revealControls(){},showNotice(){},
+    setPlayerStatus(){},episodeLoadingText(){return 'loading'},revealControls(){},showNotice:message=>notices.push(message),
+    uiText:(key,fallback,values)=>Object.keys(values||{}).reduce((text,name)=>text.replace('{'+name+'}',values[name]),fallback),localizedError:error=>error.message,
     playFeedItem:(index,ep)=>calls.push(['play',index,ep]),refreshDetailAfterSeason(){},
-    fetch:async()=>({ok:true,json:async()=>({ok:true,data:{next:null,current_season:1}})}),
-    fetchData:async()=>({items:[{series_id:'self',season_index:1},...(successor?[successor]:[])]}),
+    fetch:async()=>{relationCalls++;if(relationError)throw new Error('upstream response empty');return {ok:true,json:async()=>({ok:true,data:{next:relationNext,current_season:relationSeason}})}},
+    fetchData:async()=>({items:[...(includeCurrent?[{series_id:'self',season_index:season}]:[]),...(successor?[successor]:[])]}),
     offerNextSeasonReservation:()=>{calls.push(['reservation']);return true},offerFollowAtEnd:(p,d,after)=>{if(!followPrompt)return false;calls.push(['follow',p,d]);c.confirmAfterClose=after;return true},offerEndRecommendations:(p,d)=>calls.push(['related',p,d.related])});
   vm.runInContext(slice('canContinuePlayback','offerNextSeasonReservation'),c);
-  c.continueAfterEpisode(playback);for(let i=0;i<6;i++)await tick();return {calls,c,playback};
+  c.continueAfterEpisode(playback);for(let i=0;i<6;i++)await tick();return {calls,notices,c,playback,relationCalls};
 }
 test('ordinary episode continuation and a playable next season keep autoplay without a recommendation sheet',async()=>{
   assert.deepEqual((await completion({episode:1})).calls,[['play',0,2]]);
   const f=await completion({successor:{series_id:'next',season_index:2,vid:'333',episode_count:2,playable:true}});
   assert.deepEqual(f.calls,[['play',0,1]]);
+});
+test('the complete season selector drives autoplay and reservation even if the relationship endpoint is empty',async()=>{
+  const playable=await completion({season:2,relationError:true,successor:{series_id:'s3',season_index:3,vid:'333',episode_count:133,playable:true}});
+  assert.deepEqual(playable.calls,[['play',0,1]]);
+  assert.equal(playable.relationCalls,0);
+
+  const upcoming=await completion({season:3,relationError:true,successor:{series_id:'s4',season_index:4,upcoming:true,reservation_id:'s4'}});
+  assert.deepEqual(upcoming.calls,[['reservation']]);
+  assert.equal(upcoming.relationCalls,0);
+});
+test('relationship data only fills an unknown current season and cannot skip a missing season',async()=>{
+  const fallback=await completion({includeCurrent:false,relationSeason:2,relationNext:{series_id:'wrong',season_index:9,vid:'999',episode_count:9,playable:true},successor:{series_id:'s3',season_index:3,vid:'333',episode_count:133,playable:true}});
+  assert.deepEqual(fallback.calls,[['play',0,1]]);
+  assert.equal(fallback.relationCalls,1);
+
+  const gap=await completion({season:2,relationError:true,successor:{series_id:'s4',season_index:4,vid:'444',episode_count:12,playable:true}});
+  assert.equal(gap.calls.some(call=>call[0]==='play'),false);
+  assert.match(gap.notices[0],/季列表不完整/);
+  assert.equal(gap.relationCalls,0);
+
+  const noSkip=await completion({includeCurrent:false,relationSeason:2,relationNext:{series_id:'s4',season_index:4,vid:'444',episode_count:12,playable:true},successor:{series_id:'s4',season_index:4,vid:'444',episode_count:12,playable:true}});
+  assert.equal(noSkip.calls.some(call=>call[0]==='play'),false);
+  assert.match(noSkip.notices[0],/季列表不完整/);
+  assert.equal(noSkip.relationCalls,1);
+});
+test('a missing current season still pauses safely when its season number cannot be confirmed',async()=>{
+  const f=await completion({includeCurrent:false,relationError:true,successor:{series_id:'s3',season_index:3,vid:'333',episode_count:133,playable:true}});
+  assert.equal(f.calls.some(call=>call[0]==='play'),false);
+  assert.match(f.notices[0],/upstream response empty/);
+  assert.equal(f.relationCalls,1);
 });
 test('terminal playback offers the current detail data, after any next-season reservation prompt',async()=>{
   const end=await completion();assert.equal(end.calls[0][0],'related');assert.equal(end.calls[0][1],end.playback);assert.equal(end.calls[0][2],related);

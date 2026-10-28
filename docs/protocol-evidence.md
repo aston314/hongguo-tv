@@ -143,7 +143,7 @@ filter_ids=<当前 series_id>
 
 本地 `GET /api/v1/series/next-season?series_id=<id>` 返回 `{current_season,next}`，`next` 为精简 Drama 或 `null`。有效空列表代表没有下一季；HTTP 错误、空体、缺少成功状态、错误列表结构、重复 ID 的季号冲突均返回失败。请求总时限 20 秒，并随页面请求的 context 取消。没有永久缓存空结果或失败。
 
-播放器只在当前季最后一集结束后请求关系；确认成功后替换播放对象，从下一季第 1 集、0 秒开始，即使该季已有旧进度。解析与媒体下载仍由 APK 内置链路执行。当前选集面板若打开，会更新为下一季的标题、完整集列表、继续按钮与高亮。关系失败不会误当作“全剧播完”或推荐下一部。无候选时独立播放页停止，推荐页才按既有规则转下一部。
+播放器只在当前季最后一集结束后读取完整系列选择器；如果当前季行已提供季号，就按该列表里严格相邻的第 N+1 季处理，从第 1 集、0 秒开始，即使该季已有旧进度。完整列表中的待上线季优先进入预约流程，不能被关系接口跳过。只有当前季行缺少季号时，才调用关系接口补当前季号，并仍从完整季列表确定下一季。完整列表读取失败、存在季号缺口或关系接口无法补齐未知季号时安全暂停自动跨季。当前选集面板若打开，会更新为下一季的标题、完整集列表、继续按钮与高亮。
 
 已验证：Go 真实上游第一季 → 第二季、第十三季 → `next:null`；测试 fixture 覆盖禁播/零集/空首集、未知当前季、签名、ID 精度、响应异常、重试和取消。浏览器使用真实官方详情、VID 和季关系，媒体替换为 Range 测试 MP4，验证第一季第 81 集自然结束 → 第二季第 1 集，分剧历史、第二季选集和继续按钮、高亮、原卡片返回及向右移动。也验证请求延迟期间退出页面、退后台后回前台均不会自动起播，API 失败会暂停连续播放。尚未宣称完成实体 TV 或真实 CENC 跨季长播放验收。
 
@@ -223,4 +223,4 @@ Android 使用应用私有 files 目录下的 `hongguo-tv/library.json`，与可
 
 ## Mac v1.1.6 系列剧选择器（2026-10-07）
 
-新增 `SeriesSeasons` 调用 GET `/reading/bookapi/plan/v`，`from=single_col_same_ip_series`、scene=10、limit=0。原版模型包含 seriesId、firstVideoId、title、cover、label、sub、upcoming、reserved。匿名真实响应可取得《万妖图录传》完整14季（包括当前第13季及待上线第14季）。预约ID来自 subscribe_item.item_id，不能把预告ID用于播放。该接口与自动下一季的 `from=series_short_play_info` 各自保留；完整参数、原版哈希、映射、TV焦点和验证范围见 [系列剧说明](series-seasons.md)。
+新增 `SeriesSeasons` 调用 GET `/reading/bookapi/plan/v`，`from=single_col_same_ip_series`、scene=10、limit=0。原版模型包含 seriesId、firstVideoId、title、cover、label、sub、upcoming、reserved。匿名真实响应可取得《万妖图录传》完整14季（包括当前第13季及待上线第14季）。预约ID来自 `subscribe_item.item_id`，不能把预告ID用于播放。自动跨季现以完整选择器为准，`from=series_short_play_info` 仅用于补齐缺失的当前季号，不再作为必须成功的前置请求；完整参数、映射、TV焦点和验证范围见 [系列剧说明](series-seasons.md)。

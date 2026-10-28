@@ -354,6 +354,7 @@
     'content.switchFailed': '切换失败：{error}，保留原播放状态。',
     'content.seriesIncomplete': '本季集列表不完整',
     'content.seriesInvalid': '系列剧响应无效',
+    'content.seriesListIncomplete': '系列季列表不完整，已暂停自动续播',
     'content.seasonInvalid': '季关系响应无效',
     'content.seasonMismatch': '系列季号不一致',
     'content.seasonConflict': '下一季关系存在冲突',
