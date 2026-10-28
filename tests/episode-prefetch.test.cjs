@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {create,nextPrefetchEpisode,nextUnlockedEpisodes} = require('../core/cmd/hongguotv/ui/episode-prefetch.js');
+const {create,nextPrefetchEpisode,nextUnlockedEpisodes,prefetchThreshold,prepareParams} = require('../core/cmd/hongguotv/ui/episode-prefetch.js');
 const deferred = () => {let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};};
 const tick = () => new Promise(r=>setImmediate(r));
 const info = (extra={}) => ({series_id:'123',vid:'111',episode:1,quality:'720P',generation:3,owner:2,
@@ -27,6 +27,25 @@ test('MPV can request an earlier prefetch threshold without changing the default
   const g=fixture();
   g.p.maybe(info({stable_seconds:4.99}));
   await tick();assert.equal(g.calls.length,0);
+});
+test('full-download mode waits longer before prefetching, especially on MPV',()=>{
+  assert.equal(prefetchThreshold('range','mpv'),1);
+  assert.equal(prefetchThreshold('range',''),5);
+  assert.equal(prefetchThreshold('full','mpv'),12);
+  assert.equal(prefetchThreshold('full',''),10);
+});
+test('full downloads do not start until the longer stability window is reached',async()=>{
+  for (const [engine,threshold] of [['',10],['mpv',12]]) {
+    const f=fixture(x=>target({quality:x.quality,prefetch_mode:'full'}));
+    f.p.maybe(info({stable_seconds:threshold-.01,prefetch_after_seconds:prefetchThreshold('full',engine),prefetch_mode:'full'}));
+    await tick();assert.equal(f.calls.length,0,engine);
+    f.p.maybe(info({stable_seconds:threshold,prefetch_after_seconds:prefetchThreshold('full',engine),prefetch_mode:'full'}));
+    await tick();assert.equal(f.calls.length,1,engine);
+  }
+});
+test('prefetch request parameters keep full and Range preparation on separate server paths',()=>{
+  assert.equal(prepareParams({series_id:'123',vid:'222',quality:'720P',prefetch_mode:'range'}).mode,'range');
+  assert.equal(Object.prototype.hasOwnProperty.call(prepareParams({series_id:'123',vid:'222',prefetch_mode:'full'}),'mode'),false);
 });
 test('prefetch targets only the immediate next episode and ignores only inferred locks',()=>{
   const detail={series_id:'123',accessible_episode_cnt:3,vid_list:['10','11','12','13','14'],episodes:[
@@ -70,6 +89,29 @@ test('natural next episode adopts the pending download without aborting or prepa
   assert.ok(next);assert.equal(signal.aborted,false);reply.resolve({path:'/prepared.mp4'});
   assert.equal((await next.promise).path,'/prepared.mp4');assert.equal(downloads,1);
   assert.equal(p.consume(target()),null);
+});
+test('full-prefetch strategy is independent of the actual range playback mode',async()=>{
+  const calls=[];
+  const p=create({lookup:async()=>target({mode:'range',prefetch_mode:'full'}),prepare:async x=>{calls.push(x);return {path:'/whole.mp4'};}});
+  p.maybe(info({mode:'range',prefetch_mode:'full'}));await tick();
+  const handoff=p.consume(target({mode:'range',prefetch_mode:'full'}));
+  assert.ok(handoff);
+  assert.equal(handoff.prefetchMode,'full');
+  assert.equal((await handoff.promise).path,'/whole.mp4');
+  assert.equal(calls.length,1);
+  const mismatch=p.consume(target({mode:'range',prefetch_mode:'range'}));
+  assert.equal(mismatch,null);
+});
+test('pending full downloads can be cancelled without discarding a completed file',async()=>{
+  const pending=deferred();let signal;
+  const p=create({lookup:async()=>target({mode:'range',prefetch_mode:'full'}),prepare:(_,s)=>{signal=s;return pending.promise;}});
+  p.maybe(info({mode:'range',prefetch_mode:'full'}));await tick();
+  assert.equal(p.cancelPending('full'),true);
+  assert.equal(signal.aborted,true);
+  const complete=create({lookup:async()=>target({mode:'range',prefetch_mode:'full'}),prepare:async()=>({path:'/complete.mp4'})});
+  complete.maybe(info({mode:'range',prefetch_mode:'full'}));await tick();
+  assert.equal(complete.cancelPending('full'),false);
+  assert.equal((await complete.consume(target({mode:'range',prefetch_mode:'full'})).promise).path,'/complete.mp4');
 });
 test('pending metadata survives take-over and the foreground owner can cancel it',async()=>{
   const lookup=deferred();let downloads=0,signal;
@@ -165,6 +207,13 @@ test('webOS refreshes an expired success near the end using the same bounded ext
   now+=120000;p.maybe(info({duration:300,position:130}));await tick();assert.equal(attempts,1);
   now+=100000;p.maybe(info({duration:300,position:270}));await tick();assert.equal(attempts,2);
   now+=1000;assert.equal((await p.consume(target()).promise).path,'/prepared-2.mp4');
+});
+test('an old full-file cache result is rejected after its cache-safe lifetime',async()=>{
+  let now=0;
+  const p=create({now:()=>now,fullMaxAgeMs:60000,lookup:async()=>target({mode:'range',prefetch_mode:'full'}),prepare:async()=>({path:'/old.mp4'})});
+  p.maybe(info({mode:'range',prefetch_mode:'full'}));await tick();
+  now=60000;
+  assert.equal(p.consume(target({mode:'range',prefetch_mode:'full'})),null);
 });
 test('cancel discards a failed retry candidate and a claimed lookup even without AbortController',async()=>{
   let now=1000, attempts=0;

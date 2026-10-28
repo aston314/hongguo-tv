@@ -327,6 +327,12 @@
           <div class="app-update-actions"><button class="app-update-action account-action" id="app-check-update" data-focus="app-check-update" data-i18n="settings.checkUpdates">检查更新</button><button class="app-update-action account-action is-hidden" id="desktop-download-update" data-focus="desktop-download-update" data-i18n="ui.downloadZip">下载更新 ZIP</button><button class="app-update-action account-action is-hidden" id="desktop-open-update-folder" data-focus="desktop-open-update-folder" data-i18n="settings.openFolder">打开所在文件夹</button><button class="app-update-action account-action is-hidden" id="app-open-licenses" data-focus="app-open-licenses" data-i18n="settings.licenses">开源许可</button></div>
           <pre id="desktop-update-notes" class="desktop-update-notes is-hidden"></pre>
         </div>
+        <div class="settings-card app-update-card is-hidden" id="episode-prefetch-settings">
+          <h2 data-i18n="settings.episodePrefetch">下一集预取方式</h2>
+          <p data-i18n="settings.episodePrefetchDescription">选择切集前的准备方式。边播边下占用较少；整集预下载切集更快，但会增加网络、存储和处理器占用。</p>
+          <div class="app-update-actions"><button class="episode-prefetch-action account-action" id="episode-prefetch-range" data-mode="range" data-focus="episode-prefetch-range" aria-pressed="false" data-i18n="settings.episodePrefetchRange">边播边下（推荐）</button><button class="episode-prefetch-action account-action" id="episode-prefetch-full" data-mode="full" data-focus="episode-prefetch-full" aria-pressed="false" data-i18n="settings.episodePrefetchFull">整集预下载</button></div>
+          <p id="episode-prefetch-state" role="status" aria-live="polite"></p>
+        </div>
         <div class="settings-card app-update-card is-hidden" id="mpv-playback-settings">
           <h2 data-i18n="settings.playback">播放解码</h2>
           <p data-i18n="settings.playbackDescription">自动解码优先尝试硬件加速；画面异常时可选软件解码。设置在下次播放或切集时生效。</p>
@@ -502,6 +508,7 @@
   <script src="/playback-recovery.js"></script>
   <script src="/native-player.js"></script>
   <script src="/playback-settings.js"></script>
+  <script src="/episode-prefetch-settings.js"></script>
   <script src="/auto-cinema.js"></script>
   <script src="/sidebar-settings.js"></script>
   <script src="/episode-wheel.js"></script>

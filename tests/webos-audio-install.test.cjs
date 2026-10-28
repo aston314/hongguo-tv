@@ -44,7 +44,7 @@ function element(hidden=false){
 }
 function pageFixture(f,webosShell=true){
  const elements={'hero-video':f.video,'webos-audio-settings':element(true),'webos-audio-toggle':element(),'control-progress':element()},speed=element();let saved=0,updates=0,focus=null,closed=0;
- const c={window:{HongguoWebOSAudio:f.api},webosShell,androidShell:false,document:{getElementById:id=>elements[id]||(elements[id]=element()),querySelector:selector=>selector==='[data-action="speed"]'?speed:element(),createElement:()=>element()},media:f.video,
+ const c={window:{HongguoWebOSAudio:f.api},webosShell,androidShell:false,desktopShell:!webosShell,episodePrefetchPlatform:()=>webosShell?'webos':'desktop',HongguoEpisodePrefetchSettings:require('../core/cmd/hongguotv/ui/episode-prefetch-settings.js'),document:{getElementById:id=>elements[id]||(elements[id]=element()),querySelector:selector=>selector==='[data-action="speed"]'?speed:element(),createElement:()=>element()},media:f.video,
   uiText:(_,text)=>text,showNotice(){},updatePlaybackControls(){updates++;},savePlaybackPreferences(){saved++;},playbackPreferences:{speed:2,quality:'',volume:100},playbackSpeeds:[.5,.75,1,1.25,1.5,2],
   playerOptionsOpen:false,isPlaybackPage:()=>true,revealControls(){},clearTimeout(){},controlsTimer:null,closePlayerOptions(){closed++;},goFocus:n=>{focus=n;},playbackAudioHold:null,playbackQuality:'',clockText:String,setControlIcon(){},shell:{classList:{contains:()=>false}},setPlaybackMuted(){},updateDanmakuButton(){},localStorage:{getItem:()=>'{"speed":2,"volume":100}'}};
  const a=source.indexOf('  function playbackSpeedAvailable(');

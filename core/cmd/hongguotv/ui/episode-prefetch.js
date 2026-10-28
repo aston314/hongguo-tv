@@ -7,22 +7,37 @@
     var maxRetries = options.maxRetries === 1 ? 1 : 0;
     var retryDelay = Math.max(0, Number(options.retryDelayMs) || 3000);
     var maxAge = Math.max(0, Number(options.maxAgeMs) || 0);
+    var fullMaxAge = Math.max(0, Number(options.fullMaxAgeMs) || 0);
     var isRetryableError = options.isRetryableError || retryableError;
+    function maxAgeFor(candidate) { return strategyOf(candidate.info) === 'full' ? fullMaxAge : maxAge; }
     function stableThreshold(info) {
       var value = Number(info && info.prefetch_after_seconds);
       return isFinite(value) && value >= 0 ? value : 5;
     }
-    function cancel() {
-      var previous = entry; entry = null;
-      invalidate(previous);
+    function prefetchMode(value) {
+      return value === 'full' ? 'full' : value === 'range' ? 'range' : '';
     }
+    function strategyOf(value) {
+      if (!value) return '';
+      return prefetchMode(value.prefetch_mode || value.prefetchMode) || prefetchMode(value.mode);
+    }
+    function cancel(mode, pendingOnly) {
+      var previous = entry;
+      if (!previous) return false;
+      if (mode && strategyOf(previous.info) !== prefetchMode(mode)) return false;
+      if (pendingOnly && previous.state === 'ready') return false;
+      entry = null;
+      invalidate(previous);
+      return true;
+    }
+    function cancelPending(mode) { return cancel(mode, true); }
     function invalidate(candidate) {
       if (!candidate) return;
       candidate.cancelled = true;
       if (candidate.request) candidate.request.abort();
     }
     function key(info) {
-      return [info.series_id, info.vid, info.episode, info.quality || '', info.mode || '', info.generation, info.owner].join(':');
+      return [info.series_id, info.vid, info.episode, info.quality || '', info.mode || '', strategyOf(info), info.generation, info.owner].join(':');
     }
     function current(candidate) {
       return !candidate.cancelled && (entry === candidate || candidate.claimed) && !(candidate.request && candidate.request.signal.aborted);
@@ -37,7 +52,7 @@
         // A long episode may outlive the early prepared URL. Use the same
         // single extra-attempt budget to refresh near the end, while there is
         // still time to prepare it, rather than polling throughout playback.
-        else if (entry.state === 'ready' && maxAge && now() - entry.timing.ready_at >= maxAge &&
+        else if (entry.state === 'ready' && maxAgeFor(entry) && now() - entry.timing.ready_at >= maxAgeFor(entry) &&
             entry.attempts <= maxRetries && info.duration - info.position <= 30) {
           entry.timing.started_at = now();
           run(entry);
@@ -62,7 +77,7 @@
         var info = candidate.info;
         if (!current(candidate) || !target || !validVid(target.vid) || target.vid === info.vid || target.series_id !== info.series_id ||
             Number(target.episode) !== Number(info.episode) + 1 || (target.quality || '') !== (info.quality || '') ||
-            (target.mode || '') !== (info.mode || '') || !sameValue(target.owner, info.owner) ||
+            (target.mode || '') !== (info.mode || '') || strategyOf(target) !== strategyOf(info) || !sameValue(target.owner, info.owner) ||
             candidate.expectedVid && candidate.expectedVid !== target.vid) return null;
         candidate.target = target;
         return options.prepare(target, candidate.request && candidate.request.signal);
@@ -85,24 +100,25 @@
         return null;
       });
     }
-    function keepFor(seriesID, episode, quality, owner, mode) {
+    function keepFor(seriesID, episode, quality, owner, mode, prefetchModeValue) {
       if (entry && (entry.info.series_id !== seriesID || entry.info.episode + 1 !== episode ||
-          (entry.info.quality || '') !== (quality || '') || entry.info.owner !== owner || (entry.info.mode || '') !== (mode || ''))) cancel();
+          (entry.info.quality || '') !== (quality || '') || entry.info.owner !== owner || (entry.info.mode || '') !== (mode || '') ||
+          strategyOf(entry.info) !== prefetchMode(prefetchModeValue || mode))) cancel();
     }
     function consume(target) {
       var previous = entry;
       if (!previous || previous.info.series_id !== target.series_id || previous.info.episode + 1 !== target.episode ||
-          (previous.info.quality || '') !== (target.quality || '') || previous.info.owner !== target.owner || (previous.info.mode || '') !== (target.mode || '') ||
-          (maxAge && previous.state === 'ready' && now() - previous.timing.ready_at >= maxAge) ||
+          (previous.info.quality || '') !== (target.quality || '') || previous.info.owner !== target.owner || (previous.info.mode || '') !== (target.mode || '') || strategyOf(previous.info) !== strategyOf(target) ||
+          (maxAgeFor(previous) && previous.state === 'ready' && now() - previous.timing.ready_at >= maxAgeFor(previous)) ||
           previous.target && previous.target.vid !== target.vid) { cancel(); return null; }
       // Keep an in-flight request alive across the natural episode switch. Its
       // only owner is now the foreground player, which can still cancel it.
       entry = null;
       previous.claimed = true;
       previous.expectedVid = target.vid;
-      return { promise: previous.promise, timing: previous.timing, cancel: function () { invalidate(previous); } };
+      return { promise: previous.promise, timing: previous.timing, prefetchMode: strategyOf(previous.info), cancel: function () { invalidate(previous); } };
     }
-    return { maybe: maybe, cancel: cancel, keepFor: keepFor, consume: consume };
+    return { maybe: maybe, cancel: cancel, cancelPending: cancelPending, keepFor: keepFor, consume: consume };
   }
   function retryableError(error) {
     if (!error) return false;
@@ -125,6 +141,23 @@
   function sameValue(left, right) {
     if (left == null || right == null) return left == null && right == null;
     return String(left) === String(right);
+  }
+  function supportsFullEpisodePrefetch(platform) {
+    return platform === 'android' || platform === 'desktop';
+  }
+  function normalizePrefetchMode(value) {
+    return value === 'full' ? 'full' : 'range';
+  }
+  function prefetchThreshold(mode, engine) {
+    if (normalizePrefetchMode(mode) === 'full') return engine === 'mpv' ? 12 : 10;
+    return engine === 'mpv' ? 1 : 5;
+  }
+  function prepareParams(target) {
+    target = target || {};
+    var mode = normalizePrefetchMode(target.prefetch_mode || target.prefetchMode || target.mode);
+    var params = { series_id: target.series_id || '', vid: target.vid || '', quality: target.quality || '', fallback: '1', prefetch: '1' };
+    if (mode !== 'full') params.mode = 'range';
+    return params;
   }
   function nextPrefetchEpisode(detail, currentEpisode) {
     var videos = detail && detail.vid_list || [];
@@ -159,6 +192,7 @@
     }
     return result;
   }
-  root.HongguoEpisodePrefetch = { create: create, nextUnlockedEpisodes: nextUnlockedEpisodes, nextPrefetchEpisode: nextPrefetchEpisode, retryableError: retryableError };
+  root.HongguoEpisodePrefetch = { create: create, nextUnlockedEpisodes: nextUnlockedEpisodes, nextPrefetchEpisode: nextPrefetchEpisode, retryableError: retryableError,
+    supportsFullEpisodePrefetch: supportsFullEpisodePrefetch, normalizePrefetchMode: normalizePrefetchMode, prefetchThreshold: prefetchThreshold, prepareParams: prepareParams };
   if (typeof module === 'object' && module.exports) module.exports = root.HongguoEpisodePrefetch;
 })(typeof window !== 'undefined' ? window : globalThis);

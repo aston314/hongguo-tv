@@ -59,6 +59,7 @@
     sidebarDisplay: '.sidebar-display-action',
     autoCinema: '.auto-cinema-action',
     webosAudio: '.webos-audio-action',
+    episodePrefetch: '.episode-prefetch-action',
     playbackModes: '.playback-mode-action',
     support: '.support-card, .support-close',
     rankModal: '.rank-filter-option, .rank-filter-close, .rank-filter-apply',
@@ -169,6 +170,7 @@
   var autoCinemaPreferences = null;
   var autoCinemaSettingCard = document.getElementById('auto-cinema-settings');
   var autoCinemaToggle = document.getElementById('auto-cinema-toggle');
+  var episodePrefetchSettingCard = document.getElementById('episode-prefetch-settings');
   var playbackMenuHintSeen = false;
   var playbackMenuHintCandidate = false;
   var playbackMenuHintTimer = 0;
@@ -400,20 +402,27 @@
     maxRetries: window.HongguoWebOS ? 1 : 0,
     retryDelayMs: 3000,
     maxAgeMs: window.HongguoWebOS ? 120000 : 0,
+    fullMaxAgeMs: 110 * 60 * 1000,
     lookup: function (info, signal) {
       return getDetail(info.item, signal).then(function (detail) {
         if (!detail || detail.series_id !== info.series_id) return null;
         var next = HongguoEpisodePrefetch.nextPrefetchEpisode(detail, info.episode);
         return next ? { series_id: info.series_id, vid: next.vid, episode: next.episode, quality: info.quality || '',
-          fallback: '1', mode: info.mode || '', owner: info.owner } : null;
+          fallback: '1', mode: info.mode || '', prefetch_mode: info.prefetch_mode || info.mode || '', owner: info.owner } : null;
       });
     },
     prepare: function (target, signal) {
-      return fetchData('/api/v1/play/info?' + new URLSearchParams(Object.assign({}, target, { prefetch: '1' })), signal ? { signal: signal } : {});
+      // `mode` describes the player that will consume the result. The
+      // prefetch strategy is separate: full preparation must use the existing
+      // complete-file resolver, while range preparation must stay on the
+      // bounded Range path and never silently download the whole episode.
+      var params = HongguoEpisodePrefetch.prepareParams(target);
+      return fetchData('/api/v1/play/info?' + new URLSearchParams(params), signal ? { signal: signal } : {});
     }
   });
   var applicationInBackground = false;
-  var playbackPreferences = { speed: 1, volume: 100, quality: '', danmaku: false };
+  var playbackPreferences = { speed: 1, volume: 100, quality: '', danmaku: false, prefetch_mode: 'range' };
+  var episodePrefetchSettings = null;
   var endRecommendationIndex = 0, endRecommendationAnimation = 0, endRecommendationReadyCleanup = null;
   var endRecommendations = HongguoEndRecommendations.create({
     isCurrent: function (playback) {
@@ -436,6 +445,15 @@
     play: function (item) { startPlayer(item, playerReturnFocus); }
   });
   var playbackSpeeds = [.5, .75, 1, 1.25, 1.5, 2];
+  function episodePrefetchPlatform() { return webosShell ? 'webos' : androidShell ? 'android' : desktopShell ? 'desktop' : 'preview'; }
+  function supportsFullEpisodePrefetch() {
+    return typeof HongguoEpisodePrefetchSettings !== 'undefined' && HongguoEpisodePrefetchSettings &&
+      typeof HongguoEpisodePrefetchSettings.supports === 'function' && typeof episodePrefetchPlatform === 'function' &&
+      HongguoEpisodePrefetchSettings.supports(episodePrefetchPlatform());
+  }
+  function effectiveEpisodePrefetchMode() {
+    return supportsFullEpisodePrefetch() && playbackPreferences.prefetch_mode === 'full' ? 'full' : 'range';
+  }
   function rangePlaybackEnabled() {
     // MPV now tries the same local Range/decrypt proxy as WebView/Media3.
     // The server still returns the established complete-file source when the
@@ -1125,6 +1143,7 @@
     if (element.classList.contains('sidebar-display-action')) return 'sidebarDisplay';
     if (element.classList.contains('auto-cinema-action')) return 'autoCinema';
     if (element.classList.contains('webos-audio-action')) return 'webosAudio';
+    if (element.classList.contains('episode-prefetch-action')) return 'episodePrefetch';
     if (element.classList.contains('playback-mode-action')) return 'playbackModes';
     if (element.classList.contains('account-action')) return 'accountActions';
     if (element.classList.contains('confirm-button')) return 'confirmation';
@@ -1198,7 +1217,7 @@
     if (remembered && focusables().indexOf(remembered) >= 0) return remembered;
     if (pageMode() === 'search') return searchInput || document.querySelector('.search-submit');
     if (pageMode() === 'account') return firstVisible('.account-input') || firstVisible('.account-action');
-    if (pageMode() === 'settings') return selectedSidebarDisplay() || selectedLocale() || firstVisible('.auto-cinema-action') || firstVisible('.app-update-action') || firstVisible('.playback-mode-action') || activeSidebar();
+    if (pageMode() === 'settings') return selectedSidebarDisplay() || selectedLocale() || firstVisible('.auto-cinema-action') || firstVisible('.app-update-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action') || activeSidebar();
     if (pageMode() === 'support') return firstVisible('.support-card');
     if (isLibraryPage()) return firstVisible('.library-card') || firstVisible('.history-filter.is-active') || firstVisible('[data-action="library-discover"]') || firstVisible('.library-toolbar-button');
     if (pageMode() === 'new') return firstVisible('.new-tab.is-active') || firstNewTab();
@@ -1636,19 +1655,19 @@
     if (zone === 'sidebarDisplay') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return activeSidebar();
-      if (direction === 'down') return firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || firstVisible('.auto-cinema-action') || firstVisible('.app-update-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action');
+      if (direction === 'down') return firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || firstVisible('.auto-cinema-action') || firstVisible('.app-update-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action');
       return null;
     }
     if (zone === 'localeActions') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.auto-cinema-action') || firstVisible('.app-update-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action');
+      if (direction === 'down') return firstVisible('.auto-cinema-action') || firstVisible('.app-update-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action');
       return null;
     }
     if (zone === 'appUpdates') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.webos-update-notes') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action');
+      if (direction === 'down') return firstVisible('.webos-update-notes') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action');
       return null;
     }
     if (zone === 'webosUpdateNotes') {
@@ -1659,18 +1678,24 @@
     if (zone === 'autoCinema') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.webos-audio-action') || firstVisible('.app-update-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action');
+      if (direction === 'down') return firstVisible('.webos-audio-action') || firstVisible('.app-update-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action');
       return null;
     }
     if (zone === 'webosAudio') {
       if (direction === 'left') return activeSidebar();
       if (direction === 'up') return firstVisible('.auto-cinema-action') || firstVisible('.locale-action[aria-pressed="true"]') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.app-update-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action');
+      return null;
+    }
+    if (zone === 'episodePrefetch') {
+      if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
+      if (direction === 'up') return firstVisible('.app-update-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'down') return firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action');
       return null;
     }
     if (zone === 'playbackModes') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
-      if (direction === 'up') return firstVisible('.app-update-action') || firstVisible('.auto-cinema-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'up') return firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.app-update-action') || firstVisible('.auto-cinema-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       return null;
     }
     if (zone === 'accountInputs' || zone === 'accountActions') {
@@ -2454,7 +2479,8 @@
       var value = JSON.stringify(playbackPreferences);
       if (androidShell && window.HongguoTVPreferences) window.HongguoTVPreferences.write(value);
       else localStorage.setItem('hongguo-tv-playback', value);
-    } catch (error) { showNotice(uiText('ui.playbackSettingsSaveFailed', '播放设置未保存')); }
+      return true;
+    } catch (error) { showNotice(uiText('ui.playbackSettingsSaveFailed', '播放设置未保存')); return false; }
   }
   function restorePlaybackPreferences() {
     try {
@@ -2463,8 +2489,13 @@
       if (playbackSpeeds.indexOf(saved.speed) >= 0) playbackPreferences.speed = saved.speed;
       if (Number.isFinite(saved.volume) && saved.volume >= 0 && saved.volume <= 100) playbackPreferences.volume = saved.volume;
       if (/^[1-9][0-9]{2,3}P$/.test(saved.quality || '')) playbackPreferences.quality = saved.quality;
+      playbackPreferences.prefetch_mode = HongguoEpisodePrefetch.normalizePrefetchMode(saved.prefetch_mode);
       danmakuEnabled = saved.danmaku === true; playbackPreferences.danmaku = danmakuEnabled;
     } catch (error) { /* Invalid preferences fall back to normal playback. */ }
+    var fullPrefetchSupported = typeof HongguoEpisodePrefetchSettings !== 'undefined' && HongguoEpisodePrefetchSettings &&
+      typeof HongguoEpisodePrefetchSettings.supports === 'function' && typeof episodePrefetchPlatform === 'function' &&
+      HongguoEpisodePrefetchSettings.supports(episodePrefetchPlatform());
+    if (!fullPrefetchSupported) playbackPreferences.prefetch_mode = 'range';
     // Keep native webOS playback at audible 1x unless the user has opted in.
     // An enabled experiment restores its saved speed through the audio controller.
     if (!playbackSpeedAvailable()) playbackPreferences.speed = 1;
@@ -4257,25 +4288,31 @@
     if (!handoff || !handoff.promise) return Promise.resolve(null);
     var settled = false;
     return new Promise(function (resolve) {
-      var timer = setTimeout(function () {
-        if (settled) return;
-        settled = true;
-        // The foreground resolver may join the same core job. Keep the
-        // handoff alive so a source switch can still cancel that job.
-        if (generation === feedGeneration && !(signal && signal.aborted)) playbackDebug('[Preload] handoff timeout, use foreground resolver');
-        resolve(null);
-      }, 1200);
-      handoff.promise.then(function (data) {
+      function finish(data) {
         if (settled) return;
         settled = true;
         clearTimeout(timer);
         if (generation !== feedGeneration || signal && signal.aborted) { resolve(null); return; }
         resolve(data && data.path ? data : null);
-      }, function () {
+      }
+      var timer = setTimeout(function () {
         if (settled) return;
         settled = true;
-        clearTimeout(timer);
+        // Range preparation is shared with the foreground resolver. A full
+        // episode download is intentionally cancelled at the handoff budget:
+        // it must never keep competing with the source that is about to play.
+        if (handoff.prefetchMode === 'full') handoff.cancel();
+        else if (generation === feedGeneration && !(signal && signal.aborted)) playbackDebug('[Preload] handoff timeout, use foreground resolver');
         resolve(null);
+      }, 1200);
+      handoff.promise.then(function (data) {
+        if (settled) return;
+        if (!data || !data.path || handoff.prefetchMode !== 'full') { finish(data); return; }
+        fetch(data.path, { method: 'HEAD', signal: signal }).then(function (response) {
+          finish(response && response.ok ? data : null);
+        }, function () { finish(null); });
+      }, function () {
+        finish(null);
       });
     });
   }
@@ -4338,13 +4375,23 @@
   function maybePrefetchNextEpisode(video) {
     var playback = activePlayback;
     if (!playback) return;
+    var mode = typeof effectiveEpisodePrefetchMode === 'function' ? effectiveEpisodePrefetchMode() : 'range';
     episodePrefetch.maybe({ item: playback.item, series_id: playback.item.series_id, vid: playback.vid,
       episode: playback.episode, quality: playbackPreferences.quality, generation: playback.generation, owner: accountEpoch,
       mode: (typeof rangePlaybackEnabled === 'function' && rangePlaybackEnabled()) ? 'range' : '',
-      prefetch_after_seconds: playbackEngineName() === 'mpv' ? 1 : 5,
+      prefetch_mode: mode,
+      prefetch_after_seconds: HongguoEpisodePrefetch.prefetchThreshold(mode, playbackEngineName()),
       duration: Number(video.duration), position: Number(video.currentTime), paused: video.paused, ended: video.ended,
       stable_seconds: playback.stableSince ? Math.max(0, Date.now() - playback.stableSince) / 1000 : 0,
       started: playback.started, active: playback.generation === feedGeneration && isPlaybackPage() && !applicationInBackground && !applicationHidden() && !qualityPrevious });
+  }
+  function cancelFullEpisodePrefetchForPlayback(playback) {
+    var video = document.getElementById('hero-video');
+    if (!playback || !playback.started || playback.ended || playback.completed || video.ended ||
+        (typeof effectiveEpisodePrefetchMode === 'function' ? effectiveEpisodePrefetchMode() : 'range') !== 'full') return;
+    // Completed files are already local and harmless to keep for the upcoming
+    // natural switch. Cancel only an in-flight speculative download.
+    episodePrefetch.cancelPending('full');
   }
   function holdPlaybackAudio(generation) {
     var video = document.getElementById('hero-video');
@@ -4639,7 +4686,7 @@
       timing.native_stop_fence_ms = nativeStopFenceMs;
       timing.video_start_ms = Math.max(0, Date.now() - timing.ready_at);
       timing.total_ms = Math.max(0, Date.now() - timing.started_at);
-      playbackTiming.push({ episode: timing.episode, automatic_next: timing.automatic_next, prefetch_ms: timing.prefetch_ms,
+      playbackTiming.push({ episode: timing.episode, automatic_next: timing.automatic_next, prefetch_mode: timing.prefetch_mode, prefetch_ms: timing.prefetch_ms,
         handoff_wait_ms: timing.handoff_wait_ms, foreground_resolve_ms: timing.foreground_resolve_ms,
         prepared_before_switch: timing.prepared_before_switch,
         source_ready_ms: Math.max(0, timing.ready_at - timing.started_at),
@@ -4748,7 +4795,8 @@
     var request = new AbortController();
     playbackInfoRequest = request;
     var playbackMode = (typeof rangePlaybackEnabled === 'function' && rangePlaybackEnabled()) ? 'range' : '';
-    episodePrefetch.keepFor(item.series_id, forcedEpisode, playbackPreferences.quality, accountEpoch, playbackMode);
+    var prefetchMode = typeof effectiveEpisodePrefetchMode === 'function' ? effectiveEpisodePrefetchMode() : 'range';
+    episodePrefetch.keepFor(item.series_id, forcedEpisode, playbackPreferences.quality, accountEpoch, playbackMode, prefetchMode);
     // ended has already queued the completed episode. Keep that write alive,
     // but do not queue it twice or make the next source wait for its fsync.
     if (!fastContinuation) saveProgress(true);
@@ -4835,7 +4883,7 @@
           endedPending: false,
           mode: '', rangeFallback: '', rangeFallbackAttempted: false,
           recoveryAttempts: recovery && recovery.recoveryAttempts || 0,
-          timing: { episode: episode, automatic_next: fastContinuation || !!(recovery && recovery.automaticNext), started_at: switchStartedAt, ready_at: 0,
+          timing: { episode: episode, automatic_next: fastContinuation || !!(recovery && recovery.automaticNext), prefetch_mode: prefetchMode, started_at: switchStartedAt, ready_at: 0,
             prefetch_started_at: 0, prefetch_ready_at: 0, prefetch_ms: null, handoff_wait_ms: null,
             foreground_resolve_started_at: 0, foreground_resolve_ms: null,
             prepared_before_switch: false, reported: false } };
@@ -4843,7 +4891,7 @@
         setFeatured(playing);
         updateDetailProgress();
         setPlayerStatus(episodeLoadingText(episode));
-        var target = { series_id: item.series_id, vid: vid, episode: episode, quality: playbackPreferences.quality, owner: accountEpoch, mode: playbackMode };
+        var target = { series_id: item.series_id, vid: vid, episode: episode, quality: playbackPreferences.quality, owner: accountEpoch, mode: playbackMode, prefetch_mode: prefetchMode };
         var handoff = episodePrefetch.consume(target);
         playbackPrefetchHandoff = handoff;
         activePlayback.timing.handoff_started_at = Date.now();
@@ -7644,6 +7692,7 @@
     saveProgress(false);
   });
   media.addEventListener('pause', function () {
+    if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback);
     if (activePlayback) activePlayback.stableSince = 0;
     interruptPlaybackPresentation(activePlayback);
     document.getElementById('danmaku-layer').classList.add('is-paused');
@@ -7687,14 +7736,18 @@
   media.addEventListener('emptied', updatePlaybackControls);
   media.addEventListener('waiting', function () {
     if (!activePlayback) return;
+    if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback);
     activePlayback.stableSince = 0;
     interruptPlaybackPresentation(activePlayback);
     if (activePlayback.presentation) activePlayback.presentation.waiting = true;
     setPlayerStatus(document.getElementById('hero').classList.contains('is-preparing-video') || !activePlayback.started ? episodeLoadingText(activePlayback.episode) : uiText('ui.buffering', '正在缓冲…'));
     if (activePlayback.mode === 'range' && !activePlayback.rangeFallbackAttempted) scheduleRangeStallFallback(activePlayback);
   });
-  media.addEventListener('stalled', function () { if (activePlayback && activePlayback.mode === 'range') scheduleRangeStallFallback(activePlayback); });
-  media.addEventListener('seeking', function () { if (activePlayback) activePlayback.stableSince = 0; interruptPlaybackPresentation(activePlayback); });
+  media.addEventListener('stalled', function () {
+    if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback);
+    if (activePlayback && activePlayback.mode === 'range') scheduleRangeStallFallback(activePlayback);
+  });
+  media.addEventListener('seeking', function () { if (activePlayback) { if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback); activePlayback.stableSince = 0; } interruptPlaybackPresentation(activePlayback); });
   media.addEventListener('seeked', function () {
     if (activePlayback && activePlayback.started && !media.paused && !media.ended) activePlayback.stableSince = Date.now();
     if (activePlayback && activePlayback.presentation) activePlayback.presentation.position = Number(media.currentTime) || 0;
@@ -8000,6 +8053,47 @@
     toggle.setAttribute('aria-pressed', enabled ? 'true' : 'false');
     toggle.textContent = enabled ? uiText('settings.autoCinemaEnabled', '已开启') : uiText('settings.autoCinemaDisabled', '已关闭');
   }
+  function renderEpisodePrefetchSettings(data) {
+    if (!episodePrefetchSettingCard) return;
+    episodePrefetchSettingCard.classList.toggle('is-hidden', !data.supported);
+    document.querySelectorAll('.episode-prefetch-action').forEach(function (button) {
+      var selected = button.getAttribute('data-mode') === data.mode;
+      button.classList.toggle('account-primary', selected);
+      button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    });
+    var state = document.getElementById('episode-prefetch-state');
+    if (!state) return;
+    state.textContent = data.message ? uiText('settings.saveFailed', '设置未能保存，请重试。') : data.supported ?
+      uiText(data.mode === 'full' ? 'settings.episodePrefetchCurrentFull' : 'settings.episodePrefetchCurrentRange', data.mode === 'full' ? '当前：整集预下载' : '当前：边播边下') : '';
+  }
+  function initEpisodePrefetchSettings() {
+    episodePrefetchSettings = HongguoEpisodePrefetchSettings.create({
+      platform: episodePrefetchPlatform(),
+      read: function () { return playbackPreferences.prefetch_mode; },
+      write: function (value) {
+        var previous = playbackPreferences.prefetch_mode;
+        playbackPreferences.prefetch_mode = value;
+        if (!savePlaybackPreferences()) { playbackPreferences.prefetch_mode = previous; return false; }
+        episodePrefetch.cancel();
+        if (playbackPrefetchHandoff && playbackPrefetchHandoff.prefetchMode === 'full' && value !== 'full') {
+          playbackPrefetchHandoff.cancel();
+          playbackPrefetchHandoff = null;
+        }
+        if (activePlayback && activePlayback.started && !activePlayback.ended && !activePlayback.completed) {
+          activePlayback.stableSince = Date.now();
+        }
+        return true;
+      },
+      render: renderEpisodePrefetchSettings
+    });
+    document.querySelectorAll('.episode-prefetch-action').forEach(function (button) {
+      button.addEventListener('click', function () {
+        if (!episodePrefetchSettings || !episodePrefetchSettings.choose(button.getAttribute('data-mode'))) {
+          showNotice(uiText('settings.saveFailed', '设置未能保存，请重试。'));
+        }
+      });
+    });
+  }
   updateWebOSAudioSettings();
   if (webosAudio && webosAudio.supported) {
     document.getElementById('webos-audio-toggle').addEventListener('click', function () {
@@ -8019,6 +8113,7 @@
   goFocus(document.querySelector('.side-item.is-active'));
   playbackMenuHintSeen = readPlaybackMenuHintSeen();
   restorePlaybackPreferences();
+  initEpisodePrefetchSettings();
   loadStatus();
   libraryReady = loadLibrary();
   pollAccount();

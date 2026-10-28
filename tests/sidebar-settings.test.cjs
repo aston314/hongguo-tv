@@ -78,18 +78,20 @@ test('settings remote focus moves between display modes, updates and decoding wi
   const icons = node('icons', ['sidebar-display-action', 'account-action']);
   const locale = node('locale', ['locale-action', 'account-action']);
   const update = node('update', ['app-update-action', 'account-action']);
+  const prefetchRange = node('prefetchRange', ['episode-prefetch-action', 'account-action']);
+  const prefetchFull = node('prefetchFull', ['episode-prefetch-action', 'account-action']);
   const autoCinema = node('autoCinema', ['auto-cinema-action', 'account-action']);
   const decode = node('decode', ['playback-mode-action', 'account-action']);
   const sidebar = node('sidebar', ['side-item']);
-  const nodes = [expanded, icons, locale, autoCinema, update, decode, sidebar];
-  const zones = { sidebarDisplay: [expanded, icons], localeActions: [locale], appUpdates: [update], autoCinema: [autoCinema], playbackModes: [decode], sidebar: [sidebar] };
+  const nodes = [expanded, icons, locale, autoCinema, update, prefetchRange, prefetchFull, decode, sidebar];
+  const zones = { sidebarDisplay: [expanded, icons], localeActions: [locale], appUpdates: [update], autoCinema: [autoCinema], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], sidebar: [sidebar] };
   let updateVisible = true;
   const c = vm.createContext({
     coreConnectionModalOpen: false,
     scanModalOpen: () => false, supportModalOpen: false, confirmOpen: false,
     rankFilterOpen: false, playerOptionsOpen: false, detailModalOpen: false, discussionOpen: false,
     selectedSidebarDisplay: () => icons, activeSidebar: () => sidebar,
-    firstVisible: selector => selector.includes('locale-action') ? locale : selector.includes('app-update') ? updateVisible ? update : null : selector.includes('auto-cinema') ? autoCinema : selector.includes('playback-mode') ? decode : null,
+    firstVisible: selector => selector.includes('locale-action') ? locale : selector.includes('app-update') ? updateVisible ? update : null : selector.includes('auto-cinema') ? autoCinema : selector.includes('episode-prefetch') ? prefetchRange : selector.includes('playback-mode') ? decode : null,
     moveWithinZone: (zone, current, direction) => zones[zone][zones[zone].indexOf(current) + (direction === 'left' ? -1 : 1)] || null
   });
   vm.runInContext(fn('zoneOf', 'goFocus') + fn('moveFrom', 'accountKeypadOpen'), c);
@@ -102,10 +104,12 @@ test('settings remote focus moves between display modes, updates and decoding wi
   assert.equal(c.moveFrom(autoCinema, 'up'), locale);
   assert.equal(c.moveFrom(autoCinema, 'down'), update);
   assert.equal(c.moveFrom(update, 'up'), autoCinema);
-  assert.equal(c.moveFrom(update, 'down'), decode);
-  assert.equal(c.moveFrom(decode, 'up'), update);
+  assert.equal(c.moveFrom(update, 'down'), prefetchRange);
+  assert.equal(c.moveFrom(prefetchRange, 'right'), prefetchFull);
+  assert.equal(c.moveFrom(prefetchRange, 'down'), decode);
+  assert.equal(c.moveFrom(decode, 'up'), prefetchRange);
   assert.equal(c.moveFrom(icons, 'right'), null);
   updateVisible = false;
-  assert.equal(c.moveFrom(autoCinema, 'down'), decode);
-  assert.equal(c.moveFrom(decode, 'up'), autoCinema);
+  assert.equal(c.moveFrom(autoCinema, 'down'), prefetchRange);
+  assert.equal(c.moveFrom(decode, 'up'), prefetchRange);
 });
