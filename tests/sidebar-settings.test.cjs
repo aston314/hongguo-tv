@@ -77,6 +77,8 @@ test('settings remote focus follows the visible card order and keeps version upd
   const expanded = node('expanded', ['sidebar-display-action', 'account-action']);
   const icons = node('icons', ['sidebar-display-action', 'account-action']);
   const locale = node('locale', ['locale-action', 'account-action']);
+  const directionAll = node('directionAll', ['recommendation-direction-action', 'account-action']);
+  const directionLandscape = node('directionLandscape', ['recommendation-direction-action', 'account-action']);
   const update = node('update', ['app-update-action', 'account-action']);
   const prefetchRange = node('prefetchRange', ['episode-prefetch-action', 'account-action']);
   const prefetchFull = node('prefetchFull', ['episode-prefetch-action', 'account-action']);
@@ -84,14 +86,14 @@ test('settings remote focus follows the visible card order and keeps version upd
   const webosAudio = node('webosAudio', ['webos-audio-action', 'account-action']);
   const decode = node('decode', ['playback-mode-action', 'account-action']);
   const sidebar = node('sidebar', ['side-item']);
-  const zones = { sidebarDisplay: [expanded, icons], localeActions: [locale], appUpdates: [update], autoCinema: [autoCinema], webosAudio: [webosAudio], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], sidebar: [sidebar] };
-  const visible = { update: true, webosAudio: true, prefetch: true, decode: true };
+  const zones = { sidebarDisplay: [expanded, icons], localeActions: [locale], recommendationDirection: [directionAll, directionLandscape], appUpdates: [update], autoCinema: [autoCinema], webosAudio: [webosAudio], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], sidebar: [sidebar] };
+  const visible = { update: true, autoCinema: true, webosAudio: true, prefetch: true, decode: true };
   const c = vm.createContext({
     coreConnectionModalOpen: false,
     scanModalOpen: () => false, supportModalOpen: false, confirmOpen: false,
     rankFilterOpen: false, playerOptionsOpen: false, detailModalOpen: false, discussionOpen: false,
     selectedSidebarDisplay: () => icons, activeSidebar: () => sidebar,
-    firstVisible: selector => selector.includes('locale-action') ? locale : selector.includes('app-update') ? visible.update ? update : null : selector.includes('auto-cinema') ? autoCinema : selector.includes('webos-audio') ? visible.webosAudio ? webosAudio : null : selector.includes('episode-prefetch') ? visible.prefetch ? prefetchRange : null : selector.includes('playback-mode') ? visible.decode ? decode : null : null,
+    firstVisible: selector => selector.includes('recommendation-direction-action') ? directionAll : selector.includes('locale-action') ? locale : selector.includes('app-update') ? visible.update ? update : null : selector.includes('auto-cinema') ? visible.autoCinema ? autoCinema : null : selector.includes('webos-audio') ? visible.webosAudio ? webosAudio : null : selector.includes('episode-prefetch') ? visible.prefetch ? prefetchRange : null : selector.includes('playback-mode') ? visible.decode ? decode : null : null,
     moveWithinZone: (zone, current, direction) => zones[zone][zones[zone].indexOf(current) + (direction === 'left' ? -1 : 1)] || null
   });
   vm.runInContext(fn('zoneOf', 'goFocus') + fn('moveFrom', 'accountKeypadOpen'), c);
@@ -100,8 +102,12 @@ test('settings remote focus follows the visible card order and keeps version upd
   assert.equal(c.moveFrom(icons, 'left'), expanded);
   assert.equal(c.moveFrom(expanded, 'left'), sidebar);
   assert.equal(c.moveFrom(icons, 'down'), locale);
-  assert.equal(c.moveFrom(locale, 'down'), autoCinema);
-  assert.equal(c.moveFrom(autoCinema, 'up'), locale);
+  assert.equal(c.moveFrom(locale, 'down'), directionAll);
+  assert.equal(c.moveFrom(directionAll, 'right'), directionLandscape);
+  assert.equal(c.moveFrom(directionAll, 'left'), sidebar);
+  assert.equal(c.moveFrom(directionAll, 'up'), locale);
+  assert.equal(c.moveFrom(directionAll, 'down'), autoCinema);
+  assert.equal(c.moveFrom(autoCinema, 'up'), directionAll);
   assert.equal(c.moveFrom(autoCinema, 'down'), webosAudio);
   assert.equal(c.moveFrom(webosAudio, 'up'), autoCinema);
   assert.equal(c.moveFrom(webosAudio, 'down'), prefetchRange);
@@ -116,4 +122,7 @@ test('settings remote focus follows the visible card order and keeps version upd
   assert.equal(c.moveFrom(prefetchRange, 'down'), update);
   visible.webosAudio = false;
   assert.equal(c.moveFrom(autoCinema, 'down'), prefetchRange);
+  visible.webosAudio = false;
+  visible.autoCinema = false;
+  assert.equal(c.moveFrom(prefetchRange, 'up'), directionAll);
 });

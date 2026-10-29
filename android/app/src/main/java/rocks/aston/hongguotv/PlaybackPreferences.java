@@ -69,6 +69,21 @@ final class PlaybackPreferences {
     }
 
     @JavascriptInterface
+    public String readRecommendationDirection() {
+        return preferences.getString("recommendationDirection", "all");
+    }
+
+    @JavascriptInterface
+    public void writeRecommendationDirection(String value) {
+        if (!"all".equals(value) && !"landscape".equals(value) && !"portrait".equals(value)) {
+            throw new IllegalArgumentException("invalid recommendation direction");
+        }
+        if (!preferences.edit().putString("recommendationDirection", value).commit()) {
+            throw new IllegalStateException("recommendation direction was not saved");
+        }
+    }
+
+    @JavascriptInterface
     public String readPlaybackMenuHint() {
         return preferences.getString("playbackMenuHint", "unseen");
     }

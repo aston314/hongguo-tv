@@ -309,6 +309,12 @@
           <div class="app-update-actions"><button class="locale-action account-action" id="locale-zh-CN" data-locale="zh-CN" data-focus="locale-zh-CN" aria-pressed="false" data-i18n="settings.languageChineseSimplified">简体中文</button><button class="locale-action account-action" id="locale-zh-TW" data-locale="zh-TW" data-focus="locale-zh-TW" aria-pressed="false" data-i18n="settings.languageChineseTraditional">繁體中文</button><button class="locale-action account-action" id="locale-ja-JP" data-locale="ja-JP" data-focus="locale-ja-JP" aria-pressed="false" data-i18n="settings.languageJapanese">日本語</button></div>
           <p id="language-state" role="status" aria-live="polite"></p>
         </div>
+        <div class="settings-card app-update-card" id="recommendation-direction-settings">
+          <h2 data-i18n="settings.recommendationDirection">推荐自动播放方向</h2>
+          <p data-i18n="settings.recommendationDirectionDescription">只影响推荐页自动起播和自动接播。手动播放与历史续播不受影响；片源未提供画面尺寸时按原逻辑播放。</p>
+          <div class="app-update-actions"><button class="recommendation-direction-action account-action" data-mode="all" data-focus="recommendation-direction-all" aria-pressed="false" data-i18n="settings.recommendationDirectionAll">全部剧</button><button class="recommendation-direction-action account-action" data-mode="landscape" data-focus="recommendation-direction-landscape" aria-pressed="false" data-i18n="settings.recommendationDirectionLandscape">仅横屏剧</button><button class="recommendation-direction-action account-action" data-mode="portrait" data-focus="recommendation-direction-portrait" aria-pressed="false" data-i18n="settings.recommendationDirectionPortrait">仅竖屏剧</button></div>
+          <p id="recommendation-direction-state" role="status" aria-live="polite"></p>
+        </div>
         <div class="settings-card app-update-card is-hidden" id="auto-cinema-settings">
           <h2 data-i18n="settings.autoCinema">播放时隐藏侧边栏</h2>
           <p data-i18n="settings.autoCinemaDescription">从卡片进入单剧播放后隐藏左侧菜单。播放控件和自动清屏沿用现有逻辑，推荐页不受影响。</p>
@@ -510,6 +516,7 @@
   <script src="/playback-settings.js"></script>
   <script src="/episode-prefetch-settings.js"></script>
   <script src="/auto-cinema.js"></script>
+  <script src="/recommendation-direction.js"></script>
   <script src="/sidebar-settings.js"></script>
   <script src="/episode-wheel.js"></script>
   <script src="/playback-pointer.js"></script>

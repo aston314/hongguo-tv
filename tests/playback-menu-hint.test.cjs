@@ -34,7 +34,7 @@ test('first loaded recommendation arms the one-time menu hint before autoplay', 
   assert.equal(context.playbackMenuHintCandidate, true);
 
   const renderFeed = functionSource('renderFeed', 'isAutoCinemaCardLaunch');
-  assert.ok(renderFeed.indexOf('armPlaybackMenuHint();') < renderFeed.indexOf('playFeedItem(0);'));
+  assert.ok(renderFeed.indexOf('armPlaybackMenuHint();') < renderFeed.indexOf('playFeedItem(startIndex,'));
 });
 
 test('autoplayed recommendation can show the hint after playback starts', () => {
