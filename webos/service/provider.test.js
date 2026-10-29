@@ -16,6 +16,9 @@ var dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'hongguo-webos-provider-'))
 process.env.HONGGUO_WEBOS_DATA_DIR = dataRoot;
 process.env.HONGGUO_WEBOS_CACHE_DIR = dataRoot;
 var seriesID = '1234567890123456789';
+var heicCover = 'https://p3-reading-sign.fqnovelpic.com/novel-pic/abc~tplv-superreso:400:0.heic?x-signature=secret';
+var jpegCover = 'https://p3-novel.byteimg.com/novel-pic/abc~tplv-shrink:640:0.image';
+var categoryCoverRows = null;
 var categoryRequest = null;
 var calendarRequest = null;
 var engagementRequests = [];
@@ -37,6 +40,7 @@ var html = '<script>window._ROUTER_DATA=' + JSON.stringify({ loaderData: { detai
   seriesDetail: {
     series_id: seriesID,
     series_name: '接口回归短剧',
+    series_cover: heicCover,
     episode_cnt: 2,
     accessible_episode_cnt: 1,
     vid_list: ['2234567890123456789', '3234567890123456789'],
@@ -90,7 +94,7 @@ https.request = function (options) {
     if (options.path.indexOf('/reading/bookapi/plan/v') >= 0) body = '{"code":0,"data":[]}';
     if (options.path.indexOf('/reading/distribution/category/landpage/v/') >= 0) {
       categoryRequest = { options: options, query: Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams), body: Buffer.concat(requestChunks).toString('utf8') };
-      body = JSON.stringify({ code: 0, data: { has_more: true, next_offset: 15, session_id: 'category-session', video_data: [{ series_id: seriesID, series_title: '真实分类剧', episode_cnt: 12, vid: '2234567890123456789', tags: ['悬疑'] }], selector_rows: [] } });
+      body = JSON.stringify({ code: 0, data: { has_more: true, next_offset: 15, session_id: 'category-session', video_data: categoryCoverRows || [{ series_id: seriesID, series_title: '真实分类剧', series_cover: heicCover, episode_cnt: 12, vid: '2234567890123456789', tags: ['悬疑'] }], selector_rows: [] } });
     }
     if (options.path.indexOf('/reading/user/subscribe/list/v1/') >= 0) {
       calendarRequest = { options: options, query: Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams) };
@@ -204,6 +208,8 @@ async function run() {
     await testMediaRangeProxy();
 
     var detail = await provider.detail(seriesID);
+    assert.strictEqual(detail.cover, heicCover, 'detail preserves the signed HEIC original');
+    assert.strictEqual(detail.cover_fallback, jpegCover, 'detail carries the same JPEG alternative as the Go core');
     assert.strictEqual(detail.episodes.length, 2);
     assert.strictEqual(detail.episodes[1].locked, true);
     assert.strictEqual(detail.episodes[1].locked_inferred, true, 'the UI lock is marked as inferred from the aggregate access count');
@@ -218,6 +224,8 @@ async function run() {
     var category = await provider.category('/category/real-drama', 0, {}, false);
     assert.strictEqual(category.items.length, 1);
     assert.strictEqual(category.items[0].title, '真实分类剧');
+    assert.strictEqual(category.items[0].cover, heicCover, 'category preserves the signed HEIC original');
+    assert.strictEqual(category.items[0].cover_fallback, jpegCover, 'category supplies the existing UI cover_fallback contract');
     assert.strictEqual(category.has_more, true);
     assert(categoryRequest, 'category endpoint was requested');
     assert.strictEqual(categoryRequest.options.method, 'POST');
@@ -236,6 +244,29 @@ async function run() {
     assert(calendarRequest.options.headers['X-Gorgon'], 'calendar request is signed');
     assert(calendarRequest.query.device_id && calendarRequest.query.iid, 'calendar uses a fresh device identity');
     assert.notStrictEqual(categoryRequest.query.device_id, calendarRequest.query.device_id, 'each API request gets a one-shot device identity');
+
+    var coverCases = [
+      { cover: heicCover, fallback: jpegCover },
+      { cover: 'https://p9-reading.byteimg.com/novel-pic/a%20b~tplv-test.HEIC?signature=keep', fallback: 'https://p3-novel.byteimg.com/novel-pic/a%20b~tplv-shrink:640:0.image' },
+      { cover: 'https://p3-reading-sign.fqnovelpic.com/novel-pic/a.jpg?signature=keep' },
+      { cover: jpegCover },
+      { cover: 'https://example.com/novel-pic/a~b.heic' },
+      { cover: 'https://p3-reading-sign.fqnovelpic.com.example.com/novel-pic/a~b.heic' },
+      { cover: 'https://p3-reading-sign.fqnovelpic.com/other/a~b.heic' },
+      { cover: 'https://p3-reading-sign.fqnovelpic.com/novel-pic/a.heic' },
+      { cover: 'https://[' },
+      { cover: '' }
+    ];
+    categoryCoverRows = coverCases.map(function (fixture, index) {
+      return { video_data: { series_id: String(1000 + index), cover_url: fixture.cover } };
+    });
+    var coverResult = await provider.category('/category/real-drama', 0, {}, false);
+    assert.strictEqual(coverResult.items.length, coverCases.length);
+    coverCases.forEach(function (fixture, index) {
+      assert.strictEqual(coverResult.items[index].cover, fixture.cover, 'cover remains unchanged for case ' + index);
+      assert.strictEqual(coverResult.items[index].cover_fallback, fixture.fallback, 'only known HEIC objects get a JPEG alternative for case ' + index);
+    });
+    categoryCoverRows = null;
 
     var stats = await provider.engagement(seriesID, '2234567890123456789');
     assert.strictEqual(stats.likes, 7);

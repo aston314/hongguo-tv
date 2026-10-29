@@ -994,6 +994,16 @@
   function routerData(html) { var marker = html.indexOf('_ROUTER_DATA'); if (marker < 0) throw fail('页面缺少 _ROUTER_DATA'); var start = html.indexOf('{', marker); if (start < 0) throw fail('页面数据起点无效'); var depth = 0, string = false, escaped = false, end = start; for (; end < html.length; end++) { var c = html.charAt(end); if (string) { if (escaped) escaped = false; else if (c === '\\') escaped = true; else if (c === '"') string = false; continue; } if (c === '"') string = true; else if (c === '{' || c === '[') depth++; else if (c === '}' || c === ']') { depth--; if (!depth) break; } } try { return parseExactJSON(html.slice(start, end + 1)); } catch (error) { throw fail('页面数据解析失败'); } }
   function findObject(value, key) { if (!value || typeof value !== 'object') return null; if (!Array.isArray(value) && value[key] && typeof value[key] === 'object' && !Array.isArray(value[key])) return value[key]; var keys = Object.keys(value); for (var i = 0; i < keys.length; i++) { var found = findObject(value[keys[i]], key); if (found) return found; } return null; }
   function findArray(value, key) { if (!value || typeof value !== 'object') return null; if (!Array.isArray(value) && Array.isArray(value[key])) return value[key]; var keys = Object.keys(value); for (var i = 0; i < keys.length; i++) { var found = findArray(value[keys[i]], key); if (found) return found; } return null; }
+  // Match the Go core's HEIC alternative without changing the signed original.
+  function browserCoverFallback(cover) {
+    var parsed;
+    try { parsed = url.parse(cover); } catch (ignored) { return ''; }
+    var pathname = parsed.pathname || '';
+    var hostname = String(parsed.hostname || '').toLowerCase();
+    if (!/\.heic$/i.test(pathname) || !/\.(?:fqnovelpic|byteimg)\.com$/.test(hostname) ||
+        pathname.indexOf('/novel-pic/') !== 0 || pathname.indexOf('~') < 0) return '';
+    return 'https://p3-novel.byteimg.com' + pathname.split('~')[0] + '~tplv-shrink:640:0.image';
+  }
   function normalize(value) {
     if (!value || typeof value !== 'object') return null;
     var object = value.video_data && typeof value.video_data === 'object' ? value.video_data : value;
@@ -1001,7 +1011,10 @@
     if (!id) return null;
     var vids = stringArray(object.vid_list); if (!vids.length) vids = stringArray(object.episodeVids);
     var episodeCount = number(first(object.episode_cnt, object.episode_total_cnt)) || vids.length;
-    return { series_id: id, title: first(object.series_title, object.series_name, object.title, '未命名短剧'), cover: first(object.series_cover, object.cover, object.cover_url), intro: first(object.series_intro, object.video_desc, object.description), score: first(object.score, object.rating, object.scoreText).replace(/^评分/, ''), play_count: number(object.play_cnt), episode_count: episodeCount, accessible_episode_cnt: number(object.accessible_episode_cnt) || episodeCount, vid: first(object.vid, object.video_id, vids[0]), vid_list: vids, tags: stringArray(object.tags), rank: number(object.rank), heat: first(object.heatText), season_index: number(object.season_index), is_multi_season: bool(object.is_multi_season), followed: bool(object.followed) || bool(object.is_subscribed), following_update: bool(object.following_update), follow_count: number(object.follow_count), series_status: first(object.series_status, object.status) };
+    var item = { series_id: id, title: first(object.series_title, object.series_name, object.title, '未命名短剧'), cover: first(object.series_cover, object.cover, object.cover_url), intro: first(object.series_intro, object.video_desc, object.description), score: first(object.score, object.rating, object.scoreText).replace(/^评分/, ''), play_count: number(object.play_cnt), episode_count: episodeCount, accessible_episode_cnt: number(object.accessible_episode_cnt) || episodeCount, vid: first(object.vid, object.video_id, vids[0]), vid_list: vids, tags: stringArray(object.tags), rank: number(object.rank), heat: first(object.heatText), season_index: number(object.season_index), is_multi_season: bool(object.is_multi_season), followed: bool(object.followed) || bool(object.is_subscribed), following_update: bool(object.following_update), follow_count: number(object.follow_count), series_status: first(object.series_status, object.status) };
+    var fallback = browserCoverFallback(item.cover);
+    if (fallback) item.cover_fallback = fallback;
+    return item;
   }
   function normalizeRows(rows) { var seen = {}; return (rows || []).map(normalize).filter(function (item) { if (!item || seen[item.series_id]) return false; seen[item.series_id] = true; return true; }); }
   function normalizeSeriesActors(value) {
@@ -1357,7 +1370,7 @@
       });
     });
   }
-  function detail(seriesID) { return fetchHTML(WEB_BASE + '/detail?series_id=' + encodeURIComponent(seriesID)).then(function (html) { var router = routerData(html); var raw = findObject(router, 'seriesDetail'); var drama = normalize(raw); if (!drama || drama.series_id !== seriesID) throw fail('详情响应缺少剧集信息'); drama.episodes = (drama.vid_list || []).map(function (vid, index) { var inferredLocked = index >= drama.accessible_episode_cnt; return { index: index + 1, video_id: vid, title: '第' + (index + 1) + '集', locked: inferredLocked, locked_inferred: inferredLocked }; }); var actors = normalizeSeriesActors(raw); if (!actors.length) actors = normalizeSeriesActors(router); return { series_id: drama.series_id, title: drama.title, cover: drama.cover, intro: drama.intro, score: drama.score, play_count: drama.play_count, episode_count: drama.episode_count, accessible_episode_cnt: drama.accessible_episode_cnt, vid: drama.vid, vid_list: drama.vid_list, episodes: drama.episodes, tags: drama.tags, actors: actors, related: normalizeRelatedDramas(router, seriesID), reviews: normalizeSeriesReviews(router) }; }); }
+  function detail(seriesID) { return fetchHTML(WEB_BASE + '/detail?series_id=' + encodeURIComponent(seriesID)).then(function (html) { var router = routerData(html); var raw = findObject(router, 'seriesDetail'); var drama = normalize(raw); if (!drama || drama.series_id !== seriesID) throw fail('详情响应缺少剧集信息'); drama.episodes = (drama.vid_list || []).map(function (vid, index) { var inferredLocked = index >= drama.accessible_episode_cnt; return { index: index + 1, video_id: vid, title: '第' + (index + 1) + '集', locked: inferredLocked, locked_inferred: inferredLocked }; }); var actors = normalizeSeriesActors(raw); if (!actors.length) actors = normalizeSeriesActors(router); return { series_id: drama.series_id, title: drama.title, cover: drama.cover, cover_fallback: drama.cover_fallback, intro: drama.intro, score: drama.score, play_count: drama.play_count, episode_count: drama.episode_count, accessible_episode_cnt: drama.accessible_episode_cnt, vid: drama.vid, vid_list: drama.vid_list, episodes: drama.episodes, tags: drama.tags, actors: actors, related: normalizeRelatedDramas(router, seriesID), reviews: normalizeSeriesReviews(router) }; }); }
 
   function fallbackSeason(seriesID, error) {
     return detail(seriesID).then(function (item) {

@@ -181,6 +181,8 @@ filter_ids=<当前 series_id>
 
 分类 API 的 HEIC 封面无法由 Chromium / Android WebView 直接显示。本次实测四张封面在官网图片 CDN 的 `/novel-pic/<object>~tplv-shrink:640:0.image` 上返回 JPEG；模型同时保留 `cover` 和 HEIC 专用 `cover_fallback`，普通签名图片地址不变。
 
+2026-10-29 针对 #91 补齐 webOS JS provider 的同一字段，分类列表与详情均保留签名原图并返回官网 CDN 兼容地址，沿用共享 UI 已有的 `cover_fallback` 优先规则。真实分类接口抽取的三张原图均返回 `image/heic`，对应官网地址均返回 `image/jpeg` 且文件头为 JPEG；修改后的 provider 返回的前五张封面在 Chromium 中全部成功解码。不使用第三方转码代理，不调整分类签名或设备参数。该验证覆盖真实接口、图片响应和浏览器解码，LG 真机显示仍需新版 IPK 验证；首次分类请求的 `PROVIDER_ERROR` 是独立问题，本次不据此宣称修复。
+
 本轮验证覆盖 Go 测试与 vet、JS 语法、真实四个热播榜和最新剧 API、1920×1080 / 1280×720 浏览器焦点路径、详情关闭与播放返回、海报加载。Android TV 实体遥控器和长时间播放验收仍未进行。
 
 ## 找剧筛选（2026-10-06 实测）
