@@ -23,15 +23,41 @@ const (
 // a server push message: the client discovers changes during a normal refresh
 // and keeps the result so closing the toast does not lose the history.
 type NotificationItem struct {
-	ID            string `json:"id"`
-	Kind          string `json:"kind"`
-	SeriesID      string `json:"series_id,omitempty"`
-	ReservationID string `json:"reservation_id,omitempty"`
-	Title         string `json:"title"`
-	Episode       int    `json:"episode,omitempty"`
-	Message       string `json:"message"`
-	CreatedAt     int64  `json:"created_at"`
-	Read          bool   `json:"read"`
+	ID            string             `json:"id"`
+	Kind          string             `json:"kind"`
+	SeriesID      string             `json:"series_id,omitempty"`
+	ReservationID string             `json:"reservation_id,omitempty"`
+	Drama         *notificationDrama `json:"drama,omitempty"`
+	Title         string             `json:"title"`
+	Episode       int                `json:"episode,omitempty"`
+	Message       string             `json:"message"`
+	CreatedAt     int64              `json:"created_at"`
+	Read          bool               `json:"read"`
+}
+
+type notificationDrama struct {
+	SeriesID      string   `json:"series_id"`
+	Title         string   `json:"title"`
+	Cover         string   `json:"cover,omitempty"`
+	CoverFallback string   `json:"cover_fallback,omitempty"`
+	Intro         string   `json:"intro,omitempty"`
+	Score         string   `json:"score,omitempty"`
+	EpisodeCount  int      `json:"episode_count,omitempty"`
+	Tags          []string `json:"tags,omitempty"`
+	Heat          string   `json:"heat,omitempty"`
+	FavoriteText  string   `json:"favorite_text,omitempty"`
+	LikeText      string   `json:"like_text,omitempty"`
+	SeasonIndex   int      `json:"season_index,omitempty"`
+}
+
+func notificationDramaFrom(item Drama) notificationDrama {
+	return notificationDrama{
+		SeriesID: item.SeriesID, Title: item.Title, Cover: item.Cover,
+		CoverFallback: item.CoverFallback, Intro: item.Intro, Score: item.Score,
+		EpisodeCount: item.EpisodeCount, Tags: append([]string(nil), item.Tags...),
+		Heat: item.Heat, FavoriteText: item.FavoriteText, LikeText: item.LikeText,
+		SeasonIndex: item.SeasonIndex,
+	}
 }
 
 type notificationFollowSnapshot struct {
@@ -226,8 +252,14 @@ func (m *accountManager) refreshNotifications(ctx context.Context) (notification
 	var problems []string
 
 	followItems, followErr := fetchFollowNotifications(ctx, c)
+	currentDramas := make(map[string]notificationDrama, len(followItems))
 	if followErr == nil {
 		current := followSnapshotMap(followItems)
+		for _, item := range followItems {
+			if validID(item.SeriesID) && item.SeriesID != "0" {
+				currentDramas[item.SeriesID] = notificationDramaFrom(item)
+			}
+		}
 		if !firstCheck {
 			for id, item := range current {
 				previous, exists := state.Follow[id]
@@ -239,7 +271,11 @@ func (m *accountManager) refreshNotifications(ctx context.Context) (notification
 				if episode > previous.EpisodeCount && episode > 0 {
 					message = "《" + item.Title + "》更新到第" + strconv.Itoa(episode) + "集"
 				}
-				appendNotification(&state, NotificationItem{ID: "follow:" + id + ":" + strconv.Itoa(item.EpisodeCount) + ":" + strconv.FormatInt(item.FollowUpdateTime, 10), Kind: "follow_update", SeriesID: id, Title: item.Title, Episode: episode, Message: message, CreatedAt: time.Now().UnixMilli()})
+				notification := NotificationItem{ID: "follow:" + id + ":" + strconv.Itoa(item.EpisodeCount) + ":" + strconv.FormatInt(item.FollowUpdateTime, 10), Kind: "follow_update", SeriesID: id, Title: item.Title, Episode: episode, Message: message, CreatedAt: time.Now().UnixMilli()}
+				if snapshot, exists := currentDramas[id]; exists {
+					notification.Drama = &snapshot
+				}
+				appendNotification(&state, notification)
 			}
 		}
 		state.Follow = current
@@ -251,6 +287,13 @@ func (m *accountManager) refreshNotifications(ctx context.Context) (notification
 	upcomingItems, upcomingErr := fetchReservationNotifications(ctx, c, "upcoming")
 	if onlineErr == nil && upcomingErr == nil {
 		combined := append(append([]Drama{}, onlineItems...), upcomingItems...)
+		for _, item := range combined {
+			if validID(item.SeriesID) && item.SeriesID != "0" {
+				if _, exists := currentDramas[item.SeriesID]; !exists {
+					currentDramas[item.SeriesID] = notificationDramaFrom(item)
+				}
+			}
+		}
 		current := reservationSnapshotMap(combined)
 		if !firstCheck {
 			for id, item := range current {
@@ -259,7 +302,11 @@ func (m *accountManager) refreshNotifications(ctx context.Context) (notification
 					continue
 				}
 				message := "《" + item.Title + "》已上线，可以播放了"
-				appendNotification(&state, NotificationItem{ID: "reservation:" + id, Kind: "reservation_online", SeriesID: item.SeriesID, ReservationID: id, Title: item.Title, Message: message, CreatedAt: time.Now().UnixMilli()})
+				notification := NotificationItem{ID: "reservation:" + id, Kind: "reservation_online", SeriesID: item.SeriesID, ReservationID: id, Title: item.Title, Message: message, CreatedAt: time.Now().UnixMilli()}
+				if snapshot, exists := currentDramas[item.SeriesID]; exists {
+					notification.Drama = &snapshot
+				}
+				appendNotification(&state, notification)
 			}
 		}
 		state.Reservations = current
@@ -269,6 +316,15 @@ func (m *accountManager) refreshNotifications(ctx context.Context) (notification
 		}
 		if upcomingErr != nil {
 			problems = append(problems, "待上线预约检查失败："+upcomingErr.Error())
+		}
+	}
+	for i := range state.Items {
+		item := &state.Items[i]
+		if item.Drama != nil || item.SeriesID == "" {
+			continue
+		}
+		if snapshot, exists := currentDramas[item.SeriesID]; exists {
+			item.Drama = &snapshot
 		}
 	}
 	if !m.sameGeneration(generation) {

@@ -78,7 +78,8 @@
     seriesRows: '.series-row'
     ,followItems: '.follow-card'
     ,followActions: '.follow-action'
-    ,followNotifications: '.follow-notification-row, .follow-notification-action'
+    ,followNotifications: '.follow-notification-action'
+    ,followNotificationItems: '.follow-notification-play, .follow-notification-detail'
     ,libraryTypeFilters: '.library-type-filter'
     ,accountCountry: '#account-country'
     ,accountCountryItems: '.account-country-item, #account-country-close'
@@ -1166,7 +1167,8 @@
     if (element.classList.contains('detail-cast-item') || element.id === 'detail-cast-more') return 'detailCast';
     if (element.classList.contains('detail-cast-close') || element.classList.contains('detail-cast-modal-item')) return 'detailCastModal';
     if (element.classList.contains('follow-action')) return 'followActions';
-    if (element.classList.contains('follow-notification-row') || element.classList.contains('follow-notification-action')) return 'followNotifications';
+    if (element.classList.contains('follow-notification-play') || element.classList.contains('follow-notification-detail')) return 'followNotificationItems';
+    if (element.classList.contains('follow-notification-action')) return 'followNotifications';
     if (element.classList.contains('follow-card')) return 'followItems';
     if (element.classList.contains('library-type-filter')) return 'libraryTypeFilters';
     if (element.classList.contains('series-row') || element.classList.contains('series-retry')) return 'seriesRows';
@@ -1228,7 +1230,7 @@
     if (pageMode() === 'support') return firstVisible('.support-card');
     if (isLibraryPage()) return firstVisible('.library-card') || firstVisible('.history-filter.is-active') || firstVisible('[data-action="library-discover"]') || firstVisible('.library-toolbar-button');
     if (pageMode() === 'new') return firstVisible('.new-tab.is-active') || firstNewTab();
-    if (pageMode() === 'follows') return followView === 'reservations' ? firstVisible('.reservation-tab.is-active') : followNotificationViewOpen ? firstVisible('.follow-notification-row') || firstVisible('#follow-notifications-back') : firstVisible('.follow-card') || firstVisible('#follow-notifications-open') || firstVisible('#follow-refresh');
+    if (pageMode() === 'follows') return followView === 'reservations' ? firstVisible('.reservation-tab.is-active') : followNotificationViewOpen ? firstNotificationFocus() : firstVisible('.follow-card') || firstVisible('#follow-notifications-open') || firstVisible('#follow-refresh');
     return document.querySelector('.page-placeholder-action');
   }
 
@@ -1637,20 +1639,25 @@
     if (zone === 'followActions') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? firstVisible('.follow-tab.is-active') || activeSidebar() : null);
       if (direction === 'up') return firstVisible('.follow-tab.is-active') || activeSidebar();
-      if (direction === 'down') return followView === 'reservations' ? firstVisible('.reservation-tab.is-active') : followNotificationViewOpen ? firstVisible('.follow-notification-row') || firstVisible('#follow-notifications-back') : firstVisible('.follow-card') || firstVisible('#follow-pagination .list-retry');
+      if (direction === 'down') return followView === 'reservations' ? firstVisible('.reservation-tab.is-active') : followNotificationViewOpen ? firstNotificationFocus() : firstVisible('.follow-card') || firstVisible('#follow-pagination .list-retry');
       return null;
     }
     if (zone === 'followNotifications') {
-      if (current.classList.contains('follow-notification-action')) {
-        if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
-        if (direction === 'up') return firstVisible('.follow-action') || firstVisible('.follow-tab.is-active') || activeSidebar();
-        if (direction === 'down') return firstVisible('.follow-notification-row') || current;
-        return null;
+      if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
+      if (direction === 'up') return firstVisible('.follow-action') || firstVisible('.follow-tab.is-active') || activeSidebar();
+      if (direction === 'down') return firstNotificationFocus() || current;
+      return null;
+    }
+    if (zone === 'followNotificationItems') {
+      var row = current.closest('.follow-notification-row');
+      var rowActions = row ? focusables('.follow-notification-play, .follow-notification-detail').filter(function (node) { return node.closest('.follow-notification-row') === row; }) : [];
+      if (direction === 'left' || direction === 'right') {
+        var next = rowActions.indexOf(current) + (direction === 'right' ? 1 : -1);
+        return rowActions[next] || (direction === 'left' && rowActions[0] === current ? activeSidebar() : null);
       }
-      if (direction === 'left') return activeSidebar();
-      if (direction === 'right') return null;
-      if (direction === 'up') return moveGrid('.follow-notification-row', current, direction) || firstVisible('#follow-notifications-back');
-      if (direction === 'down') return moveGrid('.follow-notification-row', current, direction) || current;
+      var actionSelector = current.classList.contains('follow-notification-play') ? '.follow-notification-play' : '.follow-notification-detail';
+      if (direction === 'up') return row && moveGrid(actionSelector, current, direction) || firstVisible('#follow-notifications-back');
+      if (direction === 'down') return row && moveGrid(actionSelector, current, direction) || current;
       return null;
     }
     if (zone === 'followItems') {
@@ -2302,18 +2309,52 @@
       var empty = document.createElement('div'); empty.className = 'follow-notification-empty'; empty.textContent = uiText('ui.noUpdateNotifications', '暂无更新提醒'); followNotificationList.appendChild(empty); return;
     }
     followNotificationItems.slice().reverse().forEach(function (item) {
-      var row = document.createElement('button'); row.type = 'button'; row.className = 'follow-notification-row' + (item.read ? '' : ' is-unread'); row.dataset.focus = 'follow-notice-' + item.id;
-      var copy = document.createElement('span'); var title = document.createElement('strong'); title.textContent = item.title || uiText('ui.dramaUpdate', '短剧更新'); var message = document.createElement('span'); message.textContent = item.message || ''; copy.appendChild(title); copy.appendChild(message);
-      var time = document.createElement('time'); time.textContent = formatNotificationTime(item.created_at); row.appendChild(copy); row.appendChild(time);
-      row.addEventListener('click', function () { markNotificationRead(item.id, row); });
-      followNotificationList.appendChild(row);
+      var drama = Object.assign({}, item.drama || {}, { series_id: (item.drama && item.drama.series_id) || item.series_id, title: (item.drama && item.drama.title) || item.title });
+      var row = document.createElement('div'); row.className = 'follow-notification-row' + (item.read ? '' : ' is-unread'); row.dataset.notificationId = item.id || '';
+      var play = document.createElement('button'); play.type = 'button'; play.className = 'follow-notification-play'; play.dataset.focus = 'follow-notice-play-' + item.id;
+      play.setAttribute('aria-label', uiText('ui.playLabel', '播放：') + (drama.title || item.title || uiText('app.name', '短剧')));
+      var image = document.createElement('img'); image.className = 'follow-notification-image'; image.alt = drama.title || uiText('app.name', '短剧'); setCover(image, drama);
+      var copy = document.createElement('span'); copy.className = 'follow-notification-copy-block';
+      var title = document.createElement('strong'); title.className = 'follow-notification-title'; title.textContent = drama.title || uiText('ui.dramaUpdate', '短剧更新');
+      var meta = document.createElement('span'); meta.className = 'follow-notification-meta'; meta.textContent = dramaMeta(drama);
+      var intro = document.createElement('span'); intro.className = 'follow-notification-intro'; intro.textContent = drama.intro || uiText('ui.noIntro', '暂无简介');
+      var heat = document.createElement('span'); heat.className = 'follow-notification-heat'; heat.textContent = drama.heat || drama.favorite_text || drama.like_text || '';
+      var message = document.createElement('span'); message.className = 'follow-notification-message'; message.textContent = item.message || '';
+      copy.appendChild(title); copy.appendChild(meta); copy.appendChild(intro); copy.appendChild(heat); copy.appendChild(message);
+      var time = document.createElement('time'); time.className = 'follow-notification-time'; time.textContent = formatNotificationTime(item.created_at);
+      play.appendChild(image); play.appendChild(copy); play.appendChild(time);
+      var detail = document.createElement('button'); detail.type = 'button'; detail.className = 'follow-notification-detail'; detail.dataset.focus = 'follow-notice-detail-' + item.id; detail.textContent = uiText('ui.detailButton', '详情'); detail.setAttribute('aria-label', uiText('ui.detailButton', '详情') + '：' + (drama.title || item.title || uiText('app.name', '短剧')));
+      play.addEventListener('click', function () { markNotificationRead(item.id); startPlayer(drama, play); });
+      detail.addEventListener('click', function () { markNotificationRead(item.id); openDetail(drama, undefined, detail); });
+      keepNotificationActionVisible(play); keepNotificationActionVisible(detail);
+      row.appendChild(play); row.appendChild(detail); followNotificationList.appendChild(row);
     });
   }
+  function keepNotificationActionVisible(action) {
+    action.addEventListener('focus', function () {
+      var row = action.closest('.follow-notification-row');
+      var list = followNotificationList;
+      if (!row || !list || !list.getBoundingClientRect) return;
+      var listRect = list.getBoundingClientRect();
+      var rowRect = row.getBoundingClientRect();
+      if (rowRect.top < listRect.top) list.scrollTop -= listRect.top - rowRect.top;
+      else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom;
+    });
+  }
+  function firstNotificationFocus() { return firstVisible('.follow-notification-play') || firstVisible('.follow-notification-detail') || firstVisible('#follow-notifications-back'); }
   function acceptNotificationData(data, showNew) {
+    var notificationView = document.getElementById('follow-notification-view');
+    var restoreFocus = followNotificationViewOpen && notificationView && notificationView.contains(document.activeElement);
+    var focusedKey = restoreFocus && document.activeElement.dataset ? document.activeElement.dataset.focus : '';
     var items = data && data.items || [];
     followNotificationItems = items.slice();
     followNotificationUnread = Number(data && data.unread_count) || followNotificationItems.filter(function (item) { return !item.read; }).length;
     renderFollowNotifications();
+    if (restoreFocus) {
+      var restored = null;
+      if (focusedKey) document.querySelectorAll('[data-focus]').forEach(function (node) { if (!restored && node.dataset.focus === focusedKey) restored = node; });
+      goFocus(restored || firstNotificationFocus());
+    }
     if (!showNew) return;
     var key = notificationAccountKey();
     if (!key) return;
@@ -2350,8 +2391,8 @@
     if (followActions) followActions.classList.add('is-hidden');
     followListView.classList.add('is-hidden'); followNotificationView.classList.remove('is-hidden');
     renderFollowNotifications();
-    notificationCheck(true).then(function () { if (followNotificationViewOpen) goFocus(firstVisible('.follow-notification-row') || document.getElementById('follow-notifications-back')); });
-    goFocus(firstVisible('.follow-notification-row') || document.getElementById('follow-notifications-back'));
+    notificationCheck(true);
+    goFocus(firstNotificationFocus());
   }
   function closeFollowNotifications() {
     followNotificationViewOpen = false; followNotificationView.classList.add('is-hidden'); followListView.classList.remove('is-hidden'); if (followActions) followActions.classList.remove('is-hidden');
@@ -3663,7 +3704,16 @@
     else image.onerror();
   }
 
-  function setBackdrop(backdrop, item, poster) {
+  function clearBackdrop(backdrop, poster) {
+    if (!backdrop) return;
+    backdrop.__coverLoader = null;
+    backdrop.__coverSource = '';
+    [backdrop, poster].filter(Boolean).forEach(function (layer) {
+      layer.style.backgroundImage = 'none';
+      layer.classList.add('is-cover-pending');
+    });
+  }
+  function setBackdrop(backdrop, item, poster, retainPrevious) {
     var source = item.cover_fallback || item.cover || '';
     if (backdrop.__coverSource === source) return;
     backdrop.__coverSource = source;
@@ -3671,7 +3721,7 @@
     // During a same-series switch the previous poster is already a valid
     // loading surface. Keep it visible while the target image is fetched and
     // decoded; clearing the CSS background here creates a black paint gap.
-    var retainPrevious = layers.some(function (layer) {
+    retainPrevious = retainPrevious !== false && layers.some(function (layer) {
       return layer.style.backgroundImage && layer.style.backgroundImage !== 'none';
     });
     var loader = new Image();
@@ -3698,7 +3748,7 @@
     else loader.onerror();
   }
 
-  function setFeatured(item, waitingForProgress) {
+  function setFeatured(item, waitingForProgress, transitionKind) {
     if (!item || !item.series_id) return;
     featuredItem = item;
     var backdrop = document.getElementById('hero-backdrop');
@@ -3709,8 +3759,13 @@
     var topEpisode = document.getElementById('hero-top-episode');
     var placeholderTitle = document.getElementById('hero-placeholder-title');
     var placeholderSummary = document.getElementById('hero-placeholder-summary');
-    if (backdrop) {
-      setBackdrop(backdrop, item, document.getElementById('hero-loading-poster'));
+    if (backdrop && transitionKind !== 'refresh') {
+      var poster = document.getElementById('hero-loading-poster');
+      if (transitionKind === 'episode' && desktopShell) clearBackdrop(backdrop, poster);
+      else if (transitionKind === 'series' && androidShell) {
+        clearBackdrop(backdrop, poster);
+        setBackdrop(backdrop, item, poster, false);
+      } else setBackdrop(backdrop, item, poster);
     }
     if (title) title.textContent = item.title || uiText('app.name', '红果短剧');
     if (episode) episode.textContent = waitingForProgress ? item.episode_count ? uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : '' : uiText('content.episodeNumber', '第{episode}集', { episode: item.start_episode || 1 }) + (item.episode_count ? ' · ' + uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : '');
@@ -4975,6 +5030,7 @@
     var nativeAtSwitch = nativePlaybackActive();
     var sameSeries = !!((activePlayback && (activePlayback.started || activePlayback.presentation && activePlayback.presentation.rendered) &&
       activePlayback.owner === accountEpoch && activePlayback.item.series_id === item.series_id) || hasLastPlaybackFrame(item));
+    var transitionKind = sameSeries ? 'episode' : activePlayback ? 'series' : 'initial';
     var fastContinuation = !!(continuation && continuation.completed && canContinuePlayback(continuation) &&
       continuation.owner === accountEpoch && continuation.item.series_id === item.series_id &&
       forcedEpisode === continuation.episode + 1 && forcedPosition === 0 && libraryLoaded);
@@ -5025,7 +5081,7 @@
     updateFeedCounter();
     var incomingResume = resumeCheckpoint && recommendationResume(resumeCheckpoint, libraryEntry(item.series_id), item);
     var incomingEpisode = forcedEpisode || (incomingResume ? incomingResume.episode : libraryLoaded ? resumeEpisode(libraryEntry(item.series_id), item) : 0);
-    setFeatured(Object.assign({}, item, { start_episode: incomingEpisode }), !incomingEpisode);
+    setFeatured(Object.assign({}, item, { start_episode: incomingEpisode }), !incomingEpisode, transitionKind);
     updateSeriesRows();
     setPlayerStatus(episodeLoadingText(incomingEpisode));
     if (keepRangeFrame) {
@@ -5059,7 +5115,7 @@
       var episode = forcedEpisode || (resumed ? resumed.episode : resumeEpisode(entry, item));
       var position = forcedPosition !== undefined ? forcedPosition : resumed ? resumed.position : entry && episode === entry.episode && !entry.completed ? entry.position || 0 : 0;
       playbackRequest.episode = episode; playbackRequest.position = position;
-      setFeatured(Object.assign({}, item, { start_episode: episode }));
+      setFeatured(Object.assign({}, item, { start_episode: episode }), false, 'refresh');
       setPlayerStatus(episodeLoadingText(episode));
       var source = episode === 1 && firstVid(item) ? Promise.resolve(item) : getDetail(item, request.signal);
       return source.then(function (detail) {
@@ -5080,7 +5136,7 @@
             foreground_resolve_started_at: 0, foreground_resolve_ms: null,
             prepared_before_switch: false, reported: false } };
         if (autoCinemaCandidate && generation === autoCinemaGeneration) autoCinemaSession = activePlayback;
-        setFeatured(playing);
+        setFeatured(playing, false, 'refresh');
         updateDetailProgress();
         setPlayerStatus(episodeLoadingText(episode));
         var target = { series_id: item.series_id, vid: vid, episode: episode, quality: playbackPreferences.quality, owner: accountEpoch, mode: playbackMode,
