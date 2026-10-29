@@ -56,6 +56,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         boolean outputReady, wantsPlay, terminal, pendingSeek, inPlaceReplacement;
         long position, duration;
         long loadRequestedAt, fileLoadedAt, outputReadyAt;
+        long surfaceEpoch = -1;
         String decoder = "", state = "preparing";
         String errorKind = "";
         int errorCode;
