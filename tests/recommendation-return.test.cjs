@@ -55,6 +55,7 @@ function fixture({ failSave = false, writeGate = null, sourceGate = null } = {})
     var searchScanOpen=false,smsVerification=null,supportModalOpen=false,detailModalOpen=false,engagement={clear:function(){}};
     var autoCinemaEnabled=false,autoCinemaCandidate=false,autoCinemaGeneration=0,autoCinemaSession=null;
     var feedItems=Array.from({length:5},function(_,i){return {series_id:'r'+i,title:'Drama '+i,vid:'r'+i+'-1',episode_count:3,vid_list:['r'+i+'-1','r'+i+'-2','r'+i+'-3']}}),feedIndex=1,feedGeneration=1,continuationGeneration=0;
+    var recommendationAutoplayPending=false;
     var recommendationSession=null,accountEpoch=1,accountData={logged_in:true},activePlayback={item:feedItems[1],episode:2,position:12,vid:'r1-2',owner:1,generation:1,started:true,lastWrite:0,completed:false};
     var playbackRequest=null,playbackInfoRequest=null,playbackPrefetchHandoff=null,controlsTimer=null,playbackQuality='',playbackQualities=[],playbackPreferences={quality:'720P'},applicationInBackground=false;
     var playbackRecovery={reset:function(){},next:function(){return 'stop'},attempts:function(){return 0}};

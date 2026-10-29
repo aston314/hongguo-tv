@@ -260,6 +260,8 @@
   var feedItems = [];
   var feedIndex = -1;
   var recommendationSession = null;
+  var recommendationAutoplayPending = false;
+  var lastAutoRecommendationSeriesMemory = '';
   var feedGeneration = 0;
   var continuationGeneration = 0;
   var searchInput = document.getElementById('search-input');
@@ -3732,6 +3734,39 @@
     return entry && entry.last_played_at ? JSON.stringify([entry.last_played_at, entry.episode, entry.position || 0, entry.duration || 0, !!entry.completed, entry.video_id || '']) : '';
   }
 
+  function lastAutoRecommendationSeries() {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        var stored = window.localStorage.getItem('hongguo.lastAutoRecommendationSeries');
+        if (stored) return String(stored);
+      }
+    } catch (ignored) {}
+    return lastAutoRecommendationSeriesMemory;
+  }
+
+  function rememberAutoRecommendationSeries(seriesID) {
+    if (!seriesID) return;
+    lastAutoRecommendationSeriesMemory = String(seriesID);
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem('hongguo.lastAutoRecommendationSeries', lastAutoRecommendationSeriesMemory);
+      }
+    } catch (ignored) {}
+  }
+
+  function pickRecommendationStartIndex(items) {
+    var list = items || [];
+    if (!list.length) return -1;
+    var previous = lastAutoRecommendationSeries();
+    if (!previous) return 0;
+    for (var i = 0; i < list.length; i++) {
+      if (String(list[i].series_id) !== previous) return i;
+    }
+    // A single-item (or all-identical) recommendation response must still
+    // start playback instead of becoming an empty recommendation page.
+    return 0;
+  }
+
   function rememberRecommendation() {
     if (pageMode() !== 'recommend' || feedIndex < 0 || !feedItems[feedIndex] || !feedPager.loaded) return null;
     var item = feedItems[feedIndex], playback = activePlayback, video = document.getElementById('hero-video');
@@ -4672,6 +4707,10 @@
     presentation.waiting = false;
     playback.started = true;
     playback.stableSince = Date.now();
+    if (playback.autoRecommendation && !playback.autoRecommendationRecorded && playback.item && playback.item.series_id) {
+      playback.autoRecommendationRecorded = true;
+      rememberAutoRecommendationSeries(playback.item.series_id);
+    }
     finishPlaybackPreparation(playback);
     if (!document.getElementById('hero').classList.contains('is-preparing-video')) setPlayerStatus('');
     if (playback.timing && !playback.timing.reported) {
@@ -4785,6 +4824,8 @@
     if (!item || !item.series_id) return;
     if (!recovery || !recovery.recoveryAttempts) playbackRecovery.reset();
     resetEndRecommendations();
+    var autoRecommendation = pageMode() === 'recommend' && recommendationAutoplayPending;
+    recommendationAutoplayPending = false;
     var switchStartedAt = Date.now();
     var nativeAtSwitch = nativePlaybackActive();
     var sameSeries = !!((activePlayback && (activePlayback.started || activePlayback.presentation && activePlayback.presentation.rendered) &&
@@ -4882,6 +4923,7 @@
           episodeCoverAllowed: keepEpisodeCover,
           preserveNativeTransition: sameSeries,
           endedPending: false,
+          autoRecommendation: autoRecommendation, autoRecommendationRecorded: false,
           mode: '', rangeFallback: '', rangeFallbackAttempted: false,
           recoveryAttempts: recovery && recovery.recoveryAttempts || 0,
           timing: { episode: episode, automatic_next: fastContinuation || !!(recovery && recovery.automaticNext), prefetch_mode: prefetchMode, started_at: switchStartedAt, ready_at: 0,
@@ -4983,6 +5025,7 @@
   }
 
   function renderFeed(items) {
+    recommendationAutoplayPending = false;
     feedItems = (items || []).filter(function (item) { return item && item.series_id; });
     syncHomeChannel(feedItems);
     feedIndex = feedItems.length ? 0 : -1;
@@ -4994,7 +5037,11 @@
       return;
     }
     armPlaybackMenuHint();
-    playFeedItem(0);
+    var startIndex = pickRecommendationStartIndex(feedItems);
+    if (startIndex >= 0) {
+      recommendationAutoplayPending = true;
+      playFeedItem(startIndex);
+    }
   }
 
   function isAutoCinemaCardLaunch(target) {
