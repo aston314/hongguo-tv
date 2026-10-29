@@ -49,6 +49,7 @@ public final class MpvSourceSwitchStateTest {
         MpvSourceSwitchState episodeB = new MpvSourceSwitchState();
         episodeB.inheritRetiredEntries(episodeA);
         episodeB.begin(30);
+        assertTrue(episodeB.notePreviousEndFile(30));
         assertTrue(episodeB.onStartFile(31));
         assertTrue(episodeB.onFileLoaded());
         assertTrue(episodeB.onPlaybackRestart());
