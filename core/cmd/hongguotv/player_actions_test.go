@@ -228,6 +228,12 @@ func TestQualitySelectionAndIndependentCacheKeys(t *testing.T) {
 	if miniReelQualityToken("123", "456", "720P", true) == miniReelQualityToken("123", "456", "1080P", true) {
 		t.Error("quality shared cache")
 	}
+	if miniReelQualityToken("123", "456", "", true) == miniReelQualityToken("123", "456", "", false) {
+		t.Error("fallback policy shared AUTO cache")
+	}
+	if miniReelQualityToken("123", "456", "720P", true) == miniReelCacheToken("123", "456", "720P", true, "range") {
+		t.Error("full and Range shared cache")
+	}
 	if _, err := normalizePlaybackQuality("https://example.com"); err == nil {
 		t.Error("invalid quality accepted")
 	}

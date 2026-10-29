@@ -5,8 +5,6 @@ import (
 	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
@@ -51,8 +49,7 @@ func resolveMiniReelMediaRangeQuality(ctx context.Context, seriesID, vid, qualit
 	if err != nil {
 		return nil, err
 	}
-	digest := sha256.Sum256([]byte(miniReelQualityToken(seriesID, vid, quality, fallback) + ":range"))
-	token := hex.EncodeToString(digest[:])[:24]
+	token := miniReelCacheToken(seriesID, vid, quality, fallback, "range")
 	result, err := resolveMiniReelMediaWithToken(ctx, token, seriesID, vid, quality, fallback, prepareMiniReelRangeMedia)
 	if err == nil {
 		return result, nil

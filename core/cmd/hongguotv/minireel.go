@@ -50,6 +50,7 @@ const (
 	miniReelMaxBytes           = 512 << 20
 	miniReelMaxCache           = 512 << 20
 	miniReelVideoModelAttempts = 3
+	miniReelCacheKeyVersion    = "v2"
 )
 
 var miniReelDefinitionRE = regexp.MustCompile(`(?i)(\d{3,4})`)
@@ -642,10 +643,20 @@ func normalizePlaybackQuality(quality string) (string, error) {
 }
 
 func miniReelQualityToken(seriesID, vid, quality string, fallback bool) string {
-	if quality == "" {
-		return miniReelToken(seriesID, vid)
+	return miniReelCacheToken(seriesID, vid, quality, fallback, "full")
+}
+
+// Keep every media preparation namespace explicit. In particular, a Range
+// preparation must never adopt a complete-file entry, and AUTO requests with
+// different fallback policy must not share an in-flight selection.
+func miniReelCacheToken(seriesID, vid, quality string, fallback bool, mode string) string {
+	quality = strings.ToUpper(strings.TrimSpace(quality))
+	if quality == "AUTO" {
+		quality = ""
 	}
-	return miniReelToken(seriesID, vid+":"+quality+":"+strconv.FormatBool(fallback))
+	payload := strings.Join([]string{miniReelCacheKeyVersion, seriesID, vid, quality, strconv.FormatBool(fallback), mode}, "\x00")
+	digest := sha256.Sum256([]byte(payload))
+	return hex.EncodeToString(digest[:])[:24]
 }
 
 func miniReelQualities(options []miniReelOption) []string {
