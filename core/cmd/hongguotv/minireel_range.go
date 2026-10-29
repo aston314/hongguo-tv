@@ -39,6 +39,8 @@ type miniReelRangeSource struct {
 	Key     []byte
 	VID     string
 	Quality string
+	Width   int
+	Height  int
 
 	mu        sync.RWMutex
 	refreshMu sync.Mutex
@@ -95,6 +97,8 @@ func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token
 	job.Range = source
 	job.Quality = option.Quality
 	job.Qualities = miniReelQualities(options)
+	job.VideoWidth = source.Width
+	job.VideoHeight = source.Height
 	job.Mode = "range"
 	_ = token
 	_ = seriesID
@@ -147,7 +151,8 @@ func openMiniReelRangeSource(ctx context.Context, option miniReelOption, vid str
 		return nil, err
 	}
 	source := &miniReelRangeSource{URL: option.URL, ETag: etag, Length: length, Prefix: prefix,
-		Samples: samples, Key: append([]byte(nil), option.Key...), VID: vid, Quality: option.Quality}
+		Samples: samples, Key: append([]byte(nil), option.Key...), VID: vid, Quality: option.Quality,
+		Width: option.Width, Height: option.Height}
 	return source, nil
 }
 

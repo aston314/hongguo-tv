@@ -168,7 +168,7 @@ func TestMiniReelMultiVideoModelUsesRegisteredIdentityAndDirectModel(t *testing.
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = io.WriteString(w, `{"code":0,"data":{"123":{"video_model":{"video_list":{"720":{"main_url":"https://media.example/video.mp4","video_meta":{"codec_type":"h264","vheight":720,"definition":"720p"},"encrypt_info":{}}},"video_duration":61}}}}`)
+		_, _ = io.WriteString(w, `{"code":0,"data":{"123":{"video_model":{"video_list":{"720":{"main_url":"https://media.example/video.mp4","video_meta":{"codec_type":"h264","vwidth":1280,"vheight":720,"definition":"720p"},"encrypt_info":{}}},"video_duration":61}}}}`)
 	}))
 	defer server.Close()
 
@@ -176,7 +176,7 @@ func TestMiniReelMultiVideoModelUsesRegisteredIdentityAndDirectModel(t *testing.
 	if err != nil {
 		t.Fatalf("miniReelNativeOptionsEndpointWithDevice() error = %v", err)
 	}
-	if len(options) != 1 || options[0].Quality != "720P" || options[0].Duration != 61 || options[0].URL != "https://media.example/video.mp4" {
+	if len(options) != 1 || options[0].Quality != "720P" || options[0].Duration != 61 || options[0].URL != "https://media.example/video.mp4" || options[0].Width != 1280 || options[0].Height != 720 {
 		t.Fatalf("options = %#v", options)
 	}
 	mu.Lock()

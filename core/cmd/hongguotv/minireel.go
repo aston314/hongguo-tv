@@ -60,6 +60,7 @@ var miniReelCacheFileRE = regexp.MustCompile(`^[a-f0-9]{24}\.mp4$`)
 type miniReelOption struct {
 	URL      string
 	Key      []byte
+	Width    int
 	Height   int
 	Quality  string
 	Duration int
@@ -72,6 +73,8 @@ type miniReelMediaJob struct {
 	Mode        string
 	Quality     string
 	Qualities   []string
+	VideoWidth  int
+	VideoHeight int
 	Err         error
 	Accessed    time.Time
 	Context     context.Context
@@ -337,11 +340,13 @@ acquire:
 		return nil, job.Err
 	}
 	return map[string]any{
-		"path":      "/minireel-proxy/media/" + token + ".mp4",
-		"quality":   job.Quality,
-		"qualities": job.Qualities,
-		"vid":       vid,
-		"mode":      firstNonEmpty(job.Mode, "full"),
+		"path":         "/minireel-proxy/media/" + token + ".mp4",
+		"quality":      job.Quality,
+		"qualities":    job.Qualities,
+		"video_width":  job.VideoWidth,
+		"video_height": job.VideoHeight,
+		"vid":          vid,
+		"mode":         firstNonEmpty(job.Mode, "full"),
 	}, nil
 }
 
@@ -370,6 +375,8 @@ func prepareMiniReelMedia(ctx context.Context, job *miniReelMediaJob, token, ser
 	}
 	job.Quality = option.Quality
 	job.Qualities = miniReelQualities(options)
+	job.VideoWidth = option.Width
+	job.VideoHeight = option.Height
 	job.Mode = "full"
 	if err := ensureMiniReelRoot(); err != nil {
 		job.Err = err
@@ -869,6 +876,16 @@ func miniReelNativeOptionsAttemptWithClient(ctx context.Context, vid, endpoint s
 				continue
 			}
 		}
+		width := miniReelIntFromAny(row["vwidth"])
+		if width == 0 {
+			width = miniReelIntFromAny(row["width"])
+		}
+		if width == 0 {
+			width = miniReelIntFromAny(meta["vwidth"])
+		}
+		if width == 0 {
+			width = miniReelIntFromAny(meta["width"])
+		}
 		height := miniReelIntFromAny(row["vheight"])
 		if height == 0 {
 			height = miniReelIntFromAny(row["height"])
@@ -887,7 +904,7 @@ func miniReelNativeOptionsAttemptWithClient(ctx context.Context, vid, endpoint s
 		if height > 0 {
 			quality = strconv.Itoa(height) + "P"
 		}
-		options = append(options, miniReelOption{URL: mediaURL, Key: key, Height: height, Quality: quality, Duration: miniReelIntFromAny(optionModel["video_duration"])})
+		options = append(options, miniReelOption{URL: mediaURL, Key: key, Width: width, Height: height, Quality: quality, Duration: miniReelIntFromAny(optionModel["video_duration"])})
 	}
 	return options, nil
 }

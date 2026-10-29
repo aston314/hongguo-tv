@@ -4784,6 +4784,8 @@
       video.load();
       playback.mode = values[1].mode || 'full';
       playback.rangeFallback = uiText('ui.rangeFallback', '分段读取失败，已回退标准播放');
+      playback.videoWidth = Number(values[1].video_width) || 0;
+      playback.videoHeight = Number(values[1].video_height) || 0;
       playback.position = position;
       playback.started = false;
       playbackQuality = values[1].quality || '';
@@ -4924,7 +4926,7 @@
           preserveNativeTransition: sameSeries,
           endedPending: false,
           autoRecommendation: autoRecommendation, autoRecommendationRecorded: false,
-          mode: '', rangeFallback: '', rangeFallbackAttempted: false,
+          mode: '', rangeFallback: '', rangeFallbackAttempted: false, videoWidth: 0, videoHeight: 0,
           recoveryAttempts: recovery && recovery.recoveryAttempts || 0,
           timing: { episode: episode, automatic_next: fastContinuation || !!(recovery && recovery.automaticNext), prefetch_mode: prefetchMode, started_at: switchStartedAt, ready_at: 0,
             prefetch_started_at: 0, prefetch_ready_at: 0, prefetch_ms: null, handoff_wait_ms: null,
@@ -4977,6 +4979,8 @@
           activePlayback.timing.ready_at = Date.now();
           activePlayback.mode = data.mode || 'full';
           activePlayback.rangeFallback = data.range_fallback || '';
+          activePlayback.videoWidth = Number(data.video_width) || 0;
+          activePlayback.videoHeight = Number(data.video_height) || 0;
           bindPlaybackPresentation(activePlayback, data.path);
           video.src = data.path;
           stageNativePlaybackStartPosition(activePlayback.position);
@@ -7696,6 +7700,10 @@
   var media = document.getElementById('hero-video');
   media.addEventListener('loadedmetadata', function () {
     if (!activePlayback || activePlayback.generation !== feedGeneration) return;
+    if (media.videoWidth > 0 && media.videoHeight > 0) {
+      activePlayback.videoWidth = media.videoWidth;
+      activePlayback.videoHeight = media.videoHeight;
+    }
     var position = activePlayback.position;
     var adapter = typeof window !== 'undefined' ? window.HongguoNativePlaybackAdapter : null;
     var nativeStartPosition = adapter && typeof adapter.isNative === 'function' && adapter.isNative();
