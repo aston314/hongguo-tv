@@ -7,6 +7,7 @@ import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.AnimatedVectorDrawable;
 import android.view.Gravity;
@@ -39,6 +40,7 @@ import org.json.JSONObject;
 public class MainActivity extends Activity {
     private String coreUrl;
     private WebView webView;
+    private Bitmap defaultVideoPoster;
     private NativePlayerAdapter playerBridge;
     private boolean backPending;
     private volatile boolean activityForeground;
@@ -175,7 +177,21 @@ public class MainActivity extends Activity {
                         (activityForeground ? "resumeFromBackground()" : "pauseForBackground()"), null);
             }
         });
-        webView.setWebChromeClient(new WebChromeClient());
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public Bitmap getDefaultVideoPoster() {
+                // Some system WebView builds take the poster from this callback
+                // and call Bitmap.getWidth() without a null check. The page
+                // creates its first <video> as soon as it loads, so a null
+                // poster crashes the process right after launch. A transparent
+                // 1x1 bitmap keeps that path safe and stays invisible.
+                if (defaultVideoPoster == null) {
+                    defaultVideoPoster = Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+                    defaultVideoPoster.eraseColor(Color.TRANSPARENT);
+                }
+                return defaultVideoPoster;
+            }
+        });
         FrameLayout content = new FrameLayout(this);
         content.setBackgroundColor(Color.BLACK);
         FrameLayout nativeVideoLayer = new FrameLayout(this);
