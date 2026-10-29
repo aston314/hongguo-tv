@@ -232,6 +232,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 playerSurfaceAttached = true;
             }
             target.output.attached = playerSurfaceAttached;
+            target.surfaceEpoch = surfaceEpoch;
             android.graphics.Rect frame = surface.getHolder().getSurfaceFrame();
             surfaceSize(target, frame.width(), frame.height());
             active.setPropertyString("android-surface-size", frame.width() + "x" + frame.height());
