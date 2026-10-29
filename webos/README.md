@@ -18,7 +18,7 @@
 
 协议、解密和媒体文件已在 macOS 网络环境中用真实上游数据验证。优先使用 Range/CENC 按需读取；缺少强 ETag 等条件时仍安全回退到完整下载后解密，不会将失败的预取变为整集后台下载。磁盘缓存具有 512 MiB 总预算、2 小时闲置清理和播放占用保护，详见 [缓存策略](../docs/webos-media-cache.md)。
 
-0.2.129 在 0.2.128 的唯一 HTML5 主视频元素和下一集 Service 预取基础上，继续使用匿名注册设备和新的多集片源接口；系列剧结束一季后按完整季列表续播或保留预约，旧格式仍安全回退到受信任域名的备用片源。详见[下一集准备机制](../docs/episode-prefetch.md)。[下载 webOS 0.2.129 测试版](https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.129-test.25)；0.2.123 的 LG C5 回归反馈见 [Issue #70](https://github.com/aston314/hongguo-tv-releases/issues/70)。
+0.2.130 在 0.2.129 的唯一 HTML5 主视频元素和下一集 Service 预取基础上，继续使用匿名注册设备和新的多集片源接口；推荐自动播放新增全部剧、仅横屏剧和仅竖屏剧设置；系列剧结束一季后按完整季列表续播或保留预约，旧格式仍安全回退到受信任域名的备用片源。详见[下一集准备机制](../docs/episode-prefetch.md)。[下载 webOS 0.2.130 测试版](https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.130-test.25)；0.2.123 的 LG C5 回归反馈见 [Issue #70](https://github.com/aston314/hongguo-tv-releases/issues/70)。
 
 2026-10-25，用户在 [Issue #57](https://github.com/aston314/hongguo-tv-releases/issues/57) 回报 LG OLED65C5PTA（台湾版，固件 43.21.77、webOS SDK 11.2.0）安装 `hongguo-webos-0.2.117-test.25.ipk` 后，安装、启动、1080P 视频画面、声音、账号登录及原生遥控器滚轮均正常。安装方式为 Developer Mode + webOS Dev Manager 1.99.20，网络为台湾 Wi-Fi。
 
@@ -28,7 +28,7 @@ webOS Service 已接入账号登录、国际手机号发码/MFA、预约、追�
 
 ## 有声倍速（实验）
 
-当前源码已恢复设置中的“有声倍速（实验）”开关，默认关闭；开启后，播放器显示倍速按钮，可选择速度并验证听感和同步。该入口随同一个 webOS IPK 提供，不另发一套倍速版。音轨准备期间保持有声 1 倍速，失败时自动恢复有声 1 倍速。安卓和桌面播放器不受影响。公开的 0.2.129 IPK 包含该默认关闭的实验入口，需在设置中手动开启后验证。详见[实现与验证说明](../docs/webos-audible-speed.md)。
+当前源码已恢复设置中的“有声倍速（实验）”开关，默认关闭；开启后，播放器显示倍速按钮，可选择速度并验证听感和同步。该入口随同一个 webOS IPK 提供，不另发一套倍速版。音轨准备期间保持有声 1 倍速，失败时自动恢复有声 1 倍速。安卓和桌面播放器不受影响。公开的 0.2.130 IPK 包含该默认关闭的实验入口，需在设置中手动开启后验证。详见[实现与验证说明](../docs/webos-audible-speed.md)。
 
 ## 版本检查（0.2.118 起支持）
 

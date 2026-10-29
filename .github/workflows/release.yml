@@ -78,6 +78,7 @@ jobs:
           node --check core/cmd/hongguotv/ui/numeric-keypad.js
           node --check core/cmd/hongguotv/ui/number-input.js
           node --check core/cmd/hongguotv/ui/search-history.js
+          node --check core/cmd/hongguotv/ui/recommendation-direction.js
           python3 -m unittest discover -s tests -p "test_*.py"
           node --test tests/*.test.cjs
       - name: Check release tag

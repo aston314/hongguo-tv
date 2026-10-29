@@ -1,6 +1,6 @@
 {
   "id": "com.aston314.hongguo.webos",
-  "version": "0.2.129",
+  "version": "0.2.130",
   "vendor": "aston314",
   "type": "web",
   "main": "index.html",
