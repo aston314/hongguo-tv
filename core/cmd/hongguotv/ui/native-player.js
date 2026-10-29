@@ -461,6 +461,7 @@
       if (!isNative() || id !== loadId) return;
       detail = detail || {};
       if (name === 'buffering' || name === 'waiting') { state.readyState = 1; state.seeking = false; dispatch('waiting', detail); return; }
+      if (name === 'outputstate') { dispatch('nativeoutputstate', { type: 'nativeoutputstate', coreIdle: detail.core_idle }); return; }
       if (name === 'frame') {
         state.readyState = 3; state.videoWidth = Number(detail.width) || 0; state.videoHeight = Number(detail.height) || 0;
         if (!fixedNative && attempt.switched) {
@@ -477,7 +478,7 @@
         // Android 9 WebViews receive this callback first; app.js can reveal
         // the real native surface without treating the episode as started
         // for history/progress purposes.
-        dispatch('nativeframe', { type: 'nativeframe', nativeFrame: true, width: state.videoWidth, height: state.videoHeight });
+        dispatch('nativeframe', { type: 'nativeframe', nativeFrame: true, width: state.videoWidth, height: state.videoHeight, coreIdle: detail.core_idle });
         dispatch('loadedmetadata'); dispatch('loadeddata'); dispatch('canplay'); return;
       }
       if (name === 'playing') { state.started = true; state.paused = false; state.ended = false; state.seeking = false; state.readyState = Math.max(3, state.readyState); notifyPlaybackActive(true); dispatch('playing', detail); return; }

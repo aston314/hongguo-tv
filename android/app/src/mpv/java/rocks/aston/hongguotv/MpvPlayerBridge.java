@@ -27,6 +27,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     // serialized onto the main thread.
     private volatile Session session;
     private MPVLib player;
+    private volatile boolean inPlaceReplaceAvailable;
     private boolean playerSurfaceAttached;
     private boolean playerQuiescent = true;
     private final MpvTransitionState<Session> transition = new MpvTransitionState<>();
@@ -53,10 +54,12 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         final MpvDecodeMode mode;
         final MpvOutputState output = new MpvOutputState();
         MPVLib player;
-        boolean outputReady, wantsPlay, terminal, pendingSeek, inPlaceReplacement;
+        boolean outputReady, wantsPlay, terminal, completedEof, pendingSeek, inPlaceReplacement, pauseAfterFirstFrame;
         long position, duration;
         long loadRequestedAt, fileLoadedAt, outputReadyAt;
         long surfaceEpoch = -1;
+        long fileEntryId = -1;
+        final MpvSourceSwitchState sourceSwitch = new MpvSourceSwitchState();
         String decoder = "", state = "preparing";
         String errorKind = "";
         int errorCode;
@@ -86,13 +89,17 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     }
 
     @JavascriptInterface public boolean isAvailable() { return true; }
+    @JavascriptInterface public boolean canReplaceInPlace() { return inPlaceReplaceAvailable; }
     @JavascriptInterface public String engine() { return "mpv"; }
     @JavascriptInterface public String diagnostics() { return diagnostic; }
     @JavascriptInterface public String decoderMode() { return MpvDecodeMode.stored(preferences.getString("mpv_decode_mode", null)).id; }
     @JavascriptInterface public boolean safeStart() { return false; }
     @JavascriptInterface public void setDecoderMode(String value) {
         MpvDecodeMode mode = MpvDecodeMode.requested(value);
-        if (mode != null) preferences.edit().putString("mpv_decode_mode", mode.id).apply();
+        if (mode != null) {
+            preferences.edit().putString("mpv_decode_mode", mode.id).apply();
+            inPlaceReplaceAvailable = false;
+        }
     }
 
     @JavascriptInterface public void showLicenses() {
@@ -150,8 +157,9 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     }
 
     private boolean mayReplaceInPlace(Session old, MpvDecodeMode nextMode) {
-        boolean currentReady = current(old) && !old.terminal && old.errorKind.isEmpty()
-            && old.output.loaded && old.outputReady;
+        boolean currentReady = session == old && !destroyed && old.generation == generation
+            && (!old.terminal || old.completedEof) && old.errorKind.isEmpty()
+            && old.fileEntryId >= 0 && old.output.loaded && old.outputReady;
         boolean samePlayerAndSurface = old.player != null && old.player == player
             && old.output.attached && playerSurfaceAttached && !playerQuiescent
             && old.surfaceEpoch == surfaceEpoch && surfaceAvailable();
@@ -167,6 +175,15 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         session = target;
         target.player = player;
         target.inPlaceReplacement = true;
+        inPlaceReplaceAvailable = false;
+        lastStopFenceMs = 0;
+        target.sourceSwitch.inheritRetiredEntries(old.sourceSwitch);
+        target.sourceSwitch.begin(old.fileEntryId);
+        // A completed EOF is already a trustworthy source boundary. The
+        // corresponding END_FILE may have been filtered by the old session's
+        // terminal guard before the WebView asks for the next episode.
+        if (old.output.endFileSeen || old.completedEof)
+            target.sourceSwitch.notePreviousEndFile(old.fileEntryId);
         target.output.attached = playerSurfaceAttached;
         target.surfaceEpoch = surfaceEpoch;
         target.pendingSeek = target.position > 0;
@@ -304,16 +321,67 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 @Override public void outputMessage(int component, int level) {
                     post(target -> { target.output.message(component, level); updateDiagnostic(target, null); });
                 }
-                @Override public void endFile(int reason, int error) {
+                @Override public void startFile(long playlistEntryId) {
+                    final Session observed = session;
+                    handler.post(() -> {
+                        Session target = session;
+                        // START_FILE can already be in the Java queue when the
+                        // WebView requests the replacement. It belongs to the
+                        // retired source and must not force a healthy switch
+                        // onto the stop-fence path.
+                        if (target != null && target.inPlaceReplacement
+                                && target.sourceSwitch.isPreviousEntry(playlistEntryId)) return;
+                        if (observed == null || observed.generation != generation || observed.terminal
+                                || session != observed || observed.player != active) return;
+                        if (!target.sourceSwitch.onStartFile(playlistEntryId)) {
+                            if (target.inPlaceReplacement)
+                                requestStop(target.id, target.source, target.data);
+                            return;
+                        }
+                        target.fileEntryId = playlistEntryId;
+                    });
+                }
+                @Override public void endFile(int reason, int error, long playlistEntryId) {
                     if (stopFence.isActive() && stoppingPlayer == active) {
                         stopFence.onEndFile();
                         return;
                     }
-                    post(target -> {
+                    final Session observed = session;
+                    handler.post(() -> {
+                        Session target = session;
+                        // Preserve the old-entry boundary even if the event
+                        // was polled before replaceInPlace() advanced the
+                        // session generation. No business state is taken from
+                        // this late event.
+                        if (target != null && target.inPlaceReplacement
+                                && target.sourceSwitch.isPreviousEntry(playlistEntryId)) {
+                            target.sourceSwitch.notePreviousEndFile(playlistEntryId);
+                            return;
+                        }
+                        if (observed == null || observed.generation != generation || observed.terminal
+                                || session != observed || observed.player != active) return;
+                        if (target.inPlaceReplacement && playlistEntryId < 0) {
+                            requestStop(target.id, target.source, target.data);
+                            return;
+                        }
+                        if (target.sourceSwitch.isPreviousEntry(playlistEntryId)) {
+                            target.sourceSwitch.notePreviousEndFile(playlistEntryId);
+                            return;
+                        }
+                        if (target.inPlaceReplacement && !target.sourceSwitch.acceptsEndFile(playlistEntryId)) {
+                            return;
+                        }
+                        if (playlistEntryId >= 0 && target.fileEntryId >= 0
+                                && playlistEntryId != target.fileEntryId) return;
+                        if (!target.sourceSwitch.acceptsEndFile(playlistEntryId)) return;
                         target.output.endFileSeen = true;
                         target.output.endFileReason = reason;
                         target.output.endFileError = error;
                         updateDiagnostic(target, null);
+                        if (target.inPlaceReplacement) {
+                            if (reason == 4 || error < 0) fail(target, "media", error);
+                            return;
+                        }
                         // Preserve the existing readiness gate. Early errors
                         // stay visible in diagnostics and follow the existing
                         // timeout path instead of changing playback timing.
@@ -333,8 +401,29 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 }
                 @Override public void eventProperty(String name, boolean value) {
                     post(target -> {
+                        if ("core-idle".equals(name)) {
+                            target.output.coreIdle = value;
+                            updateDiagnostic(target, null);
+                            if (!target.inPlaceReplacement) {
+                                JSONObject detail = new JSONObject();
+                                try { detail.put("core_idle", value); } catch (Exception ignored) {}
+                                send(target.id, "outputstate", detail);
+                            }
+                            return;
+                        }
+                        if ("vo-configured".equals(name)) {
+                            // This property has no source entry id and can be
+                            // a late value from the retired source. The
+                            // accepted replacement reads the current value in
+                            // rendered(), after its PLAYBACK_RESTART fence.
+                            if (!target.inPlaceReplacement) {
+                                target.output.configured = value;
+                                rendered(target);
+                            }
+                            return;
+                        }
+                        if (target.inPlaceReplacement) return;
                         if ("eof-reached".equals(name) && value && target.outputReady) finish(target);
-                        else if ("vo-configured".equals(name)) { target.output.configured = value; rendered(target); }
                         else if ("paused-for-cache".equals(name) && target.outputReady && target.wantsPlay && !background)
                             MpvPlayerBridge.this.event(target, value ? "buffering" : "playing", null);
                         else if ("pause".equals(name) && target.outputReady && !background)
@@ -344,19 +433,31 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 @Override public void event(int value) {
                     post(target -> {
                         if (value == MPVLib.MpvEvent.MPV_EVENT_FILE_LOADED) {
+                            if (!target.sourceSwitch.onFileLoaded()) return;
                             target.output.loaded = true;
                             target.fileLoadedAt = SystemClock.uptimeMillis();
-                            if (target.pendingSeek) { active.command(new String[]{"seek", Double.toString(target.position / 1000.0), "absolute+exact"}); target.pendingSeek = false; }
+                            if (target.pendingSeek) {
+                                active.command(new String[]{"seek", Double.toString(target.position / 1000.0), "absolute+exact"});
+                                target.pendingSeek = false;
+                            }
+                            if (target.inPlaceReplacement) {
+                                if (target.wantsPlay) applyPlayState(target);
+                                else {
+                                    // Decode one muted frame so a paused target
+                                    // has a presentable surface before its cover
+                                    // is released.
+                                    target.pauseAfterFirstFrame = true;
+                                    active.setPropertyBoolean("pause", false);
+                                }
+                                updateDiagnostic(target, null);
+                                return;
+                            }
                             applyPlayState(target);
                             updateDiagnostic(target, null);
                         } else if (value == MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART) {
-                            // During an in-place replacement, FILE_LOADED can
-                            // arrive before the old source's queued END_FILE.
-                            // Keep that event from closing the new session;
-                            // playback restart is the first new-output signal
-                            // that makes END_FILE meaningful again.
-                            target.inPlaceReplacement = false;
-                            target.output.restarted = true; rendered(target);
+                            if (!target.sourceSwitch.onPlaybackRestart()) return;
+                            if (target.inPlaceReplacement) acceptInPlacePlaybackRestart(target);
+                            else { target.output.restarted = true; rendered(target); }
                         }
                     });
                 }
@@ -366,6 +467,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             active.observeProperty("pause", MPVLib.MpvFormat.MPV_FORMAT_FLAG);
             active.observeProperty("paused-for-cache", MPVLib.MpvFormat.MPV_FORMAT_FLAG);
             active.observeProperty("vo-configured", MPVLib.MpvFormat.MPV_FORMAT_FLAG);
+            active.observeProperty("core-idle", MPVLib.MpvFormat.MPV_FORMAT_FLAG);
             return active;
         } catch (LinkageError | RuntimeException failure) {
             player = null;
@@ -380,6 +482,15 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     private void applyPlayState(Session target) {
         if (!current(target) || target.player == null) return;
         target.player.setPropertyBoolean("pause", background || !target.wantsPlay);
+    }
+    private void acceptInPlacePlaybackRestart(Session target) {
+        target.inPlaceReplacement = false;
+        target.output.restarted = true;
+        rendered(target);
+        if (target.pauseAfterFirstFrame && target.player != null) {
+            target.pauseAfterFirstFrame = false;
+            target.player.setPropertyBoolean("pause", true);
+        }
     }
     private void guarded(Session target, Runnable action) {
         if (!current(target)) return;
@@ -398,7 +509,9 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         target.output.width = w == null ? 0 : w; target.output.height = h == null ? 0 : h;
         target.output.vo = property(player, "current-vo");
         target.output.configured = Boolean.TRUE.equals(player.getPropertyBoolean("vo-configured"));
-        if (!target.output.ready(surface.getHolder().getSurface().isValid())) return;
+        Boolean coreIdle = player.getPropertyBoolean("core-idle");
+        if (coreIdle != null) target.output.coreIdle = coreIdle;
+        if (target.inPlaceReplacement || !target.output.ready(surface.getHolder().getSurface().isValid())) return;
         String decoder = player.getPropertyString("video-codec");
         target.decoder = decoder == null ? "" : decoder;
         if (!target.outputReady) {
@@ -406,19 +519,22 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             target.outputReadyAt = SystemClock.uptimeMillis();
             handler.removeCallbacks(target.timeout);
             JSONObject detail = new JSONObject();
-            try { detail.put("width", w).put("height", h); } catch (Exception ignored) {}
+            try { detail.put("width", w).put("height", h).put("core_idle", target.output.coreIdle); } catch (Exception ignored) {}
             // The shared adapter's frame event means presentation-ready here.
             // libmpv has no physical first-frame callback; report that honestly.
             event(target, "frame", detail);
         }
+        refreshInPlaceReplaceAvailability();
         if (!background) event(target, target.wantsPlay ? "playing" : "paused", null);
     }
     private void finish(Session target) {
-        if (!current(target)) return;
+        if (!current(target) || target.completedEof) return;
         reportProgress(target);
+        target.completedEof = true;
         event(target, "ended", null); target.terminal = true;
         try { target.player.setPropertyBoolean("pause", true); } catch (RuntimeException ignored) {}
         handler.removeCallbacks(target.timeout);
+        refreshInPlaceReplaceAvailability();
     }
     private void fail(Session target, String kind) {
         fail(target, kind, 0);
@@ -458,6 +574,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 .put("frame_signal", "playback-restart").put("video_decoder", target.decoder)
                 .put("width", target.output.width).put("height", target.output.height).put("speed", speed)
                 .put("restart_seen", target.output.restarted).put("vo_configured", target.output.configured)
+                .put("core_idle", target.output.coreIdle)
                 .put("video_output", target.output.vo).put("surface_width", target.output.surfaceWidth)
                 .put("surface_height", target.output.surfaceHeight)
                 .put("surface_attached", target.output.attached && surface.getHolder().getSurface().isValid())
@@ -649,6 +766,9 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     }
     private void dispose(Session target) {
         if (target.timeout != null) handler.removeCallbacks(target.timeout);
+        target.inPlaceReplacement = false;
+        target.sourceSwitch.clear();
+        inPlaceReplaceAvailable = false;
         MPVLib old = target.player; target.player = null;
         if (old != null) {
             try {
@@ -659,6 +779,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         }
     }
     private void requestStop(String id, String source, JSONObject data) {
+        inPlaceReplaceAvailable = false;
         if (stopFence.isActive()) {
             if (id == null) { generation++; transition.clear(); }
             else transition.queue(new Session(generation, id, source, data, MpvDecodeMode.stored(decoderMode())));
@@ -725,19 +846,26 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         try { return surfaceReady && surface.getHolder().getSurface().isValid(); }
         catch (RuntimeException ignored) { return false; }
     }
+    private void refreshInPlaceReplaceAvailability() {
+        Session target = session;
+        inPlaceReplaceAvailable = target != null && !destroyed && !background
+            && mayReplaceInPlace(target, MpvDecodeMode.stored(decoderMode()));
+    }
     @Override public void onPause() {
-        background = true; Session s = session;
+        background = true; inPlaceReplaceAvailable = false; Session s = session;
         if (s != null) { if (s.timeout != null) handler.removeCallbacks(s.timeout); guarded(s, () -> { if (s.player != null) s.player.setPropertyBoolean("pause", true); }); }
     }
     @Override public void onResume() {
         background = false; Session s = session;
+        refreshInPlaceReplaceAvailability();
         if (s != null) guarded(s, () -> { armTimeout(s); start(s); if (s.player != null && s.output.loaded && s.output.attached) s.player.setPropertyBoolean("pause", !s.wantsPlay); });
     }
     @Override public void destroy() {
-        destroyed = true; handler.removeCallbacksAndMessages(null);
+        destroyed = true; inPlaceReplaceAvailable = false; handler.removeCallbacksAndMessages(null);
         Session active = session; session = null; transition.clear(); generation++;
         if (active != null) {
             active.terminal = true;
+            active.sourceSwitch.clear();
             if (active.timeout != null) handler.removeCallbacks(active.timeout);
         }
         stopFence.clear(); stoppingPlayer = null; stopTimeout = null;

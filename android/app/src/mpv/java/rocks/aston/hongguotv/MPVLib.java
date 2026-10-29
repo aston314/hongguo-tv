@@ -17,7 +17,8 @@ final class MPVLib {
         void eventProperty(String name, boolean value);
         void event(int value);
         void outputMessage(int component, int level);
-        void endFile(int reason, int error);
+        void startFile(long playlistEntryId);
+        void endFile(int reason, int error, long playlistEntryId);
         void commandReply(long requestId, int error);
         void eventsDrained();
         void error();
@@ -25,6 +26,7 @@ final class MPVLib {
     static final class MpvEvent {
         static final int MPV_EVENT_LOG_MESSAGE = 2;
         static final int MPV_EVENT_COMMAND_REPLY = 5;
+        static final int MPV_EVENT_START_FILE = 6;
         static final int MPV_EVENT_END_FILE = 7;
         static final int MPV_EVENT_FILE_LOADED = 8;
         static final int MPV_EVENT_PLAYBACK_RESTART = 21;
@@ -96,7 +98,9 @@ final class MPVLib {
                         } else if (kind == MpvEvent.MPV_EVENT_LOG_MESSAGE) {
                             if (event[3] > 0) observer.outputMessage((int) event[3], (int) event[2]);
                         } else if (kind == MpvEvent.MPV_EVENT_END_FILE) {
-                            observer.endFile((int) event[2], (int) event[3]);
+                            observer.endFile((int) event[2], (int) event[3], event[4]);
+                        } else if (kind == MpvEvent.MPV_EVENT_START_FILE) {
+                            observer.startFile(event[4]);
                         } else if (kind == MpvEvent.MPV_EVENT_COMMAND_REPLY) {
                             observer.commandReply(event[1], (int) event[2]);
                         } else observer.event(kind);

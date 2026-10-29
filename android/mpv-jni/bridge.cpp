@@ -46,7 +46,7 @@ extern "C" JNIEXPORT void JNICALL JNI_METHOD(nativeDestroy)(JNIEnv *env, jclass,
 extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativePoll)(JNIEnv *env, jclass, jlong p) {
     mpv_event *event = mpv_wait_event(client(p)->mpv, 0);
     if (event->event_id == MPV_EVENT_NONE) return nullptr;
-    jlong values[4] = {event->event_id, static_cast<jlong>(event->reply_userdata), -1, 0};
+    jlong values[5] = {event->event_id, static_cast<jlong>(event->reply_userdata), -1, 0, -1};
     if (event->event_id == MPV_EVENT_PROPERTY_CHANGE && event->data) {
         const auto *property = static_cast<mpv_event_property *>(event->data);
         if (property->format == MPV_FORMAT_FLAG && property->data)
@@ -64,11 +64,15 @@ extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativePoll)(JNIEnv *env, jcla
     } else if (event->event_id == MPV_EVENT_END_FILE && event->data) {
         const auto *end = static_cast<mpv_event_end_file *>(event->data);
         values[2] = end->reason; values[3] = end->error;
+        values[4] = end->playlist_entry_id;
+    } else if (event->event_id == MPV_EVENT_START_FILE && event->data) {
+        const auto *start = static_cast<mpv_event_start_file *>(event->data);
+        values[4] = start->playlist_entry_id;
     } else if (event->event_id == MPV_EVENT_COMMAND_REPLY) {
         values[2] = event->error;
     }
-    jlongArray result = env->NewLongArray(4);
-    if (result) env->SetLongArrayRegion(result, 0, 4, values);
+    jlongArray result = env->NewLongArray(5);
+    if (result) env->SetLongArrayRegion(result, 0, 5, values);
     return result;
 }
 extern "C" JNIEXPORT void JNICALL JNI_METHOD(nativeObserve)(JNIEnv *env, jclass, jlong p, jint id, jstring name) {

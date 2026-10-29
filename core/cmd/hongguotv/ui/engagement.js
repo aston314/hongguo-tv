@@ -18,7 +18,16 @@
   function create(options) {
     var epoch = 0, target = null, data = null, request = null, cache = {};
     function key(item) { return item.series_id + ':' + item.vid; }
-    function cancel() { if (request && request.abort) request.abort(); request = null; ++epoch; }
+    var prewarmRequests = {};
+    function cancel() {
+      if (request && request.abort) request.abort(); request = null;
+      Object.keys(prewarmRequests).forEach(function (id) {
+        var pending = prewarmRequests[id];
+        if (pending && pending.request && pending.request.abort) pending.request.abort();
+      });
+      prewarmRequests = {};
+      ++epoch;
+    }
     function clear() { cancel(); target = null; data = null; options.render(null, null); }
     function select(item, force) {
       if (!item || !item.series_id || !item.vid) { clear(); return; }
@@ -52,7 +61,31 @@
         data.comments = total; options.render(target, data);
       }
     }
-    return { select: select, clear: clear, adjust: adjust, commentTotal: commentTotal,
+    function prewarm(item) {
+      if (!item || !item.series_id || !item.vid) return Promise.resolve(null);
+      var id = key(item), stored = cache[id];
+      if (stored && Date.now() - stored.at < 45000) return Promise.resolve(stored.data);
+      if (prewarmRequests[id]) return prewarmRequests[id].promise;
+      var current = { series_id: item.series_id, vid: item.vid };
+      var pending = { request: options.request(current), promise: null };
+      prewarmRequests[id] = pending;
+      pending.promise = pending.request.promise.then(function (result) {
+        if (prewarmRequests[id] !== pending || !result || result.series_id !== current.series_id || result.vid !== current.vid) return null;
+        var value = { likes: result.likes, favorites: result.favorites, comments: result.comments, episode_cover: result.episode_cover || '' };
+        var keys = Object.keys(cache); if (keys.length >= 48) delete cache[keys[0]];
+        cache[id] = { at: Date.now(), data: value };
+        return value;
+      }, function () { return null; });
+      pending.promise = pending.promise.then(function (value) {
+        if (prewarmRequests[id] === pending) delete prewarmRequests[id];
+        return value;
+      }, function () {
+        if (prewarmRequests[id] === pending) delete prewarmRequests[id];
+        return null;
+      });
+      return pending.promise;
+    }
+    return { select: select, prewarm: prewarm, clear: clear, adjust: adjust, commentTotal: commentTotal,
       resetAccount: function () { clear(); cache = {}; } };
   }
   return { countText: countText, create: create };

@@ -120,7 +120,11 @@
       previous.expectedVid = target.vid;
       return { promise: previous.promise, timing: previous.timing, prefetchMode: strategyOf(previous.info), cancel: function () { invalidate(previous); } };
     }
-    return { maybe: maybe, cancel: cancel, cancelPending: cancelPending, keepFor: keepFor, consume: consume };
+    function peek() {
+      if (!entry || entry.cancelled || !entry.target) return null;
+      return { info: entry.info, target: entry.target, state: entry.state };
+    }
+    return { maybe: maybe, cancel: cancel, cancelPending: cancelPending, keepFor: keepFor, consume: consume, peek: peek };
   }
   function retryableError(error) {
     if (!error) return false;

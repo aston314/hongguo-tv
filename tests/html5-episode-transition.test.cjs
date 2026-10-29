@@ -61,6 +61,7 @@ function fixture({ webos = false } = {}) {
     feedGeneration: 4,
     webosShell: webos,
     episodeCoverLoader: null,
+    prewarmedEpisodeCover: null,
     setTimeout(fn, delay) { timers.push({ fn, delay }); return timers.length; },
     clearTimeout() {},
     clearRangeStallTimer() {},

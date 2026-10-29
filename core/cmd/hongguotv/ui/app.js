@@ -367,6 +367,7 @@
   var confirmationGeneration = 0;
   var activePlayback = null;
   var episodeCoverLoader = null;
+  var prewarmedEpisodeCover = null;
   var detailCache = {};
   var playerOptionsOpen = false;
   var playerOptionsReturn = null;
@@ -4350,6 +4351,13 @@
       return typeof native.decoderMode === 'function' && native.decoderMode() === 'mpv_software' ? 'software' : 'auto';
     } catch (ignored) { return 'default'; }
   }
+  function mpvInPlaceReplaceAvailable() {
+    try {
+      var native = window.HongguoNativePlayer;
+      return !!(native && typeof native.engine === 'function' && native.engine() === 'mpv' &&
+        typeof native.canReplaceInPlace === 'function' && native.canReplaceInPlace());
+    } catch (ignored) { return false; }
+  }
 
   function recommendationDirectionPlatform() {
     return webosShell ? 'webos' : androidShell ? 'android' : desktopShell ? 'desktop' : 'preview';
@@ -4464,6 +4472,22 @@
       duration: Number(video.duration), position: Number(video.currentTime), paused: video.paused, ended: video.ended,
       stable_seconds: playback.stableSince ? Math.max(0, Date.now() - playback.stableSince) / 1000 : 0,
       started: playback.started, active: playback.generation === feedGeneration && isPlaybackPage() && !applicationInBackground && !applicationHidden() && !qualityPrevious });
+    var prepared = typeof episodePrefetch.peek === 'function' ? episodePrefetch.peek() : null;
+    if (prepared && prepared.info && prepared.target && prepared.info.generation === playback.generation &&
+        prepared.info.owner === accountEpoch && prepared.info.series_id === playback.item.series_id &&
+        Number(prepared.info.episode) === Number(playback.episode) && engagement) {
+      // Warm only the next episode's artwork. This shares the engagement
+      // cache with the normal render and never changes the visible counts.
+      var target = { series_id: prepared.target.series_id, vid: prepared.target.vid };
+      var generation = playback.generation, owner = accountEpoch;
+      engagement.prewarm(target).then(function (data) {
+        var current = typeof episodePrefetch.peek === 'function' ? episodePrefetch.peek() : null;
+        if (!data || activePlayback !== playback || playback.generation !== generation || generation !== feedGeneration ||
+            accountEpoch !== owner || !current || !current.target || current.target.series_id !== target.series_id ||
+            current.target.vid !== target.vid) return;
+        prewarmEpisodeCover(target, data, playback);
+      });
+    }
   }
   function cancelFullEpisodePrefetchForPlayback(playback) {
     var video = document.getElementById('hero-video');
@@ -4510,7 +4534,41 @@
       cover.style.backgroundImage = 'none';
       cover.classList.remove('is-ready');
     }
-    if (hero) hero.classList.remove('is-episode-cover', 'is-native-frame-revealing', 'is-native-media3-episode-transition');
+    if (hero) hero.classList.remove('is-episode-cover', 'is-native-frame-revealing', 'is-native-media3-episode-transition', 'is-native-mpv-episode-transition', 'is-native-mpv-source-unloaded');
+  }
+  function prewarmEpisodeCover(target, data, playback) {
+    if (!target || !data || !data.episode_cover || activePlayback !== playback || playback.generation !== feedGeneration ||
+        playback.owner !== accountEpoch || playback.item.series_id !== target.series_id) return;
+    var source = String(data.episode_cover);
+    var owner = accountEpoch;
+    var key = String(accountEpoch) + ':' + target.series_id + ':' + target.vid;
+    if (prewarmedEpisodeCover && prewarmedEpisodeCover.key === key && prewarmedEpisodeCover.source === source) return;
+    var record = { key: key, source: source, image: new Image(), ready: false, failed: false, waiters: [] };
+    prewarmedEpisodeCover = record;
+    function isStillRelevant() {
+      if (accountEpoch !== owner || !activePlayback || activePlayback.generation !== feedGeneration ||
+          activePlayback.owner !== owner || activePlayback.item.series_id !== target.series_id) return false;
+      if (activePlayback.vid === target.vid) return true;
+      var prepared = typeof episodePrefetch.peek === 'function' ? episodePrefetch.peek() : null;
+      return !!(prepared && prepared.info && prepared.target && prepared.info.generation === activePlayback.generation &&
+        prepared.info.owner === owner && prepared.target.series_id === target.series_id && prepared.target.vid === target.vid);
+    }
+    function finish(ok) {
+      if (prewarmedEpisodeCover !== record || !isStillRelevant() || String(accountEpoch) + ':' + target.series_id + ':' + target.vid !== key) return;
+      record.ready = !!ok;
+      record.failed = !ok;
+      var waiters = record.waiters.slice();
+      record.waiters = [];
+      waiters.forEach(function (waiter) { waiter(record.ready); });
+    }
+    record.image.onload = function () {
+      if (typeof record.image.decode === 'function') {
+        try { record.image.decode().then(function () { finish(true); }, function () { finish(true); }); return; } catch (ignoredDecode) {}
+      }
+      finish(true);
+    };
+    record.image.onerror = function () { finish(false); };
+    record.image.src = source;
   }
   function setEpisodeCover(target, data) {
     if (!target || !data || !data.episode_cover) return;
@@ -4529,26 +4587,45 @@
         return;
       }
     }
-    var loader = new Image();
+    var prewarmed = prewarmedEpisodeCover && prewarmedEpisodeCover.key === String(accountEpoch) + ':' + target.series_id + ':' + target.vid &&
+      prewarmedEpisodeCover.source === source && !prewarmedEpisodeCover.failed ? prewarmedEpisodeCover : null;
+    var loader = prewarmed ? prewarmed.image : new Image();
     episodeCoverLoader = loader;
     cover.__coverLoader = loader;
     cover.__coverSource = source;
-    loader.onload = function () {
+    function revealLoadedCover() {
       if (cover.__coverLoader !== loader || activePlayback !== playback || playback.generation !== feedGeneration ||
           playback.owner !== accountEpoch || playback.presentation && playback.presentation.rendered ||
           !hero.classList.contains('is-preparing-video')) return;
       cover.style.backgroundImage = 'url(' + JSON.stringify(loader.src) + ')';
       cover.classList.add('is-ready');
       hero.classList.add('is-episode-cover');
-    };
-    loader.onerror = function () {
+    }
+    function decodeAndReveal() {
+      // `load` is not a decoded-pixels guarantee on older WebViews. Use the
+      // promise API where available, with a non-blocking load fallback.
+      if (typeof loader.decode === 'function') {
+        try { loader.decode().then(revealLoadedCover, revealLoadedCover); return; } catch (ignoredDecode) {}
+      }
+      revealLoadedCover();
+    }
+    function clearFailedCover() {
       if (cover.__coverLoader !== loader) return;
       cover.__coverLoader = null;
       cover.__coverSource = '';
       cover.style.backgroundImage = 'none';
       cover.classList.remove('is-ready');
-    };
-    loader.src = source;
+    }
+    if (prewarmed) {
+      if (prewarmed.ready) revealLoadedCover();
+      else {
+        prewarmed.waiters.push(function (ok) { if (ok) revealLoadedCover(); else clearFailedCover(); });
+      }
+    } else {
+      loader.onload = decodeAndReveal;
+      loader.onerror = clearFailedCover;
+      loader.src = source;
+    }
   }
   function layoutLastPlaybackFrame() {
     var canvas = document.getElementById('hero-last-frame');
@@ -4634,12 +4711,19 @@
       video.classList.contains('has-source') && samePlaybackPresentationSource(video.getAttribute('src'), presentation.source));
   }
   function playbackVideoReady(playback, presentation, video) {
+    var mpv = playbackEngineName() === 'mpv';
+    var staticFrameCoreIdle = presentation && typeof presentation.nativeFrameCoreIdle === 'boolean' ?
+      presentation.nativeFrameCoreIdle : presentation && presentation.nativeCoreIdle;
+    var nativePausedReady = mpv && presentation && presentation.rendered && staticFrameCoreIdle !== true &&
+      video.paused && !video.ended && !video.seeking && video.readyState >= 2 &&
+      video.videoWidth > 0 && video.videoHeight > 0;
+    var nativePlayingReady = !mpv || presentation && presentation.progressed && presentation.nativeCoreIdle !== true;
     return !!(currentPlaybackPresentation(playback, presentation, video) && !presentation.waiting &&
       // Media3 reports a frame when it reaches the native surface, before the
       // WebView can know that SurfaceFlinger has presented it. Wait for media
       // time to advance as well, so removing the cover cannot expose a blank surface.
-      (playback.started || presentation.rendered) && !video.paused && !video.ended && !video.seeking && video.readyState >= 2 &&
-      video.videoWidth > 0 && video.videoHeight > 0);
+      (nativePausedReady || (nativePlayingReady && (playback.started || presentation.rendered) && !video.paused && !video.ended && !video.seeking && video.readyState >= 2 &&
+      video.videoWidth > 0 && video.videoHeight > 0)));
   }
   function releasePresentedAudio(playback, presentation, video) {
     if (!playbackAudioHold || presentation.audioPending || !playbackVideoReady(playback, presentation, video)) return;
@@ -4711,7 +4795,7 @@
         if (typeof clearRangeTransitionHint === 'function') clearRangeTransitionHint();
         clearLastPlaybackFrame();
         clearEpisodeCover(playback);
-        hero.classList.remove('is-preparing-video', 'is-starting-video', 'is-episode-transition', 'is-range-transition', 'is-range-source-reset', 'is-native-media3-episode-transition');
+        hero.classList.remove('is-preparing-video', 'is-starting-video', 'is-episode-transition', 'is-range-transition', 'is-range-source-reset', 'is-native-media3-episode-transition', 'is-native-mpv-episode-transition');
         setPlayerStatus('');
         releasePresentedAudio(playback, presentation, video);
         finishAutoCinema(playback);
@@ -4737,6 +4821,18 @@
         presentation.revealing = true;
         hero.classList.add('is-native-frame-revealing');
         presentation.revealTimer = setTimeout(complete, 200);
+        return;
+      }
+      // MPV's native frame signal is obtained from libmpv's output state, not
+      // from the WebView compositor. Keep a prepared episode cover for one
+      // additional compositor boundary so a SurfaceView that is still being
+      // latched cannot flash black underneath the cover. Unlike Media3, a
+      // paused target is valid here because the native frame is already
+      // rendered and no clock advance is required for a static first frame.
+      if (hero.classList.contains('is-native-mpv-episode-transition') && hasHeldFrame) {
+        presentation.revealing = true;
+        hero.classList.add('is-native-frame-revealing');
+        presentation.revealTimer = setTimeout(complete, 32);
         return;
       }
       complete();
@@ -4902,6 +4998,7 @@
     var hero = document.getElementById('hero');
     var video = document.getElementById('hero-video');
     var placeholder = document.getElementById('hero-placeholder');
+    var mpvTransition = sameSeries && nativeAtSwitch && playbackEngineName() === 'mpv' && mpvInPlaceReplaceAvailable();
     var keepRangeFrame = sameSeries && playbackMode === 'range' && !!video.getAttribute('src') &&
       (!nativeAtSwitch || playbackEngineName() === 'mpv');
     var capturedLastFrame = false;
@@ -4922,6 +5019,7 @@
     hero.classList.remove('is-catalog-loading', 'is-starting-video', 'is-range-source-reset');
     hero.classList.toggle('is-episode-transition', sameSeries);
     hero.classList.toggle('is-range-transition', keepRangeFrame);
+    hero.classList.toggle('is-native-mpv-episode-transition', mpvTransition);
     hero.classList.toggle('is-native-media3-episode-transition', sameSeries && nativeAtSwitch && playbackEngineName() !== 'mpv');
     placeholder.classList.add('is-hidden');
     updateFeedCounter();
@@ -7770,7 +7868,7 @@
     document.getElementById('danmaku-layer').classList.remove('is-paused'); tickDanmaku();
     markPlaybackStarted(activePlayback);
   });
-  media.addEventListener('nativeframe', function () {
+  media.addEventListener('nativeframe', function (event) {
     // Media3 can report a rendered frame before WebView's `playing` callback.
     // Reveal that real frame without treating the episode as started for
     // history/progress purposes.
@@ -7782,9 +7880,18 @@
       if (typeof maybeSkipRecommendationOrientation === 'function' && maybeSkipRecommendationOrientation(activePlayback, media.videoWidth, media.videoHeight)) return;
       activePlayback.presentation.rendered = true;
       activePlayback.presentation.frame_at = Date.now();
+      if (event && typeof event.coreIdle === 'boolean') {
+        activePlayback.presentation.nativeCoreIdle = event.coreIdle;
+        activePlayback.presentation.nativeFrameCoreIdle = event.coreIdle;
+      }
       if (!media.paused && !media.seeking && media.readyState >= 2) activePlayback.presentation.waiting = false;
       finishPlaybackPreparation(activePlayback);
     }
+  });
+  media.addEventListener('nativeoutputstate', function (event) {
+    if (!activePlayback || !activePlayback.presentation || !event || typeof event.coreIdle !== 'boolean') return;
+    activePlayback.presentation.nativeCoreIdle = event.coreIdle;
+    finishPlaybackPreparation(activePlayback);
   });
   function checkPlaybackData() {
     if (!activePlayback) return;
@@ -7810,7 +7917,11 @@
   media.addEventListener('pause', function () {
     if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback);
     if (activePlayback) activePlayback.stableSince = 0;
-    interruptPlaybackPresentation(activePlayback);
+    var staticMpvFrame = activePlayback && playbackEngineName() === 'mpv' && !activePlayback.started &&
+      activePlayback.presentation && activePlayback.presentation.rendered && activePlayback.presentation.nativeFrameCoreIdle !== true &&
+      media.paused && document.getElementById('hero').classList.contains('is-preparing-video');
+    if (!staticMpvFrame) interruptPlaybackPresentation(activePlayback);
+    else finishPlaybackPreparation(activePlayback);
     document.getElementById('danmaku-layer').classList.add('is-paused');
     saveProgress(true); updatePlaybackControls();
     if (activePlayback && activePlayback.started && media.getAttribute('src') && media.paused && !media.ended) revealControls();

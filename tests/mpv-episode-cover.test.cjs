@@ -8,7 +8,7 @@ const styles=fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.css')
 function between(start,end){return source.slice(source.indexOf(start),source.indexOf(end,source.indexOf(start)));}
 function classes(...initial){const values=new Set(initial);return {add(...names){names.forEach(x=>values.add(x));},remove(...names){names.forEach(x=>values.delete(x));},contains(name){return values.has(name);}};}
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve};}
-function fixture(engine='mpv'){
+function fixture(engine='mpv',imageDecode){
  const hero={classList:classes('is-preparing-video')};
  const cover={classList:classes(),style:{backgroundImage:'none'}};
  const canvas={classList:classes(),width:0,height:0};
@@ -17,10 +17,11 @@ function fixture(engine='mpv'){
  const document={documentElement:root,getElementById(id){return id==='hero'?hero:id==='hero-episode-cover'?cover:id==='hero-video'?video:id==='hero-last-frame'?canvas:null;}};
  const images=[],timers=[];
  function Image(){images.push(this);}
+ if(imageDecode) Image.prototype.decode=imageDecode;
  Object.defineProperty(Image.prototype,'src',{set(value){this._src=value;},get(){return this._src;}});
  const paint=deferred();
  const playback={item:{series_id:'series-1'},vid:'vid-2',generation:8,owner:3,presentation:{rendered:false,pending:false,epoch:0}};
- const context=vm.createContext({document,Image,Promise,Date,feedGeneration:8,accountEpoch:3,activePlayback:playback,
+ const context=vm.createContext({document,Image,Promise,Date,feedGeneration:8,accountEpoch:3,activePlayback:playback,prewarmedEpisodeCover:null,
    setTimeout(fn,delay){timers.push({fn,delay});return timers.length;},clearTimeout(){},
    playbackEngineName(){return engine;},nativePlaybackActive(){return root.classList.contains('native-playback');},
    isNativeMedia3PlaybackActive(){return root.classList.contains('native-playback')&&engine!=='mpv';},
@@ -66,6 +67,42 @@ test('a late image response cannot cover a newer playback generation',()=>{
  f.context.feedGeneration++;
  f.images[0].onload();
  assert.equal(f.hero.classList.contains('is-episode-cover'),false);
+});
+
+test('an Image.decode-prewarmed cover is reused without creating a second image',async()=>{
+ const f=fixture('mpv',()=>Promise.resolve());
+ f.context.prewarmEpisodeCover(target,{episode_cover:'https://img.example/episode-2.jpg'},f.playback);
+ const warmed=f.images[0];
+ warmed.onload();
+ await new Promise(resolve=>setImmediate(resolve));
+ f.context.setEpisodeCover(target,{episode_cover:'https://img.example/episode-2.jpg'});
+ assert.equal(f.images.length,1);
+ assert.equal(f.cover.style.backgroundImage,'url("https://img.example/episode-2.jpg")');
+ assert.equal(f.hero.classList.contains('is-episode-cover'),true);
+});
+
+test('a rejected Image.decode falls back to the already loaded image',async()=>{
+ const f=fixture('mpv',()=>Promise.reject(new Error('decode unavailable')));
+ f.context.prewarmEpisodeCover(target,{episode_cover:'https://img.example/episode-2.jpg'},f.playback);
+ f.images[0].onload();
+ await new Promise(resolve=>setImmediate(resolve));
+ f.context.setEpisodeCover(target,{episode_cover:'https://img.example/episode-2.jpg'});
+ assert.equal(f.images.length,1);
+ assert.equal(f.hero.classList.contains('is-episode-cover'),true);
+});
+
+test('a pending prewarmed image can be adopted by its target playback after the generation changes',()=>{
+ const f=fixture();
+ f.context.episodePrefetch={peek(){return null;}};
+ f.context.prewarmEpisodeCover(target,{episode_cover:'https://img.example/episode-2.jpg'},f.playback);
+ const warmed=f.images[0];
+ const next=Object.assign({},f.playback,{vid:target.vid,generation:9,owner:3,presentation:{rendered:false,pending:false,epoch:0}});
+ f.context.feedGeneration=9;f.context.activePlayback=next;
+ f.context.setEpisodeCover(target,{episode_cover:'https://img.example/episode-2.jpg'});
+ assert.equal(f.images.length,1);
+ warmed.onload();
+ assert.equal(f.cover.style.backgroundImage,'url("https://img.example/episode-2.jpg")');
+ assert.equal(f.hero.classList.contains('is-episode-cover'),true);
 });
 
 test('Media3 keeps the episode cover through first-frame until playback advances, then fades for 180ms',async()=>{
