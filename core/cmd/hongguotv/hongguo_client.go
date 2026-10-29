@@ -874,15 +874,41 @@ func (c *hongguoClient) PlayInfo(ctx context.Context, seriesID, vid string) (Pla
 }
 
 func (c *hongguoClient) PlayInfoQuality(ctx context.Context, seriesID, vid, quality string, fallback bool) (PlayInfo, error) {
+	return c.PlayInfoQualityMode(ctx, seriesID, vid, quality, fallback, "default")
+}
+
+func (c *hongguoClient) PlayInfoQualityMode(ctx context.Context, seriesID, vid, quality string, fallback bool, codecMode string) (PlayInfo, error) {
 	if !validID(seriesID) || !validID(vid) {
 		return PlayInfo{}, errors.New("播放参数无效")
 	}
 	if c.internalPlayback == nil {
 		return PlayInfo{}, errors.New("内置播放服务未初始化")
 	}
-	result, err := c.internalPlayback(ctx, seriesID, vid, quality, fallback)
+	codecMode, err := normalizeMiniReelCodecMode(codecMode)
+	if err != nil {
+		return PlayInfo{}, err
+	}
+	if codecMode == "default" {
+		result, err := c.internalPlayback(ctx, seriesID, vid, quality, fallback)
+		if err != nil {
+			return PlayInfo{}, fmt.Errorf("内置播放解析失败: %w", err)
+		}
+		if result.Path == "" {
+			return PlayInfo{}, errors.New("内置播放服务没有返回地址")
+		}
+		if result.Vid == "" {
+			result.Vid = vid
+		}
+		return result, nil
+	}
+	value, err := resolveMiniReelMediaQualityMode(ctx, seriesID, vid, quality, fallback, codecMode)
 	if err != nil {
 		return PlayInfo{}, fmt.Errorf("内置播放解析失败: %w", err)
+	}
+	result := PlayInfo{
+		Path: asString(value["path"]), Quality: asString(value["quality"]), Qualities: value["qualities"].([]string),
+		VideoWidth: miniReelIntFromAny(value["video_width"]), VideoHeight: miniReelIntFromAny(value["video_height"]),
+		Vid: firstNonEmpty(value["vid"], vid), Mode: asString(value["mode"]),
 	}
 	if result.Path == "" {
 		return PlayInfo{}, errors.New("内置播放服务没有返回地址")
@@ -894,10 +920,14 @@ func (c *hongguoClient) PlayInfoQuality(ctx context.Context, seriesID, vid, qual
 }
 
 func (c *hongguoClient) PlayInfoRangeQuality(ctx context.Context, seriesID, vid, quality string, fallback, allowStandardFallback bool) (PlayInfo, error) {
+	return c.PlayInfoRangeQualityMode(ctx, seriesID, vid, quality, fallback, allowStandardFallback, "default")
+}
+
+func (c *hongguoClient) PlayInfoRangeQualityMode(ctx context.Context, seriesID, vid, quality string, fallback, allowStandardFallback bool, codecMode string) (PlayInfo, error) {
 	if !validID(seriesID) || !validID(vid) {
 		return PlayInfo{}, errors.New("播放参数无效")
 	}
-	value, err := resolveMiniReelMediaRangeQuality(ctx, seriesID, vid, quality, fallback, allowStandardFallback)
+	value, err := resolveMiniReelMediaRangeQualityMode(ctx, seriesID, vid, quality, fallback, allowStandardFallback, codecMode)
 	if err != nil {
 		return PlayInfo{}, fmt.Errorf("按需读取播放准备失败: %w", err)
 	}

@@ -215,6 +215,37 @@ func TestMiniReelMultiVideoModelSupportsLegacyEnvelopeAndRejectsInvalidResponse(
 	}
 }
 
+func TestMiniReelCodecModeFiltersOnlyIncompatibleSources(t *testing.T) {
+	device := miniReelDevice{deviceID: "1234567890123456789", installID: "2234567890123456789", cdid: "00000000-0000-4000-8000-000000000001"}
+	playbackServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"code":0,"data":{"123":{"video_model":{"video_list":{"h264":{"main_url":"https://media.example/h264.mp4","video_meta":{"codec_type":"h264","vwidth":1280,"vheight":720}},"bytevc1":{"main_url":"https://media.example/bytevc1.mp4","video_meta":{"codec_type":"bytevc1","vwidth":1280,"vheight":720}},"bytevc2":{"main_url":"https://media.example/bytevc2.mp4","video_meta":{"codec_type":"bytevc2","vwidth":1280,"vheight":720}}}}}}}`)
+	}))
+	defer playbackServer.Close()
+	client := &http.Client{Transport: miniReelTestRoundTripper(func(request *http.Request) (*http.Response, error) {
+		return http.DefaultTransport.RoundTrip(request)
+	})}
+	parse := func(mode string) ([]miniReelOption, error) {
+		return miniReelNativeOptionsAttemptWithClientMode(context.Background(), "123", playbackServer.URL+miniReelAPIPath, device, client, mode)
+	}
+
+	legacy, err := parse("default")
+	if err != nil || len(legacy) != 2 {
+		t.Fatalf("default candidates = %#v, %v; want h264 and bytevc1, with legacy bytevc2 filtering", legacy, err)
+	}
+	software, err := parse("software")
+	if err != nil || len(software) != 1 || software[0].Codec != "h264" {
+		t.Fatalf("software candidates = %#v, %v; want h264 only", software, err)
+	}
+	auto, err := parse("auto")
+	if err != nil || len(auto) != 3 {
+		t.Fatalf("auto candidates = %#v, %v; want all hardware candidates", auto, err)
+	}
+	if err := miniReelNoCompatibleOptionsError("software"); err == nil || !strings.Contains(err.Error(), "没有适合软件解码") {
+		t.Fatalf("software no-source error = %v", err)
+	}
+}
+
 func TestMiniReelMultiVideoModelLoadsSafeFallbackAPI(t *testing.T) {
 	device := miniReelDevice{deviceID: "1234567890123456789", installID: "2234567890123456789", cdid: "00000000-0000-4000-8000-000000000001"}
 	fallbackURL := "https://api5-normal-sinfonlineb.fqnovel.com/playback/fallback"

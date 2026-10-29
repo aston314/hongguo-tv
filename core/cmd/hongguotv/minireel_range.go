@@ -31,28 +31,38 @@ var miniReelRangeRetryDelays = [...]time.Duration{300 * time.Millisecond, 700 * 
 // A range source retains only the MP4 initialization section and its sample
 // index. Media bytes stay upstream until the browser asks for them.
 type miniReelRangeSource struct {
-	URL     string
-	ETag    string
-	Length  int64
-	Prefix  []byte
-	Samples []mp4Sample
-	Key     []byte
-	VID     string
-	Quality string
-	Width   int
-	Height  int
+	URL       string
+	ETag      string
+	Length    int64
+	Prefix    []byte
+	Samples   []mp4Sample
+	Key       []byte
+	VID       string
+	Quality   string
+	Codec     string
+	CodecMode string
+	Width     int
+	Height    int
 
 	mu        sync.RWMutex
 	refreshMu sync.Mutex
 }
 
 func resolveMiniReelMediaRangeQuality(ctx context.Context, seriesID, vid, quality string, fallback, allowStandardFallback bool) (map[string]any, error) {
+	return resolveMiniReelMediaRangeQualityMode(ctx, seriesID, vid, quality, fallback, allowStandardFallback, "default")
+}
+
+func resolveMiniReelMediaRangeQualityMode(ctx context.Context, seriesID, vid, quality string, fallback, allowStandardFallback bool, codecMode string) (map[string]any, error) {
 	quality, err := normalizePlaybackQuality(quality)
 	if err != nil {
 		return nil, err
 	}
-	token := miniReelCacheToken(seriesID, vid, quality, fallback, "range")
-	result, err := resolveMiniReelMediaWithToken(ctx, token, seriesID, vid, quality, fallback, prepareMiniReelRangeMedia)
+	codecMode, err = normalizeMiniReelCodecMode(codecMode)
+	if err != nil {
+		return nil, err
+	}
+	token := miniReelCacheTokenWithCodec(seriesID, vid, quality, fallback, "range", codecMode)
+	result, err := resolveMiniReelMediaWithTokenMode(ctx, token, seriesID, vid, quality, fallback, codecMode, prepareMiniReelRangeMedia)
 	if err == nil {
 		return result, nil
 	}
@@ -61,7 +71,7 @@ func resolveMiniReelMediaRangeQuality(ctx context.Context, seriesID, vid, qualit
 	}
 	// Unsupported MP4 layouts, weak/missing validators, and upstream servers
 	// that ignore Range all use the established whole-file preparation path.
-	result, fallbackErr := resolveMiniReelMediaQuality(ctx, seriesID, vid, quality, fallback)
+	result, fallbackErr := resolveMiniReelMediaQualityMode(ctx, seriesID, vid, quality, fallback, codecMode)
 	if fallbackErr != nil {
 		return nil, fmt.Errorf("按需读取和完整文件准备均失败: %w", fallbackErr)
 	}
@@ -72,14 +82,14 @@ func resolveMiniReelMediaRangeQuality(ctx context.Context, seriesID, vid, qualit
 
 func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token, seriesID, vid, quality string, fallback bool) {
 	resolveStarted := time.Now()
-	options, err := miniReelNativeOptions(ctx, vid)
+	options, err := miniReelNativeOptions(ctx, vid, job.CodecMode)
 	job.ResolveMS = time.Since(resolveStarted).Milliseconds()
 	if err != nil {
 		job.Err = err
 		return
 	}
 	if len(options) == 0 {
-		job.Err = errors.New("MiniReel returned no compatible video source")
+		job.Err = miniReelNoCompatibleOptionsError(job.CodecMode)
 		return
 	}
 	option, err := selectMiniReelQuality(options, quality, fallback)
@@ -88,7 +98,7 @@ func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token
 		return
 	}
 	rangeStarted := time.Now()
-	source, err := openMiniReelRangeSource(ctx, option, vid)
+	source, err := openMiniReelRangeSource(ctx, option, vid, job.CodecMode)
 	job.RangeInitMS = time.Since(rangeStarted).Milliseconds()
 	if err != nil {
 		job.Err = err
@@ -104,7 +114,15 @@ func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token
 	_ = seriesID
 }
 
-func openMiniReelRangeSource(ctx context.Context, option miniReelOption, vid string) (*miniReelRangeSource, error) {
+func openMiniReelRangeSource(ctx context.Context, option miniReelOption, vid string, codecModes ...string) (*miniReelRangeSource, error) {
+	codecMode := "default"
+	if len(codecModes) > 0 {
+		codecMode = codecModes[0]
+	}
+	codecMode, err := normalizeMiniReelCodecMode(codecMode)
+	if err != nil {
+		return nil, err
+	}
 	firstEnd := miniReelRangeProbeBytes - 1
 	response, err := miniReelDoRange(ctx, option.URL, 0, firstEnd, "")
 	if err != nil {
@@ -152,6 +170,7 @@ func openMiniReelRangeSource(ctx context.Context, option miniReelOption, vid str
 	}
 	source := &miniReelRangeSource{URL: option.URL, ETag: etag, Length: length, Prefix: prefix,
 		Samples: samples, Key: append([]byte(nil), option.Key...), VID: vid, Quality: option.Quality,
+		Codec: option.Codec, CodecMode: codecMode,
 		Width: option.Width, Height: option.Height}
 	return source, nil
 }
@@ -462,7 +481,7 @@ func (source *miniReelRangeSource) refreshURL(ctx context.Context, failedURL str
 	if currentURL != failedURL {
 		return nil
 	}
-	options, err := miniReelNativeOptions(ctx, source.VID)
+	options, err := miniReelNativeOptions(ctx, source.VID, source.CodecMode)
 	if err != nil {
 		return err
 	}
@@ -473,7 +492,7 @@ func (source *miniReelRangeSource) refreshURL(ctx context.Context, failedURL str
 			break
 		}
 	}
-	if selected == nil || !bytes.Equal(selected.Key, source.Key) {
+	if selected == nil || selected.Codec != source.Codec || !bytes.Equal(selected.Key, source.Key) {
 		return errors.New("refreshed media identity changed")
 	}
 	probe, err := miniReelDoRange(ctx, selected.URL, 0, 0, "")

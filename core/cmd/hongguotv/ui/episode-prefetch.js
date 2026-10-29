@@ -100,15 +100,17 @@
         return null;
       });
     }
-    function keepFor(seriesID, episode, quality, owner, mode, prefetchModeValue) {
+    function keepFor(seriesID, episode, quality, owner, mode, prefetchModeValue, codecModeValue) {
       if (entry && (entry.info.series_id !== seriesID || entry.info.episode + 1 !== episode ||
           (entry.info.quality || '') !== (quality || '') || entry.info.owner !== owner || (entry.info.mode || '') !== (mode || '') ||
+          (entry.info.codec_mode || 'default') !== (codecModeValue || 'default') ||
           strategyOf(entry.info) !== prefetchMode(prefetchModeValue || mode))) cancel();
     }
     function consume(target) {
       var previous = entry;
       if (!previous || previous.info.series_id !== target.series_id || previous.info.episode + 1 !== target.episode ||
-          (previous.info.quality || '') !== (target.quality || '') || previous.info.owner !== target.owner || (previous.info.mode || '') !== (target.mode || '') || strategyOf(previous.info) !== strategyOf(target) ||
+          (previous.info.quality || '') !== (target.quality || '') || previous.info.owner !== target.owner || (previous.info.mode || '') !== (target.mode || '') ||
+          (previous.info.codec_mode || 'default') !== (target.codec_mode || 'default') || strategyOf(previous.info) !== strategyOf(target) ||
           (maxAgeFor(previous) && previous.state === 'ready' && now() - previous.timing.ready_at >= maxAgeFor(previous)) ||
           previous.target && previous.target.vid !== target.vid) { cancel(); return null; }
       // Keep an in-flight request alive across the natural episode switch. Its
@@ -156,6 +158,7 @@
     target = target || {};
     var mode = normalizePrefetchMode(target.prefetch_mode || target.prefetchMode || target.mode);
     var params = { series_id: target.series_id || '', vid: target.vid || '', quality: target.quality || '', fallback: '1', prefetch: '1' };
+    params.codec_mode = target.codec_mode || target.codecMode || 'default';
     if (mode !== 'full') params.mode = 'range';
     return params;
   }
