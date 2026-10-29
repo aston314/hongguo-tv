@@ -355,7 +355,10 @@
     loadId = 'hongguo-' + (++sequence);
     if (isNative()) {
       clearFallbackTimer();
-      try { if (bridge.stop) bridge.stop(); } catch (ignoredStop) {}
+      try {
+        if (fixedNative && next && bridge.begin) bridge.begin(loadId);
+        else if (bridge.stop) bridge.stop();
+      } catch (ignoredStop) {}
       usingNative = fixedNative;
       if (!fixedNative) document.documentElement.classList.remove('native-playback');
     }

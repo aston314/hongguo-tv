@@ -93,11 +93,11 @@ function fixture(engine = 'webview_media3', options = {}) {
     isAvailable() { return true; },
     engine() { return engine; },
     bounds() {},
-    begin() {},
+    begin() { this.begins++; },
     play(id, payload) { this.plays++; this.lastId = id; this.lastPayload = JSON.parse(payload); },
-    plays: 0, resumes: 0, stops: 0,
+    plays: 0, resumes: 0, stops: 0, begins: 0, pauses: 0,
     resume() { this.resumes++; },
-    pause() {},
+    pause() { this.pauses++; },
     stop() { this.stops++; },
     lastId: null,
     lastPayload: null,
@@ -490,18 +490,40 @@ test('MPV source replacement ignores old frame, progress and ended callbacks', a
   assert.equal(frames, 1); assert.equal(video.videoHeight, 1280); assert.equal(video.currentTime, 5);
 });
 
-test('MPV source replacement stops the old session before starting the new one', async () => {
+test('MPV source replacement retains the old session until the new play request', async () => {
   const f = fixture('mpv'), video = f.document.getElementById('hero-video');
   const order = [];
   const oldStop = f.bridge.stop;
+  const oldBegin = f.bridge.begin;
   const oldPlay = f.bridge.play;
   f.bridge.stop = function () { order.push('stop'); oldStop.call(this); };
+  f.bridge.begin = function (id) { order.push('begin'); oldBegin.call(this, id); };
   f.bridge.play = function (id, payload) { order.push('play'); oldPlay.call(this, id, payload); };
-  video.src = '/media/one.mp4'; await video.play();
-  video.src = '/media/two.mp4'; await video.play();
-  assert.deepEqual(order, ['stop', 'play', 'stop', 'play']);
+  video.src = '/media/one.mp4'; video.load(); await video.play();
+  video.src = '/media/two.mp4'; video.load(); await video.play();
+  assert.deepEqual(order, ['begin', 'begin', 'play', 'begin', 'begin', 'play']);
   assert.equal(f.bridge.plays, 2);
-  assert.equal(f.bridge.stops, 2);
+  assert.equal(f.bridge.stops, 0);
+});
+
+test('MPV source replacement keeps the JavaScript path connected to native in-place policy', () => {
+  const reset = source.slice(source.indexOf('function resetToDomSource('), source.indexOf('\n  function add('));
+  assert.match(reset, /fixedNative && next && bridge\.begin/);
+  assert.match(reset, /else if \(bridge\.stop\) bridge\.stop\(\)/);
+  assert.match(mpvBridgeSource, /@JavascriptInterface public void begin\(String id\)[\s\S]*if \(destroyed \|\| stopFence\.isActive\(\)\) return;[\s\S]*setPropertyBoolean\("pause", true\)/);
+  assert.match(mpvBridgeSource, /old != null && !old\.source\.equals\(source\)[\s\S]*mayReplaceInPlace\(old, nextMode\)/);
+});
+
+test('MPV software source replacement is bounded to a healthy shared player and Surface', () => {
+  const policy = fs.readFileSync(require.resolve('../android/app/src/mpv/java/rocks/aston/hongguotv/MpvSourceTransitionPolicy.java'), 'utf8');
+  assert.match(policy, /currentMode == MpvDecodeMode\.SOFTWARE/);
+  assert.match(policy, /nextMode == MpvDecodeMode\.SOFTWARE/);
+  assert.match(policy, /currentSessionReady/);
+  assert.match(policy, /samePlayerAndSurface/);
+  assert.match(policy, /!stopFenceActive/);
+  assert.match(policy, /!background/);
+  assert.match(mpvBridgeSource, /target\.player\.command\(new String\[\]\{"loadfile", target\.source, "replace"\}\)/);
+  assert.match(mpvBridgeSource, /target\.inPlaceReplacement/);
 });
 
 test('MPV bridge keeps source replacement serialized and isolates delayed native events', () => {
@@ -518,7 +540,7 @@ test('MPV bridge keeps source replacement serialized and isolates delayed native
   assert.match(mpvBridgeSource, /observed\.generation != observedGeneration/);
   assert.match(mpvBridgeSource, /session != observed/);
   assert.match(mpvBridgeSource, /observed\.player != active/);
-  assert.match(mpvBridgeSource, /if \(!target\.output\.loaded\) return;/);
+  assert.match(mpvBridgeSource, /if \(!target\.output\.loaded \|\| target\.inPlaceReplacement\) return;/);
 });
 
 test('MPV bridge keeps the last rapid source request and carries pause intent across the fence', () => {

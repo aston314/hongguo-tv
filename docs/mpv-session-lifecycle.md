@@ -2,7 +2,9 @@
 
 MPV 版在页面之间切换剧集时复用同一个 `libmpv` 客户端和 Android `SurfaceView`。推荐页、搜索、找剧、排行榜、历史和收藏都经过同一条切集路径。
 
-切换源时，WebView 先发送 `stop/begin`，桥接层在同一个 MPV 客户端上排队 `pause → stop`，并把 native 层设为透明；随后新的 `play` 请求才执行 `loadfile ... replace`。新源打开期间保持暂停，收到当前源的 `FILE_LOADED` 后才恢复播放。这样不会在旧源的 demuxer/decoder 仍工作时直接替换，也不会让切集瞬间先出声音。
+自动解码、解码模式切换和不健康会话仍使用完整 stop fence：WebView 发起 stop 后等待 stop 回复和旧事件队列排空，再对新源执行 `loadfile ... replace`。明确选择软件解码且当前会话健康时，`begin()` 只暂停旧会话并保留它，新 `play()` 才能进入受限的原位换源判断；切到空源仍立即 stop。
+
+MPV 明确选择“软件解码”时有一个受限的快速路径：如果当前会话和目标会话都是 `MpvDecodeMode.SOFTWARE`，当前会话已经出画面，同一个 `libmpv` 客户端仍绑定同一个有效 `SurfaceView`，且没有 stop fence、后台或失败状态，则在原客户端上直接执行 `loadfile ... replace`。新会话仍先暂停，等 `FILE_LOADED` 和新的播放重启信号后才释放加载状态；切换期间旧会话的迟到 `END_FILE` 被忽略。相同 URL 的 reload、解码模式变化、Surface 换代、播放器不健康或生命周期状态不满足时，仍使用完整 stop fence 路径。
 
 旧会话的 JavaScript 和 MPV 回调仍然必须经过当前会话检查。回调投递时会绑定当时的会话代次，不能在稍后读取可变的当前会话；未完成 `FILE_LOADED` 的 `END_FILE` 也会被视为换源过程中的 stop 事件而忽略。只有当前会话可以更新进度、首帧、结束和错误状态。若 `SurfaceView` 在 stop fence 期间销毁，先等待 stop 回复和事件队列排空（最多等待现有超时），再按 Surface 代次决定复用或释放旧客户端；不能在 `surfaceDestroyed` 回调中提前打断 fence。Surface 换代后等待新 Surface 可用，再创建客户端并恢复待播源和位置。
 

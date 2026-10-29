@@ -53,7 +53,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         final MpvDecodeMode mode;
         final MpvOutputState output = new MpvOutputState();
         MPVLib player;
-        boolean outputReady, wantsPlay, terminal, pendingSeek;
+        boolean outputReady, wantsPlay, terminal, pendingSeek, inPlaceReplacement;
         long position, duration;
         long loadRequestedAt, fileLoadedAt, outputReadyAt;
         String decoder = "", state = "preparing";
@@ -137,7 +137,61 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             installSession(new Session(generation, id, source, data, MpvDecodeMode.stored(decoderMode())));
             return;
         }
+        Session old = session;
+        MpvDecodeMode nextMode = MpvDecodeMode.stored(decoderMode());
+        if (MediaUrlPolicy.valid(source) && old != null && !old.source.equals(source)
+                && mayReplaceInPlace(old, nextMode)) {
+            generation++;
+            replaceInPlace(old, new Session(generation, id, source, data, nextMode));
+            return;
+        }
         requestStop(id, source, data);
+    }
+
+    private boolean mayReplaceInPlace(Session old, MpvDecodeMode nextMode) {
+        boolean currentReady = current(old) && !old.terminal && old.errorKind.isEmpty()
+            && old.output.loaded && old.outputReady;
+        boolean samePlayerAndSurface = old.player != null && old.player == player
+            && old.output.attached && playerSurfaceAttached && !playerQuiescent
+            && old.surfaceEpoch == surfaceEpoch && surfaceAvailable();
+        return MpvSourceTransitionPolicy.mayReplaceInPlace(
+            old.mode, nextMode, currentReady, samePlayerAndSurface,
+            stopFence.isActive(), background);
+    }
+
+    private void replaceInPlace(Session old, Session target) {
+        if (old.timeout != null) handler.removeCallbacks(old.timeout);
+        old.terminal = true;
+        old.player = null;
+        session = target;
+        target.player = player;
+        target.inPlaceReplacement = true;
+        target.output.attached = playerSurfaceAttached;
+        target.surfaceEpoch = surfaceEpoch;
+        target.pendingSeek = target.position > 0;
+        android.graphics.Rect frame = surface.getHolder().getSurfaceFrame();
+        surfaceSize(target, frame.width(), frame.height());
+        double rate = target.data.optDouble("speed", speed);
+        if (finite(rate) && rate > 0 && rate <= 4) speed = rate;
+        holder.setVisibility(View.VISIBLE);
+        holder.setAlpha(1f);
+        armTimeout(target);
+        event(target, "buffering", null);
+        try {
+            target.player.setPropertyString("android-surface-size", frame.width() + "x" + frame.height());
+            target.player.setPropertyString("hwdec", target.mode.hwdec);
+            target.player.setPropertyString("force-window", "yes");
+            target.player.setPropertyBoolean("mute", muted);
+            target.player.setPropertyDouble("volume", volume * 100);
+            target.player.setPropertyDouble("speed", speed);
+            target.player.setPropertyBoolean("pause", true);
+            target.loadRequestedAt = SystemClock.uptimeMillis();
+            target.player.command(new String[]{"loadfile", target.source, "replace"});
+            target.output.openRequested = true;
+            playerQuiescent = false;
+        } catch (LinkageError | RuntimeException failure) {
+            fail(target, "source_replace");
+        }
     }
 
     private void installSession(Session target) {
@@ -261,7 +315,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                         // Preserve the existing readiness gate. Early errors
                         // stay visible in diagnostics and follow the existing
                         // timeout path instead of changing playback timing.
-                        if (!target.output.loaded) return;
+                        if (!target.output.loaded || target.inPlaceReplacement) return;
                         if (reason == 0 && target.outputReady) finish(target);
                         else if ((reason == 4 || error < 0) && target.outputReady) fail(target, "media", error);
                     });
@@ -294,6 +348,12 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                             applyPlayState(target);
                             updateDiagnostic(target, null);
                         } else if (value == MPVLib.MpvEvent.MPV_EVENT_PLAYBACK_RESTART) {
+                            // During an in-place replacement, FILE_LOADED can
+                            // arrive before the old source's queued END_FILE.
+                            // Keep that event from closing the new session;
+                            // playback restart is the first new-output signal
+                            // that makes END_FILE meaningful again.
+                            target.inPlaceReplacement = false;
                             target.output.restarted = true; rendered(target);
                         }
                     });
@@ -454,7 +514,18 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     private void send(String id, String name, JSONObject detail) {
         if (!destroyed) web.evaluateJavascript("window.HongguoNativePlayback&&window.HongguoNativePlayback.event(" + JSONObject.quote(id) + "," + JSONObject.quote(name) + "," + (detail == null ? "{}" : detail.toString()) + ")", null);
     }
-    @JavascriptInterface public void begin(String id) { stop(); }
+    @JavascriptInterface public void begin(String id) {
+        // WebView calls begin() before a new source is played. Keep the active
+        // session and its play intent so software decode can replace in place;
+        // an existing stop fence owns the transition already.
+        handler.post(() -> {
+            if (destroyed || stopFence.isActive()) return;
+            Session active = session;
+            if (active != null && current(active) && active.player != null) {
+                guarded(active, () -> active.player.setPropertyBoolean("pause", true));
+            }
+        });
+    }
     @JavascriptInterface public void stop() { handler.post(() -> { requestStop(null, null, null); holder.setVisibility(View.VISIBLE); holder.setAlpha(0f); }); }
     @JavascriptInterface public void pause() { handler.post(() -> {
         if (stopFence.isActive()) { transition.setPlayIntent(false); return; }
