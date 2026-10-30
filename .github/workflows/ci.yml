@@ -4,12 +4,18 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+    inputs:
+      core_preview:
+        description: Optional preview core platform (for example darwin-arm64); empty runs full CI
+        type: string
+        default: ""
 
 permissions:
   contents: read
 
 jobs:
   build:
+    if: github.event_name != 'workflow_dispatch' || inputs.core_preview == ''
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -91,3 +97,37 @@ jobs:
           path: android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk
           if-no-files-found: error
           retention-days: 14
+
+  core-preview:
+    if: github.event_name == 'workflow_dispatch' && inputs.core_preview != ''
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache-dependency-path: go.sum
+      - name: Test the Go core
+        run: go test ./...
+      - name: Build the requested preview core
+        env:
+          PREVIEW_PLATFORM: ${{ inputs.core_preview }}
+          CGO_ENABLED: "0"
+        run: |
+          case "$PREVIEW_PLATFORM" in
+            darwin-arm64|darwin-amd64|linux-amd64|windows-amd64) ;;
+            *) echo 'Unsupported preview platform'; exit 1 ;;
+          esac
+          export GOOS="${PREVIEW_PLATFORM%-*}"
+          export GOARCH="${PREVIEW_PLATFORM#*-}"
+          mkdir -p preview
+          output=preview/hongguo-tv-core
+          if [ "$GOOS" = windows ]; then output="$output.exe"; fi
+          go build -trimpath -ldflags "-X main.version=preview-${GITHUB_SHA}" -o "$output" ./core/cmd/hongguotv
+          sha256sum "$output" > preview/SHA256SUMS.txt
+          git rev-parse HEAD > preview/COMMIT.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-preview-${{ inputs.core_preview }}
+          path: preview/
+          retention-days: 3
