@@ -106,13 +106,19 @@
           (entry.info.codec_mode || 'default') !== (codecModeValue || 'default') ||
           strategyOf(entry.info) !== prefetchMode(prefetchModeValue || mode))) cancel();
     }
+    function matches(candidate, target) {
+      return !!(candidate && candidate.info.series_id === target.series_id && candidate.info.episode + 1 === target.episode &&
+        (candidate.info.quality || '') === (target.quality || '') && candidate.info.owner === target.owner && (candidate.info.mode || '') === (target.mode || '') &&
+        (candidate.info.codec_mode || 'default') === (target.codec_mode || 'default') && strategyOf(candidate.info) === strategyOf(target) &&
+        !(maxAgeFor(candidate) && candidate.state === 'ready' && now() - candidate.timing.ready_at >= maxAgeFor(candidate)) &&
+        (!candidate.target || candidate.target.vid === target.vid));
+    }
+    // A read-only hint uses the same identity/expiry checks as the handoff.
+    // Pending downloads must never qualify just because full mode is selected.
+    function readyFor(target) { return !!(entry && entry.state === 'ready' && current(entry) && matches(entry, target)); }
     function consume(target) {
       var previous = entry;
-      if (!previous || previous.info.series_id !== target.series_id || previous.info.episode + 1 !== target.episode ||
-          (previous.info.quality || '') !== (target.quality || '') || previous.info.owner !== target.owner || (previous.info.mode || '') !== (target.mode || '') ||
-          (previous.info.codec_mode || 'default') !== (target.codec_mode || 'default') || strategyOf(previous.info) !== strategyOf(target) ||
-          (maxAgeFor(previous) && previous.state === 'ready' && now() - previous.timing.ready_at >= maxAgeFor(previous)) ||
-          previous.target && previous.target.vid !== target.vid) { cancel(); return null; }
+      if (!matches(previous, target)) { cancel(); return null; }
       // Keep an in-flight request alive across the natural episode switch. Its
       // only owner is now the foreground player, which can still cancel it.
       entry = null;
@@ -124,7 +130,7 @@
       if (!entry || entry.cancelled || !entry.target) return null;
       return { info: entry.info, target: entry.target, state: entry.state };
     }
-    return { maybe: maybe, cancel: cancel, cancelPending: cancelPending, keepFor: keepFor, consume: consume, peek: peek };
+    return { maybe: maybe, cancel: cancel, cancelPending: cancelPending, keepFor: keepFor, consume: consume, peek: peek, readyFor: readyFor };
   }
   function retryableError(error) {
     if (!error) return false;

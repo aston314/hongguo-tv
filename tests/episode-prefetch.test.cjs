@@ -102,6 +102,31 @@ test('full-prefetch strategy is independent of the actual range playback mode',a
   const mismatch=p.consume(target({mode:'range',prefetch_mode:'range'}));
   assert.equal(mismatch,null);
 });
+test('readyFor is read-only and shares the handoff identity and expiry boundary',async()=>{
+  let now=1000;
+  const next=target({mode:'range',prefetch_mode:'full',codec_mode:'software'});
+  const pending=deferred();
+  const p=create({now:()=>now,fullMaxAgeMs:800,lookup:async()=>next,prepare:()=>pending.promise});
+  p.maybe(info({mode:'range',prefetch_mode:'full',codec_mode:'software'}));await tick();
+  assert.equal(p.readyFor(next),false,'an unfinished full download is not ready');
+  pending.resolve({path:'/complete.mp4',mode:'full'});await tick();
+  assert.equal(p.readyFor(next),true);
+  for(const extra of [{series_id:'other'},{vid:'999'},{episode:3},{quality:'1080P'},{owner:3},{mode:''},{prefetch_mode:'range'},{codec_mode:'auto'}]) {
+    assert.equal(p.readyFor({...next,...extra}),false,JSON.stringify(extra));
+    assert.equal(p.readyFor(next),true,'a hint mismatch must not discard the usable cache');
+  }
+  now=1799;assert.equal(p.readyFor(next),true);
+  now=1800;assert.equal(p.readyFor(next),false);
+  assert.equal(p.consume(next),null,'an expired hint cannot become a successful handoff');
+});
+test('checking readiness never consumes or cancels a completed next episode',async()=>{
+  const f=fixture();f.p.maybe(info());await tick();
+  for(let i=0;i<3;i++)assert.equal(f.p.readyFor(target()),true);
+  const handoff=f.p.consume(target());
+  assert.equal((await handoff.promise).path,'/media/next.mp4');
+  assert.equal(f.signals[0].aborted,false);
+  assert.equal(f.p.readyFor(target()),false);
+});
 test('pending full downloads can be cancelled without discarding a completed file',async()=>{
   const pending=deferred();let signal;
   const p=create({lookup:async()=>target({mode:'range',prefetch_mode:'full'}),prepare:(_,s)=>{signal=s;return pending.promise;}});

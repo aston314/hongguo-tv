@@ -380,6 +380,7 @@
   var controlsManuallyHidden = false;
   var playbackFeedback = null;
   var rangeTransitionTimer = null;
+  var prefetchedEpisodeHint = null;
   var rangeStallTimer = null;
   var lastPlaybackControl = null;
   var nativeFullscreen = false;
@@ -2449,12 +2450,52 @@
     shell.classList.add('is-controls-hidden');
     goFocus(document.getElementById('hero-feed-focus'));
   }
+  function clearPrefetchedEpisodeHint() {
+    if (prefetchedEpisodeHint) clearTimeout(prefetchedEpisodeHint.timer);
+    prefetchedEpisodeHint = null;
+    document.getElementById('hero').classList.remove('is-prefetched-episode-quiet');
+  }
+  function beginPrefetchedEpisodeHint(item, episode, generation, startedAt, sourceGeneration) {
+    clearPrefetchedEpisodeHint();
+    if (webosShell || !item || !(episode > 0) || typeof episodePrefetch.readyFor !== 'function' ||
+        typeof effectiveEpisodePrefetchMode !== 'function' || effectiveEpisodePrefetchMode() !== 'full') return;
+    var cached = episodePrefetch.peek();
+    if (!cached || !cached.info || !cached.target || cached.info.generation !== sourceGeneration) return;
+    var target = { series_id: item.series_id, episode: episode,
+      vid: item.vid_list && item.vid_list[episode - 1] || cached.target.vid,
+      quality: playbackPreferences.quality, owner: accountEpoch, prefetch_mode: 'full',
+      mode: typeof rangePlaybackEnabled === 'function' && rangePlaybackEnabled() ? 'range' : '',
+      codec_mode: typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default' };
+    if (!episodePrefetch.readyFor(target)) return;
+    var hint = { series_id: item.series_id, episode: episode, generation: generation, owner: accountEpoch,
+      started_at: startedAt, revealed: Date.now() - startedAt >= 800, timer: null };
+    prefetchedEpisodeHint = hint;
+    var hero = document.getElementById('hero');
+    hero.classList.toggle('is-prefetched-episode-quiet', !hint.revealed);
+    if (hint.revealed) { hero.classList.add('is-range-transition-loading'); return; }
+    hint.timer = setTimeout(function () {
+      if (prefetchedEpisodeHint !== hint) return;
+      if (hint.generation !== feedGeneration || hint.owner !== accountEpoch || applicationInBackground || applicationHidden() || !isPlaybackPage()) {
+        clearPrefetchedEpisodeHint(); return;
+      }
+      hint.revealed = true;
+      hero.classList.remove('is-prefetched-episode-quiet');
+      // The normal 320ms Range hint must not hide this longer deadline,
+      // including when natural continuation spent time reading details.
+      hero.classList.add('is-range-transition-loading');
+      setPlayerStatus(uiText('ui.preparingPlayback', '正在准备播放…'));
+    }, Math.max(0, 800 - (Date.now() - startedAt)));
+  }
   function setPlayerStatus(message, failed) {
     var panel = document.getElementById('player-status');
     var hero = document.getElementById('hero');
     if (failed && autoCinemaCandidate) cancelPendingAutoCinema();
     if (failed && activePlayback && activePlayback.presentation) activePlayback.presentation.failed = true;
     var preparing = hero.classList.contains('is-preparing-video') || activePlayback && (activePlayback.continuationPending || !activePlayback.started);
+    if (prefetchedEpisodeHint) {
+      if (failed || !message || !preparing || prefetchedEpisodeHint.generation !== feedGeneration || prefetchedEpisodeHint.owner !== accountEpoch) clearPrefetchedEpisodeHint();
+      else message = uiText('ui.preparingPlayback', '正在准备播放…');
+    }
     var transition = !!(message && !failed && preparing);
     if (failed) clearEpisodeCover();
     hero.classList.toggle('is-transition-loading', transition);
@@ -4290,6 +4331,7 @@
     }
     playback.continuationPending = true;
     playback.continuationToken = ++continuationGeneration;
+    beginPrefetchedEpisodeHint(playback.item, playback.episode + 1, playback.generation, Date.now(), playback.generation);
     setPlayerStatus(episodeLoadingText(playback.item.episode_count > playback.episode ? playback.episode + 1 : 0));
     getDetail(playback.item).then(function (detail) {
       if (!canContinuePlayback(playback)) { deferContinuation(playback); return; }
@@ -4454,6 +4496,7 @@
   }
 
   function cancelPlaybackPreparation() {
+    clearPrefetchedEpisodeHint();
     clearRangeTransitionHint();
     clearRangeStallTimer();
     clearEpisodeCover();
@@ -5094,6 +5137,7 @@
     var autoRecommendation = pageMode() === 'recommend' && (recommendationAutoplayPending || !!orientationContext);
     recommendationAutoplayPending = false;
     var switchStartedAt = Date.now();
+    var sourceGeneration = feedGeneration;
     var nativeAtSwitch = nativePlaybackActive();
     var sameSeries = !!((activePlayback && (activePlayback.started || activePlayback.presentation && activePlayback.presentation.rendered) &&
       activePlayback.owner === accountEpoch && activePlayback.item.series_id === item.series_id) || hasLastPlaybackFrame(item));
@@ -5101,6 +5145,9 @@
     var fastContinuation = !!(continuation && continuation.completed && canContinuePlayback(continuation) &&
       continuation.owner === accountEpoch && continuation.item.series_id === item.series_id &&
       forcedEpisode === continuation.episode + 1 && forcedPosition === 0 && libraryLoaded);
+    var hintStartedAt = continuation && canContinuePlayback(continuation) && prefetchedEpisodeHint && prefetchedEpisodeHint.generation === feedGeneration &&
+      prefetchedEpisodeHint.series_id === item.series_id && prefetchedEpisodeHint.episode === forcedEpisode &&
+      prefetchedEpisodeHint.owner === accountEpoch ? prefetchedEpisodeHint.started_at : switchStartedAt;
     cancelPlaybackPreparation();
     var request = new AbortController();
     playbackInfoRequest = request;
@@ -5148,6 +5195,7 @@
     updateFeedCounter();
     var incomingResume = resumeCheckpoint && recommendationResume(resumeCheckpoint, libraryEntry(item.series_id), item);
     var incomingEpisode = forcedEpisode || (incomingResume ? incomingResume.episode : libraryLoaded ? resumeEpisode(libraryEntry(item.series_id), item) : 0);
+    if (sameSeries && !(recovery && recovery.recoveryAttempts)) beginPrefetchedEpisodeHint(item, incomingEpisode, generation, hintStartedAt, sourceGeneration);
     setFeatured(Object.assign({}, item, { start_episode: incomingEpisode }), !incomingEpisode, transitionKind);
     updateSeriesRows();
     setPlayerStatus(episodeLoadingText(incomingEpisode));
@@ -5203,6 +5251,12 @@
             foreground_resolve_started_at: 0, foreground_resolve_ms: null,
             prepared_before_switch: false, reported: false } };
         if (autoCinemaCandidate && generation === autoCinemaGeneration) autoCinemaSession = activePlayback;
+        // Reuse the decoded next-episode preview immediately, without waiting
+        // for the stats render to deliver that same artwork again.
+        if (prefetchedEpisodeHint && prewarmedEpisodeCover && prewarmedEpisodeCover.ready && !prewarmedEpisodeCover.failed &&
+            prewarmedEpisodeCover.key === String(accountEpoch) + ':' + item.series_id + ':' + vid) {
+          setEpisodeCover({ series_id: item.series_id, vid: vid }, { episode_cover: prewarmedEpisodeCover.source });
+        }
         setFeatured(playing, false, 'refresh');
         updateDetailProgress();
         setPlayerStatus(episodeLoadingText(episode));
@@ -5221,6 +5275,11 @@
               activePlayback.timing.prefetch_ms = Math.max(0, handoff.timing.ready_at - handoff.timing.started_at);
               activePlayback.timing.prepared_before_switch = handoff.timing.ready_at <= switchStartedAt;
             }
+          }
+          if (prefetchedEpisodeHint && (!prepared || !handoff || handoff.prefetchMode !== 'full' || prepared.mode === 'range' ||
+              !activePlayback.timing.prepared_before_switch)) {
+            clearPrefetchedEpisodeHint();
+            setPlayerStatus(episodeLoadingText(episode));
           }
           if (prepared && prepared.path) {
             playbackPrefetchHandoff = null;

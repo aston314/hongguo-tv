@@ -700,6 +700,7 @@
   "ui.loadingDrama": "正在讀取短劇…",
   "ui.readingVersion": "讀取中…",
   "ui.buffering": "正在緩衝…",
+  "ui.preparingPlayback": "正在準備播放…",
   "ui.episodePlaceholder": "第1集",
   "ui.closeRelated": "關閉相關推薦",
   "ui.updateStateDefault": "請更新應用程式後重試",

@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const { uiText } = require('./helpers/app-text.cjs');
+const { create: createPrefetch } = require('../core/cmd/hongguotv/ui/episode-prefetch.js');
 const source = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'), 'utf8');
 const slice = (a,b) => source.slice(source.indexOf('  function '+a+'('), source.indexOf('  function '+b+'('));
 const tick = () => new Promise(r=>setImmediate(r));
@@ -39,7 +40,7 @@ function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,d
     function nativePlaybackActive(){return document.documentElement.classList.contains('native-playback')}
     function isNativeMedia3PlaybackActive(){return nativePlaybackActive()&&playbackEngineName()!=='mpv'}
     var autoCinemaCandidate=false,autoCinemaGeneration=0,autoCinemaSession=null;
-    var rangeTransitionTimer=null;
+    var rangeTransitionTimer=null,prefetchedEpisodeHint=null,prewarmedEpisodeCover=null;
     var rangePlaybackEnabled=function(){return engine==='range'||engine==='mpv'};
     var detailModalOpen=false,qualityPrevious=null,applicationInBackground=false;
     var libraryData={owner_id:'123',entries:[]},libraryLoaded=${ready},libraryError='';
@@ -53,7 +54,7 @@ function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,d
     function pageMode(){return 'player'}function isPlaybackPage(){return true}function isLibraryPage(){return false}
     function basicDrama(x){return x}function firstVid(x){return x.vid_list[0]}
     function getDetail(x){return ${detailGate ? 'detailGate.promise.then(function () { return x; })' : 'Promise.resolve(x)'}}function libraryEntry(){return null}function resumeEpisode(){return 1}
-    function closePlayerOptions(){}function closeDiscussion(){}function resetDanmaku(){}function cancelPlaybackPreparation(){}
+    function closePlayerOptions(){}function closeDiscussion(){}function resetDanmaku(){}function cancelPlaybackPreparation(){clearPrefetchedEpisodeHint()}
     function stageNativePlaybackStartPosition(){}
     function cancelPendingAutoCinema(){autoCinemaCandidate=false;autoCinemaGeneration=0;autoCinemaSession=null}function finishAutoCinema(){}
     function clearRangeTransitionHint(){}function waitForPlaybackPrefetch(handoff){return handoff ? handoff.promise : Promise.resolve(null)}function recoverPlaybackAfterError(){return false}
@@ -62,7 +63,7 @@ function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,d
     function episodeLoadingText(){return 'loading'}function setPlayerStatus(text,failed){calls.push('status:'+text);if(failed){clearLastPlaybackFrame();if(activePlayback&&activePlayback.presentation)activePlayback.presentation.failed=true}}function revealControls(){}
     function tickDanmaku(){}function scheduleControlsHide(){}function maybePrefetchNextEpisode(){}
     function showNotice(x){notices.push(x)}function playMedia(){calls.push('play');return Promise.resolve()}
-  `+slice('changeLibrary','toggleSaved')+slice('saveProgress','continueAfterEpisode')+
+  `+slice('clearPrefetchedEpisodeHint','setPlayerStatus')+slice('changeLibrary','toggleSaved')+slice('saveProgress','continueAfterEpisode')+
     slice('continueAfterEpisode','offerNextSeasonReservation')+slice('holdPlaybackAudio','renderFeed'),c);
   vm.runInContext('var media=video;'+source.slice(source.indexOf("  media.addEventListener('playing'"),source.indexOf("  document.addEventListener('visibilitychange'")),c);
   vm.runInContext("document.addEventListener('visibilitychange', function () { if (desktopShell) return; if (applicationHidden()) pauseForBackground(); else resumeFromBackground(); });",c);
@@ -77,6 +78,89 @@ function setHidden(f, hidden) {
 async function settlePlayback(f, rounds=8) {
   for (let i=0; i<rounds; i++) { f.paint(); await tick(); }
 }
+async function readyFullEpisode(f, {pending=false}={}) {
+  f.c.effectiveEpisodePrefetchMode=()=> 'full';
+  const old=f.c.activePlayback;
+  const mode=f.c.rangePlaybackEnabled()?'range':'';
+  const target={series_id:old.item.series_id,vid:'222',episode:2,quality:'720P',owner:2,mode,prefetch_mode:'full'};
+  const gate=deferred();
+  const prefetch=createPrefetch({fullMaxAgeMs:110*60*1000,lookup:async()=>target,
+    prepare:()=>pending?gate.promise:Promise.resolve({path:'/media/complete.mp4',quality:'720P',mode:'full'})});
+  prefetch.maybe({...old,series_id:old.item.series_id,duration:120,position:40,stable_seconds:20,active:true,quality:'720P',mode,prefetch_mode:'full'});
+  await tick();f.c.episodePrefetch=prefetch;
+  return {prefetch,gate};
+}
+
+test('completed full-file handoffs quiet manual next-episode switches across the HTML5 and native paths',async()=>{
+  for(const [engine,native] of [['standard',false],['range',false],['standard',true],['mpv',true]]) {
+    const f=fixture({engine,native});f.gate.resolve();await readyFullEpisode(f);
+    f.c.playFeedItem(0,2,0);
+    assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),true,engine);
+    await settlePlayback(f);
+    assert.equal(f.video.src,'/media/complete.mp4');
+    assert.equal(f.c.activePlayback.timing.prepared_before_switch,true);
+    assert.equal(f.hero.classList.contains('is-preparing-video'),true,'a local file does not prove a frame is visible');
+    assert.equal(f.video.muted,true,'audio must still wait for the real frame');
+    assert.equal(f.calls.includes('source'),false);
+  }
+});
+
+test('natural continuation hides its early detail-loading hint and carries the same deadline into playback',async()=>{
+  const detailGate=deferred(),f=fixture({engine:'mpv',native:true,detailGate});
+  await readyFullEpisode(f);f.c.activePlayback.completed=true;
+  f.c.continueAfterEpisode(f.c.activePlayback);
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),true);
+  const started=f.c.prefetchedEpisodeHint.started_at;
+  detailGate.resolve();await settlePlayback(f);
+  assert.equal(f.video.src,'/media/complete.mp4');
+  assert.equal(f.c.prefetchedEpisodeHint.started_at,started);
+  assert.equal(f.c.activePlayback.timing.automatic_next,true);
+});
+
+test('the decoded next-episode preview is attached before the full-file handoff and stays until a real frame',async()=>{
+  const f=fixture({engine:'mpv',native:true});f.gate.resolve();await readyFullEpisode(f);
+  f.c.prewarmedEpisodeCover={key:'2:9001:222',source:'https://img.example/next.jpg',ready:true,failed:false,
+    image:{src:'https://img.example/next.jpg'},waiters:[]};
+  f.c.playFeedItem(0,2,0);await settlePlayback(f);
+  assert.equal(f.hero.classList.contains('is-episode-cover'),true);
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),true);
+  assert.equal(f.c.activePlayback.presentation.rendered,false);
+  assert.equal(f.video.src,'/media/complete.mp4');
+});
+
+test('an invalid full-file handoff restores ordinary loading before the foreground resolver runs',async()=>{
+  const foreground=deferred(),f=fixture({sourceGate:foreground});f.gate.resolve();await readyFullEpisode(f);
+  f.c.waitForPlaybackPrefetch=()=>Promise.resolve(null);
+  f.c.playFeedItem(0,2,0);await settlePlayback(f);
+  assert.equal(f.calls.includes('source'),true);
+  assert.equal(f.c.prefetchedEpisodeHint,null);
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),false);
+  foreground.resolve();await settlePlayback(f);assert.equal(f.video.src,'/media/next.mp4');
+});
+
+test('pending downloads, skipped episodes, changed quality, first starts, other dramas and webOS do not enter quiet mode',async()=>{
+  for(const kind of ['pending','skip','quality','initial','series','webos']) {
+    const f=fixture({webos:kind==='webos'});f.gate.resolve();
+    const prep=await readyFullEpisode(f,{pending:kind==='pending'});
+    if(kind==='quality')f.c.playbackPreferences.quality='1080P';
+    if(kind==='initial')f.c.activePlayback=null;
+    if(kind==='series')f.c.feedItems.push({series_id:'another',vid_list:['444','555']});
+    f.c.playFeedItem(kind==='series'?1:0,kind==='skip'?3:2,0);
+    assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),false,kind);
+    prep.gate.resolve({path:'/media/complete.mp4',mode:'full'});await settlePlayback(f);
+  }
+});
+
+test('a quick second selection cancels the old quiet deadline and never hides the unprepared target',async()=>{
+  const f=fixture();f.gate.resolve();await readyFullEpisode(f);
+  f.c.playFeedItem(0,2,0);await settlePlayback(f);
+  const stale=f.timers.find(timer=>timer.delay>320&&timer.delay<=800);
+  assert.ok(stale);
+  f.c.playFeedItem(0,3,0);await settlePlayback(f);stale.fn();
+  assert.equal(f.c.activePlayback.episode,3);
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),false);
+  assert.equal(f.c.prefetchedEpisodeHint,null);
+});
 test('an ended episode observed in the background resumes the next episode after returning',async()=>{
   const f=fixture();
   setHidden(f, true);

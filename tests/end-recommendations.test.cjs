@@ -151,7 +151,7 @@ async function completion({mode='player',episode=2,season=1,successor=null,inclu
     continuationGeneration:0,applicationInBackground:false,seasonSwitchRequest:null,confirmAfterClose:null,feedItems:[playback.item,{}],feedIndex:0,
     isPlaybackPage:()=>true,pageMode:()=>mode,applicationHidden:()=>false,
     getDetail:async()=>{if(late)c.activePlayback=null;return {vid_list:incomplete?['111']:['111','222'],episode_count:incomplete?8:2,related:relatedRows}},
-    setPlayerStatus(){},episodeLoadingText(){return 'loading'},revealControls(){},showNotice:message=>notices.push(message),
+    beginPrefetchedEpisodeHint(){},setPlayerStatus(){},episodeLoadingText(){return 'loading'},revealControls(){},showNotice:message=>notices.push(message),
     uiText:(key,fallback,values)=>Object.keys(values||{}).reduce((text,name)=>text.replace('{'+name+'}',values[name]),fallback),localizedError:error=>error.message,
     playFeedItem:(index,ep)=>calls.push(['play',index,ep]),refreshDetailAfterSeason(){},
     fetch:async()=>{relationCalls++;if(relationError)throw new Error('upstream response empty');return {ok:true,json:async()=>({ok:true,data:{next:relationNext,current_season:relationSeason}})}},

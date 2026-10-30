@@ -703,6 +703,7 @@
     'ui.loadingDrama': '正在读取短剧…',
     'ui.readingVersion': '读取中…',
     'ui.buffering': '正在缓冲…',
+    'ui.preparingPlayback': '正在准备播放…',
     'ui.episodePlaceholder': '第1集',
     'ui.closeRelated': '关闭相关推荐',
     'ui.updateStateDefault': '请更新应用后重试',
