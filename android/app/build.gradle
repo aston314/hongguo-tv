@@ -5,6 +5,11 @@ plugins {
 def appVersion = "0.2.132"
 def mpvVersionCode = 83
 def coreVersion = System.getenv("HONGGUO_CORE_VERSION") ?: "${appVersion}-dev"
+// CI-only A/B selection; ordinary builds retain the existing audio backend order.
+def mpvAudioOutput = System.getenv("HONGGUO_MPV_AUDIO_OUTPUT") ?: "opensles,audiotrack"
+if (!(mpvAudioOutput in ["opensles,audiotrack", "audiotrack,opensles"])) {
+    throw new GradleException("Unsupported MPV audio output test configuration")
+}
 def signingVariables = ["ANDROID_KEYSTORE_FILE", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"]
 def releaseSigningReady = signingVariables.every { System.getenv(it) }
 
@@ -41,6 +46,7 @@ android {
             resValue "string", "app_name", "红果短剧"
             buildConfigField "String", "VARIANT_ID", '"mpv"'
             buildConfigField "String", "PLAYER_ENGINE", '"mpv"'
+            buildConfigField "String", "MPV_AUDIO_OUTPUT", "\"${mpvAudioOutput}\""
         }
     }
 

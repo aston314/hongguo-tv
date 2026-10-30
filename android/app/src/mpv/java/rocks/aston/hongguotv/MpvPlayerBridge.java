@@ -288,7 +288,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             option(active, "scale", "bilinear"); option(active, "dscale", "bilinear");
             option(active, "dither", "no"); option(active, "correct-downscaling", "no");
             option(active, "linear-downscaling", "no"); option(active, "sigmoid-upscaling", "no");
-            option(active, "ao", "opensles,audiotrack"); option(active, "audiotrack-pcm-float", "no");
+            option(active, "ao", BuildConfig.MPV_AUDIO_OUTPUT); option(active, "audiotrack-pcm-float", "no");
             option(active, "keep-open", "yes"); option(active, "idle", "yes");
             option(active, "force-window", "no"); option(active, "osd-level", "0");
             option(active, "input-default-bindings", "no"); option(active, "input-vo-keyboard", "no");
@@ -604,7 +604,8 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 if (avsync != null && finite(avsync)) fields.put("avsync", avsync);
                 if (cacheDuration != null && finite(cacheDuration) && cacheDuration >= 0)
                     fields.put("demuxer_cache_duration", cacheDuration);
-                fields.put("audio_output", property(player, "current-ao"))
+                fields.put("audio_output_requested", BuildConfig.MPV_AUDIO_OUTPUT)
+                    .put("audio_output", property(player, "current-ao"))
                     .put("audio_codec", property(player, "audio-codec"))
                     .put("audio_format", property(player, "audio-out-params/format"));
                 Integer rate = player.getPropertyInt("audio-out-params/samplerate");
