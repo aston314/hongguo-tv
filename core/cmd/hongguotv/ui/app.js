@@ -327,6 +327,7 @@
   var settingsPage = document.getElementById('settings-page');
   var accountData = null;
   var accountStatusInitialized = false;
+  var accountQR = null;
   var pendingAccountHomeProgram = null;
   var accountBusy = false;
   var accountNotice = '';
@@ -1225,7 +1226,7 @@
     var remembered = lastPageFocus[pageMode()];
     if (remembered && focusables().indexOf(remembered) >= 0) return remembered;
     if (pageMode() === 'search') return searchInput || document.querySelector('.search-submit');
-    if (pageMode() === 'account') return firstVisible('.account-input') || firstVisible('.account-action');
+    if (pageMode() === 'account') return firstVisible('#account-method-qr[aria-pressed="true"]') || firstVisible('#account-method-phone') || firstVisible('.account-input') || firstVisible('.account-action');
     if (pageMode() === 'settings') return selectedSidebarDisplay() || selectedLocale() || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action') || activeSidebar();
     if (pageMode() === 'support') return firstVisible('.support-card');
     if (isLibraryPage()) return firstVisible('.library-card') || firstVisible('.history-filter.is-active') || firstVisible('[data-action="library-discover"]') || firstVisible('.library-toolbar-button');
@@ -1720,9 +1721,23 @@
       return null;
     }
     if (zone === 'accountInputs' || zone === 'accountActions') {
+      var qrActive = accountQR && accountQR.snapshot().active;
+      if (current.id === 'account-method-phone' || current.id === 'account-method-qr') {
+        if (direction === 'left') return current.id === 'account-method-qr' ? document.getElementById('account-method-phone') : activeSidebar();
+        if (direction === 'right') return current.id === 'account-method-phone' ? document.getElementById('account-method-qr') : null;
+        if (direction === 'down') return qrActive ? document.getElementById('account-qr-refresh') : firstVisible('#account-country') || firstVisible('#account-phone');
+        return direction === 'up' ? activeSidebar() : null;
+      }
+      if (current.id === 'account-qr-refresh' || current.id === 'account-qr-cancel') {
+        if (direction === 'up') return document.getElementById('account-method-qr');
+        if (direction === 'left') return current.id === 'account-qr-cancel' ? document.getElementById('account-qr-refresh') : activeSidebar();
+        if (direction === 'right') return current.id === 'account-qr-refresh' ? document.getElementById('account-qr-cancel') : firstVisible('#account-sync');
+        return null;
+      }
+      if (direction === 'up' && (current.id === 'account-phone' || current.id === 'account-country')) return firstVisible('#account-method-phone') || activeSidebar();
       if (current.id === 'account-sms-qr') return direction === 'down' ? firstVisible('#account-verify') || firstVisible('#account-cancel') : direction === 'left' || direction === 'up' ? activeSidebar() : null;
       if (accountData && accountData.phase === 'mfa' && direction === 'up' && (current.id === 'account-verify' || current.id === 'account-cancel')) return firstVisible('#account-sms-qr') || activeSidebar();
-      var leftSelector = '#account-login-form .account-input, #account-login-form .account-action, #account-mfa .account-action, #account-profile .account-action';
+      var leftSelector = '#account-login-methods .account-action, #account-qr-panel .account-action, #account-login-form .account-input, #account-login-form .account-action, #account-mfa .account-action, #account-profile .account-action';
       if (current.id === 'account-sync' || current.id === 'account-import-history') {
         if (direction === 'left') return focusables(leftSelector).indexOf(accountLeftFocus) >= 0 ? accountLeftFocus : firstVisible(leftSelector) || activeSidebar();
         if (direction === 'down') return current.id === 'account-sync' ? firstVisible('#account-import-history') : null;
@@ -2976,6 +2991,7 @@
     else if (playerOptionsOpen) closePlayerOptions();
     else if (detailModalOpen) closeDetail();
     else if (discussionOpen) closeDiscussion();
+    else if (pageMode() === 'account' && accountQR && accountQR.snapshot().active) { cancelAccountQR(true); }
     else if (pageMode() === 'account' && accountData && accountData.phase === 'mfa') { cancelAccountVerification(true); }
     else if (shell.classList.contains('is-cinema')) {
       exitCinema(false);
@@ -3002,6 +3018,7 @@
     return true;
   }
   function pauseForBackground() {
+    if (accountQR && accountQR.snapshot().active) cancelAccountQR(false);
     if (typeof closePlaybackCommandMenu === 'function') closePlaybackCommandMenu(false);
     if (typeof closePlaybackMenuHint === 'function') closePlaybackMenuHint();
     if (searchScanOpen) closeSearchScan(true);
@@ -3543,12 +3560,48 @@
     var syncLabel = !logged ? uiText('ui.notLoggedInLocal', '未登录 · 记录保存在本机') : ({ syncing: uiText('ui.syncing', '正在同步…'), pending: uiText('ui.syncPending', '等待同步'), error: uiText('ui.syncIncomplete', '同步暂未完成'), idle: sync.last_sync ? uiText('ui.synced', '已同步') : uiText('ui.notSynced', '尚未同步') })[sync.state] || uiText('ui.syncPending', '等待同步');
     document.getElementById('account-sync-state').textContent = syncLabel;
     document.getElementById('account-sync-detail').textContent = sync.error ? localizedError(sync.error, 'ui.syncIncomplete', '同步暂未完成') : (logged ? (sync.pending ? uiText('ui.pendingRecords', '{value} 项记录待同步。', { value: sync.pending }) : uiText('ui.autoSync', '收藏、点赞与观看进度会自动同步。')) + (sync.last_sync ? uiText('ui.lastSync', ' 最近同步：{value}', { value: new Date(sync.last_sync).toLocaleTimeString() }) : '') : uiText('ui.loginSyncCopy', '收藏、点赞、观看历史和播放进度会与红果账号同步。'));
+    renderAccountQR();
     renderAccountMessages(data, canSubmitAppCode);
     document.querySelector('.side-item[data-page="account"] span:last-child').textContent = uiText('nav.account', '我的');
     if (pageMode() === 'account') document.getElementById('page-context').textContent = uiText('nav.account', '我的');
     var current = document.activeElement;
     if (!accountKeypadOpen() && !accountBusy && pageMode() === 'account' && current && current.closest('#account-keypad-modal')) goFocus(firstContentFocus());
     if (!accountBusy && !confirmOpen && pageMode() === 'account' && current && /accountInputs|accountActions/.test(zoneOf(current)) && focusables().indexOf(current) < 0) goFocus(firstContentFocus());
+  }
+  function renderAccountQR() {
+    var data = accountData || {}, qr = accountQR ? accountQR.snapshot() : { active: false };
+    var available = !webosShell && !!data.qr_login_available && !data.logged_in;
+    var visible = available && qr.active;
+    document.getElementById('account-login-methods').classList.toggle('is-hidden', !available);
+    document.getElementById('account-qr-panel').classList.toggle('is-hidden', !visible);
+    if (visible) { document.getElementById('account-login-form').classList.add('is-hidden'); document.getElementById('account-mfa').classList.add('is-hidden'); }
+    ['phone', 'qr'].forEach(function (method) {
+      var node = document.getElementById('account-method-' + method), selected = method === 'qr' ? visible : !visible;
+      node.classList.toggle('is-active', selected); node.setAttribute('aria-pressed', selected ? 'true' : 'false'); node.disabled = accountBusy;
+    });
+    var image = document.getElementById('account-login-qr-image');
+    var source = visible && /^data:image\/png;base64,/.test(qr.image || '') ? qr.image : '';
+    if (image.getAttribute('src') !== source) { if (source) image.src = source; else image.removeAttribute('src'); }
+    image.classList.toggle('is-hidden', !source);
+    var keys = { preparing: 'qrPreparing', pending: 'qrPending', scanned: 'qrScanned', processing: 'qrProcessing', expired: 'qrExpired', cancelled: 'qrCancelled', failed: 'qrFailed', signed_in: 'qrSignedIn' };
+    document.getElementById('account-login-qr-status').textContent = visible ? uiText('account.' + (qr.error && qr.state !== 'failed' ? 'qrNetwork' : keys[qr.state] || 'qrPending')) : '';
+    var seconds = Math.max(0, Math.ceil(((qr.expires_at || 0) - Date.now()) / 1000));
+    document.getElementById('account-login-qr-expiry').textContent = visible && seconds && ['pending', 'scanned'].indexOf(qr.state) >= 0 ? uiText('account.qrExpiry', '', { value: seconds }) : '';
+    document.getElementById('account-qr-cancel').disabled = false;
+    document.getElementById('account-qr-refresh').disabled = false;
+  }
+  function cancelAccountQR(restoreFocus) {
+    if (accountQR) accountQR.cancel();
+    renderAccount();
+    if (restoreFocus && pageMode() === 'account') goFocus(document.getElementById('account-method-phone'));
+  }
+  function startAccountQR() {
+    if (!accountQR || accountBusy || webosShell || !accountData || !accountData.qr_login_available || accountData.logged_in) return;
+    if (smsVerification) smsVerification.stop();
+    if (accountKeypadOpen()) numericKeypad.close('context');
+    ++accountRequestGeneration; accountBusy = false; accountNotice = '';
+    accountQR.start();
+    goFocus(document.getElementById('account-qr-refresh'));
   }
   function accountFailureText(error) {
     var detail = error && typeof error === 'object' ? error.message : error;
@@ -7329,6 +7382,7 @@
   }
 
   function activatePage(item, restoring) {
+    if (accountQR && accountQR.snapshot().active && item.dataset.page !== 'account') cancelAccountQR(false);
     if (item.dataset.page === 'recommend' && pageMode() === 'recommend') {
       if (!restoring) { revealControls(); goFocus(firstContentFocus()); }
       return;
@@ -7643,6 +7697,23 @@
     document.getElementById('end-recommendations').addEventListener(name, cancelEndRecommendationAutoplay, true);
   });
   document.getElementById('account-send-code').addEventListener('click', accountSendCode);
+  accountQR = window.HongguoAccountScan.create({
+    request: function (action, id) {
+      var options = action === 'status' ? { cache: 'no-store' } : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(id ? { id: id } : {}) };
+      return fetch('/api/v1/account/qr/' + action + (action === 'status' ? '?id=' + encodeURIComponent(id) : ''), options).then(function (response) { return response.json(); }).then(function (payload) {
+        if (!payload.ok || !payload.data) throw new Error('QR request failed');
+        return payload.data;
+      });
+    },
+    onStatus: function (data) { acceptAccountStatus(data); },
+    onChange: function () { renderAccount(); },
+    onComplete: function () { if (pageMode() === 'account') goFocus(document.getElementById('account-logout')); }
+  });
+  document.getElementById('account-method-qr').addEventListener('click', startAccountQR);
+  document.getElementById('account-method-phone').addEventListener('click', function () { cancelAccountQR(true); });
+  document.getElementById('account-qr-refresh').addEventListener('click', startAccountQR);
+  document.getElementById('account-qr-cancel').addEventListener('click', function () { cancelAccountQR(true); });
+  window.addEventListener('pagehide', function () { if (accountQR && accountQR.snapshot().active) accountQR.cancel(); });
   document.getElementById('account-login').addEventListener('click', accountLogin);
   document.getElementById('account-country-close').addEventListener('click', function () { closeAccountCountryModal(false); });
   document.getElementById('account-verify').addEventListener('click', verifyAccountSMS);

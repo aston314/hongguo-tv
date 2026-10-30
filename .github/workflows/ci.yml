@@ -41,6 +41,8 @@ jobs:
           gradle-version: "8.10.2"
       - name: Test Go core
         run: go test ./...
+      - name: Check concurrent account login and cancellation
+        run: go test -race ./core/cmd/hongguotv -run 'Test(QR|Account|UpSMS|NewMFA|LateExpiry|TemporaryMFA)'
       - name: Check TV JavaScript and pagination
         run: |
           node --check core/cmd/hongguotv/ui/app.js
@@ -56,6 +58,7 @@ jobs:
           node --check core/cmd/hongguotv/ui/updates.js
           node --check core/cmd/hongguotv/ui/engagement.js
           node --check core/cmd/hongguotv/ui/sms-verification.js
+          node --check core/cmd/hongguotv/ui/account-scan.js
           node --check core/cmd/hongguotv/ui/numeric-keypad.js
           node --check core/cmd/hongguotv/ui/number-input.js
           node --check core/cmd/hongguotv/ui/search-history.js

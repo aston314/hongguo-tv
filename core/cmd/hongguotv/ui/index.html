@@ -273,6 +273,18 @@
         <div class="account-heading"><h1 data-i18n="account.title">我的账号</h1><p data-i18n="account.description">登录红果账号，同步收藏与观看进度</p></div>
         <div class="account-layout">
           <div class="account-card">
+            <div id="account-login-methods" class="account-login-methods is-hidden" role="group" aria-label="登录方式" data-i18n-aria-label="account.loginMethod">
+              <button type="button" class="account-action is-active" id="account-method-phone" data-focus="account-method-phone" aria-pressed="true" data-i18n="account.phoneLogin">手机号登录</button>
+              <button type="button" class="account-action" id="account-method-qr" data-focus="account-method-qr" aria-pressed="false" data-i18n="account.qrLogin">扫码登录</button>
+            </div>
+            <div id="account-qr-panel" class="account-qr-panel is-hidden">
+              <h2 data-i18n="account.qrLogin">扫码登录</h2>
+              <p data-i18n="account.qrHint">打开手机红果短剧 App，扫描二维码并确认登录</p>
+              <div class="account-login-qr-box"><img id="account-login-qr-image" class="is-hidden" width="280" height="280" alt="红果 App 登录二维码" data-i18n-alt="account.qrAlt"></div>
+              <p id="account-login-qr-status" class="account-qr-status" role="status" aria-live="polite"></p>
+              <p id="account-login-qr-expiry" class="account-footnote"></p>
+              <div class="account-form-actions"><button type="button" class="account-action account-primary" id="account-qr-refresh" data-focus="account-qr-refresh" data-i18n="account.qrRefresh">重新获取</button><button type="button" class="account-action" id="account-qr-cancel" data-focus="account-qr-cancel" data-i18n="common.cancel">取消</button></div>
+            </div>
             <div id="account-login-form">
               <h2 data-i18n="account.phoneLogin">手机号登录</h2>
               <label for="account-phone" data-i18n="ui.phoneLabel">手机号</label><div class="account-phone-row"><button type="button" class="account-country-button" id="account-country" data-focus="account-country" aria-haspopup="dialog" aria-controls="account-country-modal"><span id="account-country-name" data-i18n="country.mainlandChina">中国大陆</span><span id="account-country-code">+86</span><span class="account-country-chevron" aria-hidden="true">⌄</span></button><button type="button" class="account-input is-empty" id="account-phone" data-focus="account-phone" value="" aria-haspopup="dialog" aria-controls="account-keypad-modal" data-i18n="ui.inputPhone">请输入手机号</button></div>
@@ -505,6 +517,7 @@
   <script src="/updates.js"></script>
   <script src="/engagement.js"></script>
   <script src="/sms-verification.js"></script>
+  <script src="/account-scan.js"></script>
   <script src="/phone-countries.js"></script>
   <section id="search-scan-modal" class="search-scan-modal is-hidden" aria-hidden="true"><div class="search-scan-dialog" role="dialog" aria-modal="true" aria-labelledby="search-scan-title"><h2 id="search-scan-title" data-i18n="ui.scanSearchTitle">手机扫码搜索</h2><p id="search-scan-copy" data-i18n="ui.scanSearchCopy">手机输入或粘贴剧名，发送后在电视上搜索</p><div class="search-scan-qr-box"><img id="search-scan-qr" class="is-hidden" width="240" height="240" alt="扫码输入剧名" data-i18n-alt="ui.searchQrAlt"></div><p id="search-scan-status" role="status" aria-live="polite"></p><p id="search-scan-hint" class="search-scan-hint" data-i18n="ui.scanHint">手机和电视需在同一局域网<br>二维码5分钟有效，关闭后失效</p><div class="search-scan-actions"><button id="search-scan-refresh" class="search-scan-action" data-focus="search-scan-refresh" data-i18n="ui.scanRefresh">刷新二维码</button><button id="search-scan-close" class="search-scan-action" data-focus="search-scan-close" data-i18n="ui.scanBackSearch">返回搜索</button></div></div></section>
   <script src="/search-history.js"></script>

@@ -23,26 +23,30 @@ type accountProfile struct {
 	Phone  string `json:"phone,omitempty"` // Masked before storage.
 }
 type accountDisk struct {
-	Version int             `json:"version"`
-	Session accountSession  `json:"session"`
-	Profile *accountProfile `json:"profile,omitempty"`
+	Version     int             `json:"version"`
+	Session     accountSession  `json:"session"`
+	Profile     *accountProfile `json:"profile,omitempty"`
+	LoginMethod string          `json:"login_method,omitempty"`
 }
 type accountStatus struct {
-	LoggedIn     bool               `json:"logged_in"`
-	Profile      *accountProfile    `json:"profile,omitempty"`
-	Phase        string             `json:"phase"`
-	Phone        string             `json:"phone,omitempty"`
-	CountryCode  string             `json:"country_code,omitempty"`
-	RetryAfter   int                `json:"retry_after"`
-	SMSState     string             `json:"sms_state,omitempty"`
-	SMSNumber    string             `json:"sms_number,omitempty"`
-	SMSContent   string             `json:"sms_content,omitempty"`
-	SMSQRCode    string             `json:"sms_qr,omitempty"`
-	MFAExpires   int64              `json:"mfa_expires_at,omitempty"` // Local login-session safety deadline, not a server TTL.
-	Error        string             `json:"error,omitempty"`
-	AppCode      bool               `json:"app_code_available,omitempty"`
-	Sync         syncStatus         `json:"sync"`
-	GuestHistory guestHistoryStatus `json:"guest_history"`
+	QRLoginAvailable bool               `json:"qr_login_available"`
+	QRLogin          *qrLoginStatus     `json:"qr_login,omitempty"`
+	LoginMethod      string             `json:"login_method,omitempty"`
+	LoggedIn         bool               `json:"logged_in"`
+	Profile          *accountProfile    `json:"profile,omitempty"`
+	Phase            string             `json:"phase"`
+	Phone            string             `json:"phone,omitempty"`
+	CountryCode      string             `json:"country_code,omitempty"`
+	RetryAfter       int                `json:"retry_after"`
+	SMSState         string             `json:"sms_state,omitempty"`
+	SMSNumber        string             `json:"sms_number,omitempty"`
+	SMSContent       string             `json:"sms_content,omitempty"`
+	SMSQRCode        string             `json:"sms_qr,omitempty"`
+	MFAExpires       int64              `json:"mfa_expires_at,omitempty"` // Local login-session safety deadline, not a server TTL.
+	Error            string             `json:"error,omitempty"`
+	AppCode          bool               `json:"app_code_available,omitempty"`
+	Sync             syncStatus         `json:"sync"`
+	GuestHistory     guestHistoryStatus `json:"guest_history"`
 }
 type loginAttempt struct {
 	client        *passportClient
@@ -64,6 +68,9 @@ type accountManager struct {
 	guest, store     *libraryStore
 	details          *hongguoClient
 	newClient        func(accountSession) *passportClient
+	newQRClient      func() *qrPassportClient
+	qrPollEvery      time.Duration
+	qrLogin          *qrLoginAttempt
 	login            *loginAttempt
 	phase, lastError string
 	busy             bool
@@ -102,7 +109,7 @@ func atomicPrivateJSON(path string, value any) error {
 	return err
 }
 func newAccountManager(dir string, guest *libraryStore, details *hongguoClient) (*accountManager, error) {
-	m := &accountManager{dir: dir, guest: guest, store: guest, details: details, newClient: newPassportClient, phase: "phone", wake: make(chan struct{}, 1)}
+	m := &accountManager{dir: dir, guest: guest, store: guest, details: details, newClient: newPassportClient, newQRClient: newQRPassportClient, phase: "phone", wake: make(chan struct{}, 1)}
 	b, err := os.ReadFile(filepath.Join(dir, "account.json"))
 	if err == nil {
 		if json.Unmarshal(b, &m.disk) != nil || m.disk.Version != 1 {
@@ -187,7 +194,17 @@ func (m *accountManager) status() accountStatus {
 }
 func (m *accountManager) statusLocked() accountStatus {
 	m.expireMFALocked()
-	s := accountStatus{LoggedIn: m.disk.Profile != nil, Phase: m.phase, Error: m.lastError, SMSState: m.smsState, Sync: syncStatus{State: "local"}}
+	s := accountStatus{LoggedIn: m.disk.Profile != nil, Phase: m.phase, Error: m.lastError, SMSState: m.smsState, Sync: syncStatus{State: "local"}, QRLoginAvailable: true}
+	if m.qrLogin != nil {
+		qr := m.qrLogin.status
+		s.QRLogin = &qr
+	}
+	if m.disk.Profile != nil {
+		s.LoginMethod = m.disk.LoginMethod
+		if s.LoginMethod == "" {
+			s.LoginMethod = "phone"
+		}
+	}
 	if m.guest != nil && m.store != nil {
 		s.GuestHistory = historyImportStatus(m.guest.snapshot(), m.store.snapshot())
 	}
@@ -288,6 +305,7 @@ func (m *accountManager) beginLogin(ctx context.Context, phone string, send bool
 		if time.Now().Before(m.codeAfter) {
 			return nil, 0, errors.New("请等待倒计时结束后再发送")
 		}
+		m.cancelQRLocked()
 		m.generation++
 		m.login = &loginAttempt{client: m.newClient(m.disk.Session), phone: phone, expires: time.Now().Add(10 * time.Minute)}
 		m.appCodeAllowed = false
@@ -526,16 +544,21 @@ func (m *accountManager) finishLogin(ctx context.Context, g uint64, a *loginAtte
 	if profile.Name == "" {
 		profile.Name = "红果用户"
 	}
-	store, err := m.accountLibrary(uid)
+	return m.finishAccountSession(ctx, g, a.client.session, profile, "phone")
+}
+
+// Both login methods commit through the same identity/store transaction.
+func (m *accountManager) finishAccountSession(ctx context.Context, g uint64, session accountSession, profile *accountProfile, method string) error {
+	store, err := m.accountLibrary(profile.UID)
 	if err != nil {
 		return err
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if g != m.generation || ctx.Err() != nil {
+	if g != m.generation || ctx.Err() != nil || m.disk.Profile != nil {
 		return errors.New("登录已取消")
 	}
-	disk := accountDisk{Version: 1, Session: cloneAccountSession(a.client.session), Profile: profile}
+	disk := accountDisk{Version: 1, Session: cloneAccountSession(session), Profile: profile, LoginMethod: method}
 	if err = m.saveDisk(disk); err != nil {
 		return err
 	}
@@ -544,6 +567,11 @@ func (m *accountManager) finishLogin(ctx context.Context, g uint64, a *loginAtte
 	m.login = nil
 	m.appCodeAllowed = false
 	m.phase = "logged_in"
+	if m.qrLogin != nil && method == "qr" {
+		m.qrLogin.status.State = "signed_in"
+		m.qrLogin.status.Image = ""
+		m.qrLogin.status.Error = ""
+	}
 	m.syncError = ""
 	m.lastSync = storeCloudLastSync(store)
 	m.signalSync()
@@ -559,6 +587,8 @@ func (m *accountManager) logout() error {
 		return err
 	}
 	m.generation++
+	m.cancelQRLocked()
+	m.qrLogin = nil
 	if m.cancelSync != nil {
 		m.cancelSync()
 	}
@@ -584,6 +614,7 @@ func (m *accountManager) cancelLogin() {
 		return
 	}
 	m.generation++
+	m.cancelQRLocked()
 	if m.login != nil && m.login.cancelRequest != nil {
 		m.login.cancelRequest()
 	}
@@ -598,6 +629,10 @@ func (s *server) account(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Cache-Control", "no-store")
 	if s.accounts == nil {
 		writeError(w, 503, "账号功能尚未就绪")
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/api/v1/account/qr/") {
+		s.accountQR(w, r)
 		return
 	}
 	if r.URL.Path == "/api/v1/account" && r.Method == http.MethodGet {
