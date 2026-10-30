@@ -3505,6 +3505,7 @@
       libraryQueue.catch(function () {}).then(loadLibrary);
     }
     renderAccount();
+    if (pageMode() === 'account' && accountQR && accountLoginMethod === 'qr' && accountQR.snapshot().state === 'idle') startAccountQR();
     if (!wasInitialized) startPendingAccountHomeProgram();
   }
   function renderAccount() {
@@ -3590,8 +3591,6 @@
     document.getElementById('account-login-qr-expiry').textContent = visible && seconds && ['pending', 'scanned'].indexOf(qr.state) >= 0 ? uiText('account.qrExpiry', '', { value: seconds }) : '';
     document.getElementById('account-qr-cancel').disabled = false;
     document.getElementById('account-qr-refresh').disabled = false;
-    // Get the first QR only when the user actually enters the account page.
-    if (visible && qr.state === 'idle' && pageMode() === 'account') startAccountQR();
   }
   function cancelAccountQR(restoreFocus) {
     if (accountQR) accountQR.cancel();
@@ -7456,6 +7455,7 @@
       mainSurface.classList.add('has-workspace');
       accountPage.classList.remove('is-hidden');
       renderAccount();
+      if (accountQR && accountLoginMethod === 'qr' && accountQR.snapshot().state === 'idle') startAccountQR();
       pollAccount();
     } else if (item.dataset.page === 'settings') {
       mainSurface.classList.add('has-workspace');

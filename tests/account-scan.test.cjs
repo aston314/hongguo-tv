@@ -53,17 +53,27 @@ test('synchronous start failure allows retry without an unhandled rejection',asy
   f.controller.start();await tick();assert.equal(f.controller.snapshot().state,'failed');
   f.controller.start();await tick();assert.equal(f.controller.snapshot().id,'new');
 });
-test('webOS hides QR capability and QR is first and default without changing the webOS login UI',()=>{
+test('webOS hides QR capability and QR is first and default without changing the webOS login UI',async()=>{
   const source=fs.readFileSync('core/cmd/hongguotv/ui/app.js','utf8');const nodes={};
   const document={getElementById(id) {return nodes[id]||(nodes[id]={disabled:false,attrs:{},classes:new Set(),classList:{toggle(n,v){v?nodes[id].classes.add(n):nodes[id].classes.delete(n);},add(n){nodes[id].classes.add(n);}},setAttribute(n,v){this.attrs[n]=v;},getAttribute(n){return this.attrs[n]||'';},removeAttribute(n){delete this.attrs[n];}});}};
-  let started=0; const context=vm.createContext({startAccountQR:()=>started++,document,accountLoginMethod:'qr',pageMode:()=> 'player',webosShell:true,accountData:{qr_login_available:true},accountQR:{snapshot:()=>({active:true,image:'https://bad',state:'pending'})},accountBusy:false,uiText:k=>k});
+  const context=vm.createContext({document,accountLoginMethod:'qr',pageMode:()=> 'player',webosShell:true,accountData:{qr_login_available:true},accountQR:{snapshot:()=>({active:true,image:'https://bad',state:'pending'})},accountBusy:false,uiText:k=>k});
   vm.runInContext(source.slice(source.indexOf('  function renderAccountQR('),source.indexOf('  function cancelAccountQR(')),context);
   context.renderAccountQR();assert.ok(nodes['account-login-methods'].classes.has('is-hidden'));assert.ok(nodes['account-qr-panel'].classes.has('is-hidden'));assert.equal(nodes['account-login-qr-image'].attrs.src,undefined);
   context.webosShell=false;context.accountLoginMethod='phone';context.accountQR.snapshot=()=>({active:false});context.renderAccountQR();assert.ok(!nodes['account-login-methods'].classes.has('is-hidden'));assert.ok(nodes['account-qr-panel'].classes.has('is-hidden'));
   context.accountLoginMethod='qr';context.accountQR.snapshot=()=>({active:true,state:'pending'});context.renderAccountQR();assert.ok(!nodes['account-qr-panel'].classes.has('is-hidden'));assert.ok(nodes['account-login-form'].classes.has('is-hidden'));
-  context.accountQR.snapshot=()=>({active:false,state:'idle'});context.renderAccountQR();assert.equal(started,0);
-  context.pageMode=()=> 'account';context.renderAccountQR();assert.equal(started,1);
-  context.accountQR.snapshot=()=>({active:false,state:'cancelled'});context.renderAccountQR();assert.equal(started,1);
-  context.accountLoginMethod='phone';context.accountQR.snapshot=()=>({active:false,state:'idle'});context.renderAccountQR();assert.equal(started,1);
+  context.accountQR.snapshot=()=>({active:false,state:'idle'});context.renderAccountQR();
+  context.pageMode=()=> 'account';context.renderAccountQR();
+  context.accountQR.snapshot=()=>({active:false,state:'cancelled'});context.renderAccountQR();
+  context.accountLoginMethod='phone';context.accountQR.snapshot=()=>({active:false,state:'idle'});context.renderAccountQR();
+  // SMS stop and QR changes synchronously re-render the account page. Rendering
+  // must not start QR recursively when those callbacks fire.
+  let stopped=0, starts=0;
+  Object.assign(context,{accountRequestGeneration:0,accountNotice:'',accountKeypadOpen:()=>false,goFocus:()=>{},
+    smsVerification:{stop(){stopped++;context.renderAccountQR();}}});
+  context.accountQR=create({request(action){if(action==='start'){starts++;return data('default');}return {};},
+    onChange(){context.renderAccountQR();},setTimeout:()=>1,clearTimeout(){}});
+  vm.runInContext(source.slice(source.indexOf('  function startAccountQR('),source.indexOf('  function accountFailureText(')),context);
+  context.startAccountQR();await tick();
+  assert.equal(stopped,1);assert.equal(starts,1);assert.equal(context.accountLoginMethod,'qr');assert.equal(context.accountQR.snapshot().state,'pending');
   const html=fs.readFileSync('core/cmd/hongguotv/ui/index.html','utf8');assert.ok(html.indexOf('id="account-method-qr"')<html.indexOf('id="account-method-phone"'));
 });
