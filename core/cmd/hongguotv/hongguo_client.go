@@ -167,6 +167,7 @@ type PlayInfo struct {
 	Qualities     []string `json:"qualities,omitempty"`
 	VideoWidth    int      `json:"video_width,omitempty"`
 	VideoHeight   int      `json:"video_height,omitempty"`
+	VideoCodec    string   `json:"video_codec,omitempty"`
 	Vid           string   `json:"vid"`
 	Mode          string   `json:"mode,omitempty"`
 	RangeFallback string   `json:"range_fallback,omitempty"`
@@ -907,7 +908,7 @@ func (c *hongguoClient) PlayInfoQualityMode(ctx context.Context, seriesID, vid, 
 	}
 	result := PlayInfo{
 		Path: asString(value["path"]), Quality: asString(value["quality"]), Qualities: value["qualities"].([]string),
-		VideoWidth: miniReelIntFromAny(value["video_width"]), VideoHeight: miniReelIntFromAny(value["video_height"]),
+		VideoWidth: miniReelIntFromAny(value["video_width"]), VideoHeight: miniReelIntFromAny(value["video_height"]), VideoCodec: asString(value["video_codec"]),
 		Vid: firstNonEmpty(value["vid"], vid), Mode: asString(value["mode"]),
 	}
 	if result.Path == "" {
@@ -937,6 +938,7 @@ func (c *hongguoClient) PlayInfoRangeQualityMode(ctx context.Context, seriesID, 
 		Qualities:     value["qualities"].([]string),
 		VideoWidth:    miniReelIntFromAny(value["video_width"]),
 		VideoHeight:   miniReelIntFromAny(value["video_height"]),
+		VideoCodec:    asString(value["video_codec"]),
 		Vid:           firstNonEmpty(value["vid"], vid),
 		Mode:          asString(value["mode"]),
 		RangeFallback: asString(value["range_fallback"]),
@@ -953,9 +955,9 @@ func embeddedMiniReelPlayInfo(ctx context.Context, seriesID, vid, quality string
 		Quality:     asString(value["quality"]),
 		Qualities:   value["qualities"].([]string),
 		VideoWidth:  miniReelIntFromAny(value["video_width"]),
-		VideoHeight: miniReelIntFromAny(value["video_height"]),
-		Vid:         firstNonEmpty(value["vid"], vid),
-		Mode:        asString(value["mode"]),
+		VideoHeight: miniReelIntFromAny(value["video_height"]), VideoCodec: asString(value["video_codec"]),
+		Vid:  firstNonEmpty(value["vid"], vid),
+		Mode: asString(value["mode"]),
 	}, nil
 }
 

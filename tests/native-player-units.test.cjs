@@ -116,6 +116,7 @@ function fixture(engine = 'webview_media3', options = {}) {
     Date: { now: clock.now.bind(clock) },
     Promise
   });
+  if (options.canPlayType) domVideo.canPlayType = options.canPlayType;
   vm.runInContext(source, context);
   return {
     context, document, domVideo, listeners, bridge, rootClassNames, clock, storage, frameCallbacks,
@@ -603,4 +604,42 @@ test('Media3 callback after returning to WebView cannot emit a stale ended or pr
   f.context.window.HongguoNativePlayback.event(id, 'ended');
   f.context.window.HongguoNativePlayback.progress(id, 30000, 90000);
   assert.equal(ends, 0); assert.equal(ticks, 0); video.pause();
+});
+
+
+test('explicitly unsupported HEVC bypasses HTML5 play before any watchdog and preserves resume position', async () => {
+ const f=fixture('webview_media3',{canPlayType:type=>type.includes('avc1')?'probably':''});
+ const video=f.document.getElementById('hero-video');let domPlays=0;f.domVideo.play=()=>{domPlays++;return Promise.resolve();};
+ video.src='/media/hevc.mp4';video.setSourceCodec('bytevc1');f.context.window.HongguoNativePlaybackAdapter.setStartPosition(42.5);video.load();await video.play();
+ assert.equal(domPlays,0);assert.equal(f.bridge.plays,1);assert.equal(f.bridge.lastPayload.start_position,42.5);
+ assert.equal(f.context.window.HongguoNativePlaybackAdapter.diagnostics().switch_reason,'codec_unsupported');
+ assert.equal(f.clock.now(),10000);
+});
+
+test('supported, uncertain and unavailable codec checks keep HTML5 first even on WebView 66', async () => {
+ const cases=[
+  {codec:'bytevc1',probe:()=> 'probably'},
+  {codec:'bytevc1',probe:type=>type.includes('hev1')?'maybe':''},
+  {codec:'h264',probe:()=> 'maybe'},
+  {codec:'unknown',probe:()=> ''},
+  {codec:'',probe:()=> ''},
+  {codec:'bytevc1'},
+  {codec:'bytevc1',probe:()=>{throw Error('codec API unavailable');}},
+  {codec:'bytevc1',probe:()=> 'unexpected'}
+ ];
+ for(const c of cases){const f=fixture('webview_media3',{userAgent:'Chrome/66.0.3359.158',canPlayType:c.probe});const video=f.document.getElementById('hero-video');video.src='/media/test.mp4';video.setSourceCodec(c.codec);await video.play();assert.equal(f.bridge.plays,0,JSON.stringify(c));assert.equal(f.domVideo.paused,false);}
+});
+
+test('a negative codec check does not persist a browser-wide preference or leak into the next source', async () => {
+ const f=fixture('webview_media3',{canPlayType:type=>type.includes('avc1')?'probably':''});const video=f.document.getElementById('hero-video');
+ video.src='/media/hevc.mp4';video.setSourceCodec('hevc');await video.play();
+ f.context.window.HongguoNativePlayback.event(f.bridge.lastId,'firstframe',{width:720,height:1280});
+ assert.equal(f.storage.getItem('hongguo.native-player.preference.v1'),null);
+ video.src='/media/h264.mp4';video.setSourceCodec('h264');await video.play();assert.equal(f.bridge.plays,1);assert.equal(f.domVideo.paused,false);
+ video.src='/media/unknown.mp4';await video.play();assert.equal(f.bridge.plays,1,'old source codec must be cleared');
+});
+
+test('negative AVC checks bypass HTML5 without affecting the fixed MPV edition', async () => {
+ const f=fixture('webview_media3',{canPlayType:()=>''});const video=f.document.getElementById('hero-video');video.src='/media/avc.mp4';video.setSourceCodec('h264');await video.play();assert.equal(f.bridge.plays,1);
+ const mpv=fixture('mpv',{canPlayType:()=>''});const v=mpv.document.getElementById('hero-video');v.src='/media/mpv.mp4';v.setSourceCodec('bytevc1');await v.play();assert.equal(mpv.bridge.plays,1);assert.equal(mpv.bridge.engine(),'mpv');
 });

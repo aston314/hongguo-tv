@@ -107,6 +107,7 @@ func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token
 	job.Range = source
 	job.Quality = option.Quality
 	job.Qualities = miniReelQualities(options)
+	job.VideoCodec = source.Codec
 	job.VideoWidth = source.Width
 	job.VideoHeight = source.Height
 	job.Mode = "range"
