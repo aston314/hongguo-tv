@@ -79,6 +79,7 @@ cp -R "$repo_dir/webos/service/." "$service_stage/"
 rm -f "$service_stage/passport-sign.test.js" "$service_stage/provider.test.js" "$service_stage/account.test.js" "$service_stage/service.test.js" "$service_stage/service-entry.test.js" "$service_stage/number-input.test.js" "$service_stage/range-media.test.js" "$service_stage/search-season.test.js"
 rm -f "$service_stage/media-cache.test.js"
 rm -f "$service_stage/updates.test.js"
+rm -f "$service_stage/account-scan.test.js"
 
 # A file:// document cannot resolve the shared UI's root-absolute assets.
 index="$app_stage/index.html"

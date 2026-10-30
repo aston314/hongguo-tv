@@ -6,6 +6,7 @@ node_bin=${NODE:-node}
 
 "$node_bin" --check "$repo_dir/scripts/run_webos_http_direct_service.js"
 "$node_bin" --check "$repo_dir/webos/service/range-media.js"
+"$node_bin" --check "$repo_dir/webos/service/account-scan.js"
 "$node_bin" --check "$repo_dir/webos/app/webos-updates.js"
 "$node_bin" --check "$repo_dir/webos/app/webos-audio-controller.js"
 "$node_bin" --check "$repo_dir/webos/app/webos-audio-local.js"
@@ -77,6 +78,7 @@ NODE
 "$node_bin" "$repo_dir/webos/service/updates.test.js"
 "$node_bin" "$repo_dir/webos/service/range-media.test.js"
 "$node_bin" "$repo_dir/webos/service/account.test.js"
+"$node_bin" --test "$repo_dir/webos/service/account-scan.test.js"
 "$node_bin" "$repo_dir/webos/service/service-entry.test.js"
 "$node_bin" --test "$repo_dir/tests/webos-single-player-prefetch.test.cjs" "$repo_dir/tests/webos-range-head-cache.test.cjs" "$repo_dir/tests/next-episode-transition.test.cjs"
 

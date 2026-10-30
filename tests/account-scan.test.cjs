@@ -53,13 +53,13 @@ test('synchronous start failure allows retry without an unhandled rejection',asy
   f.controller.start();await tick();assert.equal(f.controller.snapshot().state,'failed');
   f.controller.start();await tick();assert.equal(f.controller.snapshot().id,'new');
 });
-test('webOS hides QR capability and QR is first and default without changing the webOS login UI',async()=>{
+test('QR is first and default on every capable service, with a phone fallback for older services',async()=>{
   const source=fs.readFileSync('core/cmd/hongguotv/ui/app.js','utf8');const nodes={};
   const document={getElementById(id) {return nodes[id]||(nodes[id]={disabled:false,attrs:{},classes:new Set(),classList:{toggle(n,v){v?nodes[id].classes.add(n):nodes[id].classes.delete(n);},add(n){nodes[id].classes.add(n);}},setAttribute(n,v){this.attrs[n]=v;},getAttribute(n){return this.attrs[n]||'';},removeAttribute(n){delete this.attrs[n];}});}};
-  const context=vm.createContext({document,accountLoginMethod:'qr',pageMode:()=> 'player',webosShell:true,accountData:{qr_login_available:true},accountQR:{snapshot:()=>({active:true,image:'https://bad',state:'pending'})},accountBusy:false,uiText:k=>k});
+  const context=vm.createContext({document,accountLoginMethod:'qr',pageMode:()=> 'player',webosShell:true,accountData:{qr_login_available:false},accountQR:{snapshot:()=>({active:true,image:'https://bad',state:'pending'})},accountBusy:false,uiText:k=>k});
   vm.runInContext(source.slice(source.indexOf('  function renderAccountQR('),source.indexOf('  function cancelAccountQR(')),context);
   context.renderAccountQR();assert.ok(nodes['account-login-methods'].classes.has('is-hidden'));assert.ok(nodes['account-qr-panel'].classes.has('is-hidden'));assert.equal(nodes['account-login-qr-image'].attrs.src,undefined);
-  context.webosShell=false;context.accountLoginMethod='phone';context.accountQR.snapshot=()=>({active:false});context.renderAccountQR();assert.ok(!nodes['account-login-methods'].classes.has('is-hidden'));assert.ok(nodes['account-qr-panel'].classes.has('is-hidden'));
+  context.accountData.qr_login_available=true;context.accountLoginMethod='phone';context.accountQR.snapshot=()=>({active:false});context.renderAccountQR();assert.ok(!nodes['account-login-methods'].classes.has('is-hidden'));assert.ok(nodes['account-qr-panel'].classes.has('is-hidden'));
   context.accountLoginMethod='qr';context.accountQR.snapshot=()=>({active:true,state:'pending'});context.renderAccountQR();assert.ok(!nodes['account-qr-panel'].classes.has('is-hidden'));assert.ok(nodes['account-login-form'].classes.has('is-hidden'));
   context.accountQR.snapshot=()=>({active:false,state:'idle'});context.renderAccountQR();
   context.pageMode=()=> 'account';context.renderAccountQR();
@@ -76,4 +76,15 @@ test('webOS hides QR capability and QR is first and default without changing the
   context.startAccountQR();await tick();
   assert.equal(stopped,1);assert.equal(starts,1);assert.equal(context.accountLoginMethod,'qr');assert.equal(context.accountQR.snapshot().state,'pending');
   const html=fs.readFileSync('core/cmd/hongguotv/ui/index.html','utf8');assert.ok(html.indexOf('id="account-method-qr"')<html.indexOf('id="account-method-phone"'));
+});
+
+test('logout clears the completed QR and waits for confirmation to close before starting another code',async()=>{
+  const source=fs.readFileSync('core/cmd/hongguotv/ui/app.js','utf8');
+  let cancelled=0, started=0;
+  const context=vm.createContext({confirmationGeneration:0,document:{activeElement:{},querySelectorAll:()=>[],getElementById:()=>({classList:{remove(){}},setAttribute(){}})},
+    smsVerification:null,accountRequest:()=>Promise.resolve(true),accountQR:{cancel(){cancelled++;}},accountLoginMethod:'qr',pageMode:()=> 'account',
+    startAccountQR(){started++;},uiText:(_key,fallback)=>fallback,goFocus(){}});
+  vm.runInContext(source.slice(source.indexOf('  function confirmAccountLogout('),source.indexOf('  function catalogMeta(')),context);
+  context.confirmAccountLogout();await context.confirmOperation();
+  assert.equal(cancelled,1);assert.equal(started,0);context.confirmAfterClose();assert.equal(started,1);
 });

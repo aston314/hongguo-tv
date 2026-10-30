@@ -1722,7 +1722,7 @@
       return null;
     }
     if (zone === 'accountInputs' || zone === 'accountActions') {
-      var qrSelected = accountLoginMethod === 'qr' && accountData && accountData.qr_login_available && !webosShell;
+      var qrSelected = accountLoginMethod === 'qr' && accountData && accountData.qr_login_available;
       if (current.id === 'account-method-phone' || current.id === 'account-method-qr') {
         if (direction === 'left') return current.id === 'account-method-phone' ? document.getElementById('account-method-qr') : activeSidebar();
         if (direction === 'right') return current.id === 'account-method-qr' ? document.getElementById('account-method-phone') : null;
@@ -3572,7 +3572,7 @@
   }
   function renderAccountQR() {
     var data = accountData || {}, qr = accountQR ? accountQR.snapshot() : { active: false };
-    var available = !webosShell && !!data.qr_login_available && !data.logged_in;
+    var available = !!data.qr_login_available && !data.logged_in;
     var visible = available && accountLoginMethod === 'qr';
     document.getElementById('account-login-methods').classList.toggle('is-hidden', !available);
     document.getElementById('account-qr-panel').classList.toggle('is-hidden', !visible);
@@ -3598,7 +3598,7 @@
     if (restoreFocus && pageMode() === 'account') goFocus(document.getElementById(accountLoginMethod === 'qr' ? 'account-method-qr' : 'account-method-phone'));
   }
   function startAccountQR() {
-    if (!accountQR || accountBusy || webosShell || !accountData || !accountData.qr_login_available || accountData.logged_in) return;
+    if (!accountQR || accountBusy || !accountData || !accountData.qr_login_available || accountData.logged_in) return;
     if (smsVerification) smsVerification.stop();
     if (accountKeypadOpen()) numericKeypad.close('context');
     accountLoginMethod = 'qr';
@@ -3720,7 +3720,11 @@
     confirmOperation = function () {
       if (smsVerification) smsVerification.stop();
       return accountRequest('logout').then(function (ok) {
-        if (ok) document.querySelectorAll('.account-input').forEach(function (field) { field.value = ''; renderAccountNumber(field); });
+        if (ok) {
+          document.querySelectorAll('.account-input').forEach(function (field) { field.value = ''; renderAccountNumber(field); });
+          if (accountQR) accountQR.cancel();
+          if (accountLoginMethod === 'qr') confirmAfterClose = function () { if (pageMode() === 'account') startAccountQR(); };
+        }
         return ok;
       });
     };

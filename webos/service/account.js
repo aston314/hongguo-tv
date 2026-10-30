@@ -12,6 +12,7 @@
   var url = require('url');
   var querystring = require('querystring');
   var sign = require('./passport-sign');
+  var createScan = require('./account-scan');
 
   var API_BASE = 'https://api5-normal-lq.fqnovel.com';
   var DEVICE_BASE = 'https://log.snssdk.com';
@@ -187,19 +188,125 @@
   };
   Client.prototype.loginRequest = function (pathname, phone, form) { var p = splitPhone(phone); return this.request(pathname, 'POST', {}, encodeForm(form), p.code !== '+86'); };
   function Account(options) {
-    options = options || {}; this.dir = options.dataDir || process.env.HONGGUO_WEBOS_DATA_DIR || path.join(process.cwd(), 'data'); mkdirp(this.dir, 448); this.file = path.join(this.dir, 'account.json'); this.state = this.load(); this.save = this.save.bind(this); this.requestBuffer = options.requestBuffer || requestBuffer; this.client = new Client(this.state.session, this.save, this.requestBuffer); this.login = null; this.syncing = false; this.syncPromise = null; this.libraryRevision = 0; this.syncError = '';
+    options = options || {}; this.dir = options.dataDir || process.env.HONGGUO_WEBOS_DATA_DIR || path.join(process.cwd(), 'data'); mkdirp(this.dir, 448); this.file = path.join(this.dir, 'account.json'); this.state = this.load(); this.save = this.save.bind(this); this.requestBuffer = options.requestBuffer || requestBuffer; this.login = null; this.generation = 0; this.syncing = false; this.syncPromise = null; this.libraryRevision = 0; this.syncError = '';
+    this.attachClient();
+    var self = this;
+    this.scan = createScan({ requestBuffer: options.qrRequestBuffer || options.requestBuffer, parseJSON: parseExactJSON,
+      pollInterval: options.qrPollInterval, requestTimeout: options.qrRequestTimeout, completionTimeout: options.qrCompletionTimeout,
+      finish: function (profile, cookies, control) {
+        var generation = self.generation;
+        var session = { device_id: randomID(), install_id: randomID(), device: device(), cookies: {} };
+        return register(session, control.request).then(function () {
+          if (!control.current() || generation !== self.generation || self.state.profile) throw fail('登录已取消', 409, 'ACCOUNT_CHANGED');
+          Object.keys(cookies).forEach(function (key) { if (key !== 'install_id') session.cookies[key] = cookies[key]; });
+          self.commitLogin(session, profile, 'qr');
+        });
+      }
+    });
   }
   Account.prototype.load = function () { var value; try { value = parseExactJSON(fs.readFileSync(this.file, 'utf8')); } catch (e) { if (e && e.code !== 'ENOENT') throw fail('账号信息文件无效，未覆盖原记录', 500, 'ACCOUNT_STORAGE'); } if (!value) value = { version: 1, session: { device_id: randomID(), install_id: randomID(), device: device(), cookies: {} } }; if (value.version !== 1 || !value.session) throw fail('账号信息文件无效，未覆盖原记录', 500, 'ACCOUNT_STORAGE'); value.session.cookies = value.session.cookies || {}; if (!value.session.device) value.session.device = device(); if (value.profile && (!validID(value.profile.uid) || value.profile.uid === '0')) throw fail('账号身份无效，未覆盖原记录', 500, 'ACCOUNT_STORAGE'); return value; };
-  Account.prototype.save = function () { var temp = this.file + '.tmp'; fs.writeFileSync(temp, JSON.stringify(this.state), { mode: 384 }); fs.renameSync(temp, this.file); };
-  Account.prototype.status = function () { var s = this.state, l = this.login, guest = this.readGuestLibrary(), local = s.profile ? this.library() : null, pending = local && local.cloud && Array.isArray(local.cloud.pending) ? local.cloud.pending.length : 0, latest = {}, available = 0; (guest.entries || []).forEach(function (e) { var id = str(e.drama && e.drama.series_id); if (!e.last_played_at || !validID(id) || !validID(str(e.video_id)) || Number(e.episode) < 1) return; latest[id] = Math.max(latest[id] || 0, Number(e.last_played_at)); }); if (s.profile) Object.keys(latest).forEach(function (id) { var own = (local.entries || []).filter(function (e) { return str(e.drama && e.drama.series_id) === id; })[0], hidden = local.cloud && local.cloud.hidden || {}; if ((!own || Number(own.last_played_at) < latest[id]) && !(hidden['history:' + id] >= latest[id])) available++; }); return { logged_in: !!s.profile, profile: s.profile || null, phase: s.profile ? 'logged_in' : l && l.mfa ? 'mfa' : l ? 'code' : 'phone', phone: l ? mask(l.phone) : '', country_code: l ? splitPhone(l.phone).code : '', retry_after: l && l.retry_after > Date.now() ? Math.ceil((l.retry_after - Date.now()) / 1000) : 0, sms_state: l && l.sms_state || '', sms_number: l && l.mfa && l.mfa.channel_mobile || '', sms_content: l && l.mfa && l.mfa.sms_content || '', mfa_expires_at: l && l.mfa_expires || 0, error: l && l.error || '', app_code_available: !!(l && l.app_code_available), sync: { state: !s.profile ? 'signed_out' : this.syncing ? 'syncing' : this.syncError ? 'error' : pending ? 'pending' : 'idle', pending: pending, last_sync: local && local.cloud && local.cloud.last_sync || 0, error: this.syncError || local && local.cloud && local.cloud.sync_error || '' }, guest_history: { total: Object.keys(latest).length, available: available }, capabilities: ['browse', 'search', 'play', 'local-library', 'account-login', 'account-mfa', 'follow', 'reservations', 'notifications', 'player-actions', 'cloud-library'] }; };
-  Account.prototype.sendCode = function (country, local) { var self = this, phone = canonical(country, local); self.login = { phone: phone, sms_state: 'uncertain', app_code_available: true, retry_after: 0 }; return self.client.loginRequest('/passport/mobile/send_code/v1/', phone, Object.assign(passportForm(phone), { auto_read: '0', unbind_exist: '34', type: xorHex('24') })).then(function (p) { if (!success(p)) throw fail(safeDescription(p), 400, 'ACCOUNT_SEND_CODE'); self.login.sms_state = 'sent'; self.login.app_code_available = false; self.login.retry_after = Date.now() + Math.max(60000, Number(dataOf(p).retry_time || 0) * 1000); self.save(); return self.status(); }).catch(function (e) { self.login.sms_state = 'rejected'; self.login.error = e.message; self.login.app_code_available = true; self.save(); throw e; }); };
-  Account.prototype.loginSMS = function (country, local, code) { var self = this, phone = canonical(country, local); if (!/^\d{4,8}$/.test(str(code))) return Promise.reject(fail('请输入手机号和验证码', 400, 'ACCOUNT_CODE')); self.login = self.login || { phone: phone }; self.login.code = str(code); return self.client.loginRequest('/passport/mobile/sms_login/', phone, Object.assign(passportForm(phone), { code: xorHex(code) })).then(function (p) { if (success(p)) return self.finishLogin(p, phone); var d = dataOf(p), ways = d.verify_ways || []; var mfa = null; for (var i = 0; i < ways.length; i++) if (ways[i].verify_way === 'upsms' || ways[i].sms_content) { mfa = ways[i]; break; } if (mfa && d.encrypt_uid && d.sms_code_key) { self.login.mfa = { encrypt_uid: str(d.encrypt_uid), sms_code_key: str(d.sms_code_key), channel_mobile: str(mfa.channel_mobile), sms_content: str(mfa.sms_content), passport_scene: str(d.passport_scene), log_id: str(d.event_params && d.event_params.log_id) }; self.login.mfa_expires = Date.now() + 600000; self.save(); return self.status(); } throw fail(safeDescription(p), 400, 'ACCOUNT_LOGIN'); }); };
-  Account.prototype.verify = function () { var self = this, l = self.login; if (!l || !l.mfa || Date.now() > l.mfa_expires) return Promise.reject(fail('当前短信验证不存在或已结束，请重新获取验证码', 400, 'ACCOUNT_MFA')); var m = l.mfa, body = { passport_mfa_retry_tag: '1', sms_code_key: m.sms_code_key }; var form = { encrypt_uid: m.encrypt_uid, verify_ticket: '', verify_scene: 'sms_login', verify_reason: 'ato', copywriting_key: 'sms_login', ies_safety_diversion_tag: 'mfa', new_verify_flow: '', new_authn_sdk_version: '1.1.31', new_authn_sdk_verify_reason: 'ato', new_authn_sdk_verify_scene: 'sms_login', request_tag_from: 'h5', biz_params: JSON.stringify(body), new_authn_sdk_log_id: m.log_id || '' }; return self.client.loginRequest('/passport/upsms/verify/', l.phone, form).then(function (p) { var ticket = str(dataOf(p).ticket || dataOf(p).verify_ticket); if (!success(p) && errorCode(p) !== '1045') throw fail(safeDescription(p), 400, 'ACCOUNT_MFA'); return self.client.loginRequest('/passport/mobile/sms_login/', l.phone, Object.assign(passportForm(l.phone), { code: xorHex(l.code), passport_mfa_retry_tag: '1', sms_code_key: xorHex(m.sms_code_key), verify_ticket: ticket })).then(function (login) { if (!success(login)) throw fail(safeDescription(login), 400, 'ACCOUNT_MFA'); return self.finishLogin(login, l.phone); }); }); };
-  Account.prototype.finishLogin = function (p, phone) { var self = this, d = dataOf(p), uid = str(d.user_id_str || d.user_id), numeric = str(d.user_id); if (!validID(uid) || uid === '0' || numeric && (!validID(numeric) || numeric !== uid)) throw fail('登录响应缺少有效账号身份', 400, 'ACCOUNT_LOGIN'); if (!this.state.session.token && !this.state.session.cookies.sessionid && !this.state.session.cookies.sessionid_ss) throw fail('登录响应缺少会话凭证', 400, 'ACCOUNT_LOGIN'); self.state.profile = { uid: uid, name: str(d.screen_name || d.name || '红果用户'), avatar: str(d.avatar_url || ''), phone: mask(phone) }; self.login = null; self.syncError = ''; self.save(); setTimeout(function () { self.sync().catch(function () {}); }, 0); return self.status(); };
-  Account.prototype.cancel = function () { this.login = null; this.save(); return this.status(); };
-  Account.prototype.logout = function () { var keep = this.state.session; this.state = { version: 1, session: { device_id: keep.device_id, install_id: keep.install_id, device: keep.device, cookies: {}, registered: keep.registered } }; this.client = new Client(this.state.session, this.save, this.requestBuffer); this.login = null; this.syncing = false; this.syncError = ''; this.save(); return this.status(); };
+  Account.prototype.writeState = function (state) { var temp = this.file + '.tmp'; fs.writeFileSync(temp, JSON.stringify(state), { mode: 384 }); fs.renameSync(temp, this.file); };
+  Account.prototype.save = function () { this.writeState(this.state); };
+  Account.prototype.attachClient = function () {
+    var self = this, session = this.state.session;
+    this.client = new Client(session, function () { if (self.state.session === session) self.save(); }, this.requestBuffer);
+  };
+  Account.prototype.invalidateLogin = function () {
+    this.generation++;
+    if (this.scan) this.scan.reset();
+    this.login = null;
+    this.syncPromise = null; this.syncing = false;
+    // Detach outstanding phone requests before another login method takes over.
+    this.state.session = JSON.parse(JSON.stringify(this.state.session)); this.attachClient();
+  };
+  Account.prototype.checkLogin = function (generation) {
+    if (generation !== this.generation || this.state.profile) throw fail('登录已取消', 409, 'ACCOUNT_CHANGED');
+  };
+  Account.prototype.commitLogin = function (session, profile, method) {
+    loadLibraryFile(path.join(this.dir, 'accounts', profile.uid, 'library.json'), profile.uid);
+    var next = { version: 1, session: session, profile: profile, login_method: method };
+    this.writeState(next); this.state = next; this.attachClient(); this.login = null; this.syncError = '';
+    var self = this, generation = this.generation;
+    setTimeout(function () { if (self.generation === generation && self.state === next) self.sync().catch(function () {}); }, 0);
+  };
+  Account.prototype.startQR = function () {
+    if (this.state.profile) throw fail('请先退出当前账号', 409, 'ACCOUNT_CHANGED');
+    this.invalidateLogin(); this.scan.start(); return this.status();
+  };
+  Account.prototype.qrStatus = function (id) {
+    var qr = this.scan.snapshot();
+    if (!qr || qr.id !== id) throw fail('扫码会话已失效', 409, 'ACCOUNT_QR');
+    return this.status();
+  };
+  Account.prototype.cancelQR = function (id) {
+    if (!/^[a-f0-9]{32}$/.test(id)) throw fail('扫码会话无效', 400, 'ACCOUNT_QR');
+    var qr = this.scan.snapshot();
+    if (!this.state.profile && qr && qr.id === id) { this.generation++; this.scan.cancel(id); }
+    return this.status();
+  };
+  Account.prototype.close = function () { this.generation++; this.scan.cancel(); };
+  Account.prototype.status = function () { var s = this.state, l = this.login, guest = this.readGuestLibrary(), local = s.profile ? this.library() : null, pending = local && local.cloud && Array.isArray(local.cloud.pending) ? local.cloud.pending.length : 0, latest = {}, available = 0; (guest.entries || []).forEach(function (e) { var id = str(e.drama && e.drama.series_id); if (!e.last_played_at || !validID(id) || !validID(str(e.video_id)) || Number(e.episode) < 1) return; latest[id] = Math.max(latest[id] || 0, Number(e.last_played_at)); }); if (s.profile) Object.keys(latest).forEach(function (id) { var own = (local.entries || []).filter(function (e) { return str(e.drama && e.drama.series_id) === id; })[0], hidden = local.cloud && local.cloud.hidden || {}; if ((!own || Number(own.last_played_at) < latest[id]) && !(hidden['history:' + id] >= latest[id])) available++; }); return { qr_login_available: true, qr_login: this.scan ? this.scan.snapshot() : null, login_method: s.profile ? s.login_method || 'phone' : '', logged_in: !!s.profile, profile: s.profile || null, phase: s.profile ? 'logged_in' : this.scan && this.scan.snapshot() && ['preparing', 'pending', 'scanned', 'processing'].indexOf(this.scan.snapshot().state) >= 0 ? 'qr' : l && l.mfa ? 'mfa' : l ? 'code' : 'phone', phone: l ? mask(l.phone) : '', country_code: l ? splitPhone(l.phone).code : '', retry_after: l && l.retry_after > Date.now() ? Math.ceil((l.retry_after - Date.now()) / 1000) : 0, sms_state: l && l.sms_state || '', sms_number: l && l.mfa && l.mfa.channel_mobile || '', sms_content: l && l.mfa && l.mfa.sms_content || '', mfa_expires_at: l && l.mfa_expires || 0, error: l && l.error || '', app_code_available: !!(l && l.app_code_available), sync: { state: !s.profile ? 'signed_out' : this.syncing ? 'syncing' : this.syncError ? 'error' : pending ? 'pending' : 'idle', pending: pending, last_sync: local && local.cloud && local.cloud.last_sync || 0, error: this.syncError || local && local.cloud && local.cloud.sync_error || '' }, guest_history: { total: Object.keys(latest).length, available: available }, capabilities: ['browse', 'search', 'play', 'local-library', 'account-login', 'account-mfa', 'follow', 'reservations', 'notifications', 'player-actions', 'cloud-library'] }; };
+  Account.prototype.sendCode = function (country, local) {
+    var self = this, phone = canonical(country, local);
+    self.checkLogin(self.generation); self.invalidateLogin();
+    var generation = self.generation, client = self.client;
+    var login = { phone: phone, sms_state: 'uncertain', app_code_available: true, retry_after: 0 }; self.login = login;
+    return client.loginRequest('/passport/mobile/send_code/v1/', phone, Object.assign(passportForm(phone), { auto_read: '0', unbind_exist: '34', type: xorHex('24') })).then(function (p) {
+      self.checkLogin(generation);
+      if (!success(p)) throw fail(safeDescription(p), 400, 'ACCOUNT_SEND_CODE');
+      login.sms_state = 'sent'; login.app_code_available = false; login.retry_after = Date.now() + Math.max(60000, Number(dataOf(p).retry_time || 0) * 1000); self.save(); return self.status();
+    }).catch(function (e) {
+      self.checkLogin(generation); login.sms_state = 'rejected'; login.error = e.message; login.app_code_available = true; self.save(); throw e;
+    });
+  };
+  Account.prototype.loginSMS = function (country, local, code) {
+    var self = this, phone = canonical(country, local);
+    if (!/^\d{4,8}$/.test(str(code))) return Promise.reject(fail('请输入手机号和验证码', 400, 'ACCOUNT_CODE'));
+    self.checkLogin(self.generation);
+    if (!self.login || self.login.phone !== phone) self.invalidateLogin();
+    self.scan.cancel(); var generation = self.generation, client = self.client;
+    var login = self.login || { phone: phone }; self.login = login; login.code = str(code);
+    return client.loginRequest('/passport/mobile/sms_login/', phone, Object.assign(passportForm(phone), { code: xorHex(code) })).then(function (p) {
+      self.checkLogin(generation);
+      if (success(p)) return self.finishLogin(p, phone);
+      var d = dataOf(p), ways = d.verify_ways || [], mfa = null;
+      for (var i = 0; i < ways.length; i++) if (ways[i].verify_way === 'upsms' || ways[i].sms_content) { mfa = ways[i]; break; }
+      if (mfa && d.encrypt_uid && d.sms_code_key) {
+        login.mfa = { encrypt_uid: str(d.encrypt_uid), sms_code_key: str(d.sms_code_key), channel_mobile: str(mfa.channel_mobile), sms_content: str(mfa.sms_content), passport_scene: str(d.passport_scene), log_id: str(d.event_params && d.event_params.log_id) };
+        login.mfa_expires = Date.now() + 600000; self.save(); return self.status();
+      }
+      throw fail(safeDescription(p), 400, 'ACCOUNT_LOGIN');
+    });
+  };
+  Account.prototype.verify = function () {
+    var self = this, login = self.login, generation = self.generation, client = self.client;
+    if (!login || !login.mfa || Date.now() > login.mfa_expires) return Promise.reject(fail('当前短信验证不存在或已结束，请重新获取验证码', 400, 'ACCOUNT_MFA'));
+    var m = login.mfa, body = { passport_mfa_retry_tag: '1', sms_code_key: m.sms_code_key };
+    var form = { encrypt_uid: m.encrypt_uid, verify_ticket: '', verify_scene: 'sms_login', verify_reason: 'ato', copywriting_key: 'sms_login', ies_safety_diversion_tag: 'mfa', new_verify_flow: '', new_authn_sdk_version: '1.1.31', new_authn_sdk_verify_reason: 'ato', new_authn_sdk_verify_scene: 'sms_login', request_tag_from: 'h5', biz_params: JSON.stringify(body), new_authn_sdk_log_id: m.log_id || '' };
+    return client.loginRequest('/passport/upsms/verify/', login.phone, form).then(function (p) {
+      self.checkLogin(generation);
+      var ticket = str(dataOf(p).ticket || dataOf(p).verify_ticket);
+      if (!success(p) && errorCode(p) !== '1045') throw fail(safeDescription(p), 400, 'ACCOUNT_MFA');
+      return client.loginRequest('/passport/mobile/sms_login/', login.phone, Object.assign(passportForm(login.phone), { code: xorHex(login.code), passport_mfa_retry_tag: '1', sms_code_key: xorHex(m.sms_code_key), verify_ticket: ticket })).then(function (result) {
+        self.checkLogin(generation); if (!success(result)) throw fail(safeDescription(result), 400, 'ACCOUNT_MFA'); return self.finishLogin(result, login.phone);
+      });
+    });
+  };
+  Account.prototype.finishLogin = function (p, phone) {
+    var d = dataOf(p), uid = str(d.user_id_str || d.user_id), numeric = str(d.user_id);
+    if (!validID(uid) || uid === '0' || numeric && (!validID(numeric) || numeric !== uid)) throw fail('登录响应缺少有效账号身份', 400, 'ACCOUNT_LOGIN');
+    if (!this.state.session.token && !this.state.session.cookies.sessionid && !this.state.session.cookies.sessionid_ss) throw fail('登录响应缺少会话凭证', 400, 'ACCOUNT_LOGIN');
+    this.commitLogin(this.state.session, { uid: uid, name: str(d.screen_name || d.name || '红果用户'), avatar: str(d.avatar_url || ''), phone: mask(phone) }, 'phone');
+    return this.status();
+  };
+  Account.prototype.cancel = function () { this.invalidateLogin(); this.save(); return this.status(); };
+  Account.prototype.logout = function () {
+    this.invalidateLogin(); var keep = this.state.session;
+    var next = { version: 1, session: { device_id: keep.device_id, install_id: keep.install_id, device: keep.device, cookies: {}, registered: keep.registered } };
+    this.writeState(next); this.state = next; this.attachClient(); this.syncing = false; this.syncError = ''; return this.status();
+  };
   Account.prototype.authed = function () { if (!this.state.profile) throw fail('请先登录', 401, 'ACCOUNT_REQUIRED'); return this.client; };
-  Account.prototype.call = function (pathname, method, query, body) { return this.authed().request(pathname, method, query, body, false).then(function (p) { var code = str(p && p.code), nested = errorCode(p); if (code !== '0' || nested && nested !== '0') throw fail(safeDescription(p), 502, 'ACCOUNT_UPSTREAM'); return p; }); };
+  Account.prototype.call = function (pathname, method, query, body) { var self = this, client = this.authed(); return client.request(pathname, method, query, body, false).then(function (p) { if (self.client !== client) throw fail('账号已切换，请重新打开页面', 409, 'ACCOUNT_CHANGED'); var code = str(p && p.code), nested = errorCode(p); if (code !== '0' || nested && nested !== '0') throw fail(safeDescription(p), 502, 'ACCOUNT_UPSTREAM'); return p; }); };
   Account.prototype.recommend = function (query) {
     query = query || {};
     var tab = str(query.channel || '45');
@@ -369,7 +476,7 @@
     if (!this.state.profile) return Promise.reject(fail('请先登录', 401, 'ACCOUNT_REQUIRED'));
     if (this.syncPromise) return this.syncPromise;
     this.syncing = true; this.syncError = '';
-    var uid = this.state.profile.uid, likeRevision = this.libraryRevision, remote = {}, offset = 0, historyPages = 0;
+    var uid = this.state.profile.uid, generation = this.generation, likeRevision = this.libraryRevision, remote = {}, offset = 0, historyPages = 0;
     function historyPage() {
       if (historyPages++ >= 200) return Promise.reject(fail('云端历史分页未完成', 502, 'ACCOUNT_SYNC'));
       return self.call('/reading/bookapi/read_history/list/v', 'GET', { limit: '0', offset: String(offset), book_type: '2', full_field: 'false', query_soft_deleted: 'false', last_min_read_timestamp_ms: '0', is_first_load: offset === 0 ? 'true' : 'false' }, null).then(function (p) {
@@ -423,7 +530,7 @@
       return page();
     }
     function mergeRemote() {
-      if (!self.state.profile || self.state.profile.uid !== uid) throw fail('账号已切换，请重新打开页面', 409, 'ACCOUNT_CHANGED');
+      if (self.generation !== generation || !self.state.profile || self.state.profile.uid !== uid) throw fail('账号已切换，请重新打开页面', 409, 'ACCOUNT_CHANGED');
       var current = self.library(), pending = current.cloud.pending || [], hidden = current.cloud.hidden || {};
       Object.keys(remote).forEach(function (id) {
         if (hidden['history:' + id] || hidden['favorites:' + id] || hidden['likes:' + id]) return;
@@ -447,8 +554,8 @@
     }
     var task = historyPage().then(pullFavorites).then(pullLikes).then(mergeRemote).then(flush).then(function () {
       var current = self.library(); current.cloud.last_sync = Date.now(); current.cloud.sync_error = ''; self.saveLibrary(current); self.syncError = ''; return self.status();
-    }).catch(function (error) { try { var current = self.library(); current.cloud.sync_error = error.message; self.saveLibrary(current); } catch (ignored) {} self.syncError = error.message; throw error; });
-    this.syncPromise = task.then(function () { self.syncing = false; self.syncPromise = null; return self.status(); }, function (error) { self.syncing = false; self.syncPromise = null; throw error; });
+    }).catch(function (error) { if (self.generation === generation) { try { var current = self.library(); current.cloud.sync_error = error.message; self.saveLibrary(current); } catch (ignored) {} self.syncError = error.message; } throw error; });
+    this.syncPromise = task.then(function () { if (self.generation === generation) { self.syncing = false; self.syncPromise = null; } return self.status(); }, function (error) { if (self.generation === generation) { self.syncing = false; self.syncPromise = null; } throw error; });
     return this.syncPromise;
   };
   Account.prototype.importHistory = function (body) {

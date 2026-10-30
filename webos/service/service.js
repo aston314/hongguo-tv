@@ -270,6 +270,16 @@
         return data(req, res, provider.mediaDiagnostics(String(q.media || '')));
       }
       if (pathName === '/api/v1/account' || pathName.indexOf('/api/v1/account/') === 0) {
+        if (pathName.indexOf('/api/v1/account/qr/') === 0) {
+          if (pathName === '/api/v1/account/qr/status' && req.method === 'GET') return data(req, res, account.qrStatus(String(q.id || '')));
+          if (req.method !== 'POST') return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
+          return bodyJSON(req, 2048).then(function (body) {
+            if (!body || Array.isArray(body) || Object.keys(body).some(function (key) { return key !== 'id'; })) { var invalid = new Error('扫码请求无效'); invalid.status = 400; throw invalid; }
+            if (pathName === '/api/v1/account/qr/start') return account.startQR();
+            if (pathName === '/api/v1/account/qr/cancel') return account.cancelQR(String(body.id || ''));
+            var missingQR = new Error('扫码操作不存在'); missingQR.status = 404; throw missingQR;
+          }).then(function (result) { data(req, res, result); }, function (error) { accountFailure(req, res, error); });
+        }
         if (req.method === 'GET' || req.method === 'HEAD') return data(req, res, account.status());
         if (req.method !== 'POST') return failure(req, res, new Error('method not allowed'));
         var accountAction = pathName.slice('/api/v1/account/'.length);
@@ -413,6 +423,7 @@
     }
 
     function stopServer() {
+      if (account.close) account.close();
       if (provider.closeCache) provider.closeCache();
       if (!server || !server.listening) { server = null; return Promise.resolve(); }
       var previous = server;
