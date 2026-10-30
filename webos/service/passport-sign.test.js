@@ -19,3 +19,11 @@ vector.aes_v3.forEach(function (expected, index) {
   assert.strictEqual(sign.aesV3(data, vector.ts + index).toString('hex'), expected);
 });
 console.log('webOS Passport signature vectors: PASS');
+
+// Match the Go client: an absent request body must omit the checksum header.
+// Sending X-SS-STUB: "" makes the reservation endpoint return HTTP 200 empty.
+var empty = sign.sign({ aid: '8662' }, Buffer.alloc(0), vector.ts * 1000, '7000000000000000001');
+assert.strictEqual(Object.prototype.hasOwnProperty.call(empty.headers, 'X-SS-STUB'), false);
+var posted = sign.sign({ aid: '8662' }, body, vector.ts * 1000, '7000000000000000001');
+assert.strictEqual(posted.headers['X-SS-STUB'], require('crypto').createHash('md5').update(body).digest('hex').toUpperCase());
+console.log('webOS empty-body signature headers match Go: PASS');
