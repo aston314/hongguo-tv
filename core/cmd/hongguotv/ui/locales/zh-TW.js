@@ -259,7 +259,7 @@
   "settings.checkUpdates": "檢查更新",
   "settings.episodePrefetch": "下一集預取方式",
   "settings.episodePrefetchDescription": "選擇切集前的準備方式。邊播邊下佔用較少；整集預下載切集更快，但會增加網路、儲存與處理器負擔。",
-  "settings.episodePrefetchRange": "邊播邊下（推薦）",
+  "settings.episodePrefetchRange": "邊播邊下",
   "settings.episodePrefetchFull": "整集預下載",
   "settings.episodePrefetchCurrentRange": "目前：邊播邊下",
   "settings.episodePrefetchCurrentFull": "目前：整集預下載",

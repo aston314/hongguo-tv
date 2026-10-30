@@ -259,7 +259,7 @@
   "settings.checkUpdates": "更新を確認",
   "settings.episodePrefetch": "次の話の先読み方法",
   "settings.episodePrefetchDescription": "話を切り替える前の準備方法を選びます。再生しながらの読み込みは負荷が少なく、話全体の先行ダウンロードは切り替えが速くなりますが、通信・ストレージ・処理負荷が増えます。",
-  "settings.episodePrefetchRange": "再生しながら読み込む（おすすめ）",
+  "settings.episodePrefetchRange": "再生しながら読み込む",
   "settings.episodePrefetchFull": "話全体を先にダウンロード",
   "settings.episodePrefetchCurrentRange": "現在：再生しながら読み込み",
   "settings.episodePrefetchCurrentFull": "現在：話全体を先にダウンロード",

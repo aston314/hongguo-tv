@@ -6,13 +6,13 @@
   }
 
   function normalize(value) {
-    return value === 'full' ? 'full' : 'range';
+    return value === 'range' ? 'range' : 'full';
   }
 
   function create(options) {
     options = options || {};
     var platform = options.platform || 'preview';
-    var mode = 'range';
+    var mode = supports(platform) ? 'full' : 'range';
     var message = '';
 
     function read() {
