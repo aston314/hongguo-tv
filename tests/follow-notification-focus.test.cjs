@@ -53,7 +53,7 @@ function fixture(count = 3) {
     supportModalOpen: false, confirmOpen: false, playbackCommandMenuOpen: false, rankFilterOpen: false,
     actorWorksOpen: false, playerOptionsOpen: false, detailModalOpen: false, discussionOpen: false,
     followNotificationViewOpen: false, followView: 'follow', followNotificationReturnFocus: null,
-    followActions: actions, followListView: list, followNotificationView: view,
+    followPage: root, followActions: actions, followListView: list, followNotificationView: view,
     followNotificationList: { scrollTop: 100, getBoundingClientRect: () => ({ top: 200, bottom: 600 }) },
     followPager: {}, reservationMode: 'online',
     document: { activeElement: open, contains: n => nodes.includes(n), getElementById: id => nodes.find(n => n.id === id) },
@@ -78,6 +78,7 @@ test('follow header controls use their own navigation even with shared library t
 test('opening reminders connects follow tabs, reminder header and first row in both directions', () => {
   const f = fixture();
   f.c.openFollowNotifications();
+  assert.equal(f.c.followPage.classList.contains('has-notifications'), true);
   assert.equal(f.c.document.activeElement, f.plays[0]);
   assert.equal(f.c.moveFrom(f.plays[0], 'up'), f.back);
   assert.equal(f.c.moveFrom(f.back, 'up'), f.follow);
@@ -116,6 +117,7 @@ test('empty reminders keep both header actions reachable without jumping to hidd
 
 test('closing reminders restores the follow toolbar and leaves reservation navigation intact', () => {
   const f = fixture(); f.c.openFollowNotifications(); f.c.closeFollowNotifications();
+  assert.equal(f.c.followPage.classList.contains('has-notifications'), false);
   assert.equal(f.c.document.activeElement, f.open);
   assert.equal(f.c.moveFrom(f.follow, 'down'), f.open);
   assert.equal(f.c.moveFrom(f.open, 'up'), f.follow);

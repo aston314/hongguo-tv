@@ -957,6 +957,12 @@ html.native-playback .hero-video { display: none !important; }
 .follow-card-status { margin-top: 7px; color: #f58ca2; font-size: 13px; }
 .follow-card.is-focused, .follow-card:focus:not(.pointer-focus-muted) { outline: none; box-shadow: 0 0 0 3px #fff; transform: translateY(-3px); }
 .follow-notification-view { min-height: 0; }
+/* Keep the tabs/header visible; the reminder list owns its vertical scrolling. */
+.follow-page.has-notifications { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 16px; }
+.follow-page.has-notifications > .follow-heading { flex: 0 0 auto; }
+.follow-page.has-notifications .follow-notification-view { display: flex; flex: 1 1 auto; flex-direction: column; }
+.follow-page.has-notifications .follow-notification-heading, .follow-page.has-notifications .follow-notification-copy { flex: 0 0 auto; }
+.follow-page.has-notifications .follow-notification-list { flex: 1 1 auto; min-height: 0; max-height: none; }
 .follow-notification-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
 .follow-notification-heading > div { display: flex; align-items: center; gap: 14px; }
 .follow-notification-heading strong { color: #fff; font-size: 22px; }

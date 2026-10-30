@@ -2409,6 +2409,7 @@
   function openFollowNotifications() {
     followNotificationReturnFocus = document.activeElement;
     followNotificationViewOpen = true;
+    followPage.classList.add('has-notifications');
     if (followActions) followActions.classList.add('is-hidden');
     followListView.classList.add('is-hidden'); followNotificationView.classList.remove('is-hidden');
     renderFollowNotifications();
@@ -2417,6 +2418,7 @@
   }
   function closeFollowNotifications() {
     followNotificationViewOpen = false; followNotificationView.classList.add('is-hidden'); followListView.classList.remove('is-hidden'); if (followActions) followActions.classList.remove('is-hidden');
+    followPage.classList.remove('has-notifications');
     var target = followNotificationReturnFocus; followNotificationReturnFocus = null;
     goFocus(target && document.contains(target) && !target.disabled ? target : document.getElementById('follow-notifications-open'));
   }
@@ -6751,6 +6753,7 @@
       tab.setAttribute('aria-selected', String(selected));
     });
     var showNotifications = !reservations && followNotificationViewOpen;
+    followPage.classList.toggle('has-notifications', showNotifications);
     followListView.classList.toggle('is-hidden', reservations || showNotifications);
     followNotificationView.classList.toggle('is-hidden', !showNotifications);
     if (followActions) followActions.classList.toggle('is-hidden', reservations || showNotifications);
