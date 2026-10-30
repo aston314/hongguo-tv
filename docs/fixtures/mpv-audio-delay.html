@@ -5,7 +5,7 @@ button{font:inherit;border:3px solid transparent;border-radius:7px;padding:8px 1
 button:focus{outline:none;border-color:#fff}button.selected{background:#93354b}
 #actual,#status{margin-top:8px;font-size:18px}#status{color:#ddd}
 </style></head><body><div id="panel"><div>音画同步对照 · 原始 44.1 kHz → 实时 48 kHz · 1 倍速</div>
-<div><button id="delay0" onclick="chooseDelay(0)">0 · 不补偿</button><button id="delay50" onclick="chooseDelay(-50)">-0.05 · 视频晚 50 毫秒</button><button id="delay100" onclick="chooseDelay(-100)">-0.10 · 视频晚 100 毫秒</button></div>
+<div><button id="delay0" onclick="chooseDelay(0)">0 · 不补偿</button><button id="delay50" onclick="chooseDelay(-50)">-0.05 · 修正声音滞后 50 毫秒</button><button id="delay100" onclick="chooseDelay(-100)">-0.10 · 修正声音滞后 100 毫秒</button></div>
 <div><button id="replay" onclick="startTest(0,8,false)">重播同一段对白</button><button id="back" onclick="goBack()">返回红果（恢复 0）</button></div>
 <div id="actual">准备中</div><div id="status">左右选择，确认后立即应用；重播按钮始终从同一位置开始。</div></div><script>
 var progress={position:0},events=[],testId='',requestedDelay=0,focusIndex=0;
