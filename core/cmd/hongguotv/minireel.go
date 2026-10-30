@@ -911,8 +911,11 @@ func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoi
 		meta, _ := row["video_meta"].(map[string]any)
 		encryption, _ := row["encrypt_info"].(map[string]any)
 		codec := firstNonEmpty(miniReelToString(row["codec_type"]), miniReelToString(meta["codec_type"]))
-		if (codecMode == "default" && strings.EqualFold(codec, "bytevc2")) ||
-			(codecMode == "software" && (strings.EqualFold(codec, "bytevc1") || strings.EqualFold(codec, "bytevc2"))) {
+		// auto-safe chooses a decoder; it does not establish bytevc2 support.
+		// Preserve the legacy exclusion for every path. Some bytevc2 files use
+		// an hvc1 sample entry with bv2C data, which can stall vendor HEVC decoders.
+		if strings.EqualFold(codec, "bytevc2") ||
+			(codecMode == "software" && strings.EqualFold(codec, "bytevc1")) {
 			continue
 		}
 		rawURL := firstNonEmpty(miniReelToString(row["main_url"]), miniReelToString(row["backup_url"]))

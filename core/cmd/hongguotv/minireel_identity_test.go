@@ -238,8 +238,13 @@ func TestMiniReelCodecModeFiltersOnlyIncompatibleSources(t *testing.T) {
 		t.Fatalf("software candidates = %#v, %v; want h264 only", software, err)
 	}
 	auto, err := parse("auto")
-	if err != nil || len(auto) != 3 {
-		t.Fatalf("auto candidates = %#v, %v; want all hardware candidates", auto, err)
+	if err != nil || len(auto) != 2 {
+		t.Fatalf("auto candidates = %#v, %v; want h264 and bytevc1, with legacy bytevc2 filtering", auto, err)
+	}
+	for _, option := range auto {
+		if option.Codec != "h264" && option.Codec != "bytevc1" {
+			t.Fatalf("automatic decoder selection must not admit an unverified codec: %#v", option)
+		}
 	}
 	if err := miniReelNoCompatibleOptionsError("software"); err == nil || !strings.Contains(err.Error(), "没有适合软件解码") {
 		t.Fatalf("software no-source error = %v", err)
