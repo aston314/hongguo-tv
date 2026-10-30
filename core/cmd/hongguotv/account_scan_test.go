@@ -109,7 +109,11 @@ func TestQRLoginPersistsVerifiedAccountAndUsesExistingFavoriteWrite(t *testing.T
 			if r.URL.Query().Get("token") != "fixture-private-qr-token" {
 				t.Error("QR token lost")
 			}
-			if polls.Add(1) == 1 {
+			switch polls.Add(1) {
+			case 1:
+				ioJSON(w, `{"message":"success","data":{"status":"new"}}`)
+				return
+			case 2:
 				ioJSON(w, `{"message":"success","data":{"status":2}}`)
 				return
 			}

@@ -258,7 +258,7 @@ func (m *accountManager) runQR(ctx context.Context, a *qrLoginAttempt) {
 			return
 		}
 		switch asString(data["status"]) {
-		case "1", "pending", "":
+		case "1", "new", "pending", "":
 		case "2", "scanned":
 			m.updateQR(a, func(s *qrLoginStatus) { s.State = "scanned" })
 		case "4", "cancelled":
