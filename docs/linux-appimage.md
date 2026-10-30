@@ -30,3 +30,11 @@ GitHub Actions 从统一 `vX.Y.Z` tag 在 Debian 12 内编译 AppImage，再由 
 CI 中的候选包 artifact 仅用于两个测试任务间传递，保留 1 天，不是公开下载渠道。验证成功后以 `linux-vX.Y.Z-test.1` 预发行版发布；Android、macOS、Windows 和 webOS 仍从同一源码 `vX.Y.Z` 发布。
 
 容器验证使用 Xvfb 和软件解码，不能证明实体显卡、Wayland、扬声器、1080p 或其他发行版的表现。容器的 namespace 配置仅用于允许 WebKit 正常创建沙箱子进程，不是关闭 WebKit 沙箱。
+
+### 固定打包工具
+
+AppImage 打包使用官方 `appimagetool 1.9.1`，SHA256 为 `ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0`。下载来自版本化 Release，不再跟随会变化的 `continuous` 标签。
+
+Type-2 runtime 保留原来的字节和校验值 `617aa77314d57c8b8e4fae9c3f0b35af7b30d5529cb69e98f64f92510ed98a46`，改用官方 Release asset ID `657374641` 下载。两项均在执行前验证 SHA256；上游删除或替换时构建失败，不绕过检查。
+
+0.2.133 的其他平台已从统一标签发布后，上游 continuous 工具漂移导致 Linux 构建被校验拦截。因此 Linux 从只补充上述打包修复的最新 main 手动重跑，应用代码与 `v0.2.133` 一致；实际 main 提交仍写入包元数据和核心版本，Ubuntu/Debian 继续验证同一个待发布文件。

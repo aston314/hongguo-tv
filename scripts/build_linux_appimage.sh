@@ -30,9 +30,11 @@ Categories=AudioVideo;Video;
 StartupWMClass=hongguo-tv
 EOF
 install -m 644 "$repo_dir/docs/linux-appimage.md" "$app_dir/README.md"
-curl --fail --location --retry 3 'https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage' -o "$build_dir/appimagetool.AppImage"
-curl --fail --location --retry 3 'https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-x86_64' -o "$build_dir/runtime-x86_64"
-printf '%s  %s\n' '95cbe7cce9717fce90c484e34052ee7c7f1d7635b33c12525b4776826a7d29b6' "$build_dir/appimagetool.AppImage" | sha256sum --check
+# Use a versioned tool release and an immutable asset ID for the existing runtime.
+# Moving continuous tags must never silently replace checksum-pinned build inputs.
+curl --fail --location --retry 3 'https://github.com/AppImage/appimagetool/releases/download/1.9.1/appimagetool-x86_64.AppImage' -o "$build_dir/appimagetool.AppImage"
+curl --fail --location --retry 3 --header 'Accept: application/octet-stream' 'https://api.github.com/repos/AppImage/type2-runtime/releases/assets/657374641' -o "$build_dir/runtime-x86_64"
+printf '%s  %s\n' 'ed4ce84f0d9caff66f50bcca6ff6f35aae54ce8135408b3fa33abfc3cb384eb0' "$build_dir/appimagetool.AppImage" | sha256sum --check
 printf '%s  %s\n' '617aa77314d57c8b8e4fae9c3f0b35af7b30d5529cb69e98f64f92510ed98a46' "$build_dir/runtime-x86_64" | sha256sum --check
 chmod +x "$build_dir/appimagetool.AppImage"
 cd "$build_dir"
