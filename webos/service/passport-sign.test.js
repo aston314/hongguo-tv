@@ -13,6 +13,7 @@ assert.strictEqual(sign.passportF13(branch.iv, vector.ts, branch.q, branch.m).to
 assert.strictEqual(sign.passportProto(vector.query, vector.ts, 0x12345678, '7000000000000000001', branch.q, branch.m, Buffer.from(vector.f13, 'hex')).toString('hex'), vector.proto);
 assert.strictEqual(sign.helios(vector.ts, 0x12345678), vector.helios);
 assert.strictEqual(sign.gorgon(vector.query, body, vector.ts, 0x4567), vector.gorgon);
+assert.strictEqual(sign.medusa(vector.query, vector.ts, 0x12345678, 0x87654321, 0x33445566, '7000000000000000001', branch.iv, branch.q, branch.m).toString('base64'), vector.medusa);
 vector.aes_v3.forEach(function (expected, index) {
   var data = Buffer.alloc(256);
   for (var i = 0; i < data.length; i++) data[i] = i;
