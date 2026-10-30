@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the two signed device-test APKs without changing public update metadata."""
+"""Validate the signed device-test APK without changing public update metadata."""
 import argparse
 import hashlib
 import json
@@ -14,14 +14,14 @@ def validate(directory, version, code, commit):
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("Expected a complete source commit")
     backend = "audiotrack,opensles"
-    variants = (("audiotrack-auto", "auto"),
-                ("audiotrack-48000", "48000"))
-    results, payloads = [], []
+    variants = (("delay-controls", "48000"),)
+    results = []
     for name, sample_rate in variants:
         apk = directory / f"hongguo-tv-mpv-audio-{name}.apk"
         result = verify(apk, "mpv", version, code)
         result.update(file=apk.name, audio_output_requested=backend,
                       audio_samplerate_requested=sample_rate,
+                      audio_delay_test_enabled=True, audio_delay_choices_ms=[0, -50, -100],
                       sha256=hashlib.sha256(apk.read_bytes()).hexdigest())
         with zipfile.ZipFile(apk) as archive:
             if archive.testzip() is not None:
@@ -32,23 +32,17 @@ def validate(directory, version, code, commit):
                 raise ValueError(f"Expected backend constant missing: {name}")
             if not any(sample_rate.encode() in archive.read(entry) for entry in dex):
                 raise ValueError(f"Expected sample rate constant missing: {name}")
-            # Byte-for-byte checks cover core executables, pinned libraries, UI,
-            # resources and manifest. Only compiled Java and signing entries may differ.
+            for marker in (b"setAudioDelayForTest", b"audio_delay_test_enabled", b"audio_delay_ms"):
+                if not any(marker in archive.read(entry) for entry in dex):
+                    raise ValueError(f"Expected delay test control missing: {marker!r}")
+            # Record the exact native/core payload delivered to this device.
             payload = {entry: hashlib.sha256(archive.read(entry)).hexdigest()
                        for entry in entries
                        if entry not in dex and not entry.startswith("META-INF/")}
-            payloads.append(payload)
             result["native_sha256"] = {entry: digest for entry, digest in payload.items()
                                        if entry.startswith("lib/")}
         results.append(result)
-    if results[0]["signers"] != results[1]["signers"]:
-        raise ValueError("The comparison APK signing certificates differ")
-    if payloads[0] != payloads[1]:
-        changed = sorted(key for key in payloads[0].keys() | payloads[1].keys()
-                         if payloads[0].get(key) != payloads[1].get(key))
-        raise ValueError(f"Non-Java comparison payload changed: {changed}")
-    return {"commit": commit, "public_release": False,
-            "identical_non_java_payload": True, "packages": results}
+    return {"commit": commit, "public_release": False, "packages": results}
 
 
 if __name__ == "__main__":

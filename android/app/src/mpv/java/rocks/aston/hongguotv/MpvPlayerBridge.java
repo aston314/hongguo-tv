@@ -41,6 +41,8 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     private boolean destroyed, background, surfaceReady;
     private long surfaceEpoch, stopSurfaceEpoch = -1;
     private double volume = 1, speed = 1;
+    // In-memory device comparison only; never saved as a user preference.
+    private int audioDelayTestMs;
     private boolean muted = true;
     private float left, top, width, height;
     private volatile String diagnostic = "{\"engine\":\"mpv\"}";
@@ -94,6 +96,21 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     @JavascriptInterface public String diagnostics() { return diagnostic; }
     @JavascriptInterface public String decoderMode() { return MpvDecodeMode.stored(preferences.getString("mpv_decode_mode", null)).id; }
     @JavascriptInterface public boolean safeStart() { return false; }
+    @JavascriptInterface public void setAudioDelayForTest(int milliseconds) {
+        if (!BuildConfig.MPV_AUDIO_DELAY_TEST
+                || (milliseconds != 0 && milliseconds != -50 && milliseconds != -100)) return;
+        handler.post(() -> {
+            if (destroyed) return;
+            try {
+                if (player != null) player.setPropertyDouble("audio-delay", milliseconds / 1000.0);
+                audioDelayTestMs = milliseconds;
+                Session active = session;
+                if (active != null) updateDiagnostic(active, null);
+            } catch (LinkageError | RuntimeException ignored) {
+                // A test control failure must not terminate the playing source.
+            }
+        });
+    }
     @JavascriptInterface public void setDecoderMode(String value) {
         MpvDecodeMode mode = MpvDecodeMode.requested(value);
         if (mode != null) {
@@ -292,6 +309,9 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             // Device comparison only: ordinary builds leave MPV's rate selection intact.
             if (!"auto".equals(BuildConfig.MPV_AUDIO_SAMPLE_RATE)) {
                 option(active, "audio-samplerate", BuildConfig.MPV_AUDIO_SAMPLE_RATE);
+            }
+            if (BuildConfig.MPV_AUDIO_DELAY_TEST) {
+                option(active, "audio-delay", Double.toString(audioDelayTestMs / 1000.0));
             }
             option(active, "keep-open", "yes"); option(active, "idle", "yes");
             option(active, "force-window", "no"); option(active, "osd-level", "0");
@@ -610,6 +630,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                     fields.put("demuxer_cache_duration", cacheDuration);
                 fields.put("audio_output_requested", BuildConfig.MPV_AUDIO_OUTPUT)
                     .put("audio_samplerate_requested", BuildConfig.MPV_AUDIO_SAMPLE_RATE)
+                    .put("audio_delay_test_enabled", BuildConfig.MPV_AUDIO_DELAY_TEST)
                     .put("audio_output", property(player, "current-ao"))
                     .put("audio_codec", property(player, "audio-codec"))
                     .put("audio_format", property(player, "audio-out-params/format"));
@@ -617,6 +638,11 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 Integer channels = player.getPropertyInt("audio-out-params/channel-count");
                 if (rate != null) fields.put("audio_rate", rate);
                 if (channels != null) fields.put("audio_channels", channels);
+                if (BuildConfig.MPV_AUDIO_DELAY_TEST) {
+                    fields.put("audio_delay_requested_ms", audioDelayTestMs);
+                    Double delay = player.getPropertyDouble("audio-delay");
+                    if (delay != null && finite(delay)) fields.put("audio_delay_ms", Math.round(delay * 1000));
+                }
                 Boolean actualMute = player.getPropertyBoolean("mute"), actualPause = player.getPropertyBoolean("pause");
                 Double actualVolume = player.getPropertyDouble("volume");
                 if (actualMute != null) fields.put("actual_mute", actualMute);

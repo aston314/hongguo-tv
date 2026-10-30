@@ -14,6 +14,10 @@ def mpvAudioSampleRate = System.getenv("HONGGUO_MPV_AUDIO_SAMPLE_RATE") ?: "auto
 if (!(mpvAudioSampleRate in ["auto", "48000"])) {
     throw new GradleException("Unsupported MPV audio sample rate test configuration")
 }
+def mpvAudioDelayTest = System.getenv("HONGGUO_MPV_AUDIO_DELAY_TEST") ?: "false"
+if (!(mpvAudioDelayTest in ["false", "true"])) {
+    throw new GradleException("Unsupported MPV audio delay test configuration")
+}
 def signingVariables = ["ANDROID_KEYSTORE_FILE", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"]
 def releaseSigningReady = signingVariables.every { System.getenv(it) }
 
@@ -52,6 +56,7 @@ android {
             buildConfigField "String", "PLAYER_ENGINE", '"mpv"'
             buildConfigField "String", "MPV_AUDIO_OUTPUT", "\"${mpvAudioOutput}\""
             buildConfigField "String", "MPV_AUDIO_SAMPLE_RATE", "\"${mpvAudioSampleRate}\""
+            buildConfigField "boolean", "MPV_AUDIO_DELAY_TEST", mpvAudioDelayTest
         }
     }
 

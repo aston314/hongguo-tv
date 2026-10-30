@@ -1,4 +1,4 @@
-name: Private MPV realtime sample rate A-B
+name: Private MPV interactive audio delay test
 
 on:
   push:
@@ -70,18 +70,16 @@ jobs:
         run: |
           printf '%s' "$KEYSTORE" | base64 --decode > "$RUNNER_TEMP/mpv-audio-ab.keystore"
           chmod 600 "$RUNNER_TEMP/mpv-audio-ab.keystore"
-      - name: Build signed AudioTrack automatic and realtime 48 kHz comparison
+      - name: Build one signed realtime 48 kHz package with three delay controls
         env:
           ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/mpv-audio-ab.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
-          HONGGUO_MPV_AUDIO_OUTPUT=audiotrack,opensles HONGGUO_MPV_AUDIO_SAMPLE_RATE=auto gradle --no-daemon --max-workers=1 -p android testMpvReleaseUnitTest assembleMpvRelease lintMpvRelease
-          cp android/app/build/outputs/apk/mpv/release/app-mpv-release.apk "$RUNNER_TEMP/mpv-audio-ab/hongguo-tv-mpv-audio-audiotrack-auto.apk"
-          HONGGUO_MPV_AUDIO_OUTPUT=audiotrack,opensles HONGGUO_MPV_AUDIO_SAMPLE_RATE=48000 gradle --no-daemon --max-workers=1 -p android testMpvReleaseUnitTest assembleMpvRelease lintMpvRelease
-          cp android/app/build/outputs/apk/mpv/release/app-mpv-release.apk "$RUNNER_TEMP/mpv-audio-ab/hongguo-tv-mpv-audio-audiotrack-48000.apk"
-      - name: Verify signatures, audio constants and identical media/core payloads
+          HONGGUO_MPV_AUDIO_OUTPUT=audiotrack,opensles HONGGUO_MPV_AUDIO_SAMPLE_RATE=48000 HONGGUO_MPV_AUDIO_DELAY_TEST=true gradle --no-daemon --max-workers=1 -p android testMpvReleaseUnitTest assembleMpvRelease lintMpvRelease
+          cp android/app/build/outputs/apk/mpv/release/app-mpv-release.apk "$RUNNER_TEMP/mpv-audio-ab/hongguo-tv-mpv-audio-delay-controls.apk"
+      - name: Verify signature, identity, audio constants and media/core payloads
         run: |
           python3 scripts/verify_mpv_audio_ab.py --directory "$RUNNER_TEMP/mpv-audio-ab" --version "$APP_VERSION" --code "$MPV_VERSION_CODE" --commit "$GITHUB_SHA"
           cd "$RUNNER_TEMP/mpv-audio-ab"
@@ -97,6 +95,6 @@ jobs:
         run: |
           gh release create "$RUN_TAG" "$RUNNER_TEMP/mpv-audio-ab/"* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft \
-            --title "Private MPV realtime sample rate comparison" \
-            --notes "Temporary maintainer device test. Same source, core, media libraries, package, version, release certificate and AudioTrack backend; only MPV output sample rate differs (automatic / realtime 48000 Hz). No public mirror or update manifests. Delete this private draft after downloading the verified files."
+            --title "Private MPV interactive audio delay test" \
+            --notes "Temporary maintainer device test. One signed package, AudioTrack and realtime 48000 Hz. Test-only runtime control accepts audio-delay 0 / -50 / -100 ms, without reinstalling or modifying saved settings. No public mirror or update manifests. Delete this private draft after downloading the verified files."
           test "$(gh release view "$RUN_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true

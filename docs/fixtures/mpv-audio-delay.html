@@ -1,0 +1,44 @@
+<!doctype html><html><head><meta charset="utf-8"><title>MPV 音画同步对照</title><style>
+html,body{margin:0;background:transparent;color:#fff;font-family:sans-serif}
+#panel{position:absolute;top:14px;left:18px;max-width:94%;padding:12px 16px;background:rgba(0,0,0,.84);border-radius:10px;font-size:20px}
+button{font:inherit;border:3px solid transparent;border-radius:7px;padding:8px 14px;background:#333;color:#fff;margin:10px 10px 0 0}
+button:focus{outline:none;border-color:#fff}button.selected{background:#93354b}
+#actual,#status{margin-top:8px;font-size:18px}#status{color:#ddd}
+</style></head><body><div id="panel"><div>音画同步对照 · 原始 44.1 kHz → 实时 48 kHz · 1 倍速</div>
+<div><button id="delay0" onclick="chooseDelay(0)">0 · 不补偿</button><button id="delay50" onclick="chooseDelay(-50)">-0.05 · 视频晚 50 毫秒</button><button id="delay100" onclick="chooseDelay(-100)">-0.10 · 视频晚 100 毫秒</button></div>
+<div><button id="replay" onclick="startTest(0,8,false)">重播同一段对白</button><button id="back" onclick="goBack()">返回红果（恢复 0）</button></div>
+<div id="actual">准备中</div><div id="status">左右选择，确认后立即应用；重播按钮始终从同一位置开始。</div></div><script>
+var progress={position:0},events=[],testId='',requestedDelay=0,focusIndex=0;
+var returnUrl=decodeURIComponent(location.search.replace(/^\?return=/,''));
+var buttonIds=['delay0','delay50','delay100','replay','back'];
+function focusButton(index){focusIndex=Math.max(0,Math.min(4,index));document.getElementById(buttonIds[focusIndex]).focus()}
+window.HongguoNativePlayback={progress:function(id,p,d){if(id===testId)progress={position:p,duration:d}},event:function(id,name,detail){if(id!==testId)return;events.push({at:Date.now(),id:id,event:name,detail:detail});if(events.length>100)events.shift()}};
+function chooseDelay(ms){
+ if(ms!==0&&ms!==-50&&ms!==-100)return;
+ requestedDelay=ms;
+ try{HongguoNativePlayer.setAudioDelayForTest(ms);document.getElementById('status').textContent='已请求 '+ms+' 毫秒，等待播放器读回实际值。'}catch(e){document.getElementById('status').textContent='当前安装包不支持补偿对照。'}
+}
+function startTest(variant,position,paused){
+ testId='delay-test-'+Date.now();events=[];progress={position:position*1000};
+ HongguoNativePlayer.setAudioDelayForTest(requestedDelay);
+ HongguoNativePlayer.bounds(0,0,1,1);HongguoNativePlayer.setVolume(1,false);
+ HongguoNativePlayer.play(testId,JSON.stringify({source:'http://127.0.0.1:18843/minireel-proxy/media/'+(variant?'111111111111111111111111':'eeeeeeeeeeeeeeeeeeeeeeee')+'.mp4',start_position:position,paused:paused,speed:1}));
+}
+function snapshot(){return {at:Date.now(),source_audio_rate:44100,requested_delay_ms:requestedDelay,progress:progress,diagnostics:JSON.parse(HongguoNativePlayer.diagnostics()),events:events}}
+function goBack(){HongguoNativePlayer.setAudioDelayForTest(0);HongguoNativePlayer.stop();if(/^http:\/\/127\.0\.0\.1:\d+\/$/.test(returnUrl))location.replace(returnUrl)}
+setInterval(function(){try{
+ var d=JSON.parse(HongguoNativePlayer.diagnostics()),actual=d.audio_delay_ms;
+ document.getElementById('actual').textContent='实际：'+(d.audio_output||'准备中')+' · '+(d.audio_rate||'—')+' Hz · 补偿 '+(typeof actual==='number'?actual+' 毫秒':'未读回');
+ for(var i=0;i<3;i++)document.getElementById(buttonIds[i]).className=d.audio_delay_test_enabled&&actual===[0,-50,-100][i]?'selected':'';
+ if(d.audio_delay_test_enabled&&actual===requestedDelay)document.getElementById('status').textContent='已生效：'+actual+' 毫秒。切换选项不中断播放，可重播同一段对白。';
+ else if(!d.audio_delay_test_enabled)document.getElementById('status').textContent='当前安装包未启用补偿对照。';
+}catch(e){}},250);
+for(var i=0;i<buttonIds.length;i++)(function(index){document.getElementById(buttonIds[index]).addEventListener('focus',function(){focusIndex=index})})(i);
+document.addEventListener('keydown',function(e){var k=e.keyCode||e.which;
+ if(k===37||k===39){e.preventDefault();focusButton(focusIndex+(k===37?-1:1))}
+ else if(k===38||k===40){e.preventDefault();focusButton(k===40?(focusIndex<3?3:focusIndex):(focusIndex>=3?0:focusIndex))}
+ else if(k===13||k===23||k===66){e.preventDefault();if(!e.repeat)document.getElementById(buttonIds[focusIndex]).click()}
+ else if(k===27||k===4){e.preventDefault();goBack()}
+});
+focusButton(0);
+</script></body></html>
