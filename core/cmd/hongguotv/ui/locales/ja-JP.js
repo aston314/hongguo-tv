@@ -602,6 +602,7 @@
   "diagnostic.outputUnavailable": "該当する内容はありません",
   "diagnostic.channels": "{count} チャンネル",
   "diagnostic.mpvAudio": "MPV 音声出力",
+  "diagnostic.mpvAudioDelay": "音声オフセット {value} ms",
   "diagnostic.mpvState": "MPV 実際の状態",
   "diagnostic.muted": "ミュート中",
   "diagnostic.unmuted": "ミュート解除済み",

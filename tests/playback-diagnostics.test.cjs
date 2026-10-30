@@ -93,6 +93,17 @@ test('MPV diagnostics retain signed native errors and do not invent output state
   s.native.log='https://media.invalid/a.mp4?key=secret';
   assert.doesNotMatch(JSON.stringify(diagnostics.report(s)),/media\.invalid|secret/);
 });
+test('MPV diagnostics show signed actual audio offset and omit missing or invalid values',()=>{
+  for(const delay of [-100,0,100]){
+    const s=snapshot({native:{engine:'mpv',state:'playing',audio_delay_ms:delay}});
+    const row=diagnostics.report(s).rows.find(row=>row.label==='MPV 音频输出');
+    assert.ok(row.value.includes('音频偏移 '+(delay>0?'+':'')+delay+' ms'));
+  }
+  for(const delay of [undefined,NaN,Infinity,'100']){
+    const s=snapshot({native:{engine:'mpv',state:'playing',audio_delay_ms:delay}});
+    assert.doesNotMatch(diagnostics.report(s).rows.find(row=>row.label==='MPV 音频输出').value,/音频偏移/);
+  }
+});
 test('MPV diagnostics expose file-open and END_FILE stages without source details',()=>{
   const s=snapshot({native:{engine:'mpv',state:'error',open_requested:true,file_loaded:false,end_file_seen:true,end_file_reason:4,end_file_error:-13,error_kind:'media',error_code:-13}});
   const rows=Object.fromEntries(diagnostics.report(s).rows.map(x=>[x.label,x.value]));

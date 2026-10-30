@@ -601,6 +601,7 @@
   "diagnostic.outputUnavailable": "輸出未取得",
   "diagnostic.channels": "{count} 聲道",
   "diagnostic.mpvAudio": "MPV 音頻輸出",
+  "diagnostic.mpvAudioDelay": "音訊偏移 {value} ms",
   "diagnostic.mpvState": "MPV 實際狀態",
   "diagnostic.muted": "已靜音",
   "diagnostic.unmuted": "未靜音",

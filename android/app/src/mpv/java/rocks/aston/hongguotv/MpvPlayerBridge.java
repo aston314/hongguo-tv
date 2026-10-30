@@ -288,7 +288,11 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             option(active, "scale", "bilinear"); option(active, "dscale", "bilinear");
             option(active, "dither", "no"); option(active, "correct-downscaling", "no");
             option(active, "linear-downscaling", "no"); option(active, "sigmoid-upscaling", "no");
-            option(active, "ao", "opensles,audiotrack"); option(active, "audiotrack-pcm-float", "no");
+            // Shared MPV output policy, verified on the Android 6 HDMI path.
+            // Resample before Android output and delay audio by 100 ms.
+            option(active, "ao", "audiotrack,opensles"); option(active, "audiotrack-pcm-float", "no");
+            option(active, "audio-samplerate", "48000");
+            option(active, "audio-delay", "0.10");
             option(active, "keep-open", "yes"); option(active, "idle", "yes");
             option(active, "force-window", "no"); option(active, "osd-level", "0");
             option(active, "input-default-bindings", "no"); option(active, "input-vo-keyboard", "no");
@@ -611,6 +615,8 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 Integer channels = player.getPropertyInt("audio-out-params/channel-count");
                 if (rate != null) fields.put("audio_rate", rate);
                 if (channels != null) fields.put("audio_channels", channels);
+                Double audioDelay = player.getPropertyDouble("audio-delay");
+                if (audioDelay != null && finite(audioDelay)) fields.put("audio_delay_ms", Math.round(audioDelay * 1000));
                 Boolean actualMute = player.getPropertyBoolean("mute"), actualPause = player.getPropertyBoolean("pause");
                 Double actualVolume = player.getPropertyDouble("volume");
                 if (actualMute != null) fields.put("actual_mute", actualMute);
