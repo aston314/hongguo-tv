@@ -49,3 +49,22 @@
 
 校验完成后已删除临时 draft，未修改公开发布、版本号或更新清单。
 对照代码保存在远端测试分支，正式主线默认音频顺序暂不修改。
+
+## 第二轮：原始片源的实时 48 kHz 重采样
+
+用户随后确认 AudioTrack 单独替换仍稍晚于嘴型；同一真人对白视频，保留视频轨、
+仅离线转换音频至 48 kHz 后，用户反馈明显改善。活跃 48 kHz AudioTrack 仍为普通
+Mixer（Flags `0x000`，无 `F` 标记），因此不能将改善解释为已经取得 FAST 通道。
+
+下一轮保持 AudioTrack、解码器、原始 44.1 kHz 片源及其他参数相同，只对照：
+
+- A：`HONGGUO_MPV_AUDIO_SAMPLE_RATE=auto`，不设置 MPV 输出采样率。
+- B：`HONGGUO_MPV_AUDIO_SAMPLE_RATE=48000`，初始化时设置 `audio-samplerate=48000`，
+  由 MPV 实时重采样；不播放离线转码文件来代替此验证。
+
+普通构建仍为 `auto`，不改变正式默认参数。诊断新增 `audio_samplerate_requested`，
+结合实际 `audio_rate` 确认参数生效。两包依然使用同一提交、核心、库、正式签名，
+仅编译 Java 配置不同；签名及非 Java payload 校验继续保留。
+
+这轮用于验证实时处理是否也有改善；离线 48 kHz 的主观效果不等于实时处理已通过。
+只有实机确认后才讨论正式策略，不能据此推广为所有设备应固定 48 kHz。

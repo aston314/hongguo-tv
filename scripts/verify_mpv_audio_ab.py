@@ -13,13 +13,15 @@ from verify_apks import verify
 def validate(directory, version, code, commit):
     if not re.fullmatch(r"[0-9a-f]{40}", commit):
         raise ValueError("Expected a complete source commit")
-    variants = (("opensles", "opensles,audiotrack"),
-                ("audiotrack", "audiotrack,opensles"))
+    backend = "audiotrack,opensles"
+    variants = (("audiotrack-auto", "auto"),
+                ("audiotrack-48000", "48000"))
     results, payloads = [], []
-    for name, backend in variants:
+    for name, sample_rate in variants:
         apk = directory / f"hongguo-tv-mpv-audio-{name}.apk"
         result = verify(apk, "mpv", version, code)
         result.update(file=apk.name, audio_output_requested=backend,
+                      audio_samplerate_requested=sample_rate,
                       sha256=hashlib.sha256(apk.read_bytes()).hexdigest())
         with zipfile.ZipFile(apk) as archive:
             if archive.testzip() is not None:
@@ -28,6 +30,8 @@ def validate(directory, version, code, commit):
             dex = [entry for entry in entries if re.fullmatch(r"classes\d*\.dex", entry)]
             if not any(backend.encode() in archive.read(entry) for entry in dex):
                 raise ValueError(f"Expected backend constant missing: {name}")
+            if not any(sample_rate.encode() in archive.read(entry) for entry in dex):
+                raise ValueError(f"Expected sample rate constant missing: {name}")
             # Byte-for-byte checks cover core executables, pinned libraries, UI,
             # resources and manifest. Only compiled Java and signing entries may differ.
             payload = {entry: hashlib.sha256(archive.read(entry)).hexdigest()

@@ -289,6 +289,10 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             option(active, "dither", "no"); option(active, "correct-downscaling", "no");
             option(active, "linear-downscaling", "no"); option(active, "sigmoid-upscaling", "no");
             option(active, "ao", BuildConfig.MPV_AUDIO_OUTPUT); option(active, "audiotrack-pcm-float", "no");
+            // Device comparison only: ordinary builds leave MPV's rate selection intact.
+            if (!"auto".equals(BuildConfig.MPV_AUDIO_SAMPLE_RATE)) {
+                option(active, "audio-samplerate", BuildConfig.MPV_AUDIO_SAMPLE_RATE);
+            }
             option(active, "keep-open", "yes"); option(active, "idle", "yes");
             option(active, "force-window", "no"); option(active, "osd-level", "0");
             option(active, "input-default-bindings", "no"); option(active, "input-vo-keyboard", "no");
@@ -605,6 +609,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 if (cacheDuration != null && finite(cacheDuration) && cacheDuration >= 0)
                     fields.put("demuxer_cache_duration", cacheDuration);
                 fields.put("audio_output_requested", BuildConfig.MPV_AUDIO_OUTPUT)
+                    .put("audio_samplerate_requested", BuildConfig.MPV_AUDIO_SAMPLE_RATE)
                     .put("audio_output", property(player, "current-ao"))
                     .put("audio_codec", property(player, "audio-codec"))
                     .put("audio_format", property(player, "audio-out-params/format"));
