@@ -25,6 +25,11 @@
 .legacy-grid #player-options-list > .player-option { width: calc(50% - 12px); margin: 0 12px 12px 0; }
 .legacy-grid .follow-grid { display: flex; flex-wrap: wrap; margin-right: -16px; }
 .legacy-grid .follow-grid > .follow-card { flex: 0 0 calc(100% / 6 - 16px); margin: 0 16px 22px 0; }
+.legacy-grid .follow-notification-row, .legacy-grid .follow-notification-play-content { display: flex; align-items: center; }
+.legacy-grid .follow-notification-play { flex: 1 1 auto; }
+.legacy-grid .follow-notification-image, .legacy-grid .follow-notification-time { flex: 0 0 auto; }
+.legacy-grid .follow-notification-copy-block { flex: 1 1 auto; }
+.legacy-grid .follow-notification-detail { flex: 0 0 94px; }
 .legacy-grid .detail-related-list { display: flex; flex-wrap: wrap; margin: 0 -14px -14px 0; }
 .legacy-grid .detail-related-list > .related-card { flex: 0 0 calc(100% / 5 - 14px); margin: 0 14px 14px 0; }
 .legacy-grid .detail-cast-all { display: flex; flex-wrap: wrap; margin: 0 -8px -8px 0; }
@@ -155,6 +160,8 @@
 .legacy-flex-gap .follow-notification-heading > div > * + * { margin-left: 14px; }
 .legacy-flex-gap .follow-notification-list > * + * { margin-top: 10px; }
 .legacy-flex-gap .follow-notification-row > * + * { margin-left: 18px; }
+.legacy-grid .follow-notification-play-content > * + * { margin-left: 18px; }
+.legacy-flex-gap .follow-notification-copy-block > * + * { margin-top: 7px; }
 .legacy-flex-gap .library-type-filters > * + * { margin-left: 10px; }
 .legacy-flex-gap .detail-reviews-list > * + * { margin-top: 10px; }
 .legacy-flex-gap .rank-heading-actions > * + * { margin-left: 12px; }
@@ -178,6 +185,7 @@
   .legacy-flex-gap .rank-main, .legacy-flex-gap .rank-subnav + .rank-main { margin-left: 18px; }
   .legacy-flex-gap .bottom-controls > * + * { margin-top: 6px; }
   .legacy-grid .follow-grid > .follow-card { flex-basis: calc(100% / 5 - 16px); }
+  .legacy-grid .follow-notification-play-content > * + * { margin-left: 12px; }
   .legacy-grid .detail-related-list > .related-card { flex-basis: calc(100% / 5 - 14px); }
 }
 @media (max-width: 1080px) {

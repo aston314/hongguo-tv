@@ -961,8 +961,8 @@ html.native-playback .hero-video { display: none !important; }
 .follow-notification-heading > div { display: flex; align-items: center; gap: 14px; }
 .follow-notification-heading strong { color: #fff; font-size: 22px; }
 .follow-notification-copy { margin: 0 0 16px; color: #a9a9b5; }
-.follow-notification-list { display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 245px); overflow-y: auto; padding: 3px 4px 20px 3px; }
-.follow-notification-row { display: grid; grid-template-columns: minmax(0, 1fr) 94px; align-items: center; gap: 18px; min-width: 0; min-height: 176px; padding: 12px 16px; color: #e9e9ef; background: #1d1e27; border: 1px solid #30313c; border-radius: 10px; }
+.follow-notification-list { display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 245px); overflow-y: auto; padding: 5px 5px 20px; }
+.follow-notification-row { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 94px; align-items: center; gap: 18px; min-width: 0; min-height: 176px; padding: 12px 16px; color: #e9e9ef; background: #1d1e27; border: 1px solid #30313c; border-radius: 10px; }
 .follow-notification-image { display: block; width: 116px; height: 150px; object-fit: cover; background: #30313a; border-radius: 8px; }
 .follow-notification-copy-block { display: flex; min-width: 0; flex-direction: column; justify-content: center; gap: 7px; }
 .follow-notification-copy-block strong, .follow-notification-copy-block span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -971,10 +971,15 @@ html.native-playback .hero-video { display: none !important; }
 .follow-notification-intro { color: #777985; font-size: 13px; }
 .follow-notification-heat { color: #ff8b25; font-size: 15px; font-weight: 700; }
 .follow-notification-message { color: #bdbec9; font-size: 14px; }
-.follow-notification-play { display: grid; grid-template-columns: 116px minmax(0, 1fr) auto; align-items: center; gap: 18px; width: 100%; min-width: 0; min-height: 150px; padding: 0; color: #e9e9ef; background: transparent; text-align: left; }
+.follow-notification-play { display: block; width: 100%; min-width: 0; min-height: 150px; padding: 0; color: #e9e9ef; background: transparent; text-align: left; }
+.follow-notification-play-content { display: grid; grid-template-columns: 116px minmax(0, 1fr) auto; align-items: center; gap: 18px; min-width: 0; }
 .follow-notification-time { color: #8f909d; font-size: 13px; white-space: nowrap; }
 .follow-notification-detail { min-height: 39px; padding: 0 13px; color: #fff; background: #f35d7b; border-radius: 8px; font-weight: 700; white-space: nowrap; }
-.follow-notification-play.is-focused, .follow-notification-play:focus, .follow-notification-detail.is-focused, .follow-notification-detail:focus, .follow-notification-action.is-focused, .follow-notification-action:focus { outline: none; box-shadow: 0 0 0 3px #fff; }
+.follow-notification-play.is-focused, .follow-notification-play:focus { outline: none; box-shadow: none; }
+/* Anchor the play highlight to the full row, including its padding and detail action.
+   A pseudo-element also works on WebViews without :focus-within support. */
+.follow-notification-play.is-focused::after, .follow-notification-play:focus:not(.pointer-focus-muted)::after { content: ''; position: absolute; top: -1px; right: -1px; bottom: -1px; left: -1px; border-radius: 10px; box-shadow: 0 0 0 3px #fff; pointer-events: none; }
+.follow-notification-detail.is-focused, .follow-notification-detail:focus:not(.pointer-focus-muted), .follow-notification-action.is-focused, .follow-notification-action:focus:not(.pointer-focus-muted) { outline: none; box-shadow: 0 0 0 3px #fff; }
 .follow-notification-row.is-unread { border-color: rgba(243,93,123,.7); background: #24202a; }
 .follow-notification-empty { display: grid; place-items: center; min-height: 260px; color: #8d8e9b; font-size: 18px; }
 .library-type-filters { display: flex; gap: 10px; margin: 0 0 15px; }
@@ -1060,8 +1065,8 @@ html.native-playback .hero-video { display: none !important; }
 @media (max-width: 1400px) { .follow-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); } }
 @media (max-width: 1080px) { .follow-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } .detail-related-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .follow-heading, .follow-notification-heading { align-items: flex-start; flex-direction: column; } .follow-title-line, .library-title-line { align-items: flex-start; flex-direction: column; gap: 8px; } .follow-tabs, .library-tabs { gap: 18px; } .follow-actions, .follow-notification-heading > div { width: 100%; } .follow-actions .follow-action { flex: 1 1 auto; } .follow-notification-heading > div { justify-content: space-between; } .notification-popup { right: 14px; bottom: 14px; width: calc(100% - 28px); } }
-@media (max-width: 1400px) { .follow-notification-play { grid-template-columns: 98px minmax(0, 1fr) auto; gap: 12px; } .follow-notification-image { width: 98px; height: 132px; } }
-@media (max-width: 700px) { .follow-notification-row { grid-template-columns: minmax(0, 1fr); gap: 8px; } .follow-notification-play { grid-template-columns: 76px minmax(0, 1fr); gap: 12px; min-height: 100px; } .follow-notification-image { width: 76px; height: 100px; } .follow-notification-time { grid-column: 2; } .follow-notification-detail { justify-self: end; } }
+@media (max-width: 1400px) { .follow-notification-play-content { grid-template-columns: 98px minmax(0, 1fr) auto; gap: 12px; } .follow-notification-image { width: 98px; height: 132px; } }
+@media (max-width: 700px) { .follow-notification-row { grid-template-columns: minmax(0, 1fr); gap: 8px; } .follow-notification-play { min-height: 100px; } .follow-notification-play-content { grid-template-columns: 76px minmax(0, 1fr); gap: 12px; } .follow-notification-image { width: 76px; height: 100px; } .follow-notification-time { grid-column: 2; } .follow-notification-detail { justify-self: end; } }
 .desktop-update-notes { max-width: 70rem; margin: 1rem 0; white-space: pre-wrap; overflow-wrap: break-word; font: inherit; color: #bfc1ce; line-height: 1.6; }
 .webos-update-notes { max-height: 18rem; overflow-y: auto; padding: 14px; border: 2px solid #424450; border-radius: 8px; }
 .webos-update-notes.is-focused, .webos-update-notes:focus { outline: none; border-color: #fff; }

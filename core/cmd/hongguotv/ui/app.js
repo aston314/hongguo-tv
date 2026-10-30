@@ -1141,6 +1141,9 @@
     if (element.classList.contains('reservation-tab')) return 'reservationTabs';
     if (element.classList.contains('library-tab')) return 'libraryTabs';
     if (element.classList.contains('follow-tab')) return 'followTabs';
+    // Follow controls share the toolbar styling, but have their own focus graph.
+    if (element.classList.contains('follow-action')) return 'followActions';
+    if (element.classList.contains('follow-notification-action')) return 'followNotifications';
     if (element.classList.contains('library-toolbar-button')) return 'libraryActions';
     if (element.classList.contains('history-filter')) return 'historyFilters';
     if (element.classList.contains('library-card')) return 'libraryItems';
@@ -1168,9 +1171,7 @@
     if (element.classList.contains('detail-header-action') || element.id === 'detail-close') return 'detailHeaderActions';
     if (element.classList.contains('detail-cast-item') || element.id === 'detail-cast-more') return 'detailCast';
     if (element.classList.contains('detail-cast-close') || element.classList.contains('detail-cast-modal-item')) return 'detailCastModal';
-    if (element.classList.contains('follow-action')) return 'followActions';
     if (element.classList.contains('follow-notification-play') || element.classList.contains('follow-notification-detail')) return 'followNotificationItems';
-    if (element.classList.contains('follow-notification-action')) return 'followNotifications';
     if (element.classList.contains('follow-card')) return 'followItems';
     if (element.classList.contains('library-type-filter')) return 'libraryTypeFilters';
     if (element.classList.contains('series-row') || element.classList.contains('series-retry')) return 'seriesRows';
@@ -1647,7 +1648,7 @@
     if (zone === 'followNotifications') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.follow-action') || firstVisible('.follow-tab.is-active') || activeSidebar();
-      if (direction === 'down') return firstNotificationFocus() || current;
+      if (direction === 'down') return firstVisible(current.id === 'follow-notifications-read-all' ? '.follow-notification-detail' : '.follow-notification-play') || current;
       return null;
     }
     if (zone === 'followNotificationItems') {
@@ -1658,7 +1659,7 @@
         return rowActions[next] || (direction === 'left' && rowActions[0] === current ? activeSidebar() : null);
       }
       var actionSelector = current.classList.contains('follow-notification-play') ? '.follow-notification-play' : '.follow-notification-detail';
-      if (direction === 'up') return row && moveGrid(actionSelector, current, direction) || firstVisible('#follow-notifications-back');
+      if (direction === 'up') return row && moveGrid(actionSelector, current, direction) || firstVisible(current.classList.contains('follow-notification-play') ? '#follow-notifications-back' : '#follow-notifications-read-all');
       if (direction === 'down') return row && moveGrid(actionSelector, current, direction) || current;
       return null;
     }
@@ -1897,9 +1898,9 @@
       return null;
     }
     if (zone === 'followTabs') {
-      if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : firstVisible('#follow-notifications-open'));
+      if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : firstVisible(followNotificationViewOpen ? '#follow-notifications-back' : '#follow-notifications-open'));
       if (direction === 'up') return activeSidebar();
-      if (direction === 'down') return followView === 'reservations' ? firstVisible('.reservation-tab.is-active') : firstVisible('.follow-action') || firstVisible('.follow-card') || firstVisible('#follow-pagination .list-retry');
+      if (direction === 'down') return followView === 'reservations' ? firstVisible('.reservation-tab.is-active') : followNotificationViewOpen ? firstVisible('#follow-notifications-back') : firstVisible('.follow-action') || firstVisible('.follow-card') || firstVisible('#follow-pagination .list-retry');
       return null;
     }
     return direction === 'right' ? firstContentFocus() : activeSidebar();
@@ -2338,7 +2339,8 @@
       var message = document.createElement('span'); message.className = 'follow-notification-message'; message.textContent = item.message || '';
       copy.appendChild(title); copy.appendChild(meta); copy.appendChild(intro); copy.appendChild(heat); copy.appendChild(message);
       var time = document.createElement('time'); time.className = 'follow-notification-time'; time.textContent = formatNotificationTime(item.created_at);
-      play.appendChild(image); play.appendChild(copy); play.appendChild(time);
+      var content = document.createElement('span'); content.className = 'follow-notification-play-content';
+      content.appendChild(image); content.appendChild(copy); content.appendChild(time); play.appendChild(content);
       var detail = document.createElement('button'); detail.type = 'button'; detail.className = 'follow-notification-detail'; detail.dataset.focus = 'follow-notice-detail-' + item.id; detail.textContent = uiText('ui.detailButton', '详情'); detail.setAttribute('aria-label', uiText('ui.detailButton', '详情') + '：' + (drama.title || item.title || uiText('app.name', '短剧')));
       play.addEventListener('click', function () { markNotificationRead(item.id); startPlayer(drama, play); });
       detail.addEventListener('click', function () { markNotificationRead(item.id); openDetail(drama, undefined, detail); });
@@ -2353,8 +2355,11 @@
       if (!row || !list || !list.getBoundingClientRect) return;
       var listRect = list.getBoundingClientRect();
       var rowRect = row.getBoundingClientRect();
-      if (rowRect.top < listRect.top) list.scrollTop -= listRect.top - rowRect.top;
-      else if (rowRect.bottom > listRect.bottom) list.scrollTop += rowRect.bottom - listRect.bottom;
+      // Reserve room for the outer row ring at both scroll boundaries.
+      var top = listRect.top + 4;
+      var bottom = listRect.bottom - 4;
+      if (rowRect.top < top) list.scrollTop -= top - rowRect.top;
+      else if (rowRect.bottom > bottom) list.scrollTop += rowRect.bottom - bottom;
     });
   }
   function firstNotificationFocus() { return firstVisible('.follow-notification-play') || firstVisible('.follow-notification-detail') || firstVisible('#follow-notifications-back'); }
