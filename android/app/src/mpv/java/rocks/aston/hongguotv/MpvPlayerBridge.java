@@ -98,7 +98,8 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     @JavascriptInterface public boolean safeStart() { return false; }
     @JavascriptInterface public void setAudioDelayForTest(int milliseconds) {
         if (!BuildConfig.MPV_AUDIO_DELAY_TEST
-                || (milliseconds != 0 && milliseconds != -50 && milliseconds != -100)) return;
+                || (milliseconds != 0 && Math.abs(milliseconds) != 25
+                    && Math.abs(milliseconds) != 50 && Math.abs(milliseconds) != 100)) return;
         handler.post(() -> {
             if (destroyed) return;
             try {

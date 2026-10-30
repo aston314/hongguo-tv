@@ -6,7 +6,7 @@ const html=fs.readFileSync(require.resolve('../docs/fixtures/mpv-audio-delay.htm
 function fixture(){
  const calls=[],listeners={},buttons={};let interval;
  const diagnostic={audio_delay_test_enabled:true,audio_delay_ms:0,audio_rate:48000,audio_output:'audiotrack'};
- for(const id of ['panel','delay0','delay50','delay100','replay','back','actual','status'])buttons[id]={className:'',textContent:'',addEventListener(type,fn){this[type]=fn},focus(){if(this.focus)this.focus()},click(){calls.push(['click',id])}};
+ for(const id of ['panel','delay0','delay25','delay50','delay100','delayPlus25','delayPlus50','delayPlus100','replay','back','actual','status'])buttons[id]={className:'',textContent:'',addEventListener(type,fn){this[type]=fn},focus(){},click(){calls.push(['click',id])}};
  // focus handlers are registered separately from the focus method.
  for(const b of Object.values(buttons))b.addEventListener=function(type,fn){this['on'+type]=fn};
  for(const b of Object.values(buttons))b.focus=function(){if(this.onfocus)this.onfocus()};
@@ -28,8 +28,18 @@ test('replaying uses the same original dialogue position and preserves the selec
  assert.equal(f.calls.filter(c=>c[0]==='delay').at(-1)[1],-100);
 });
 test('remote navigation reaches all controls and return resets the test compensation',()=>{
- const f=fixture();f.key(39);assert.equal(f.context.focusIndex,1);f.key(39);assert.equal(f.context.focusIndex,2);
- f.key(40);assert.equal(f.context.focusIndex,3);f.key(39);assert.equal(f.context.focusIndex,4);
- f.key(38);assert.equal(f.context.focusIndex,0);f.context.goBack();
+ const f=fixture();assert.equal(f.context.focusIndex,6);f.key(38);assert.equal(f.context.focusIndex,3);f.key(38);assert.equal(f.context.focusIndex,0);
+ f.key(39);assert.equal(f.context.focusIndex,1);f.key(39);assert.equal(f.context.focusIndex,2);
+ f.key(40);assert.equal(f.context.focusIndex,5);f.key(40);assert.equal(f.context.focusIndex,8);
+ f.key(39);assert.equal(f.context.focusIndex,8);f.key(37);assert.equal(f.context.focusIndex,7);f.context.goBack();
  assert.deepEqual(f.calls.slice(-3),[['delay',0],['stop'],['navigate','http://127.0.0.1:43100/']]);
+});
+
+test('one fixture offers zero and both correction directions without restarting video',()=>{
+ const f=fixture();
+ for(const value of [-100,-50,-25,0,25,50,100]){
+  const before=f.calls.filter(c=>c[0]==='play').length;
+  f.context.chooseDelay(value);assert.equal(f.calls.at(-1)[1],value);
+  assert.equal(f.calls.filter(c=>c[0]==='play').length,before);
+ }
 });

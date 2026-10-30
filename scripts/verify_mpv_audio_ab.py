@@ -21,7 +21,7 @@ def validate(directory, version, code, commit):
         result = verify(apk, "mpv", version, code)
         result.update(file=apk.name, audio_output_requested=backend,
                       audio_samplerate_requested=sample_rate,
-                      audio_delay_test_enabled=True, audio_delay_choices_ms=[0, -50, -100],
+                      audio_delay_test_enabled=True, audio_delay_choices_ms=[-100, -50, -25, 0, 25, 50, 100],
                       sha256=hashlib.sha256(apk.read_bytes()).hexdigest())
         with zipfile.ZipFile(apk) as archive:
             if archive.testzip() is not None:

@@ -70,7 +70,7 @@ jobs:
         run: |
           printf '%s' "$KEYSTORE" | base64 --decode > "$RUNNER_TEMP/mpv-audio-ab.keystore"
           chmod 600 "$RUNNER_TEMP/mpv-audio-ab.keystore"
-      - name: Build one signed realtime 48 kHz package with three delay controls
+      - name: Build one signed realtime 48 kHz package with bidirectional delay controls
         env:
           ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/mpv-audio-ab.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -96,5 +96,5 @@ jobs:
           gh release create "$RUN_TAG" "$RUNNER_TEMP/mpv-audio-ab/"* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft \
             --title "Private MPV interactive audio delay test" \
-            --notes "Temporary maintainer device test. One signed package, AudioTrack and realtime 48000 Hz. Test-only runtime control accepts audio-delay 0 / -50 / -100 ms, without reinstalling or modifying saved settings. No public mirror or update manifests. Delete this private draft after downloading the verified files."
+            --notes "Temporary maintainer device test. One signed package, AudioTrack and realtime 48000 Hz. Test-only runtime control accepts audio-delay 0 and positive/negative 25 / 50 / 100 ms, without reinstalling or modifying saved settings. No public mirror or update manifests. Delete this private draft after downloading the verified files."
           test "$(gh release view "$RUN_TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
