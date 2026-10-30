@@ -241,9 +241,9 @@ func (m *accountManager) runQR(ctx context.Context, a *qrLoginAttempt) {
 		select {
 		case <-pollCtx.Done():
 			timer.Stop()
-			if ctx.Err() == nil {
-				m.qrFailure(a, "expired", "")
-			}
+			// Cancellation/refresh are rejected by updateQR; an overall deadline
+			// must also leave a terminal state instead of a permanently pending QR.
+			m.qrFailure(a, "expired", "")
 			return
 		case <-timer.C:
 		}
