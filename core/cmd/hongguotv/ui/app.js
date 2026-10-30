@@ -328,6 +328,7 @@
   var accountData = null;
   var accountStatusInitialized = false;
   var accountQR = null;
+  var accountLoginMethod = 'qr';
   var pendingAccountHomeProgram = null;
   var accountBusy = false;
   var accountNotice = '';
@@ -1721,11 +1722,11 @@
       return null;
     }
     if (zone === 'accountInputs' || zone === 'accountActions') {
-      var qrActive = accountQR && accountQR.snapshot().active;
+      var qrSelected = accountLoginMethod === 'qr' && accountData && accountData.qr_login_available && !webosShell;
       if (current.id === 'account-method-phone' || current.id === 'account-method-qr') {
-        if (direction === 'left') return current.id === 'account-method-qr' ? document.getElementById('account-method-phone') : activeSidebar();
-        if (direction === 'right') return current.id === 'account-method-phone' ? document.getElementById('account-method-qr') : null;
-        if (direction === 'down') return qrActive ? document.getElementById('account-qr-refresh') : firstVisible('#account-country') || firstVisible('#account-phone');
+        if (direction === 'left') return current.id === 'account-method-phone' ? document.getElementById('account-method-qr') : activeSidebar();
+        if (direction === 'right') return current.id === 'account-method-qr' ? document.getElementById('account-method-phone') : null;
+        if (direction === 'down') return qrSelected ? document.getElementById('account-qr-refresh') : firstVisible('#account-country') || firstVisible('#account-phone');
         return direction === 'up' ? activeSidebar() : null;
       }
       if (current.id === 'account-qr-refresh' || current.id === 'account-qr-cancel') {
@@ -3571,7 +3572,7 @@
   function renderAccountQR() {
     var data = accountData || {}, qr = accountQR ? accountQR.snapshot() : { active: false };
     var available = !webosShell && !!data.qr_login_available && !data.logged_in;
-    var visible = available && qr.active;
+    var visible = available && accountLoginMethod === 'qr';
     document.getElementById('account-login-methods').classList.toggle('is-hidden', !available);
     document.getElementById('account-qr-panel').classList.toggle('is-hidden', !visible);
     if (visible) { document.getElementById('account-login-form').classList.add('is-hidden'); document.getElementById('account-mfa').classList.add('is-hidden'); }
@@ -3583,22 +3584,25 @@
     var source = visible && /^data:image\/png;base64,/.test(qr.image || '') ? qr.image : '';
     if (image.getAttribute('src') !== source) { if (source) image.src = source; else image.removeAttribute('src'); }
     image.classList.toggle('is-hidden', !source);
-    var keys = { preparing: 'qrPreparing', pending: 'qrPending', scanned: 'qrScanned', processing: 'qrProcessing', expired: 'qrExpired', cancelled: 'qrCancelled', failed: 'qrFailed', signed_in: 'qrSignedIn' };
+    var keys = { idle: 'qrPreparing', preparing: 'qrPreparing', pending: 'qrPending', scanned: 'qrScanned', processing: 'qrProcessing', expired: 'qrExpired', cancelled: 'qrCancelled', failed: 'qrFailed', signed_in: 'qrSignedIn' };
     document.getElementById('account-login-qr-status').textContent = visible ? uiText('account.' + (qr.error && qr.state !== 'failed' ? 'qrNetwork' : keys[qr.state] || 'qrPending')) : '';
     var seconds = Math.max(0, Math.ceil(((qr.expires_at || 0) - Date.now()) / 1000));
     document.getElementById('account-login-qr-expiry').textContent = visible && seconds && ['pending', 'scanned'].indexOf(qr.state) >= 0 ? uiText('account.qrExpiry', '', { value: seconds }) : '';
     document.getElementById('account-qr-cancel').disabled = false;
     document.getElementById('account-qr-refresh').disabled = false;
+    // Get the first QR only when the user actually enters the account page.
+    if (visible && qr.state === 'idle' && pageMode() === 'account') startAccountQR();
   }
   function cancelAccountQR(restoreFocus) {
     if (accountQR) accountQR.cancel();
     renderAccount();
-    if (restoreFocus && pageMode() === 'account') goFocus(document.getElementById('account-method-phone'));
+    if (restoreFocus && pageMode() === 'account') goFocus(document.getElementById(accountLoginMethod === 'qr' ? 'account-method-qr' : 'account-method-phone'));
   }
   function startAccountQR() {
     if (!accountQR || accountBusy || webosShell || !accountData || !accountData.qr_login_available || accountData.logged_in) return;
     if (smsVerification) smsVerification.stop();
     if (accountKeypadOpen()) numericKeypad.close('context');
+    accountLoginMethod = 'qr';
     ++accountRequestGeneration; accountBusy = false; accountNotice = '';
     accountQR.start();
     goFocus(document.getElementById('account-qr-refresh'));
@@ -7710,7 +7714,7 @@
     onComplete: function () { if (pageMode() === 'account') goFocus(document.getElementById('account-logout')); }
   });
   document.getElementById('account-method-qr').addEventListener('click', startAccountQR);
-  document.getElementById('account-method-phone').addEventListener('click', function () { cancelAccountQR(true); });
+  document.getElementById('account-method-phone').addEventListener('click', function () { accountLoginMethod = 'phone'; cancelAccountQR(true); });
   document.getElementById('account-qr-refresh').addEventListener('click', startAccountQR);
   document.getElementById('account-qr-cancel').addEventListener('click', function () { cancelAccountQR(true); });
   window.addEventListener('pagehide', function () { if (accountQR && accountQR.snapshot().active) accountQR.cancel(); });
