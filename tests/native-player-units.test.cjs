@@ -92,6 +92,7 @@ function fixture(engine = 'webview_media3', options = {}) {
   const bridge = {
     isAvailable() { return true; },
     engine() { return engine; },
+    diagnostics() { return JSON.stringify(this.diagnostic || {}); },
     bounds() {},
     begin() { this.begins++; },
     play(id, payload) { this.plays++; this.lastId = id; this.lastPayload = JSON.parse(payload); },
@@ -127,9 +128,56 @@ function activateNative(f) {
   const proxy = f.document.getElementById('hero-video');
   proxy.src = '/media/test.mp4';
   proxy.play();
-  assert.equal(f.context.window.HongguoNativePlaybackAdapter.enableNative(), true);
+  if (!f.context.window.HongguoNativePlaybackAdapter.isNative()) {
+    assert.equal(f.context.window.HongguoNativePlaybackAdapter.enableNative(), true);
+  }
   return f.bridge.lastId;
 }
+
+test('current native diagnostics reject persisted and delayed snapshots across loads and page reloads', () => {
+  for (const engine of ['webview_media3', 'mpv']) {
+    const f = fixture(engine), adapter = f.context.window.HongguoNativePlaybackAdapter;
+    const id = activateNative(f), diagnosticId = f.bridge.lastPayload.diagnostic_id;
+    f.bridge.diagnostic = { diagnostic_id: 'previous-page', track_support: 'FORMAT_EXCEEDS_CAPABILITIES' };
+    assert.equal(Object.keys(adapter.nativeDiagnostics()).length, 0);
+    f.bridge.diagnostic = { diagnostic_id: diagnosticId, state: 'preparing', error_kind: 'decoder', error_code: 4003 };
+    assert.equal(adapter.nativeDiagnostics().error_code, 4003, 'current native failures remain visible');
+    const proxy = f.document.getElementById('hero-video');
+    proxy.src = '/media/next.mp4';
+    assert.equal(Object.keys(adapter.nativeDiagnostics()).length, 0, 'old snapshot is hidden before the new bridge play');
+    if (engine !== 'mpv') assert.equal(adapter.diagnostics(), null, 'previous route is not reused while new playback is idle');
+    proxy.play();
+    if (engine !== 'mpv') adapter.enableNative();
+    assert.notEqual(f.bridge.lastPayload.diagnostic_id, diagnosticId);
+    assert.equal(Object.keys(adapter.nativeDiagnostics()).length, 0, 'late old snapshot is still hidden after bridge play');
+    f.bridge.diagnostic = { diagnostic_id: f.bridge.lastPayload.diagnostic_id, state: 'playing' };
+    assert.equal(adapter.nativeDiagnostics().state, 'playing');
+    const reloaded = fixture(engine);
+    assert.equal(activateNative(reloaded), id, 'callback sequence and clock restart on page reload');
+    assert.notEqual(reloaded.bridge.lastPayload.diagnostic_id, diagnosticId, 'diagnostic identity survives callback ID collisions');
+    reloaded.bridge.diagnostic = { diagnostic_id: diagnosticId, error_kind: 'decoder' };
+    assert.equal(Object.keys(reloaded.context.window.HongguoNativePlaybackAdapter.nativeDiagnostics()).length, 0);
+  }
+});
+
+test('Media3 diagnostics stop overriding HTML5 after native failure, while MPV keeps its current failure', () => {
+  for (const engine of ['webview_media3', 'mpv']) {
+    const f = fixture(engine), adapter = f.context.window.HongguoNativePlaybackAdapter;
+    const id = activateNative(f);
+    f.bridge.diagnostic = { diagnostic_id: f.bridge.lastPayload.diagnostic_id, error_kind: 'decoder', error_code: 4003 };
+    f.context.window.HongguoNativePlayback.event(id, 'error', { kind: 'decoder' });
+    if (engine === 'mpv') {
+      assert.equal(adapter.nativeDiagnostics().error_code, 4003, 'MPV error remains inspectable after callback invalidation');
+    } else {
+      assert.equal(adapter.diagnostics().active_path, 'HTML5');
+      assert.equal(Object.keys(adapter.nativeDiagnostics()).length, 0);
+    }
+    f.document.getElementById('hero-video').src = '';
+    assert.equal(Object.keys(adapter.nativeDiagnostics()).length, 0);
+    f.bridge.diagnostics = () => { throw Error('bridge unavailable'); };
+    assert.doesNotThrow(() => adapter.nativeDiagnostics());
+  }
+});
 
 test('WebView remains the default until native fallback is requested', () => {
   const f = fixture();

@@ -15,6 +15,28 @@ test('MPV reports actual decoding separately from preference, including software
 });
 function video(values={}) { return Object.assign({currentTime:8,duration:90,videoWidth:720,videoHeight:1280,readyState:4,networkState:1,paused:false,ended:false,seeking:false,muted:true,volume:1,buffered:{length:1,start:()=>0,end:()=>20},error:null},values); }
 function snapshot(values={}) { return Object.assign({video:diagnostics.readVideo(video()),flags:{preparing:true,audioHeld:true,source:true},episode:8,quality:'720P',userAgent:'Mozilla/5.0 Chrome/44.0.2403.119 HongguoTV-Android',capturedAt:'12:34:56',device:{app_version:'0.2.31',version_code:33,manufacturer:'TV maker',model:'TV-9',android_version:'9',sdk:28,process_bits:32},core:{version:'0.2.31-aabbccddeeff00112233445566778899aabbccdd',arch:'arm'}},values); }
+test('HTML5 reports its current result without old Media3 capability, decoder, or network warnings',()=>{
+  for(const native of [
+    {state:'error',track_support:'FORMAT_EXCEEDS_CAPABILITIES',video_track:'old HEVC'},
+    {state:'error',track_support:'FORMAT_UNSUPPORTED_SUBTYPE'},
+    {state:'error',error_kind:'decoder',error_code:4003},
+    {state:'error',error_kind:'network',error_code:2001}
+  ]) {
+    for(const [flags,error,expected] of [
+      [{source:true},null,/保护已解除/],
+      [{failed:true},null,/播放未能完成准备/],
+      [{source:true},{code:3},/解码错误/]
+    ]) {
+      const s=snapshot({native,flags,video:diagnostics.readVideo(video({error})),playbackRoute:{active_path:'HTML5',outcome:'html5_retry'}});
+      const report=diagnostics.report(s),rows=Object.fromEntries(report.rows.map(x=>[x.label,x.value]));
+      assert.match(report.summary,expected);
+      assert.equal(rows.Media3,undefined); assert.equal(rows['视频轨道'],undefined);
+      assert.doesNotMatch(rows['最近错误'],/Media3/);
+    }
+  }
+  const current=diagnostics.report(snapshot({native:{track_support:'FORMAT_EXCEEDS_CAPABILITIES'},playbackRoute:{active_path:'Media3'}}));
+  assert.match(current.summary,/当前视频轨道超过设备/,'current native track warning remains visible');
+});
 test('captures a frozen media snapshot without requiring frame APIs on old WebViews',()=>{
   const v=video(); const s=diagnostics.readVideo(v);v.currentTime=40;v.muted=false;
   assert.equal(s.position,8);assert.equal(s.muted,true);assert.equal(s.buffered,12);assert.equal(s.decoded,null);

@@ -31,6 +31,10 @@
   var listeners = {};
   var sequence = 0;
   var loadId = 'hongguo-' + (++sequence);
+  // Diagnostic identity is independent of callback IDs, which restart when
+  // the page reloads. Never match a persisted snapshot from an earlier page.
+  var diagnosticPage = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 12);
+  var nativeDiagnosticId = '';
   var state = { source: '', currentTime: 0, startPosition: 0, duration: NaN, paused: true, ended: false, seeking: false,
     readyState: 0, videoWidth: 0, videoHeight: 0, seekPending: false, playbackRate: 1, volume: 1, muted: true, started: false };
   function now() { return Date.now(); }
@@ -93,7 +97,6 @@
       cache_eligible: false, cache_written: false, dom_retry: false, started: false };
   }
   var attempt = newAttempt();
-  var lastAttempt = null;
   if (fixedNative) { usingNative = true; document.documentElement.classList.add('native-playback'); }
 
   function isNative() { return nativeEnabled && usingNative; }
@@ -257,8 +260,9 @@
   function invokePlay() {
     if (!state.source) return;
     syncBounds();
+    nativeDiagnosticId = diagnosticPage + '-' + loadId;
     var payload = JSON.stringify({ source: localSource(state.source), start_position: state.currentTime || 0,
-      paused: false, speed: state.playbackRate || 1 });
+      paused: false, speed: state.playbackRate || 1, diagnostic_id: nativeDiagnosticId });
     try { nativeRequested = true; bridge.play(loadId, payload); } catch (error) { nativeRequested = false; dispatch('error', error); }
   }
   function startNativeFallback(force, reason) {
@@ -352,6 +356,7 @@
     pendingDomResume = null;
     notifyPlaybackActive(false);
     nativeRequested = false;
+    nativeDiagnosticId = '';
     loadId = 'hongguo-' + (++sequence);
     if (isNative()) {
       clearFallbackTimer();
@@ -362,7 +367,6 @@
       usingNative = fixedNative;
       if (!fixedNative) document.documentElement.classList.remove('native-playback');
     }
-    if (attempt.started || attempt.outcome !== 'idle') lastAttempt = attempt;
     attempt = newAttempt();
     nativeAttempted = false;
     state.source = next;
@@ -398,6 +402,7 @@
       if (!isNative()) { clearFallbackTimer(); domVideo.load(); return; }
       loadId = 'hongguo-' + (++sequence);
       nativeRequested = false;
+      nativeDiagnosticId = '';
       proxy.error = null;
       state.currentTime = state.startPosition; state.duration = NaN; state.paused = true; state.ended = false; state.seeking = false;
       state.readyState = 0; state.videoWidth = 0; state.videoHeight = 0; state.seekPending = false; state.started = false;
@@ -547,10 +552,17 @@
     engine: fixedNative ? 'mpv' : 'webview_media3',
     video: function () { return proxy; },
     isNative: isNative,
+    nativeDiagnostics: function () {
+      if (!isNative() || !state.source || !nativeDiagnosticId) return {};
+      try {
+        var value = JSON.parse(bridge.diagnostics());
+        return value && value.diagnostic_id === nativeDiagnosticId ? value : {};
+      } catch (ignoredDiagnostic) { return {}; }
+    },
     diagnostics: function () {
       if (fixedNative) return null;
-      var value = attempt.outcome !== 'idle' ? attempt : lastAttempt;
-      if (!value) return null;
+      var value = attempt;
+      if (value.outcome === 'idle') return null;
       var waitingForFrame = value.started && !value.final_first_frame;
       return {
         webview_version: value.webview_version || '', preferred_path: value.preferred_path || 'HTML5',

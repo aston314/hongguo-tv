@@ -42,6 +42,9 @@
   function report(snapshot) {
     snapshot = snapshot || {};
     var device = snapshot.device || {}, core = snapshot.core || {}, video = snapshot.video || { position: 0, duration: 0, width: 0, height: 0, ready: 0, network: 0, paused: true, ended: false, seeking: false, muted: true, volume: 0, buffered: 0, error: 0, decoded: null }, native = snapshot.native || {}, flags = snapshot.flags || {};
+    // A Media3 attempt may already have returned control to HTML5. Its track
+    // warning and decoder error must not override the current path's result.
+    if (snapshot.playbackRoute && snapshot.playbackRoute.active_path === 'HTML5') native = {};
     var engine = /(?:Chrome|Chromium)\/([\d.]+)/.exec(snapshot.userAgent || '');
     var android = /HongguoTV-Android/.test(snapshot.userAgent || '');
     var bits = device.process_bits === 32 || device.process_bits === 64 ? device.process_bits + ' 位' : tr('diagnostic.androidBitsUnknown');

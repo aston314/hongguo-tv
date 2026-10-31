@@ -2725,19 +2725,33 @@
     // after both the synchronous snapshot and the asynchronous core report.
     scroll.scrollTop = scrollTop;
   }
+  function readCurrentPlaybackDiagnostics(video) {
+    var result = { native: {}, route: null };
+    // webOS exposes live Web Audio status rather than a native playback
+    // session. Keep that independent status without importing decoder fields.
+    try {
+      if (window.HongguoWebOS && window.HongguoNativePlayer && window.HongguoNativePlayer.diagnostics) {
+        var webos = JSON.parse(window.HongguoNativePlayer.diagnostics());
+        if (webos && webos.webos_audio) result.native.webos_audio = webos.webos_audio;
+      }
+    } catch (ignoredWebOS) {}
+    var playback = activePlayback, presentation = playback && playback.presentation;
+    if (!playback || playback.generation !== feedGeneration || playback.owner !== accountEpoch ||
+        !presentation || !presentation.source || !samePlaybackPresentationSource(video.getAttribute('src'), presentation.source)) return result;
+    var adapter = window.HongguoNativePlaybackAdapter;
+    try { if (adapter && typeof adapter.diagnostics === 'function') result.route = adapter.diagnostics(); } catch (ignoredRoute) {}
+    try { if (adapter && typeof adapter.nativeDiagnostics === 'function') result.native = adapter.nativeDiagnostics(); } catch (ignoredNative) {}
+    return result;
+  }
   function refreshPlaybackDiagnostics() {
     if (!playerOptionsOpen || !document.getElementById('player-options').classList.contains('is-diagnostics')) return;
     cancelDiagnosticRead();
     var epoch = diagnosticEpoch, video = document.getElementById('hero-video'), hero = document.getElementById('hero');
+    var contextGeneration = feedGeneration, contextOwner = accountEpoch, contextPlayback = activePlayback;
     var device = desktopShell ? { app_version: window.HongguoDesktop.version } : {};
     try { if (window.HongguoTVDiagnostics) device = JSON.parse(window.HongguoTVDiagnostics.readDevice()); } catch (ignored) {}
-    var native = {};
-    try { if (window.HongguoNativePlayer && window.HongguoNativePlayer.diagnostics) native = JSON.parse(window.HongguoNativePlayer.diagnostics()); } catch (ignoredNative) {}
-    var playbackRoute = null;
-    try {
-      var playbackAdapter = window.HongguoNativePlaybackAdapter;
-      if (playbackAdapter && typeof playbackAdapter.diagnostics === 'function') playbackRoute = playbackAdapter.diagnostics();
-    } catch (ignoredRoute) {}
+    var playerDiagnostics = readCurrentPlaybackDiagnostics(video);
+    var native = playerDiagnostics.native, playbackRoute = playerDiagnostics.route;
     // native-player.js replaces getElementById('hero-video') with a media
     // proxy on Android. The proxy exposes media properties, but it is not a
     // DOM Element and old WebViews throw when getComputedStyle receives it.
@@ -2794,7 +2808,16 @@
     request.open('GET', '/api/v1/player/diagnostics?media=' + encodeURIComponent(path), true); request.timeout = 2500;
     function finish(core) {
       if (epoch !== diagnosticEpoch || diagnosticRequest !== request || !playerOptionsOpen) return;
-      diagnosticRequest = null; snapshot.core = core; renderPlaybackDiagnostics(snapshot);
+      diagnosticRequest = null;
+      var currentPlayers = readCurrentPlaybackDiagnostics(video);
+      if (contextGeneration !== feedGeneration || contextOwner !== accountEpoch || contextPlayback !== activePlayback ||
+          presentation !== (activePlayback && activePlayback.presentation) ||
+          (native || {}).diagnostic_id !== (currentPlayers.native || {}).diagnostic_id ||
+          (playbackRoute || {}).active_path !== (currentPlayers.route || {}).active_path) {
+        refreshPlaybackDiagnostics();
+        return;
+      }
+      snapshot.core = core; renderPlaybackDiagnostics(snapshot);
     }
     request.onload = function () {
       try {
@@ -5045,7 +5068,7 @@
       timing.reported = true;
       var nativeStopFenceMs = null;
       try {
-        var nativeTiming = window.HongguoNativePlayer && window.HongguoNativePlayer.diagnostics ? JSON.parse(window.HongguoNativePlayer.diagnostics()) : null;
+        var nativeTiming = readCurrentPlaybackDiagnostics(video).native;
         if (nativeTiming && typeof nativeTiming.last_stop_fence_ms === 'number') nativeStopFenceMs = nativeTiming.last_stop_fence_ms;
       } catch (ignoredNativeTiming) {}
       timing.source_ready_ms = Math.max(0, timing.ready_at - timing.started_at);

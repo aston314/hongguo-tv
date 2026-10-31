@@ -80,6 +80,7 @@ final class PlayerBridge implements NativePlayerAdapter {
     private static final class Session {
         final long generation;
         final String id;
+        String diagnosticId = "";
         final List<String> urls;
         final Map<String,String> headers;
         final boolean live;
@@ -141,6 +142,8 @@ final class PlayerBridge implements NativePlayerAdapter {
                 if(player!=null){player.setVolume(0);player.pause();player.clearMediaItems();}
                 diagnosticFields=new JSONObject();videoWidth=videoHeight=0;
                 session=new Session(++nextSessionGeneration,loadId,urls,headers,"hls".equals(data.optString("format")),"compatibility".equals(decoderMode()));
+                String diagnosticId=data.optString("diagnostic_id","");
+                if(diagnosticId.matches("[A-Za-z0-9_-]{1,120}"))session.diagnosticId=diagnosticId;
                 session.position=PlaybackStart.positionMs(data.optDouble("start_position",0),session.live);
                 session.wantsPlay=!data.optBoolean("paused",false);
                 if(urls.isEmpty()){event(session,"error");return;}
@@ -434,7 +437,7 @@ final class PlayerBridge implements NativePlayerAdapter {
     private void updateDiagnostic(Session target,String state){
         if(session!=target)return;
         try{
-            diagnosticFields.put("state",state).put("surface",surface!=null?"SurfaceView":"TextureView")
+            diagnosticFields.put("diagnostic_id",target.diagnosticId).put("state",state).put("surface",surface!=null?"SurfaceView":"TextureView")
                 .put("mode",target.compatibility?"compatibility":"standard")
                 .put("audio_output",target.pcmAudio?"PCM":"system")
                 .put("clock_ratio",target.clock.ratio())

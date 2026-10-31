@@ -49,7 +49,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
 
     private static final class Session {
         final long generation;
-        final String id, source;
+        final String id, source, diagnosticId;
         final JSONObject data;
         final MpvDecodeMode mode;
         final MpvOutputState output = new MpvOutputState();
@@ -67,6 +67,8 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         Session(long generation, String id, String source, JSONObject data, MpvDecodeMode mode) {
             this.generation = generation;
             this.id = id; this.source = source; this.data = data;
+            String diagnosticId = data.optString("diagnostic_id", "");
+            this.diagnosticId = diagnosticId.matches("[A-Za-z0-9_-]{1,120}") ? diagnosticId : "";
             this.mode = mode;
             wantsPlay = !data.optBoolean("paused", false);
             position = PlaybackStart.positionMs(data.optDouble("start_position", 0), false);
@@ -574,6 +576,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     private void updateDiagnostic(Session target, JSONObject detail) {
         try {
             JSONObject fields = new JSONObject().put("engine", "mpv").put("state", target.state)
+                .put("diagnostic_id", target.diagnosticId)
                 .put("surface", "SurfaceView").put("mode", target.mode.id).put("hwdec_requested", target.mode.hwdec).put("output_ready", target.outputReady)
                 .put("frame_signal", "playback-restart").put("video_decoder", target.decoder)
                 .put("width", target.output.width).put("height", target.output.height).put("speed", speed)
