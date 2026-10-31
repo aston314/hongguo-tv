@@ -77,6 +77,7 @@ type miniReelMediaJob struct {
 	CodecMode   string
 	VideoWidth  int
 	VideoHeight int
+	VideoCodec  string
 	Err         error
 	Accessed    time.Time
 	Context     context.Context
@@ -369,6 +370,7 @@ acquire:
 		"qualities":    job.Qualities,
 		"video_width":  job.VideoWidth,
 		"video_height": job.VideoHeight,
+		"video_codec":  job.VideoCodec,
 		"vid":          vid,
 		"mode":         firstNonEmpty(job.Mode, "full"),
 	}, nil
@@ -399,6 +401,7 @@ func prepareMiniReelMedia(ctx context.Context, job *miniReelMediaJob, token, ser
 	}
 	job.Quality = option.Quality
 	job.Qualities = miniReelQualities(options)
+	job.VideoCodec = option.Codec
 	job.VideoWidth = option.Width
 	job.VideoHeight = option.Height
 	job.Mode = "full"

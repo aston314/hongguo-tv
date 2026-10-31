@@ -2883,7 +2883,9 @@
       playbackPreferences.quality = value; savePlaybackPreferences();
       if (playbackRequest) playbackRequest.position = position;
       bindPlaybackPresentation(playback, data.path);
-      video.src = data.path; stageNativePlaybackStartPosition(position); video.load(); updatePlaybackControls(); closePlayerOptions();
+      video.src = data.path; stageNativePlaybackStartPosition(position); video.load();
+      if (video.setSourceCodec) video.setSourceCodec(data.video_codec);
+      updatePlaybackControls(); closePlayerOptions();
       setPlayerStatus(episodeLoadingText(playback.episode));
       if (previous.playing && !applicationHidden() && !applicationInBackground) playMedia(video).catch(function () { setPlayerStatus(''); revealControls(); });
     }).catch(function (error) {
@@ -5148,6 +5150,7 @@
       stageNativePlaybackStartPosition(position);
       video.classList.add('has-source');
       video.load();
+      if (video.setSourceCodec) video.setSourceCodec(values[1].video_codec);
       setPlayerStatus(episodeLoadingText(playback.episode));
       if (!applicationHidden() && !applicationInBackground) playMedia(video).catch(function () { setPlayerStatus(uiText('ui.standardPlaybackFailed', '标准播放也未能启动'), true); });
     }).catch(function () {
@@ -5388,6 +5391,7 @@
           if (typeof syncNativePlaybackPageState === 'function') syncNativePlaybackPageState();
           placeholder.classList.add('is-hidden');
           video.load();
+          if (video.setSourceCodec) video.setSourceCodec(data.video_codec);
           setPlayerStatus(episodeLoadingText(activePlayback.episode));
           if (!applicationHidden() && !applicationInBackground) playMedia(video).catch(function () { setPlayerStatus(''); revealControls(); showNotice(uiText('content.videoReadyConfirm', '视频已准备好，请按确认键开始播放')); });
           else { setPlayerStatus(''); revealControls(); }

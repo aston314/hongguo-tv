@@ -20,7 +20,7 @@
   // Starting thresholds for device validation; tune from local diagnostics, not version assumptions.
   var FALLBACK_POLICY = { zeroProgressMs: 1800, firstFrameMs: 3000, preferenceTtlMs: 30 * 24 * 60 * 60 * 1000 };
   var PREFERENCE_KEY = 'hongguo.native-player.preference.v1';
-  var fixedNative = false;
+  var fixedNative = false, sourceCodec = '';
   try { nativeEnabled = !!(bridge && bridge.isAvailable && bridge.isAvailable()); } catch (ignored) {}
   try { fixedNative = !!(nativeEnabled && bridge.engine && bridge.engine() === 'mpv'); } catch (ignoredEngine) {}
   if (!domVideo || !nativeEnabled) {
@@ -86,6 +86,27 @@
       return;
     }
     try { if (window.localStorage) window.localStorage.removeItem(PREFERENCE_KEY); } catch (ignoredStorage) {}
+  }
+  // Only a negative codec declaration is actionable here. Missing APIs,
+  // exceptions, unknown source codecs, and maybe/probably keep HTML5 first.
+  // This is per source; it must not establish a device-wide preference.
+  function codecSupport(type) {
+    if (typeof domVideo.canPlayType !== 'function') return 'unknown';
+    try {
+      var value = domVideo.canPlayType(type);
+      return value === '' ? 'no' : value === 'maybe' || value === 'probably' ? value : 'unknown';
+    } catch (ignoredCodecSupport) { return 'unknown'; }
+  }
+  function sourceCodecUnsupported() {
+    var codec = sourceCodec.toLowerCase();
+    if (codec === 'bytevc1' || codec === 'hevc' || codec === 'h265' || codec === 'hvc1' || codec === 'hev1') {
+      return codecSupport('video/mp4; codecs="hvc1.1.6.L93.B0"') === 'no' &&
+        codecSupport('video/mp4; codecs="hev1.1.6.L93.B0"') === 'no';
+    }
+    if (codec === 'h264' || codec === 'avc' || codec === 'avc1') {
+      return codecSupport('video/mp4; codecs="avc1.42E01E"') === 'no';
+    }
+    return false;
   }
   function newAttempt() {
     return { webview_version: webviewVersion, preferred_path: readMedia3Preference() ? 'Media3' : 'HTML5',
@@ -352,6 +373,7 @@
     } catch (ignored) {}
   }
   function resetToDomSource(next) {
+    sourceCodec = '';
     clearFallbackTimer();
     pendingDomResume = null;
     notifyPlaybackActive(false);
@@ -392,6 +414,7 @@
   }
 
   var proxy = {
+    setSourceCodec: function (value) { sourceCodec = typeof value === 'string' ? value.trim() : ''; },
     getAttribute: function (name) { return name === 'src' ? (state.source || null) : domVideo.getAttribute(name); },
     setAttribute: function (name, value) { if (name === 'src') proxy.src = value; else domVideo.setAttribute(name, value); },
     removeAttribute: function (name) { if (name === 'src') proxy.src = ''; else domVideo.removeAttribute(name); },
@@ -414,6 +437,10 @@
         state.paused = false; state.ended = false;
         beginAttempt();
         if (!attempt.final_first_frame) attempt.last_progress_at = now();
+        if (!nativeAttempted && sourceCodecUnsupported()) {
+          attempt.preferred_path = 'Media3';
+          if (startNativeFallback(true, 'codec_unsupported')) return Promise.resolve();
+        }
         if (!nativeAttempted && attempt.preferred_path === 'Media3' && startNativeFallback(true, 'cached_media3')) return Promise.resolve();
         var observedAttempt = attempt, observedSource = state.source;
         var result;
