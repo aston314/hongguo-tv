@@ -111,6 +111,9 @@ html.desktop-shell .hero-media { -webkit-user-select: none; user-select: none; }
 .playback-feedback-back.is-visible, .playback-feedback-forward.is-visible { animation-duration: .85s; }
 @keyframes playback-feedback-pulse { 0% { opacity: 0; transform: translate(-50%,-50%) scale(.82); } 16%, 45% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1.15); } }
 @media (prefers-reduced-motion: reduce) { .playback-feedback.is-visible { animation: none; opacity: 1; } }
+.hero-portrait-backdrop { position: absolute; inset: 0; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; visibility: hidden; pointer-events: none; }
+.hero-portrait-backdrop.is-visible { visibility: visible; }
+.hero.is-preparing-video .hero-portrait-backdrop { visibility: hidden; }
 .hero-transition { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 2; background: #000; visibility: hidden; pointer-events: none; }
 .hero.is-preparing-video .hero-transition { visibility: visible; }
 .hero.is-preparing-video.is-episode-transition.is-range-transition .hero-transition { background: transparent; }

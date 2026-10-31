@@ -24,7 +24,7 @@ function fixture({ failSave = false, writeGate = null, sourceGate = null } = {})
   const video = node('hero-video');
   Object.assign(video, { currentTime: 39, duration: 90, paused: false, pause() { this.paused = true; }, removeAttribute(name) { delete this[name]; }, load() { calls.push('load'); } });
   const c = vm.createContext({ Promise, AbortController, URLSearchParams, Date, Object, Math, Number, clearTimeout, HongguoPagination,
-    calls, video, pages, channel, state, webosShell: false,
+    calls, video, pages, channel, state, webosShell: false, portraitBackdrop: null,
     document: { hidden: false, activeElement: pages.recommend, contains: () => true,
       getElementById: node, querySelectorAll: selector => selector === '.side-item' ? Object.values(pages) : [],
       querySelector: selector => selector === '.channel-tab.is-active' ? channel : pages[(selector.match(/data-page="([^"]+)"/) || [])[1]] || node('other') },

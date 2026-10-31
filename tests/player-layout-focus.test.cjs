@@ -21,7 +21,7 @@ test('CSS fullscreen synchronizes real normalized native bounds without a window
       left: cinema ? 0 : 250, top: 0, width: cinema ? 960 : 710, height: 540
     }) })
   };
-  const c = vm.createContext({ document, window: {
+  const c = vm.createContext({ portraitBackdrop: null, document, window: {
     innerWidth: 960, innerHeight: 540, addEventListener() {},
     HongguoNativePlayer: { isAvailable: () => true, engine: () => 'mpv', bounds: (...v) => bounds.push(v) }
   }, shell: { classList: { toggle: (name, value) => { cinema = value; } } },
@@ -38,7 +38,7 @@ test('CSS fullscreen synchronizes real normalized native bounds without a window
 
 test('fullscreen remains usable in a browser or standard edition without a native adapter', () => {
   let cinema;
-  const c = vm.createContext({ window: {}, shell: { classList: { toggle: (n, v) => { cinema = v; } } },
+  const c = vm.createContext({ portraitBackdrop: null, window: {}, shell: { classList: { toggle: (n, v) => { cinema = v; } } },
     updatePlaybackControls() {}, layoutLastPlaybackFrame() {}, setTimeout: fn => fn() });
   vm.runInContext(slice('syncNativePlayerBounds', 'exitCinema'), c);
   assert.doesNotThrow(() => c.setCinema(true));

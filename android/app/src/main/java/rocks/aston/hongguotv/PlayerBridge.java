@@ -47,6 +47,7 @@ import java.util.Map;
 final class PlayerBridge implements NativePlayerAdapter {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final WebView web;
+    private final PortraitBackdropCapture portraitBackdrop;
     private final FrameLayout holder;
     private final SharedPreferences preferences;
     private final TextureView texture;
@@ -99,6 +100,7 @@ final class PlayerBridge implements NativePlayerAdapter {
     }
     PlayerBridge(WebView web, FrameLayout holder) {
         this.web=web;this.holder=holder;
+        portraitBackdrop=new PortraitBackdropCapture(web);
         preferences=web.getContext().getSharedPreferences("doudou_playback",Context.MODE_PRIVATE);
         diagnostic=preferences.getString("last_diagnostics","{}");
         // Media3 is a fallback surface. The page starts with the real HTML
@@ -119,6 +121,18 @@ final class PlayerBridge implements NativePlayerAdapter {
     /** Media3 is available as a fallback on every supported Android release. */
     @JavascriptInterface public boolean isAvailable() { return nativePlaybackAvailable(Build.VERSION.SDK_INT); }
     @JavascriptInterface public String engine() { return "webview_media3"; }
+    @JavascriptInterface public boolean portraitBackdropSupported() { return PortraitBackdropCapture.supported(); }
+    @JavascriptInterface public void capturePortraitBackdrop(String id,String ticket) {
+        if(!PortraitBackdropGeometry.validRequest(id,ticket))return;
+        handler.post(()->{
+            final Session target=session;
+            final ExoPlayer active=player;
+            final int candidate=target==null?-1:target.candidate;
+            if(target==null||active==null||!target.id.equals(id)||!target.firstFrame)return;
+            portraitBackdrop.request(surface,id,ticket,videoHeight>0?(double)videoWidth*pixelRatio/videoHeight:0,
+                ()->!destroyed&&!background&&session==target&&player==active&&target.candidate==candidate&&target.wantsPlay&&active.isPlaying());
+        });
+    }
 
     @JavascriptInterface public void play(String loadId, String payload) {
         // Never accept arbitrary external URLs from a web page.
@@ -486,5 +500,5 @@ final class PlayerBridge implements NativePlayerAdapter {
     public void onResume(){background=false;if(session!=null&&player!=null&&session.wantsPlay){
         if(!preferences.edit().putBoolean("playback_active",Build.VERSION.SDK_INT<=23&&!session.live).commit()){fail(session,"settings",0);return;}
         player.play();if(!session.firstFrame){Session target=session;ExoPlayer active=player;timeout=()->{if(session==target&&player==active&&!target.firstFrame)retry(target,"first_frame_timeout",0);};handler.postDelayed(timeout,25000);}}}
-    public void destroy(){destroyed=true;handler.removeCallbacksAndMessages(null);releasePlayer();markInactive();session=null;holder.setVisibility(View.GONE);}
+    public void destroy(){destroyed=true;portraitBackdrop.close();handler.removeCallbacksAndMessages(null);releasePlayer();markInactive();session=null;holder.setVisibility(View.GONE);}
 }

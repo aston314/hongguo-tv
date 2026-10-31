@@ -60,6 +60,7 @@
     sidebarDisplay: '.sidebar-display-action',
     autoCinema: '.auto-cinema-action',
     webosAudio: '.webos-audio-action',
+    portraitBackground: '.portrait-background-action',
     episodePrefetch: '.episode-prefetch-action',
     playbackModes: '.playback-mode-action',
     support: '.support-card, .support-close',
@@ -430,9 +431,10 @@
     }
   });
   var applicationInBackground = false;
-  var playbackPreferences = { speed: 1, volume: 100, quality: '', danmaku: false, prefetch_mode: 'full' };
+  var playbackPreferences = { speed: 1, volume: 100, quality: '', danmaku: false, prefetch_mode: 'full', portrait_background: 'black' };
   var episodePrefetchSettings = null;
   var recommendationDirectionSettings = null;
+  var portraitBackdrop = null;
   var endRecommendationIndex = 0, endRecommendationAnimation = 0, endRecommendationReadyCleanup = null;
   var endRecommendations = HongguoEndRecommendations.create({
     isCurrent: function (playback) {
@@ -1161,6 +1163,7 @@
     if (element.classList.contains('sidebar-display-action')) return 'sidebarDisplay';
     if (element.classList.contains('auto-cinema-action')) return 'autoCinema';
     if (element.classList.contains('webos-audio-action')) return 'webosAudio';
+    if (element.classList.contains('portrait-background-action')) return 'portraitBackground';
     if (element.classList.contains('episode-prefetch-action')) return 'episodePrefetch';
     if (element.classList.contains('playback-mode-action')) return 'playbackModes';
     if (element.classList.contains('account-action')) return 'accountActions';
@@ -1677,24 +1680,24 @@
     if (zone === 'sidebarDisplay') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return activeSidebar();
-      if (direction === 'down') return firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'localeActions') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'recommendationDirection') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'appUpdates') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
-      if (direction === 'up') return firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'up') return firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.webos-update-notes');
       return null;
     }
@@ -1706,24 +1709,30 @@
     if (zone === 'autoCinema') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.webos-audio-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'webosAudio') {
       if (direction === 'left') return activeSidebar();
       if (direction === 'up') return firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'down') return firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
+      return null;
+    }
+    if (zone === 'portraitBackground') {
+      if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
+      if (direction === 'up') return firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'episodePrefetch') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
-      if (direction === 'up') return firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'up') return firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'playbackModes') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
-      if (direction === 'up') return firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'up') return firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.app-update-action');
       return null;
     }
@@ -2501,7 +2510,7 @@
       else message = uiText('ui.preparingPlayback', '正在准备播放…');
     }
     var transition = !!(message && !failed && preparing);
-    if (failed) clearEpisodeCover();
+    if (failed) { clearEpisodeCover(); if (portraitBackdrop) portraitBackdrop.reset(); }
     hero.classList.toggle('is-transition-loading', transition);
     panel.classList.toggle('is-loading', !!(message && !failed));
     // The complete poster provides the title. All normal starts and switches
@@ -2613,6 +2622,7 @@
       if (Number.isFinite(saved.volume) && saved.volume >= 0 && saved.volume <= 100) playbackPreferences.volume = saved.volume;
       if (/^[1-9][0-9]{2,3}P$/.test(saved.quality || '')) playbackPreferences.quality = saved.quality;
       playbackPreferences.prefetch_mode = HongguoEpisodePrefetchSettings.normalize(saved.prefetch_mode);
+      playbackPreferences.portrait_background = saved.portrait_background === 'blur' ? 'blur' : 'black';
       danmakuEnabled = saved.danmaku === true; playbackPreferences.danmaku = danmakuEnabled;
     } catch (error) { /* Invalid preferences fall back to normal playback. */ }
     var fullPrefetchSupported = typeof HongguoEpisodePrefetchSettings !== 'undefined' && HongguoEpisodePrefetchSettings &&
@@ -2992,6 +3002,7 @@
     var adapter = window.HongguoNativePlaybackAdapter;
     if (adapter && typeof adapter.syncBounds === 'function') adapter.syncBounds();
     layoutLastPlaybackFrame();
+    if (portraitBackdrop) portraitBackdrop.layout();
   }
   function setCinema(enabled) {
     shell.classList.toggle('is-cinema', enabled);
@@ -3109,6 +3120,7 @@
     var video = document.getElementById('hero-video');
     var preparing = playbackInfoRequest || playbackPrefetchHandoff || activePlayback && !video.getAttribute('src');
     applicationInBackground = true;
+    if (portraitBackdrop) portraitBackdrop.reset();
     resetEndRecommendations();
     clearLastPlaybackFrame();
     episodePrefetch.cancel();
@@ -4536,6 +4548,7 @@
   }
 
   function cancelPlaybackPreparation() {
+    if (portraitBackdrop) portraitBackdrop.reset();
     clearPrefetchedEpisodeHint();
     clearRangeTransitionHint();
     clearRangeStallTimer();
@@ -7550,6 +7563,7 @@
   }
 
   function activatePage(item, restoring) {
+    if (portraitBackdrop) portraitBackdrop.reset();
     if (accountQR && accountQR.snapshot().active && item.dataset.page !== 'account') cancelAccountQR(false);
     if (item.dataset.page === 'recommend' && pageMode() === 'recommend') {
       if (!restoring) { revealControls(); goFocus(firstContentFocus()); }
@@ -8616,6 +8630,61 @@
       });
     });
   }
+  function initPortraitBackground() {
+    var supported = !webosShell && !!window.HongguoPortraitBackdrop;
+    if (supported && androidShell) {
+      try { supported = !!(window.HongguoNativePlayer && window.HongguoNativePlayer.portraitBackdropSupported && window.HongguoNativePlayer.portraitBackdropSupported()); } catch (ignored) { supported = false; }
+    }
+    var card = document.getElementById('portrait-background-settings');
+    card.classList.toggle('is-hidden', !supported);
+    if (!supported) return;
+    var adapter = window.HongguoNativePlaybackAdapter;
+    var rawVideo = adapter && adapter.domVideo ? adapter.domVideo() : document.querySelector('video#hero-video');
+    portraitBackdrop = HongguoPortraitBackdrop.create({
+      media: media, video: rawVideo, canvas: document.getElementById('hero-portrait-backdrop'),
+      createCanvas: function () { return document.createElement('canvas'); },
+      createImage: function () { return new Image(); },
+      requestNative: function (id, ticket) { return !!(adapter && adapter.capturePortraitBackdrop && adapter.capturePortraitBackdrop(id, ticket)); },
+      snapshot: function () {
+        var p = activePlayback, presentation = p && p.presentation;
+        var native = !!(adapter && adapter.isNative && adapter.isNative());
+        var valid = p && p.generation === feedGeneration && p.owner === accountEpoch && !p.completed &&
+          presentation && !presentation.failed && currentPlaybackPresentation(p, presentation, media);
+        return {
+          key: valid ? String(p.owner) + ':' + p.generation + ':' + p.vid : '',
+          width: Number(media.videoWidth) || 0, height: Number(media.videoHeight) || 0,
+          native: native, nativeId: native && adapter.portraitBackdropId ? adapter.portraitBackdropId() : '',
+          paused: media.paused || !!(presentation && presentation.waiting), seeking: media.seeking,
+          visible: !!(valid && (p.started || presentation.frame_at) && isPlaybackPage() && !applicationInBackground && !applicationHidden() &&
+            !document.getElementById('hero').classList.contains('is-preparing-video'))
+        };
+      }
+    });
+    window.HongguoPortraitBackdropReceive = function (id, ticket, data, aspect) { portraitBackdrop.receive(id, ticket, data, aspect); };
+    function render() {
+      document.querySelectorAll('.portrait-background-action').forEach(function (button) {
+        var selected = button.getAttribute('data-mode') === playbackPreferences.portrait_background;
+        button.classList.toggle('account-primary', selected); button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      });
+    }
+    document.querySelectorAll('.portrait-background-action').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var previous = playbackPreferences.portrait_background;
+        playbackPreferences.portrait_background = HongguoPortraitBackdrop.normalize(button.getAttribute('data-mode'));
+        if (!savePlaybackPreferences()) {
+          playbackPreferences.portrait_background = previous;
+          document.getElementById('portrait-background-state').textContent = uiText('settings.saveFailed', '设置未能保存，请重试。');
+          return;
+        }
+        document.getElementById('portrait-background-state').textContent = '';
+        portraitBackdrop.setMode(playbackPreferences.portrait_background); render();
+      });
+    });
+    document.addEventListener('visibilitychange', function () { portraitBackdrop.reset(); portraitBackdrop.update(); });
+    window.addEventListener('resize', function () { portraitBackdrop.layout(); });
+    window.addEventListener('pagehide', function () { portraitBackdrop.reset(); });
+    render(); portraitBackdrop.setMode(playbackPreferences.portrait_background);
+  }
   function initEpisodePrefetchSettings() {
     episodePrefetchSettings = HongguoEpisodePrefetchSettings.create({
       platform: episodePrefetchPlatform(),
@@ -8665,6 +8734,7 @@
   playbackMenuHintSeen = readPlaybackMenuHintSeen();
   restorePlaybackPreferences();
   initEpisodePrefetchSettings();
+  initPortraitBackground();
   loadStatus();
   libraryReady = loadLibrary();
   pollAccount();

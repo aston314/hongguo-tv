@@ -2,6 +2,10 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['ja-JP'] = {
+  "settings.portraitBackground": "縦動画の背景",
+  "settings.portraitBackgroundDescription": "黒、または再生中の映像をぼかして表示します。処理負荷が増えるため、非対応または処理が遅い端末では黒帯を維持します。",
+  "settings.portraitBackgroundBlack": "黒",
+  "settings.portraitBackgroundBlur": "動的ぼかし",
     "ui.webosUpdateDetails": "更新内容と手動インストール方法",
     "ui.webosUpdateIdle": "新しいバージョンを毎日確認します。webOS Dev Manager で手動インストールしてください。",
     "ui.webosUpdateFailed": "更新の確認に失敗しました。再試行できます。通常の利用には影響しません。",

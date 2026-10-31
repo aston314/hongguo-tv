@@ -578,7 +578,17 @@
     enabled: true,
     engine: fixedNative ? 'mpv' : 'webview_media3',
     video: function () { return proxy; },
+    domVideo: function () { return domVideo; },
     isNative: isNative,
+    capturePortraitBackdrop: function (id, ticket) {
+      if (!isNative() || id !== loadId || !state.started || state.paused || !bridge.capturePortraitBackdrop) return false;
+      try {
+        if (!bridge.portraitBackdropSupported || !bridge.portraitBackdropSupported()) return false;
+        bridge.capturePortraitBackdrop(id, ticket);
+        return true;
+      } catch (ignoredBackdrop) { return false; }
+    },
+    portraitBackdropId: function () { return isNative() ? loadId : ''; },
     nativeDiagnostics: function () {
       if (!isNative() || !state.source || !nativeDiagnosticId) return {};
       try {

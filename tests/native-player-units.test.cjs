@@ -692,3 +692,29 @@ test('negative AVC checks bypass HTML5 without affecting the fixed MPV edition',
  const f=fixture('webview_media3',{canPlayType:()=>''});const video=f.document.getElementById('hero-video');video.src='/media/avc.mp4';video.setSourceCodec('h264');await video.play();assert.equal(f.bridge.plays,1);
  const mpv=fixture('mpv',{canPlayType:()=>''});const v=mpv.document.getElementById('hero-video');v.src='/media/mpv.mp4';v.setSourceCodec('bytevc1');await v.play();assert.equal(mpv.bridge.plays,1);assert.equal(mpv.bridge.engine(),'mpv');
 });
+
+
+test('optional portrait capture is bound to the active native source and never starts playback', () => {
+  const f=fixture('mpv'), adapter=f.context.window.HongguoNativePlaybackAdapter;
+  const id=activateNative(f), received=[];
+  assert.equal(adapter.domVideo(),f.domVideo);
+  assert.equal(adapter.capturePortraitBackdrop(id,'1'),false,'older bridges remain compatible');
+  f.bridge.portraitBackdropSupported=()=>true;
+  f.bridge.capturePortraitBackdrop=(...args)=>received.push(args);
+  f.context.window.HongguoNativePlayback.event(id,'frame',{width:360,height:640});
+  f.context.window.HongguoNativePlayback.event(id,'playing');
+  const plays=f.bridge.plays;
+  assert.equal(adapter.portraitBackdropId(),id);
+  assert.equal(adapter.capturePortraitBackdrop(id,'1'),true);
+  assert.deepEqual(received,[[id,'1']]);assert.equal(f.bridge.plays,plays);
+  assert.equal(adapter.capturePortraitBackdrop('old-source','2'),false);
+  f.context.window.HongguoNativePlayback.event(id,'paused');
+  assert.equal(adapter.capturePortraitBackdrop(id,'3'),false);
+  f.context.window.HongguoNativePlayback.event(id,'playing');
+  f.bridge.portraitBackdropSupported=()=>false;
+  assert.equal(adapter.capturePortraitBackdrop(id,'4'),false);
+  f.bridge.portraitBackdropSupported=()=>true;
+  f.document.getElementById('hero-video').src='/media/new.mp4';
+  assert.equal(adapter.capturePortraitBackdrop(id,'5'),false);
+  assert.equal(received.length,1);
+});

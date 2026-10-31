@@ -338,6 +338,12 @@
           <p data-i18n="settings.audibleSpeedDescription">仅用于 webOS，默认关闭。开启后，倍速播放会额外读取音频并占用内存；准备失败或设备处理跟不上时恢复有声 1 倍速。</p>
           <div class="app-update-actions"><button class="webos-audio-action account-action" id="webos-audio-toggle" data-focus="webos-audio-toggle" aria-pressed="false" data-i18n="settings.autoCinemaDisabled">已关闭</button></div>
         </div>
+        <div class="settings-card app-update-card is-hidden" id="portrait-background-settings">
+          <h2 data-i18n="settings.portraitBackground">竖屏背景</h2>
+          <p data-i18n="settings.portraitBackgroundDescription">黑色或当前画面的动态模糊延伸。动态背景增加少量处理开销；设备不支持或处理较慢时保留黑边。</p>
+          <div class="app-update-actions"><button class="portrait-background-action account-action" data-mode="black" data-focus="portrait-background-black" aria-pressed="true" data-i18n="settings.portraitBackgroundBlack">黑色</button><button class="portrait-background-action account-action" data-mode="blur" data-focus="portrait-background-blur" aria-pressed="false" data-i18n="settings.portraitBackgroundBlur">动态模糊</button></div>
+          <p id="portrait-background-state" role="status" aria-live="polite"></p>
+        </div>
         <div class="settings-card app-update-card is-hidden" id="episode-prefetch-settings">
           <h2 data-i18n="settings.episodePrefetch">下一集预取方式</h2>
           <p data-i18n="settings.episodePrefetchDescription">选择切集前的准备方式。边播边下占用较少；整集预下载切集更快，但会增加网络、存储和处理器占用。</p>
@@ -377,6 +383,7 @@
 
       <section class="hero is-catalog-loading" id="hero" aria-label="推荐视频" data-i18n-aria-label="hero.recommendVideo">
         <div class="hero-media">
+          <canvas id="hero-portrait-backdrop" class="hero-portrait-backdrop" width="0" height="0" aria-hidden="true"></canvas>
           <div id="hero-transition" class="hero-transition" aria-hidden="true"><div id="hero-backdrop" class="hero-backdrop"></div><div id="hero-loading-poster" class="hero-loading-poster"></div><div id="hero-episode-cover" class="hero-episode-cover"></div><canvas id="hero-last-frame" class="hero-last-frame" width="0" height="0" aria-hidden="true"></canvas></div>
           <video id="hero-video" class="hero-video" playsinline preload="metadata"></video>
           <div id="danmaku-layer" class="danmaku-layer" aria-hidden="true"></div>
@@ -526,6 +533,7 @@
   <script src="/playback-diagnostics.js"></script>
   <script src="/playback-recovery.js"></script>
   <script src="/native-player.js"></script>
+  <script src="/portrait-backdrop.js"></script>
   <script src="/playback-settings.js"></script>
   <script src="/episode-prefetch-settings.js"></script>
   <script src="/auto-cinema.js"></script>

@@ -20,6 +20,7 @@ import org.json.JSONObject;
 public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder.Callback {
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final WebView web;
+    private final PortraitBackdropCapture portraitBackdrop;
     private final FrameLayout holder;
     private final SurfaceView surface;
     private final SharedPreferences preferences;
@@ -77,6 +78,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
 
     MpvPlayerBridge(WebView web, FrameLayout holder) {
         this.web = web; this.holder = holder;
+        portraitBackdrop = new PortraitBackdropCapture(web);
         preferences = web.getContext().getSharedPreferences("hongguo_mpv_playback", Context.MODE_PRIVATE);
         surface = new SurfaceView(web.getContext());
         surface.setFocusable(false);
@@ -93,6 +95,19 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     @JavascriptInterface public boolean isAvailable() { return true; }
     @JavascriptInterface public boolean canReplaceInPlace() { return inPlaceReplaceAvailable; }
     @JavascriptInterface public String engine() { return "mpv"; }
+    @JavascriptInterface public boolean portraitBackdropSupported() { return PortraitBackdropCapture.supported(); }
+    @JavascriptInterface public void capturePortraitBackdrop(String id, String ticket) {
+        if (!PortraitBackdropGeometry.validRequest(id, ticket)) return;
+        handler.post(() -> {
+            final Session target = session;
+            final long epoch = surfaceEpoch;
+            if (target == null || !target.id.equals(id) || !target.outputReady) return;
+            portraitBackdrop.request(surface, id, ticket,
+                target.output.height > 0 ? (double) target.output.width / target.output.height : 0,
+                () -> current(target) && target.outputReady && target.wantsPlay && !background
+                    && target.surfaceEpoch == epoch && surfaceEpoch == epoch && playerSurfaceAttached);
+        });
+    }
     @JavascriptInterface public String diagnostics() { return diagnostic; }
     @JavascriptInterface public String decoderMode() { return MpvDecodeMode.stored(preferences.getString("mpv_decode_mode", null)).id; }
     @JavascriptInterface public boolean safeStart() { return false; }
@@ -870,6 +885,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         if (s != null) guarded(s, () -> { armTimeout(s); start(s); if (s.player != null && s.output.loaded && s.output.attached) s.player.setPropertyBoolean("pause", !s.wantsPlay); });
     }
     @Override public void destroy() {
+        portraitBackdrop.close();
         destroyed = true; inPlaceReplaceAvailable = false; handler.removeCallbacksAndMessages(null);
         Session active = session; session = null; transition.clear(); generation++;
         if (active != null) {

@@ -2,6 +2,10 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-TW'] = {
+  "settings.portraitBackground": "直向影片背景",
+  "settings.portraitBackgroundDescription": "黑色或目前畫面的動態模糊延伸。動態背景會增加少量處理負擔；裝置不支援或處理較慢時保留黑邊。",
+  "settings.portraitBackgroundBlack": "黑色",
+  "settings.portraitBackgroundBlur": "動態模糊",
     "ui.webosUpdateDetails": "更新說明與手動安裝方法",
     "ui.webosUpdateIdle": "每天檢查一次新版本；請使用 webOS Dev Manager 手動安裝。",
     "ui.webosUpdateFailed": "檢查更新失敗，請重試；正常使用不受影響。",

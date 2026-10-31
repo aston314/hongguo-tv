@@ -84,16 +84,18 @@ test('settings remote focus follows the visible card order and keeps version upd
   const prefetchFull = node('prefetchFull', ['episode-prefetch-action', 'account-action']);
   const autoCinema = node('autoCinema', ['auto-cinema-action', 'account-action']);
   const webosAudio = node('webosAudio', ['webos-audio-action', 'account-action']);
+  const portraitBlack = node('portraitBlack', ['portrait-background-action', 'account-action']);
+  const portraitBlur = node('portraitBlur', ['portrait-background-action', 'account-action']);
   const decode = node('decode', ['playback-mode-action', 'account-action']);
   const sidebar = node('sidebar', ['side-item']);
-  const zones = { sidebarDisplay: [expanded, icons], localeActions: [locale], recommendationDirection: [directionAll, directionLandscape], appUpdates: [update], autoCinema: [autoCinema], webosAudio: [webosAudio], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], sidebar: [sidebar] };
-  const visible = { update: true, autoCinema: true, webosAudio: true, prefetch: true, decode: true };
+  const zones = { sidebarDisplay: [expanded, icons], localeActions: [locale], recommendationDirection: [directionAll, directionLandscape], appUpdates: [update], autoCinema: [autoCinema], webosAudio: [webosAudio], portraitBackground: [portraitBlack, portraitBlur], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], sidebar: [sidebar] };
+  const visible = { update: true, autoCinema: true, webosAudio: true, portrait: false, prefetch: true, decode: true };
   const c = vm.createContext({
     coreConnectionModalOpen: false,
     scanModalOpen: () => false, supportModalOpen: false, confirmOpen: false,
     rankFilterOpen: false, playerOptionsOpen: false, detailModalOpen: false, discussionOpen: false,
     selectedSidebarDisplay: () => icons, activeSidebar: () => sidebar,
-    firstVisible: selector => selector.includes('recommendation-direction-action') ? directionAll : selector.includes('locale-action') ? locale : selector.includes('app-update') ? visible.update ? update : null : selector.includes('auto-cinema') ? visible.autoCinema ? autoCinema : null : selector.includes('webos-audio') ? visible.webosAudio ? webosAudio : null : selector.includes('episode-prefetch') ? visible.prefetch ? prefetchRange : null : selector.includes('playback-mode') ? visible.decode ? decode : null : null,
+    firstVisible: selector => selector.includes('recommendation-direction-action') ? directionAll : selector.includes('locale-action') ? locale : selector.includes('app-update') ? visible.update ? update : null : selector.includes('auto-cinema') ? visible.autoCinema ? autoCinema : null : selector.includes('webos-audio') ? visible.webosAudio ? webosAudio : null : selector.includes('portrait-background') ? visible.portrait ? portraitBlack : null : selector.includes('episode-prefetch') ? visible.prefetch ? prefetchRange : null : selector.includes('playback-mode') ? visible.decode ? decode : null : null,
     moveWithinZone: (zone, current, direction) => zones[zone][zones[zone].indexOf(current) + (direction === 'left' ? -1 : 1)] || null
   });
   vm.runInContext(fn('zoneOf', 'goFocus') + fn('moveFrom', 'accountKeypadOpen'), c);
@@ -118,6 +120,19 @@ test('settings remote focus follows the visible card order and keeps version upd
   assert.equal(c.moveFrom(decode, 'down'), update);
   assert.equal(c.moveFrom(update, 'up'), decode);
   assert.equal(c.moveFrom(icons, 'right'), null);
+  visible.portrait = true;
+  assert.equal(c.zoneOf(portraitBlack), 'portraitBackground');
+  assert.equal(c.moveFrom(webosAudio, 'down'), portraitBlack);
+  assert.equal(c.moveFrom(portraitBlack, 'up'), webosAudio);
+  assert.equal(c.moveFrom(portraitBlack, 'right'), portraitBlur);
+  assert.equal(c.moveFrom(portraitBlur, 'left'), portraitBlack);
+  assert.equal(c.moveFrom(portraitBlack, 'left'), sidebar);
+  assert.equal(c.moveFrom(portraitBlack, 'down'), prefetchRange);
+  assert.equal(c.moveFrom(prefetchRange, 'up'), portraitBlack);
+  visible.webosAudio = false;
+  assert.equal(c.moveFrom(autoCinema, 'down'), portraitBlack);
+  assert.equal(c.moveFrom(portraitBlack, 'up'), autoCinema);
+  visible.portrait = false; visible.webosAudio = true;
   visible.decode = false;
   assert.equal(c.moveFrom(prefetchRange, 'down'), update);
   visible.webosAudio = false;

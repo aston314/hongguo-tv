@@ -55,6 +55,7 @@ jobs:
         run: |
           node --check core/cmd/hongguotv/ui/app.js
           node --check core/cmd/hongguotv/ui/native-player.js
+          node --check core/cmd/hongguotv/ui/portrait-backdrop.js
           node --check core/cmd/hongguotv/ui/playback-diagnostics.js
           node --check core/cmd/hongguotv/ui/playback-settings.js
           node --check core/cmd/hongguotv/ui/sidebar-settings.js

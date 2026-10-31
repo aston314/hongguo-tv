@@ -14,7 +14,7 @@ function fixture(options) {
   const frames=[],timers=[];
   let now=1000;
   const context={document:{getElementById:id=>nodes[id]},activePlayback:null,autoCinemaCandidate:false,featuredItem:{title:'新剧名称'},reveals:0,focused:null,coverClears:0,zoneOf:()=> 'feed',
-    prefetchedEpisodeHint:null,webosShell:false,episodePrefetch:{},feedGeneration:4,accountEpoch:2,applicationInBackground:false,
+    prefetchedEpisodeHint:null,portraitBackdrop:null,webosShell:false,episodePrefetch:{},feedGeneration:4,accountEpoch:2,applicationInBackground:false,
     playbackPreferences:{quality:'720P'},Date:{now:()=>now},isPlaybackPage:()=>true,applicationHidden:()=>false,
     rangePlaybackEnabled:()=>true,effectiveEpisodePrefetchMode:()=> 'full',
     setTimeout(fn,delay){timers.push({fn,delay,cancelled:false});return timers.length},clearTimeout(id){if(timers[id-1])timers[id-1].cancelled=true}};
