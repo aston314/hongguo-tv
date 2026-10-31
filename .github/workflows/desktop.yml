@@ -51,7 +51,10 @@ jobs:
           tag="desktop-v$APP_VERSION"
           if gh release view "$tag" --json isDraft >/dev/null 2>&1; then
             [[ "$(gh release view "$tag" --json isDraft --jq .isDraft)" == true ]]
-            [[ "$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)" == "$GITHUB_SHA" ]]
+            target_commit="$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)"
+            release_commit="$(git rev-parse "v$APP_VERSION^{commit}")"
+            [[ "$target_commit" == "$release_commit" ]]
+            git merge-base --is-ancestor "$release_commit" "$GITHUB_SHA"
           else
             gh release create "$tag" --draft --target "$GITHUB_SHA" --title "红果短剧桌面版 $APP_VERSION" --notes-file docs/desktop-release.md
           fi
@@ -117,7 +120,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           PREVIEW_TAG: ${{ needs.prepare.outputs.tag }}
-        run: gh release upload "$PREVIEW_TAG" desktop/dist/*.zip desktop/dist/*.sha256
+        run: gh release upload --clobber "$PREVIEW_TAG" desktop/dist/*.zip desktop/dist/*.sha256
 
   publish:
     needs: [prepare, build]
