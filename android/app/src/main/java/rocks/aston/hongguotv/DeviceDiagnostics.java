@@ -19,7 +19,7 @@ final class DeviceDiagnostics {
             facts.put("model", Build.MODEL);
             facts.put("android_version", Build.VERSION.RELEASE);
             facts.put("sdk", Build.VERSION.SDK_INT);
-            facts.put("process_bits", Process.is64Bit() ? 64 : 32);
+            if (Build.VERSION.SDK_INT >= 23) facts.put("process_bits", Process.is64Bit() ? 64 : 32);
             // OS-supported ABIs are not the running process architecture.
             facts.put("supported_abis", android.text.TextUtils.join(", ", Build.SUPPORTED_ABIS));
             if (Build.VERSION.SDK_INT >= 26) {

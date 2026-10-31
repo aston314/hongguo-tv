@@ -34,7 +34,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="hongguo" />
+                <data android:scheme="${deepLinkScheme}" />
             </intent-filter>
         </activity>
 
@@ -68,7 +68,7 @@
 
         <receiver
             android:name=".BootReceiver"
-            android:enabled="true"
+            android:enabled="${bootReceiverEnabled}"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

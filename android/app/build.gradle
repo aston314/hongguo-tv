@@ -3,6 +3,10 @@ plugins {
 }
 
 def appVersion = "0.2.136"
+// Experimental branch only: normal CI still exercises the production defaults.
+def android5Compat = providers.gradleProperty("android5Compat").orNull == "true"
+def android5Arm32Only = providers.gradleProperty("android5Arm32Only").orNull == "true"
+if (android5Arm32Only && !android5Compat) throw new GradleException("ARM32 test packaging requires android5Compat")
 def mpvVersionCode = 87
 def coreVersion = System.getenv("HONGGUO_CORE_VERSION") ?: "${appVersion}-dev"
 def signingVariables = ["ANDROID_KEYSTORE_FILE", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"]
@@ -16,20 +20,29 @@ android {
 
     defaultConfig {
         applicationId "rocks.aston.hongguotv"
-        minSdk 23
+        minSdk android5Compat ? 21 : 23
         targetSdk 35
         versionCode 135
         versionName appVersion
         buildConfigField "String", "CORE_VERSION", "\"${coreVersion}\""
+        buildConfigField "boolean", "ANDROID5_COMPAT_TEST", android5Compat.toString()
+        manifestPlaceholders = [bootReceiverEnabled: !android5Compat,
+                                deepLinkScheme: android5Compat ? "hongguo-android5-test" : "hongguo"]
         ndk {
-            abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
+            if (android5Arm32Only) abiFilters "armeabi-v7a"
+            else abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
         }
     }
 
     productFlavors {
         standard {
             dimension "player"
-            resValue "string", "app_name", "红果短剧"
+            if (android5Compat) {
+                applicationIdSuffix ".android5test"
+                versionCode 1
+                versionName "${appVersion}-android5-test.1"
+            }
+            resValue "string", "app_name", android5Compat ? "红果短剧 · Android 5 测试" : "红果短剧"
             buildConfigField "String", "VARIANT_ID", '"standard"'
             buildConfigField "String", "PLAYER_ENGINE", '"webview_media3"'
         }
@@ -78,6 +91,9 @@ android {
 
 // Never upload an unsigned APK when release credentials are missing.
 gradle.taskGraph.whenReady { graph ->
+    if (android5Compat && graph.allTasks.any { it.name.toLowerCase().contains("mpv") }) {
+        throw new GradleException("Android 5 experiment supports the standard player only")
+    }
     if (graph.allTasks.any { it.name.startsWith("validateSigning") && it.name.endsWith("Release") } && !releaseSigningReady) {
         throw new GradleException("Release signing requires all four Android signing environment variables")
     }

@@ -132,16 +132,20 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new PlaybackPreferences(this), "HongguoTVPreferences");
         webView.addJavascriptInterface(new InputBridge(), "HongguoTVInput");
         webView.addJavascriptInterface(new HomeChannelBridge(), "HongguoTVHome");
-        appUpdater = new AppUpdater(this, new AppUpdater.Host() {
-            public boolean trusted() { return pageReady; }
-            public boolean foreground() { return activityForeground; }
-            public void restoreFocus() { if (!destroyed && webView != null) { grantWebViewFocus(false); scheduleFullscreen(); } }
-            public void allowPrompt(AppUpdater.PromptCheck check) {
-                if (!pageReady || webView == null) { check.result(false); return; }
-                webView.evaluateJavascript("!!(window.HongguoTV && window.HongguoTV.canShowAppUpdate())", result -> check.result("true".equals(result)));
-            }
-        });
-        webView.addJavascriptInterface(appUpdater.new Bridge(), "HongguoTVUpdates");
+        if (BuildConfig.ANDROID5_COMPAT_TEST) {
+            webView.addJavascriptInterface(new Android5TestUpdates(), "HongguoTVUpdates");
+        } else {
+            appUpdater = new AppUpdater(this, new AppUpdater.Host() {
+                public boolean trusted() { return pageReady; }
+                public boolean foreground() { return activityForeground; }
+                public void restoreFocus() { if (!destroyed && webView != null) { grantWebViewFocus(false); scheduleFullscreen(); } }
+                public void allowPrompt(AppUpdater.PromptCheck check) {
+                    if (!pageReady || webView == null) { check.result(false); return; }
+                    webView.evaluateJavascript("!!(window.HongguoTV && window.HongguoTV.canShowAppUpdate())", result -> check.result("true".equals(result)));
+                }
+            });
+            webView.addJavascriptInterface(appUpdater.new Bridge(), "HongguoTVUpdates");
+        }
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
@@ -154,6 +158,16 @@ public class MainActivity extends Activity {
                 routedConfirmKeys = 0;
                 searchInputFocusPolicy.reset();
                 super.onPageStarted(view, url, favicon);
+            }
+
+            @Override
+            @SuppressWarnings("deprecation")
+            public void onReceivedError(WebView view, int code, String description, String failingUrl) {
+                super.onReceivedError(view, code, description, failingUrl);
+                if (Build.VERSION.SDK_INT < 23 && failingUrl != null && failingUrl.equals(view.getUrl())) {
+                    pageLoadFailed = true;
+                    showStartupFailure();
+                }
             }
 
             @Override
@@ -170,7 +184,11 @@ public class MainActivity extends Activity {
                     startupAnimation.stop();
                     pageReady = true;
                     grantWebViewFocus(false);
-                    appUpdater.start();
+                    if (appUpdater != null) appUpdater.start();
+                    if (BuildConfig.ANDROID5_COMPAT_TEST) {
+                        webView.evaluateJavascript("!!(window.HongguoTV && typeof window.HongguoTV.remoteKey === 'function' && JSON.parse(window.HongguoTVDiagnostics.readDevice()).sdk === 21 && document.activeElement && document.activeElement.getAttribute('data-focus'))",
+                            result -> android.util.Log.i("HongguoAndroid5Test", "ui_ready=" + result));
+                    }
                     homeChannelManager.ensureDefaultChannel(true);
                 }
                 view.evaluateJavascript("window.HongguoTV && window.HongguoTV." +
@@ -240,6 +258,15 @@ public class MainActivity extends Activity {
         applyFullscreen();
         grantWebViewFocus(false);
         waitForCore();
+    }
+
+    /** No network, download or install route exists on this experiment's bridge. */
+    public static final class Android5TestUpdates {
+        @JavascriptInterface public String getStatus() {
+            return "{\"supported\":false,\"state\":\"incompatible\",\"message\":\"Android 5 兼容测试包不提供在线更新\"}";
+        }
+        @JavascriptInterface public void setPromptAllowed(boolean allowed) {}
+        @JavascriptInterface public void check() {}
     }
 
     private void showStartupFailure() {
