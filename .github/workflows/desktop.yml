@@ -46,6 +46,7 @@ jobs:
           python3 scripts/desktop_metadata.py --github-env "$GITHUB_ENV"
           APP_VERSION=$(python3 -c 'import scripts.desktop_metadata as m; from pathlib import Path; print(m.metadata(Path("."))[0])')
           git fetch --no-tags origin "refs/tags/v$APP_VERSION:refs/tags/v$APP_VERSION"
+          git fetch --no-tags origin main
           if [[ "${GITHUB_REF_TYPE:-}" == tag ]]; then
             test "$GITHUB_REF_NAME" = "v$APP_VERSION"
           fi
