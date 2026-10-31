@@ -23,6 +23,9 @@
   var fixedNative = false, sourceCodec = '';
   try { nativeEnabled = !!(bridge && bridge.isAvailable && bridge.isAvailable()); } catch (ignored) {}
   try { fixedNative = !!(nativeEnabled && bridge.engine && bridge.engine() === 'mpv'); } catch (ignoredEngine) {}
+  var primaryMedia3 = false;
+  try { primaryMedia3 = !!(nativeEnabled && !fixedNative && bridge.primaryPlayback && bridge.primaryPlayback()); } catch (ignoredPrimary) {}
+  var primaryNative = fixedNative || primaryMedia3;
   if (!domVideo || !nativeEnabled) {
     window.HongguoNativePlaybackAdapter = { enabled: false, video: function () { return domVideo; } };
     return;
@@ -45,11 +48,11 @@
   var webviewVersion = browserVersion();
   function preferenceBridge() {
     var preferences = window.HongguoTVPreferences;
-    return !fixedNative && preferences && typeof preferences.readMedia3Preference === 'function' &&
+    return !primaryNative && preferences && typeof preferences.readMedia3Preference === 'function' &&
       typeof preferences.writeMedia3Preference === 'function' && typeof preferences.clearMedia3Preference === 'function' ? preferences : null;
   }
   function readMedia3Preference() {
-    if (fixedNative || !webviewVersion) return false;
+    if (primaryNative || !webviewVersion) return false;
     var preferences = preferenceBridge();
     if (preferences) {
       try { return preferences.readMedia3Preference(webviewVersion) === 'media3'; } catch (ignoredNativePreference) { return false; }
@@ -65,7 +68,7 @@
     return false;
   }
   function writeMedia3Preference() {
-    if (fixedNative || !webviewVersion) return false;
+    if (primaryNative || !webviewVersion) return false;
     var preferences = preferenceBridge();
     var expiresAt = now() + FALLBACK_POLICY.preferenceTtlMs;
     if (preferences) {
@@ -109,8 +112,8 @@
     return false;
   }
   function newAttempt() {
-    return { webview_version: webviewVersion, preferred_path: readMedia3Preference() ? 'Media3' : 'HTML5',
-      active_path: fixedNative ? 'MPV' : 'HTML5', started_at: 0, metadata_ms: null, zero_progress_ms: null,
+    return { webview_version: webviewVersion, preferred_path: primaryMedia3 ? 'Media3' : readMedia3Preference() ? 'Media3' : 'HTML5',
+      active_path: fixedNative ? 'MPV' : primaryMedia3 ? 'Media3' : 'HTML5', started_at: 0, metadata_ms: null, zero_progress_ms: null,
       switch_ms: null, switch_reason: '', switched: false, first_frame_ms: null, final_first_frame: false,
       final_path: '', outcome: 'idle', last_progress_at: 0, last_ready_state: 0, last_buffered_end: 0,
       last_time: 0, playing_at: 0, phase_has_metadata: false, first_frame_deadline: 0, frame_callback_requested: false,
@@ -118,7 +121,7 @@
       cache_eligible: false, cache_written: false, dom_retry: false, started: false };
   }
   var attempt = newAttempt();
-  if (fixedNative) { usingNative = true; document.documentElement.classList.add('native-playback'); }
+  if (primaryNative) { usingNative = true; document.documentElement.classList.add('native-playback'); }
 
   function isNative() { return nativeEnabled && usingNative; }
   function domHasFrame() {
@@ -280,6 +283,13 @@
   }
   function invokePlay() {
     if (!state.source) return;
+    if (primaryMedia3 && !attempt.started) {
+      attempt.started = true;
+      attempt.started_at = now();
+      attempt.last_progress_at = attempt.started_at;
+      attempt.active_path = 'Media3';
+      attempt.outcome = 'preparing';
+    }
     syncBounds();
     nativeDiagnosticId = diagnosticPage + '-' + loadId;
     var payload = JSON.stringify({ source: localSource(state.source), start_position: state.currentTime || 0,
@@ -380,7 +390,7 @@
     nativeRequested = false;
     nativeDiagnosticId = '';
     loadId = 'hongguo-' + (++sequence);
-    if (isNative()) {
+    if (isNative() && !primaryMedia3) {
       clearFallbackTimer();
       try {
         if (fixedNative && next && bridge.begin) bridge.begin(loadId);
@@ -389,14 +399,20 @@
       usingNative = fixedNative;
       if (!fixedNative) document.documentElement.classList.remove('native-playback');
     }
+    if (primaryMedia3) {
+      clearFallbackTimer();
+      try { if (next && bridge.begin) bridge.begin(loadId); } catch (ignoredBegin) {}
+      usingNative = true;
+      document.documentElement.classList.add('native-playback');
+    }
     attempt = newAttempt();
-    nativeAttempted = false;
+    nativeAttempted = primaryMedia3;
     state.source = next;
     state.currentTime = 0; state.startPosition = 0; state.duration = NaN; state.paused = true; state.ended = false;
     state.seeking = false; state.readyState = 0; state.videoWidth = 0; state.videoHeight = 0;
     state.seekPending = false; state.started = false;
     // The MPV edition never loads media into WebView, including between episodes.
-    if (!fixedNative) domVideo.src = next;
+    if (!primaryNative) domVideo.src = next;
     else {
       proxy.error = null;
       proxy.networkState = next ? 2 : 0;
@@ -496,12 +512,13 @@
       if (name === 'outputstate') { dispatch('nativeoutputstate', { type: 'nativeoutputstate', coreIdle: detail.core_idle }); return; }
       if (name === 'frame') {
         state.readyState = 3; state.videoWidth = Number(detail.width) || 0; state.videoHeight = Number(detail.height) || 0;
-        if (!fixedNative && attempt.switched) {
+        if (primaryMedia3 || !fixedNative && attempt.switched) {
           attempt.final_first_frame = true;
           attempt.final_path = 'Media3';
           attempt.active_path = 'Media3';
           attempt.first_frame_ms = attempt.started ? Math.max(0, now() - attempt.started_at) : null;
-          attempt.media3_first_frame_ms = attempt.switch_started_at ? Math.max(0, now() - attempt.switch_started_at) : null;
+          attempt.media3_first_frame_ms = attempt.switch_started_at ? Math.max(0, now() - attempt.switch_started_at) :
+            primaryMedia3 && attempt.started_at ? Math.max(0, now() - attempt.started_at) : null;
           attempt.outcome = 'first_frame';
           if (attempt.cache_eligible) attempt.cache_written = writeMedia3Preference();
           clearFallbackTimer();
@@ -576,7 +593,7 @@
   });
   window.HongguoNativePlaybackAdapter = {
     enabled: true,
-    engine: fixedNative ? 'mpv' : 'webview_media3',
+    engine: fixedNative ? 'mpv' : primaryMedia3 ? 'media3' : 'webview_media3',
     video: function () { return proxy; },
     domVideo: function () { return domVideo; },
     isNative: isNative,

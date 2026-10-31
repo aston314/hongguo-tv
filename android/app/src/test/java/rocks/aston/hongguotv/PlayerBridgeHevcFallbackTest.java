@@ -14,10 +14,10 @@ public class PlayerBridgeHevcFallbackTest {
 
     @Test
     public void softwareFallbackRequiresSelectedUnsupportedHevcBeforeFirstFrameAndRunsOnce() {
-        assertTrue(PlaybackCodecPolicy.shouldRetryHevcSoftwareFallback(true, false, false));
-        assertFalse(PlaybackCodecPolicy.shouldRetryHevcSoftwareFallback(false, false, false));
-        assertFalse(PlaybackCodecPolicy.shouldRetryHevcSoftwareFallback(true, true, false));
-        assertFalse(PlaybackCodecPolicy.shouldRetryHevcSoftwareFallback(true, false, true));
+        assertTrue(PlaybackCodecPolicy.shouldRetrySoftwareDecoder(true, false, false));
+        assertFalse(PlaybackCodecPolicy.shouldRetrySoftwareDecoder(false, false, false));
+        assertFalse(PlaybackCodecPolicy.shouldRetrySoftwareDecoder(true, true, false));
+        assertFalse(PlaybackCodecPolicy.shouldRetrySoftwareDecoder(true, false, true));
     }
 
     @Test

@@ -1,0 +1,8 @@
+Hongguo TV standard Media3 evaluation flavor
+
+This evaluation APK includes NextLib Media3 Extensions 1.8.0-0.9.0
+from https://github.com/anilbeesetti/nextlib.
+
+NextLib Media3 Extensions and its bundled FFmpeg libraries are distributed
+under the GNU General Public License v3.0. The upstream source repository is
+https://github.com/anilbeesetti/nextlib.

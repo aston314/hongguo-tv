@@ -88,10 +88,12 @@ jobs:
       # library splitter can race when both APK variants package together.
       - name: Build and lint standard debug APK
         run: gradle --no-daemon --max-workers=1 -p android testStandardDebugUnitTest assembleStandardDebug lintStandardDebug
+      - name: Build and lint standard Media3 FFmpeg evaluation APK
+        run: gradle --no-daemon --max-workers=1 -p android testStandardMedia3DebugUnitTest assembleStandardMedia3Debug lintStandardMedia3Debug
       - name: Build and lint MPV debug APK
         run: gradle --no-daemon --max-workers=1 -p android testMpvDebugUnitTest assembleMpvDebug lintMpvDebug
       - name: Verify debug edition isolation
-        run: python3 scripts/verify_apks.py --standard android/app/build/outputs/apk/standard/debug/app-standard-debug.apk --mpv android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk --version "$APP_VERSION" --standard-code "$APP_VERSION_CODE" --mpv-code "$MPV_VERSION_CODE" --debug
+        run: python3 scripts/verify_apks.py --standard android/app/build/outputs/apk/standard/debug/app-standard-debug.apk --standard-media3 android/app/build/outputs/apk/standardMedia3/debug/app-standardMedia3-debug.apk --mpv android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk --version "$APP_VERSION" --standard-code "$APP_VERSION_CODE" --mpv-code "$MPV_VERSION_CODE" --debug
       - name: Upload MPV channel playback diagnostic APK
         if: github.ref == 'refs/heads/codex/mpv-channel-first-play-diagnostics'
         uses: actions/upload-artifact@v4
