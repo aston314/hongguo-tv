@@ -1,6 +1,6 @@
 Hongguo TV Android standard edition
 
-This APK includes NextLib Media3 Extensions 1.8.0-0.9.0
+This APK includes NextLib Media3 Extensions 1.11.1-0.17.0
 from https://github.com/anilbeesetti/nextlib.
 
 NextLib Media3 Extensions and its bundled FFmpeg libraries are distributed
