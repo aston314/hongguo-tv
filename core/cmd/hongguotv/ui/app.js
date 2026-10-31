@@ -499,6 +499,7 @@
           error.upstreamStatus = Number(payload.upstream_status) || 0;
           error.stage = payload.stage || '';
           error.videoModel = payload.video_model || null;
+          error.preparation = payload.preparation || null;
           error.recoveryComplete = payload.recovery_complete === true;
           throw error;
         }
@@ -2786,7 +2787,7 @@
       device: device || {}, userAgent: environment.userAgent, environmentRows: environment.rows,
       native: native || {},
       playbackRoute: playbackRoute,
-      preparationError: typeof webosShell !== 'undefined' && webosShell && activePlayback && activePlayback.generation === feedGeneration &&
+      preparationError: activePlayback && activePlayback.generation === feedGeneration &&
         activePlayback.owner === accountEpoch ? activePlayback.preparationError : null,
       timing: timingSnapshot,
       capturedAt: ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2) + ':' + ('0' + now.getSeconds()).slice(-2),
@@ -2817,6 +2818,7 @@
       var currentPlayers = readCurrentPlaybackDiagnostics(video);
       if (contextGeneration !== feedGeneration || contextOwner !== accountEpoch || contextPlayback !== activePlayback ||
           presentation !== (activePlayback && activePlayback.presentation) ||
+          snapshot.preparationError !== (activePlayback && activePlayback.generation === feedGeneration && activePlayback.owner === accountEpoch ? activePlayback.preparationError : null) ||
           (native || {}).diagnostic_id !== (currentPlayers.native || {}).diagnostic_id ||
           (playbackRoute || {}).active_path !== (currentPlayers.route || {}).active_path) {
         refreshPlaybackDiagnostics();
@@ -4631,13 +4633,16 @@
   function preparationFailureMessage(playback, error) {
     var fallback = uiText('ui.cannotPlayEpisode', '暂时无法播放这集');
     var recovery = typeof window !== 'undefined' && window.HongguoPlaybackRecovery;
-    if (!webosShell || !playback || playback !== activePlayback || playback.generation !== feedGeneration ||
+    if (!playback || playback !== activePlayback || playback.generation !== feedGeneration ||
         playback.owner !== accountEpoch || !recovery || !recovery.preparationFailure) return fallback;
     var failure = recovery.preparationFailure(error);
     if (!failure) return fallback;
     playback.preparationError = failure;
     var message = failure.code === 'VIDEO_MODEL_NO_QUALITY' ?
       uiText('ui.noCompatibleSource', '本集暂时没有兼容片源，请稍后重试') :
+      failure.stage === 'device_register' ? uiText('ui.playbackIdentityUnavailable', '匿名播放身份准备失败，请稍后重试') :
+      ['range_init', 'media_download', 'media_decrypt', 'cache_write', 'playback_prepare'].indexOf(failure.stage) >= 0 ?
+      uiText('ui.playbackPreparationUnavailable', '视频准备失败，请稍后重试') :
       uiText('ui.playbackInfoUnavailable', '播放信息暂时获取失败，请稍后重试');
     return message + ' · ' + uiText('ui.playbackErrorCode', '错误码：{code}', { code: failure.code });
   }
@@ -5171,11 +5176,11 @@
       if (video.setSourceCodec) video.setSourceCodec(values[1].video_codec);
       setPlayerStatus(episodeLoadingText(playback.episode));
       if (!applicationHidden() && !applicationInBackground) playMedia(video).catch(function () { setPlayerStatus(uiText('ui.standardPlaybackFailed', '标准播放也未能启动'), true); });
-    }).catch(function () {
-      if (playback !== activePlayback || generation !== feedGeneration) return;
+    }).catch(function (error) {
+      if (playback !== activePlayback || generation !== feedGeneration || error.name === 'AbortError') return;
       playbackInfoRequest = null;
       playback.rangeFallback = uiText('ui.allPlaybackFailed', '分段读取和标准播放准备均失败');
-      setPlayerStatus(uiText('ui.episodePlaybackFailed', '这集未能正常播放'), true);
+      setPlayerStatus(preparationFailureMessage(playback, error), true);
     });
     return true;
   }

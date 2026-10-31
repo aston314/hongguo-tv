@@ -751,3 +751,32 @@ test('rebinding quality invalidates old presentation callbacks; paused exit rest
   f.c.holdPlaybackAudio(f.c.feedGeneration);f.video.paused=true;f.c.releasePlaybackAudio();
   assert.equal(f.video.muted,false);assert.equal(f.video.volume,.75);assert.equal(f.c.playbackAudioHold,null);
 });
+
+for (const engine of ['standard', 'mpv', 'range']) {
+  test(engine + ' retains the foreground preparation error and clears it on retry without adding recovery', async () => {
+    const error = Object.assign(new Error('private upstream URL'), {code:'VIDEO_MODEL_EMPTY',stage:'multi_video_model',status:502,
+      preparation:{http_status:200,response_bytes:0,attempt:6,elapsed_ms:1400}});
+    const f=fixture({engine,sourceReplies:[error,null]});
+    f.c.window={HongguoPlaybackRecovery:require('../core/cmd/hongguotv/ui/playback-recovery')};
+    f.gate.resolve(); f.c.playFeedItem(0,2,0); await settlePlayback(f,30);
+    assert.equal(f.resolverURLs.length,1,'diagnostics must never add a retry');
+    assert.equal(f.c.activePlayback.preparationError.attempt,6);
+    assert(f.calls.includes('status:播放信息暂时获取失败，请稍后重试 · 错误码：VIDEO_MODEL_EMPTY'));
+    f.c.playFeedItem(0,2,0); await settlePlayback(f,30);
+    assert.equal(f.c.activePlayback.preparationError,undefined);
+    assert.equal(f.video.src,'/media/next.mp4');
+  });
+}
+test('preparation messages cannot attach late errors to another generation or account', () => {
+  const f=fixture(); f.c.window={HongguoPlaybackRecovery:require('../core/cmd/hongguotv/ui/playback-recovery')};
+  const error={code:'VIDEO_MODEL_EMPTY',stage:'multi_video_model',preparation:{http_status:200,response_bytes:0}};
+  const old=f.c.activePlayback;
+  for(const change of ['generation','account','playback']) {
+    f.c.activePlayback=old; f.c.feedGeneration=old.generation; f.c.accountEpoch=old.owner;
+    if(change==='generation') f.c.feedGeneration++;
+    if(change==='account') f.c.accountEpoch++;
+    if(change==='playback') f.c.activePlayback={...old};
+    assert.equal(f.c.preparationFailureMessage(old,error),'暂时无法播放这集');
+    assert.equal(old.preparationError,undefined);
+  }
+});

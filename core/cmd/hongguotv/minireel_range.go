@@ -73,7 +73,7 @@ func resolveMiniReelMediaRangeQualityMode(ctx context.Context, seriesID, vid, qu
 	// that ignore Range all use the established whole-file preparation path.
 	result, fallbackErr := resolveMiniReelMediaQualityMode(ctx, seriesID, vid, quality, fallback, codecMode)
 	if fallbackErr != nil {
-		return nil, fmt.Errorf("按需读取和完整文件准备均失败: %w", fallbackErr)
+		return nil, fmt.Errorf("按需读取和完整文件准备均失败: %w", playbackPreparationFallback(err, fallbackErr))
 	}
 	result["mode"] = "full"
 	result["range_fallback"] = "按需读取不可用，已切换完整文件播放模式"
@@ -89,12 +89,12 @@ func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token
 		return
 	}
 	if len(options) == 0 {
-		job.Err = miniReelNoCompatibleOptionsError(job.CodecMode)
+		job.Err = wrapPlaybackPreparation(miniReelNoCompatibleOptionsError(job.CodecMode), "source_select", "VIDEO_MODEL_NO_QUALITY")
 		return
 	}
 	option, err := selectMiniReelQuality(options, quality, fallback)
 	if err != nil {
-		job.Err = err
+		job.Err = wrapPlaybackPreparation(err, "source_select", "VIDEO_MODEL_NO_QUALITY")
 		return
 	}
 	rangeStarted := time.Now()
@@ -115,12 +115,15 @@ func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token
 	_ = seriesID
 }
 
-func openMiniReelRangeSource(ctx context.Context, option miniReelOption, vid string, codecModes ...string) (*miniReelRangeSource, error) {
+func openMiniReelRangeSource(ctx context.Context, option miniReelOption, vid string, codecModes ...string) (result *miniReelRangeSource, err error) {
+	started := time.Now()
+	diagnostic := playbackPreparationDiagnostic{Code: "RANGE_INIT_TRANSPORT", Stage: "range_init"}
+	defer func() { err = finishPlaybackPreparation(err, diagnostic, started) }()
 	codecMode := "default"
 	if len(codecModes) > 0 {
 		codecMode = codecModes[0]
 	}
-	codecMode, err := normalizeMiniReelCodecMode(codecMode)
+	codecMode, err = normalizeMiniReelCodecMode(codecMode)
 	if err != nil {
 		return nil, err
 	}
@@ -130,9 +133,12 @@ func openMiniReelRangeSource(ctx context.Context, option miniReelOption, vid str
 		return nil, err
 	}
 	defer response.Body.Close()
+	diagnostic.HTTPStatus = &response.StatusCode
+	diagnostic.Code = "RANGE_INIT_HTTP"
 	if response.StatusCode != http.StatusPartialContent {
 		return nil, fmt.Errorf("upstream did not honor Range (HTTP %d)", response.StatusCode)
 	}
+	diagnostic.Code = "RANGE_INIT_INVALID"
 	etag := strings.TrimSpace(response.Header.Get("ETag"))
 	if !validMiniReelRangeETag(etag) {
 		return nil, errors.New("upstream has no strong ETag")
@@ -145,6 +151,8 @@ func openMiniReelRangeSource(ctx context.Context, option miniReelOption, vid str
 	if err != nil {
 		return nil, err
 	}
+	responseBytes := len(prefix)
+	diagnostic.ResponseBytes = &responseBytes
 	if int64(len(prefix)) != end+1 {
 		return nil, errors.New("upstream returned a truncated initial Range")
 	}
@@ -176,12 +184,17 @@ func openMiniReelRangeSource(ctx context.Context, option miniReelOption, vid str
 	return source, nil
 }
 
-func fetchMiniReelInitialPrefix(ctx context.Context, target, etag string, length, end int64) ([]byte, error) {
+func fetchMiniReelInitialPrefix(ctx context.Context, target, etag string, length, end int64) (data []byte, err error) {
+	started := time.Now()
+	diagnostic := playbackPreparationDiagnostic{Code: "RANGE_INIT_TRANSPORT", Stage: "range_init"}
+	defer func() { err = finishPlaybackPreparation(err, diagnostic, started) }()
 	response, err := miniReelDoRange(ctx, target, 0, end-1, "")
 	if err != nil {
 		return nil, err
 	}
 	defer response.Body.Close()
+	diagnostic.HTTPStatus = &response.StatusCode
+	diagnostic.Code = "RANGE_INIT_INVALID"
 	if response.StatusCode != http.StatusPartialContent || strings.TrimSpace(response.Header.Get("ETag")) != etag {
 		return nil, errors.New("upstream changed while reading MP4 initialization")
 	}
@@ -189,10 +202,12 @@ func fetchMiniReelInitialPrefix(ctx context.Context, target, etag string, length
 	if !ok || start != 0 || gotEnd != end-1 || gotLength != length {
 		return nil, errors.New("upstream returned an inconsistent initialization Range")
 	}
-	data, err := miniReelReadLimited(response.Body, miniReelRangeMaxMoov)
+	data, err = miniReelReadLimited(response.Body, miniReelRangeMaxMoov)
 	if err != nil {
 		return nil, err
 	}
+	responseBytes := len(data)
+	diagnostic.ResponseBytes = &responseBytes
 	if int64(len(data)) != end {
 		return nil, errors.New("upstream returned a truncated initialization Range")
 	}

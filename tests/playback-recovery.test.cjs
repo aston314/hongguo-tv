@@ -35,3 +35,15 @@ test('preparation failures retain only safe current-request fields including a z
   assert.equal(preparationFailure({...error,code:{toString:()=> 'VIDEO_MODEL_EMPTY'}}),null);
   assert.deepEqual(preparationFailure({...error,videoModel:{http_status:NaN,response_bytes:-1,attempt:'3',elapsed_ms:Infinity}}),{code:'VIDEO_MODEL_EMPTY',stage:'multi_video_model'});
 });
+
+test('Go preparation metadata is whitelisted with one preceding Range failure and no invented HTTP', () => {
+  const error={code:'MEDIA_DOWNLOAD_TRANSPORT_TIMEOUT',stage:'media_download',status:502,upstreamStatus:0,
+    preparation:{http_status:NaN,elapsed_ms:3000,business_code:'101000',cookie:'secret',
+      range_failure:{code:'RANGE_INIT_HTTP',stage:'range_init',http_status:403,elapsed_ms:150,
+        url:'https://private',range_failure:{code:'PRIVATE',stage:'range_init'}}}};
+  assert.deepEqual(preparationFailure(error),{code:error.code,stage:error.stage,elapsed_ms:3000,business_code:'101000',
+    range_failure:{code:'RANGE_INIT_HTTP',stage:'range_init',http_status:403,elapsed_ms:150}});
+  assert.deepEqual(preparationFailure({...error,preparation:{business_code:'secret',http_status:0,range_failure:{code:'SECRET',stage:'untrusted'}}}),{code:error.code,stage:error.stage});
+  for(const stage of ['device_register','multi_video_model','fallback_api','source_select','range_init','media_download','media_decrypt','cache_write','playback_prepare'])
+    assert.equal(preparationFailure({code:'PREPARE_FAILED',stage}).stage,stage);
+});

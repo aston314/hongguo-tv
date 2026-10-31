@@ -393,7 +393,7 @@ func (s *server) playInfo(w http.ResponseWriter, r *http.Request) {
 		result, err = s.hongguo.PlayInfoQualityMode(r.Context(), r.URL.Query().Get("series_id"), r.URL.Query().Get("vid"), quality, r.URL.Query().Get("fallback") == "1", codecMode)
 	}
 	if err != nil {
-		writeError(w, http.StatusBadGateway, err.Error())
+		writePlaybackPreparationError(w, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "data": result})

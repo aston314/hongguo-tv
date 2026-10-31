@@ -144,7 +144,10 @@ func (d *passportDevice) payload(stamp int64) []byte {
 	return b
 }
 
-func (c *passportClient) registerDevice(ctx context.Context) error {
+func (c *passportClient) registerDevice(ctx context.Context) (err error) {
+	started := time.Now()
+	diagnostic := playbackPreparationDiagnostic{Code: "DEVICE_REGISTER_FAILED", Stage: "device_register"}
+	defer func() { err = finishPlaybackPreparation(err, diagnostic, started) }()
 	if c.session.Registered && validID(c.session.DeviceID) && validID(c.session.InstallID) {
 		return nil
 	}
@@ -197,13 +200,19 @@ func (c *passportClient) registerDevice(ctx context.Context) error {
 		return errors.New("设备注册连接失败，请稍后重试")
 	}
 	defer resp.Body.Close()
+	diagnostic.HTTPStatus = &resp.StatusCode
+	diagnostic.Code = "DEVICE_REGISTER_HTTP"
 	if resp.StatusCode != 200 {
 		return fmt.Errorf("设备注册返回 HTTP %d", resp.StatusCode)
 	}
+	diagnostic.Code = "DEVICE_REGISTER_READ"
 	b, err := io.ReadAll(io.LimitReader(resp.Body, (4<<20)+1))
 	if err != nil || len(b) > 4<<20 {
 		return errors.New("设备注册响应读取失败")
 	}
+	responseBytes := len(b)
+	diagnostic.ResponseBytes = &responseBytes
+	diagnostic.Code = "DEVICE_REGISTER_INVALID"
 	if bytes.HasPrefix(b, []byte{0x74, 0x63, 5, 0x10, 0, 0}) {
 		b, err = passportTTDecrypt(b)
 		if err != nil {

@@ -177,6 +177,15 @@
         status: metric(preparation.http_status), bytes: metric(preparation.response_bytes),
         attempt: metric(preparation.attempt), elapsed: millis(preparation.elapsed_ms)
       }), true);
+      if (typeof preparation.business_code === 'string' && /^[0-9]{1,16}$/.test(preparation.business_code))
+        add(tr('diagnostic.upstreamBusinessCode'), preparation.business_code);
+      var rangeFailure = preparation.range_failure;
+      if (rangeFailure && diagnosticCode(rangeFailure.code) && diagnosticCode(rangeFailure.stage)) {
+        add(tr('diagnostic.rangePreparationFailure'), diagnosticCode(rangeFailure.code) + ' · ' + diagnosticCode(rangeFailure.stage) + ' · ' + tr('diagnostic.playbackInfoResponseValue', {
+          status: metric(rangeFailure.http_status), bytes: metric(rangeFailure.response_bytes),
+          attempt: metric(rangeFailure.attempt), elapsed: millis(rangeFailure.elapsed_ms)
+        }), true);
+      }
     }
     add(tr('diagnostic.recentError'), preparationCode || (native.error_kind ? playerName + ' ' + text(native.error_kind, 24) + (errorCode(native.error_code) ? '（' + errorCode(native.error_code) + '）' : '') : video.error ? (errorNames[video.error] ? tr(errorNames[video.error]) : tr('diagnostic.unknownMediaError')) + '（' + video.error + '）' : flags.failed ? tr('diagnostic.retryVisible') : flags.source && core.media_http_status >= 400 ? tr('diagnostic.localHttp', { status: num(core.media_http_status) }) : tr('diagnostic.noPlaybackError')));
     return { summary: summary, rows: rows, capturedAt: snapshot.capturedAt };

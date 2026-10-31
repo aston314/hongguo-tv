@@ -50,7 +50,7 @@ jobs:
       - name: Check concurrent account login, playback identity recovery and cancellation
         run: |
           go test -race ./core/cmd/hongguotv -run 'Test(QR|Account|UpSMS|NewMFA|LateExpiry|TemporaryMFA)'
-          go test -race ./core/cmd/hongguotv -run 'TestMiniReel(PlaybackDevice|IdentityRecovery)'
+          go test -race ./core/cmd/hongguotv -run 'TestMiniReel(PlaybackDevice|IdentityRecovery)|TestPlaybackPreparation'
       - name: Check TV JavaScript and pagination
         run: |
           node --check core/cmd/hongguotv/ui/app.js

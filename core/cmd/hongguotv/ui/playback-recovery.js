@@ -1,15 +1,30 @@
 (function (root) {
   'use strict';
 
-  function preparationFailure(error) {
-    if (!error || error.name === 'AbortError' ||
-        ['multi_video_model', 'multi_video_model_transport', 'device_register', 'fallback_api'].indexOf(error.stage) < 0 ||
-        typeof error.code !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/.test(error.code)) return null;
-    var result = { code: error.code, stage: error.stage };
-    var model = error.videoModel || {};
+  function safePreparation(code, stage, details) {
+    if (['multi_video_model', 'multi_video_model_transport', 'device_register', 'fallback_api',
+        'source_select', 'range_init', 'media_download', 'media_decrypt', 'cache_write', 'playback_prepare'].indexOf(stage) < 0 ||
+        typeof code !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/.test(code)) return null;
+    var result = { code: code, stage: stage };
+    details = details || {};
     ['http_status', 'response_bytes', 'attempt', 'elapsed_ms'].forEach(function (key) {
-      if (typeof model[key] === 'number' && isFinite(model[key]) && model[key] >= 0) result[key] = Math.floor(model[key]);
+      if (typeof details[key] === 'number' && isFinite(details[key]) && details[key] >= 0 &&
+          (key !== 'http_status' || details[key] >= 100 && details[key] <= 599)) result[key] = Math.floor(details[key]);
     });
+    if (typeof details.business_code === 'string' && /^[0-9]{1,16}$/.test(details.business_code)) result.business_code = details.business_code;
+    return result;
+  }
+
+  function preparationFailure(error) {
+    if (!error || error.name === 'AbortError') return null;
+    var details = error.preparation || error.videoModel || {};
+    var result = safePreparation(error.code, error.stage, details);
+    if (result && details.range_failure) {
+      // Only one preceding Range attempt, never an unbounded error chain.
+      var range = details.range_failure;
+      var previous = safePreparation(range.code, range.stage, range);
+      if (previous) result.range_failure = previous;
+    }
     return result;
   }
 

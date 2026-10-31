@@ -53,7 +53,7 @@ test('webOS diagnostic snapshots retain only the active account and generation p
   f.context.activePlayback.generation=f.context.feedGeneration;
   f.context.webosShell=false;
   f.context.refreshPlaybackDiagnostics();
-  assert.equal(f.reports.at(-1).preparationError,null,'other platforms keep their diagnostic behavior');
+  assert.equal(f.reports.at(-1).preparationError,error,'Android and desktop also retain their current preparation failure');
 });
 
 test('delayed diagnostics cannot restore an old native warning after episode, account, source or player changes',()=>{
@@ -118,4 +118,14 @@ test('webOS live audio diagnostics remain available without importing native dec
   const report=c.readCurrentPlaybackDiagnostics({getAttribute:()=>media});
   assert.equal(report.native.webos_audio.phase,'playing');
   assert.equal(report.native.track_support,undefined);
+});
+
+test('a delayed core read cannot erase a preparation failure received while the diagnostic panel is open',()=>{
+  const f=fixture({webos:false,preparing:true,mode:'',src:''});
+  const oldRequest=f.context.diagnosticRequest;
+  const error={code:'DEVICE_REGISTER_HTTP',stage:'device_register',http_status:403};
+  f.context.activePlayback.preparationError=error;
+  oldRequest.status=200; oldRequest.responseText=JSON.stringify({ok:true,data:{}}); oldRequest.onload();
+  assert.equal(f.reports.at(-1).preparationError,error);
+  assert.notEqual(f.context.diagnosticRequest,oldRequest);
 });

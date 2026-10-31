@@ -190,3 +190,15 @@ test('playback diagnostics report local route choice, switch reason, first frame
   const waitingRows=Object.fromEntries(diagnostics.report(waiting).rows.map(x=>[x.label,x.value]));
   assert.match(waitingRows['播放器阶段耗时'],/首帧 2200ms/);
 });
+
+test('diagnostics show both preparation failures and a numeric business code without upstream HTTP fabrication',()=>{
+  const preparationError={code:'MEDIA_DOWNLOAD_FAILED_TIMEOUT',stage:'media_download',elapsed_ms:3000,business_code:'101000',
+    url:'https://private',range_failure:{code:'RANGE_INIT_HTTP',stage:'range_init',http_status:403,elapsed_ms:200,cookie:'secret'}};
+  const report=diagnostics.report(snapshot({flags:{failed:true},preparationError}));
+  const rows=Object.fromEntries(report.rows.map(x=>[x.label,x.value]));
+  assert.match(rows['播放信息错误'],/MEDIA_DOWNLOAD_FAILED_TIMEOUT.*media_download/);
+  assert.match(rows['播放信息响应'],/HTTP 未取得/);
+  assert.match(rows['此前 Range 准备失败'],/RANGE_INIT_HTTP.*HTTP 403/);
+  assert.equal(rows['上游业务码'],'101000');
+  assert.doesNotMatch(JSON.stringify(report),/private|secret|HTTP 502/);
+});

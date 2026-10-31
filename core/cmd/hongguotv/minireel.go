@@ -445,12 +445,12 @@ func prepareMiniReelMedia(ctx context.Context, job *miniReelMediaJob, token, ser
 		return
 	}
 	if len(options) == 0 {
-		job.Err = miniReelNoCompatibleOptionsError(job.CodecMode)
+		job.Err = wrapPlaybackPreparation(miniReelNoCompatibleOptionsError(job.CodecMode), "source_select", "VIDEO_MODEL_NO_QUALITY")
 		return
 	}
 	option, err := selectMiniReelQuality(options, quality, fallback)
 	if err != nil {
-		job.Err = err
+		job.Err = wrapPlaybackPreparation(err, "source_select", "VIDEO_MODEL_NO_QUALITY")
 		return
 	}
 	job.Quality = option.Quality
@@ -460,12 +460,12 @@ func prepareMiniReelMedia(ctx context.Context, job *miniReelMediaJob, token, ser
 	job.VideoHeight = option.Height
 	job.Mode = "full"
 	if err := ensureMiniReelRoot(); err != nil {
-		job.Err = err
+		job.Err = playbackStorageError(err)
 		return
 	}
 	directory = filepath.Join(miniReelState.root, token)
 	if err := os.MkdirAll(directory, 0700); err != nil {
-		job.Err = err
+		job.Err = playbackStorageError(err)
 		return
 	}
 	path := filepath.Join(directory, token+".mp4")
@@ -484,7 +484,7 @@ func prepareMiniReelMedia(ctx context.Context, job *miniReelMediaJob, token, ser
 		decryptStarted := time.Now()
 		if err := decryptMiniReelMP4(path, option.Key); err != nil {
 			job.DecryptMS = time.Since(decryptStarted).Milliseconds()
-			job.Err = fmt.Errorf("MiniReel CENC decrypt failed: %w", err)
+			job.Err = wrapPlaybackPreparation(fmt.Errorf("MiniReel CENC decrypt failed: %w", err), "media_decrypt", "MEDIA_DECRYPT_FAILED")
 			return
 		}
 		job.DecryptMS = time.Since(decryptStarted).Milliseconds()
@@ -823,8 +823,10 @@ func miniReelNativeOptionsWithIdentityCache(ctx context.Context, vid, endpoint, 
 	if err != nil {
 		return nil, err
 	}
+	registrationStarted := time.Now()
 	device, err := identity.get(ctx)
 	if err != nil {
+		err = finishPlaybackPreparation(err, playbackPreparationDiagnostic{Code: "DEVICE_REGISTER_FAILED", Stage: "device_register"}, registrationStarted)
 		return nil, fmt.Errorf("匿名播放设备注册失败，请点击重试再次尝试: %w", err)
 	}
 	options, sourceErr := miniReelNativeOptionsEndpointWithDeviceMode(ctx, vid, endpoint, device, codecMode)
@@ -842,7 +844,8 @@ func miniReelNativeOptionsWithIdentityCache(ctx context.Context, vid, endpoint, 
 		return nil, fmt.Errorf("%w; anonymous playback identity recovery: %v", sourceErr, err)
 	}
 	// A resolver gets at most one replacement, even if that identity is empty too.
-	return miniReelNativeOptionsEndpointWithDeviceMode(ctx, vid, endpoint, replacement, codecMode)
+	options, replacementErr := miniReelNativeOptionsEndpointWithDeviceMode(ctx, vid, endpoint, replacement, codecMode)
+	return options, playbackPreparationAttempt(replacementErr, miniReelVideoModelAttempts, true)
 }
 
 func registerMiniReelPlaybackDevice() (miniReelDevice, error) {
@@ -882,6 +885,7 @@ func miniReelNativeOptionsEndpointWithDeviceMode(ctx context.Context, vid, endpo
 		if err == nil {
 			return options, nil
 		}
+		err = playbackPreparationAttempt(err, attempt+1, false)
 		lastErr = err
 		if !errors.Is(err, errMiniReelVideoModelEmpty) {
 			return nil, err
@@ -905,8 +909,11 @@ func miniReelNativeOptionsAttemptWithClient(ctx context.Context, vid, endpoint s
 	return miniReelNativeOptionsAttemptWithClientMode(ctx, vid, endpoint, device, client, "default")
 }
 
-func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoint string, device miniReelDevice, client *http.Client, codecMode string) ([]miniReelOption, error) {
-	codecMode, err := normalizeMiniReelCodecMode(codecMode)
+func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoint string, device miniReelDevice, client *http.Client, codecMode string) (options []miniReelOption, err error) {
+	started := time.Now()
+	diagnostic := playbackPreparationDiagnostic{Code: "VIDEO_MODEL_TRANSPORT", Stage: "multi_video_model", Attempt: 1}
+	defer func() { err = finishPlaybackPreparation(err, diagnostic, started) }()
+	codecMode, err = normalizeMiniReelCodecMode(codecMode)
 	if err != nil {
 		return nil, err
 	}
@@ -939,13 +946,19 @@ func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoi
 		return nil, err
 	}
 	defer resp.Body.Close()
+	diagnostic.HTTPStatus = &resp.StatusCode
+	diagnostic.Code = "VIDEO_MODEL_HTTP"
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, fmt.Errorf("MiniReel API HTTP %d", resp.StatusCode)
 	}
+	diagnostic.Code = "VIDEO_MODEL_READ"
 	data, err := miniReelReadLimited(resp.Body, miniReelMaxJSONBytes)
 	if err != nil {
 		return nil, err
 	}
+	responseBytes := len(data)
+	diagnostic.ResponseBytes = &responseBytes
+	diagnostic.Code = "VIDEO_MODEL_EMPTY"
 	if len(bytes.TrimSpace(data)) == 0 {
 		log.Printf("[minireel] multi_video_model empty response status=%d content_length=%d tt_logid=%q", resp.StatusCode, resp.ContentLength, resp.Header.Get("X-Tt-Logid"))
 		if resp.StatusCode == http.StatusOK {
@@ -953,6 +966,7 @@ func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoi
 		}
 		return nil, fmt.Errorf("MiniReel multi_video_model response is empty (HTTP %d)", resp.StatusCode)
 	}
+	diagnostic.Code = "VIDEO_MODEL_JSON"
 	var envelope map[string]any
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
@@ -960,6 +974,8 @@ func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoi
 		return nil, errors.New("MiniReel multi_video_model response is invalid JSON")
 	}
 	if code := firstNonEmpty(asString(envelope["code"]), asString(envelope["Code"])); code != "" && code != "0" {
+		diagnostic.Code = "VIDEO_MODEL_BUSINESS"
+		diagnostic.BusinessCode = safePlaybackBusinessCode(code)
 		return nil, fmt.Errorf("MiniReel multi_video_model rejected request (code %s)", code)
 	}
 	modelValue := nestedMiniReelValue(envelope, "data", vid, "video_model")
@@ -974,6 +990,7 @@ func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoi
 	}
 	model, ok := modelValue.(map[string]any)
 	if !ok {
+		diagnostic.Code = "VIDEO_MODEL_MISSING"
 		return nil, errors.New("MiniReel response has no video_model")
 	}
 	optionModel := model
@@ -988,7 +1005,7 @@ func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoi
 			rows = miniReelMapsFromAny(optionModel["video_list"])
 		}
 	}
-	options := make([]miniReelOption, 0, len(rows))
+	options = make([]miniReelOption, 0, len(rows))
 	for _, row := range rows {
 		meta, _ := row["video_meta"].(map[string]any)
 		encryption, _ := row["encrypt_info"].(map[string]any)
@@ -1129,7 +1146,10 @@ func miniReelValidateFallbackURL(raw string) (*url.URL, error) {
 	return target, nil
 }
 
-func miniReelFetchFallbackModelWithClient(ctx context.Context, raw string, client *http.Client) (map[string]any, error) {
+func miniReelFetchFallbackModelWithClient(ctx context.Context, raw string, client *http.Client) (result map[string]any, err error) {
+	started := time.Now()
+	diagnostic := playbackPreparationDiagnostic{Code: "FALLBACK_API_FAILED", Stage: "fallback_api"}
+	defer func() { err = finishPlaybackPreparation(err, diagnostic, started) }()
 	target, err := miniReelValidateFallbackURL(raw)
 	if err != nil {
 		return nil, err
@@ -1164,13 +1184,19 @@ func miniReelFetchFallbackModelWithClient(ctx context.Context, raw string, clien
 		return nil, fmt.Errorf("fallback_api request failed: %w", err)
 	}
 	defer resp.Body.Close()
+	diagnostic.HTTPStatus = &resp.StatusCode
+	diagnostic.Code = "FALLBACK_API_HTTP"
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("fallback_api HTTP %d", resp.StatusCode)
 	}
+	diagnostic.Code = "FALLBACK_API_READ"
 	data, err := miniReelReadLimited(resp.Body, miniReelMaxJSONBytes)
 	if err != nil {
 		return nil, err
 	}
+	responseBytes := len(data)
+	diagnostic.ResponseBytes = &responseBytes
+	diagnostic.Code = "FALLBACK_API_INVALID"
 	var envelope map[string]any
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.UseNumber()
@@ -1178,6 +1204,8 @@ func miniReelFetchFallbackModelWithClient(ctx context.Context, raw string, clien
 		return nil, errors.New("fallback_api response is invalid JSON")
 	}
 	if code := firstNonEmpty(miniReelToString(envelope["Code"]), miniReelToString(envelope["code"])); code != "" && code != "0" {
+		diagnostic.Code = "FALLBACK_API_BUSINESS"
+		diagnostic.BusinessCode = safePlaybackBusinessCode(code)
 		return nil, fmt.Errorf("fallback_api rejected request (code %s)", code)
 	}
 	videoInfo, ok := envelope["video_info"].(map[string]any)
@@ -1337,6 +1365,7 @@ func chooseMiniReelOption(options []miniReelOption) miniReelOption {
 }
 
 func downloadMiniReelMedia(ctx context.Context, target, path string) (err error) {
+	defer func() { err = playbackDownloadError(err) }()
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 	if err != nil {
 		return err
@@ -1351,7 +1380,7 @@ func downloadMiniReelMedia(ctx context.Context, target, path string) (err error)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("media HTTP %d", resp.StatusCode)
+		return &playbackPreparationError{diagnostic: playbackPreparationDiagnostic{Code: "MEDIA_DOWNLOAD_HTTP", Stage: "media_download", HTTPStatus: &resp.StatusCode}, cause: fmt.Errorf("media HTTP %d", resp.StatusCode)}
 	}
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
