@@ -82,6 +82,8 @@ chmod +x hongguo-desktop-0.2.134-x86_64.AppImage
 
 AppImage 已在 Ubuntu 24.04 和 Debian 12 容器中通过真实红果数据及播放验证；CI 使用 Xvfb 和软件解码，尚未验证实体显卡、扬声器、Wayland 或其他发行版。Linux 不提供应用内更新，下载新版后退出应用并手动替换 AppImage。Linux 鼠标焦点高亮与 macOS/Windows 共用同一套桌面 UI 实现，Linux 实体桌面交互仍待用户反馈。
 
+0.2.134 默认开启按需 GPU 合成，修复 Wails 默认关闭合成加速导致的 CPU 占用偏高。如出现白屏或显卡兼容问题，完全退出后用 `HONGGUO_WEBKIT_GPU_POLICY=never ./hongguo-desktop-0.2.134-x86_64.AppImage --appimage-extract-and-run` 恢复原来的软件合成方式（也接受 `2`）。此设置仅影响 Linux，实际收益取决于显卡及驱动。
+
 ## LG webOS 测试版
 
 [下载 webOS 测试版](https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.134-test.25)，在 Release 的 **Assets** 中下载 `hongguo-webos-0.2.134-test.25.ipk`。这是 LG webOS TV 的实验包，不是 Android APK，也不属于稳定版。

@@ -2,6 +2,8 @@
 
 本次 0.2.134 同步统一主线版本，修复同剧切集再次显示整剧海报，提前复用按目标 VID 匹配的下一集预览图，并隔离旧播放路径的诊断告警。打包工具使用固定版本和校验值。保留扫码与手机号登录、下一集预取设置，以及 Linux 系统 HTML5 播放与倍速逻辑。
 
+修复 Wails 2.11 默认关闭 Linux WebView 合成加速的问题，改为按需 GPU 合成，减少兼容设备播放时的软件合成开销。如有白屏或显卡兼容问题，完全退出后通过 `HONGGUO_WEBKIT_GPU_POLICY=never ./hongguo-desktop-0.2.134-x86_64.AppImage --appimage-extract-and-run` 恢复原来的软件合成方式。也接受数值 `2`；未设置时使用 `on-demand`（`1`）。此项仅影响 Linux 窗口合成，不修改解码器或其他平台。
+
 本次 Linux x86_64 AppImage 须通过 Ubuntu 24.04 与 Debian 12 容器中的真实红果数据和视频播放检查后才发布。测试使用 Xvfb、软件图形和软件解码，不能替代用户机器上的安装、硬件解码、显示器或扬声器验证。
 
 AppImage 依赖系统提供 WebKitGTK 4.1、GTK 3、GStreamer 及 HEVC/AAC 解码插件。推荐在 Ubuntu 24.04 或 Debian 12 使用；其他发行版和桌面环境尚未验证。安装所需运行库：

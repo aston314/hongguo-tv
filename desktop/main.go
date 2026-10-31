@@ -157,6 +157,7 @@ func desktopOptions(app *desktopApp, dataDir string) *options.App {
 		Bind:    []interface{}{app},
 		Mac:     &mac.Options{Preferences: &mac.Preferences{TabFocusesLinks: mac.Enabled, TextInteractionEnabled: mac.Enabled, FullscreenEnabled: mac.Enabled}},
 		Windows: &windows.Options{Theme: windows.Dark, WebviewUserDataPath: filepath.Join(dataDir, "webview2")},
+		Linux:   desktopLinuxOptions(),
 		SingleInstanceLock: &options.SingleInstanceLock{UniqueId: "rocks.aston.hongguo.desktop", OnSecondInstanceLaunch: func(options.SecondInstanceData) {
 			if app.ctx != nil {
 				wruntime.WindowShow(app.ctx)
