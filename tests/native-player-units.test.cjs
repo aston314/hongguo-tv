@@ -92,6 +92,7 @@ function fixture(engine = 'webview_media3', options = {}) {
   const bridge = {
     isAvailable() { return true; },
     engine() { return engine; },
+    primaryPlayback() { return engine === 'media3'; },
     diagnostics() { return JSON.stringify(this.diagnostic || {}); },
     bounds() {},
     begin() { this.begins++; },
@@ -189,6 +190,36 @@ test('WebView remains the default until native fallback is requested', () => {
   assert.equal(f.bridge.lastId, null);
   assert.equal(f.rootClassNames.has('native-playback'), false);
   proxy.pause();
+});
+
+test('standard Media3 starts first and keeps one bounded HTML5 fallback', async () => {
+  const f = fixture('media3'), video = f.document.getElementById('hero-video');
+  video.src = '/media/test.mp4';
+  await video.play();
+  assert.equal(f.bridge.plays, 1);
+  assert.equal(f.rootClassNames.has('native-playback'), true);
+  assert.equal(f.context.window.HongguoNativePlaybackAdapter.engine, 'media3');
+  f.context.window.HongguoNativePlayback.event(f.bridge.lastId, 'frame', {width: 1280, height: 720});
+  assert.equal(f.context.window.HongguoNativePlaybackAdapter.diagnostics().final_path, 'Media3');
+  f.context.window.HongguoNativePlayback.event(f.bridge.lastId, 'error', {kind: 'decoder'});
+  assert.equal(f.rootClassNames.has('native-playback'), false);
+  assert.equal(video.src, '/media/test.mp4');
+  assert.equal(f.bridge.plays, 1, 'a Media3 failure must not loop back into native playback');
+});
+
+test('standard Media3 retries for a new source after HTML5 fallback', async () => {
+  const f = fixture('media3'), video = f.document.getElementById('hero-video');
+  video.src = '/media/first.mp4';
+  await video.play();
+  const firstId = f.bridge.lastId;
+  f.context.window.HongguoNativePlayback.event(firstId, 'error', {kind: 'decoder'});
+  assert.equal(f.rootClassNames.has('native-playback'), false);
+  video.src = '/media/second.mp4';
+  assert.equal(f.rootClassNames.has('native-playback'), true);
+  await video.play();
+  assert.equal(f.bridge.plays, 2);
+  assert.notEqual(f.bridge.lastId, firstId);
+  assert.equal(f.bridge.lastPayload.source, 'http://127.0.0.1/media/second.mp4');
 });
 
 test('WebView media error switches to Media3 once and keeps the playback position', () => {

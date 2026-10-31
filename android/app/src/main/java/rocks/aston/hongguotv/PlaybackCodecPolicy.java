@@ -12,12 +12,16 @@ final class PlaybackCodecPolicy {
         return value.startsWith("omx.google.") || value.startsWith("c2.android.")
             || value.startsWith("c2.google.");
     }
-    static boolean shouldRetryHevcSoftwareFallback(boolean selectedHevcExceedsCapabilities,
+    static boolean shouldRetrySoftwareDecoder(boolean selectedVideoExceedsCapabilities,
             boolean firstFrameRendered, boolean alreadyTried) {
-        return selectedHevcExceedsCapabilities && !firstFrameRendered && !alreadyTried;
+        return selectedVideoExceedsCapabilities && !firstFrameRendered && !alreadyTried;
     }
     static boolean excludesDecoderForSoftwareHevc(boolean forceSoftwareHevc, String mime, String name) {
         return forceSoftwareHevc && "video/hevc".equals(mime) && !platformSoftware(name);
+    }
+    static boolean excludesDecoderForSoftwareFallback(boolean forceSoftware, String mime, String name) {
+        return forceSoftware && ("video/hevc".equals(mime) || "video/avc".equals(mime))
+                && !platformSoftware(name);
     }
     static boolean preferSoftware(String mime, int sdk) {
         // Android 9 and earlier TV firmwares commonly expose an HEVC hardware
@@ -41,4 +45,5 @@ final class PlaybackCodecPolicy {
         if (code >= 4000 && code < 5000) return "decoder";
         return "source";
     }
+    static boolean decoderFailure(int code) { return code >= 3000 && code < 5000; }
 }

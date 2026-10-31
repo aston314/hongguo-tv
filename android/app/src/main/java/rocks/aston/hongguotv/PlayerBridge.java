@@ -56,7 +56,7 @@ final class PlayerBridge implements NativePlayerAdapter {
     private volatile String diagnostic="{}";
     private JSONObject diagnosticFields=new JSONObject();
     private ExoPlayer player;
-    private boolean playerCompatibility, playerPcmAudio, playerLive, playerForceSoftwareHevc;
+    private boolean playerCompatibility, playerPcmAudio, playerLive, playerForceSoftwareDecoder;
     private Map<String,String> playerHeaders=Collections.emptyMap();
     private Session session;
     private long nextSessionGeneration;
@@ -89,10 +89,11 @@ final class PlayerBridge implements NativePlayerAdapter {
         final boolean pcmAudio;
         final PlaybackClock clock=new PlaybackClock();
         int candidate;
+        int decoderAttempt;
         boolean wantsPlay = true, firstFrame;
         long position;
-        boolean triedSoftwareHevcFallback;
-        boolean forceSoftwareHevc;
+        boolean triedSoftwareDecoderFallback;
+        boolean forceSoftwareDecoder;
         Session(long generation, String id, List<String> urls, Map<String,String> headers,boolean live,boolean compatibility) {
             this.generation=generation;this.id=id;this.urls=urls;this.headers=headers;this.live=live;this.compatibility=compatibility;
             pcmAudio=PlaybackCodecPolicy.pcmAudio(compatibility,live,Build.VERSION.SDK_INT);
@@ -103,9 +104,7 @@ final class PlayerBridge implements NativePlayerAdapter {
         portraitBackdrop=new PortraitBackdropCapture(web);
         preferences=web.getContext().getSharedPreferences("doudou_playback",Context.MODE_PRIVATE);
         diagnostic=preferences.getString("last_diagnostics","{}");
-        // Media3 is a fallback surface. The page starts with the real HTML
-        // video element and enables this bridge only when WebView playback
-        // cannot load the source or produce a frame.
+        // Standard Android playback starts on Media3; WebView is the bounded fallback.
         surface=new SurfaceView(web.getContext());texture=null;renderView=surface;
         renderView.setFocusable(false);holder.addView(renderView,new FrameLayout.LayoutParams(-1,-1));
         holder.setVisibility(View.GONE);handler.postDelayed(progress,500);
@@ -120,7 +119,7 @@ final class PlayerBridge implements NativePlayerAdapter {
 
     /** Media3 is available as a fallback on every supported Android release. */
     @JavascriptInterface public boolean isAvailable() { return nativePlaybackAvailable(Build.VERSION.SDK_INT); }
-    @JavascriptInterface public String engine() { return "webview_media3"; }
+    @JavascriptInterface public String engine() { return BuildConfig.PLAYER_ENGINE; }
     @JavascriptInterface public boolean portraitBackdropSupported() { return PortraitBackdropCapture.supported(); }
     @JavascriptInterface public void capturePortraitBackdrop(String id,String ticket) {
         if(!PortraitBackdropGeometry.validRequest(id,ticket))return;
@@ -181,7 +180,7 @@ final class PlayerBridge implements NativePlayerAdapter {
         active.clearMediaItems();
         event(target,"buffering");
         MediaItem item=new MediaItem.Builder()
-            .setMediaId(target.generation+"#"+target.candidate)
+            .setMediaId(mediaId(target))
             .setUri(target.urls.get(target.candidate))
             .setMimeType(target.live?MimeTypes.APPLICATION_M3U8:MimeTypes.VIDEO_MP4).build();
         active.setMediaItem(item,target.position);
@@ -190,29 +189,19 @@ final class PlayerBridge implements NativePlayerAdapter {
         handler.postDelayed(timeout,25000);
     }
     private ExoPlayer ensurePlayer(Session target) {
-        if(player!=null&&playerCompatibility==target.compatibility&&playerPcmAudio==target.pcmAudio&&playerLive==target.live&&playerHeaders.equals(target.headers)&&playerForceSoftwareHevc==target.forceSoftwareHevc)return player;
+        if(player!=null&&playerCompatibility==target.compatibility&&playerPcmAudio==target.pcmAudio&&playerLive==target.live&&playerHeaders.equals(target.headers)&&playerForceSoftwareDecoder==target.forceSoftwareDecoder)return player;
         releasePlayer();
         final Session configuredTarget=target;
         DefaultHttpDataSource.Factory source=new DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(10000).setReadTimeoutMs(120000).setDefaultRequestProperties(target.headers);
-        DefaultRenderersFactory renderers=new DefaultRenderersFactory(web.getContext()){
-            @Override protected AudioSink buildAudioSink(Context context,boolean floatOutput,boolean playbackParams){
-                if(!configuredTarget.pcmAudio)return super.buildAudioSink(context,floatOutput,playbackParams);
-                // The context-free builder deliberately fixes PCM-only capabilities. Supplying
-                // a Context would re-enable the device's encoded-audio passthrough detection.
-                return new DefaultAudioSink.Builder().setEnableFloatOutput(false)
-                    .setEnableAudioTrackPlaybackParams(false).build();
-            }
-        }
-            .setEnableDecoderFallback(true)
-            .setMediaCodecSelector((mime,secure,tunnel)->{
+        MediaCodecSelector selector=(mime,secure,tunnel)->{
                 if(!PlaybackCodecPolicy.allowsDecoder(mime))return Collections.emptyList();
                 List<MediaCodecInfo> choices=new ArrayList<>();
                 List<MediaCodecInfo> software=new ArrayList<>();
                 List<MediaCodecInfo> hardware=new ArrayList<>();
                 for(MediaCodecInfo info:MediaCodecSelector.DEFAULT.getDecoderInfos(mime,secure,tunnel)) {
-                    if(PlaybackCodecPolicy.excludesDecoderForSoftwareHevc(
-                            configuredTarget.forceSoftwareHevc, mime, info.name))continue;
+                    if(PlaybackCodecPolicy.excludesDecoderForSoftwareFallback(
+                            configuredTarget.forceSoftwareDecoder, mime, info.name))continue;
                     if(PlaybackCodecPolicy.allowsInMode(mime,info.name,configuredTarget.compatibility||configuredTarget.pcmAudio&&"audio/mp4a-latm".equals(mime))) {
                         if(PlaybackCodecPolicy.platformSoftware(info.name)) software.add(info); else hardware.add(info);
                     }
@@ -223,7 +212,9 @@ final class PlayerBridge implements NativePlayerAdapter {
                     choices.addAll(hardware); choices.addAll(software);
                 }
                 return choices;
-            });
+            };
+        DefaultRenderersFactory renderers=PlayerRendererPolicy.create(web.getContext(),
+                configuredTarget.forceSoftwareDecoder, configuredTarget.pcmAudio, selector);
         ExoPlayer.Builder builder=new ExoPlayer.Builder(web.getContext(),renderers)
             .setMediaSourceFactory(new DefaultMediaSourceFactory(source));
         if(configuredTarget.live){
@@ -234,7 +225,7 @@ final class PlayerBridge implements NativePlayerAdapter {
                 .setBackBuffer(0,false).build());
         }
         ExoPlayer active=builder.build();
-        player=active;playerCompatibility=target.compatibility;playerPcmAudio=target.pcmAudio;playerLive=target.live;playerForceSoftwareHevc=target.forceSoftwareHevc;playerHeaders=new HashMap<>(target.headers);
+        player=active;playerCompatibility=target.compatibility;playerPcmAudio=target.pcmAudio;playerLive=target.live;playerForceSoftwareDecoder=target.forceSoftwareDecoder;playerHeaders=new HashMap<>(target.headers);
         if(surface!=null)active.setVideoSurfaceView(surface);else active.setVideoTextureView(texture);
         active.setPlaybackParameters(PlaybackParameters.DEFAULT);
         active.setVolume(requestedMuted ? 0 : requestedVolume);
@@ -245,9 +236,9 @@ final class PlayerBridge implements NativePlayerAdapter {
                 try{
                     diagnosticFields.put(field,name);
                     Format video=active.getVideoFormat();
-                    if("video_decoder".equals(field)&&configuredTarget.forceSoftwareHevc&&video!=null
-                            &&MimeTypes.VIDEO_H265.equals(video.sampleMimeType)&&PlaybackCodecPolicy.platformSoftware(name)){
-                        diagnosticFields.put("hevc_software_retry","initialized");
+                    if("video_decoder".equals(field)&&configuredTarget.forceSoftwareDecoder&&video!=null){
+                        diagnosticFields.put(PlayerRendererPolicy.ffmpegAvailable()
+                                ? "ffmpeg_software_retry" : "hevc_software_retry", "initialized");
                     }
                 }catch(Exception ignored){}
                 updateDiagnostic(current,"preparing");saveDiagnostic();
@@ -261,14 +252,19 @@ final class PlayerBridge implements NativePlayerAdapter {
                 Session current=session;
                 if(current())recordTrackDiagnostics(current,tracks);
                 if(current()&&!tracks.getGroups().isEmpty()&&!tracks.isTypeSelected(C.TRACK_TYPE_VIDEO)){
-                    fail(current,"decoder",PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED);
+                    if(PlayerRendererPolicy.ffmpegAvailable()&&!current.firstFrame
+                            &&!current.triedSoftwareDecoderFallback){
+                        retrySoftwareDecoder(current);
+                    }else fail(current,"decoder",PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED);
                     return;
                 }
-                // One-time HEVC software decoder fallback for FORMAT_EXCEEDS_CAPABILITIES
+                // One-time software decoder fallback before the first frame.
                 // Only trigger if we haven't rendered first frame yet (to avoid interrupting working playback)
-                if(current()&&PlaybackCodecPolicy.shouldRetryHevcSoftwareFallback(
-                        hasExceedsCapabilitiesHevc(tracks), current.firstFrame, current.triedSoftwareHevcFallback)){
-                    retrySoftwareHevc(current);
+                boolean exceeds=PlayerRendererPolicy.ffmpegAvailable()
+                        ? hasExceedsCapabilitiesVideo(tracks) : hasExceedsCapabilitiesHevc(tracks);
+                if(current()&&PlaybackCodecPolicy.shouldRetrySoftwareDecoder(
+                        exceeds, current.firstFrame, current.triedSoftwareDecoderFallback)){
+                    retrySoftwareDecoder(current);
                 }
             }
             @Override public void onVideoSizeChanged(VideoSize size){if(current()){videoWidth=size.width;videoHeight=size.height;pixelRatio=size.pixelWidthHeightRatio;fit();}}
@@ -297,8 +293,11 @@ final class PlayerBridge implements NativePlayerAdapter {
             @Override public void onPlayerError(PlaybackException error){
                 if(!current())return;
                 Session current=session;
-                String kind=PlaybackCodecPolicy.failureKind(error.errorCode);
-                if("decoder".equals(kind))fail(current,kind,error.errorCode);else retry(current,kind,error.errorCode);
+                boolean decoder=PlaybackCodecPolicy.decoderFailure(error.errorCode);
+                String kind=decoder?"decoder":PlaybackCodecPolicy.failureKind(error.errorCode);
+                if(decoder&&PlayerRendererPolicy.ffmpegAvailable()&&!current.firstFrame
+                        &&!current.triedSoftwareDecoderFallback) retrySoftwareDecoder(current);
+                else if(decoder)fail(current,kind,error.errorCode);else retry(current,kind,error.errorCode);
             }
         });
         return active;
@@ -343,25 +342,35 @@ final class PlayerBridge implements NativePlayerAdapter {
         }
         return false;
     }
-    private void retrySoftwareHevc(Session target){
-        if(session!=target||destroyed||target.triedSoftwareHevcFallback)return;
-        // Check if software HEVC decoder is available
-        boolean hasSoftwareHevc=false;
-        try{
-            for(MediaCodecInfo info:MediaCodecSelector.DEFAULT.getDecoderInfos(MimeTypes.VIDEO_H265,false,false)){
-                if(PlaybackCodecPolicy.platformSoftware(info.name)){
-                    hasSoftwareHevc=true;
-                    break;
-                }
+    private boolean hasExceedsCapabilitiesVideo(Tracks tracks){
+        for(Tracks.Group group:tracks.getGroups()){
+            if(group.getType()!=C.TRACK_TYPE_VIDEO)continue;
+            for(int i=0;i<group.length;i++){
+                if(group.isTrackSelected(i)&&group.getTrackSupport(i)==C.FORMAT_EXCEEDS_CAPABILITIES)return true;
             }
-        }catch(Exception ignored){}
-        if(!hasSoftwareHevc){
-            // No software HEVC decoder available, let the normal error path handle it
-            return;
+        }
+        return false;
+    }
+    private void retrySoftwareDecoder(Session target){
+        if(session!=target||destroyed||target.triedSoftwareDecoderFallback)return;
+        // Standard supplies its FFmpeg renderer. Other bridge configurations
+        // retain the platform-software HEVC fallback.
+        if(!PlayerRendererPolicy.ffmpegAvailable()){
+            boolean hasSoftwareHevc=false;
+            try{
+                for(MediaCodecInfo info:MediaCodecSelector.DEFAULT.getDecoderInfos(MimeTypes.VIDEO_H265,false,false)){
+                    if(PlaybackCodecPolicy.platformSoftware(info.name)){
+                        hasSoftwareHevc=true;
+                        break;
+                    }
+                }
+            }catch(Exception ignored){}
+            if(!hasSoftwareHevc)return;
         }
         clearTimeout();
-        target.triedSoftwareHevcFallback=true;
-        target.forceSoftwareHevc=true;
+        target.triedSoftwareDecoderFallback=true;
+        target.forceSoftwareDecoder=true;
+        target.decoderAttempt++;
         if(player!=null&&!target.live)target.position=Math.max(target.position,Math.max(0,player.getCurrentPosition()));
         // Drop data from the hardware attempt; video_decoder is populated only
         // when Media3 confirms which decoder the retry actually initialized.
@@ -369,7 +378,8 @@ final class PlayerBridge implements NativePlayerAdapter {
             for(String key:new String[]{"video_decoder","audio_decoder","video_track","track_support",
                     "track_selected","video_track_count","unselected_hevc","video_mime","audio_mime",
                     "sample_rate","channels"})diagnosticFields.remove(key);
-            diagnosticFields.put("hevc_software_retry","requested");
+            diagnosticFields.put(PlayerRendererPolicy.ffmpegAvailable()
+                    ? "ffmpeg_software_retry" : "hevc_software_retry", "requested");
         }catch(Exception ignored){}
         // Restart with software HEVC only
         startCandidate(target);
@@ -469,6 +479,7 @@ final class PlayerBridge implements NativePlayerAdapter {
         }catch(Exception ignored){}
     }
     @JavascriptInterface public String diagnostics(){return diagnostic;}
+    @JavascriptInterface public boolean primaryPlayback(){return PlayerRendererPolicy.primaryPlayback();}
     @JavascriptInterface public String decoderMode(){return preferences.getString("decoder_mode","standard");}
     @JavascriptInterface public boolean safeStart(){
         return Build.VERSION.SDK_INT<=23&&(!preferences.getBoolean("playback_setup_v2",false)||preferences.getBoolean("playback_active",false));
@@ -492,10 +503,13 @@ final class PlayerBridge implements NativePlayerAdapter {
     private boolean currentMediaMatches(Session target){
         if(player==null||target==null)return false;
         MediaItem item=player.getCurrentMediaItem();
-        return item!=null&&(target.generation+"#"+target.candidate).equals(item.mediaId);
+        return item!=null&&mediaId(target).equals(item.mediaId);
+    }
+    private static String mediaId(Session target){
+        return target.generation+"#"+target.candidate+"#"+target.decoderAttempt;
     }
     private void clearTimeout(){if(timeout!=null){handler.removeCallbacks(timeout);timeout=null;}}
-    private void releasePlayer(){clearTimeout();ExoPlayer old=player;player=null;playerHeaders=Collections.emptyMap();playerCompatibility=false;playerPcmAudio=false;playerLive=false;if(old!=null){old.setVolume(0);if(surface!=null)old.clearVideoSurfaceView(surface);else old.clearVideoTextureView(texture);old.release();}}
+    private void releasePlayer(){clearTimeout();ExoPlayer old=player;player=null;playerHeaders=Collections.emptyMap();playerCompatibility=false;playerPcmAudio=false;playerLive=false;playerForceSoftwareDecoder=false;if(old!=null){old.setVolume(0);if(surface!=null)old.clearVideoSurfaceView(surface);else old.clearVideoTextureView(texture);old.release();}}
     public void onPause(){background=true;clearTimeout();if(session!=null)session.clock.reset();if(player!=null)player.pause();markInactive();}
     public void onResume(){background=false;if(session!=null&&player!=null&&session.wantsPlay){
         if(!preferences.edit().putBoolean("playback_active",Build.VERSION.SDK_INT<=23&&!session.live).commit()){fail(session,"settings",0);return;}

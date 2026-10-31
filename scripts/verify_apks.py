@@ -11,7 +11,8 @@ import zipfile
 def verify(apk, variant, version, code, debug=False):
     tools = Path(os.environ['ANDROID_HOME']) / 'build-tools/35.0.0'
     badging = subprocess.check_output([str(tools / 'aapt'), 'dump', 'badging', str(apk)], text=True)
-    package = 'rocks.aston.hongguotv' + ('.mpv' if variant == 'mpv' else '') + ('.debug' if debug else '')
+    suffix = '.mpv' if variant == 'mpv' else ''
+    package = 'rocks.aston.hongguotv' + suffix + ('.debug' if debug else '')
     assert f"name='{package}'" in badging
     assert f"versionCode='{code}'" in badging
     assert f"versionName='{version}{'-debug' if debug else ''}'" in badging
@@ -27,8 +28,11 @@ def verify(apk, variant, version, code, debug=False):
             assert f'lib/{abi}/libhongguotv.so' in names
             for library in ('libmpv.so', 'libhongguompv.so'):
                 assert (f'lib/{abi}/{library}' in names) == (variant == 'mpv')
+            for library in ('libavcodec.so', 'libavutil.so', 'libswresample.so', 'libswscale.so', 'libmedia3ext.so'):
+                assert (f'lib/{abi}/{library}' in names) == (variant == 'standard')
         assert not any('media_kit' in name or 'fftools' in name for name in names)
         assert ('assets/mpv-notices.txt' in names) == (variant == 'mpv')
+        assert ('assets/media3-ffmpeg-notices.txt' in names) == (variant == 'standard')
     assert 0 < apk.stat().st_size <= 100 * 1024 * 1024
     return {'variant': variant, 'package': package, 'version': version, 'version_code': code,
             'size': apk.stat().st_size, 'signers': sorted(signer)}
@@ -42,7 +46,7 @@ if __name__ == '__main__':
     parser.add_argument('--mpv-code', type=int, required=True)
     parser.add_argument('--debug', action='store_true')
     args = parser.parse_args()
-    results = [verify(args.standard, 'standard', args.version, args.standard_code, args.debug),
-               verify(args.mpv, 'mpv', args.version, args.mpv_code, args.debug)]
-    assert results[0]['signers'] == results[1]['signers'], 'Edition signers differ'
+    results = [verify(args.standard, 'standard', args.version, args.standard_code, args.debug)]
+    results.append(verify(args.mpv, 'mpv', args.version, args.mpv_code, args.debug))
+    assert results[0]['signers'] == results[-1]['signers'], 'Edition signers differ'
     print(json.dumps(results, ensure_ascii=False, indent=2))
