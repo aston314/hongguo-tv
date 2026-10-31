@@ -3869,7 +3869,10 @@
     var placeholderSummary = document.getElementById('hero-placeholder-summary');
     if (backdrop && transitionKind !== 'refresh') {
       var poster = document.getElementById('hero-loading-poster');
-      if (transitionKind === 'episode' && desktopShell) clearBackdrop(backdrop, poster);
+      // Same-drama navigation must not reveal the drama poster when a frame
+      // capture or native replacement is unavailable. Those capabilities only
+      // choose the video handoff; they do not choose the navigation artwork.
+      if (transitionKind === 'episode') clearBackdrop(backdrop, poster);
       else if (transitionKind === 'series' && androidShell) {
         clearBackdrop(backdrop, poster);
         setBackdrop(backdrop, item, poster, false);
@@ -4644,13 +4647,14 @@
       // Warm only the next episode's artwork. This shares the engagement
       // cache with the normal render and never changes the visible counts.
       var target = { series_id: prepared.target.series_id, vid: prepared.target.vid };
+      var targetEpisode = prepared.target.episode;
       var generation = playback.generation, owner = accountEpoch;
       engagement.prewarm(target).then(function (data) {
         var current = typeof episodePrefetch.peek === 'function' ? episodePrefetch.peek() : null;
         if (!data || activePlayback !== playback || playback.generation !== generation || generation !== feedGeneration ||
             accountEpoch !== owner || !current || !current.target || current.target.series_id !== target.series_id ||
             current.target.vid !== target.vid) return;
-        prewarmEpisodeCover(target, data, playback);
+        prewarmEpisodeCover({ series_id: target.series_id, vid: target.vid, episode: targetEpisode }, data, playback);
       });
     }
   }
@@ -4696,6 +4700,7 @@
     if (cover) {
       cover.__coverLoader = null;
       cover.__coverSource = '';
+      cover.__episodeTarget = null;
       cover.style.backgroundImage = 'none';
       cover.classList.remove('is-ready');
     }
@@ -4708,10 +4713,15 @@
     var owner = accountEpoch;
     var key = String(accountEpoch) + ':' + target.series_id + ':' + target.vid;
     if (prewarmedEpisodeCover && prewarmedEpisodeCover.key === key && prewarmedEpisodeCover.source === source) return;
-    var record = { key: key, source: source, image: new Image(), ready: false, failed: false, waiters: [] };
+    var record = { key: key, source: source, image: new Image(), ready: false, failed: false, waiters: [],
+      series_id: target.series_id, vid: target.vid, episode: Number(target.episode) || 0, generation: playback.generation };
     prewarmedEpisodeCover = record;
     function isStillRelevant() {
-      if (accountEpoch !== owner || !activePlayback || activePlayback.generation !== feedGeneration ||
+      if (accountEpoch !== owner) return false;
+      // Decoding can finish while the next episode is still resolving its
+      // detail. It already owns a generation and exact VID at that point.
+      if (!activePlayback) return episodeCoverTargetCurrent(target, feedGeneration);
+      if (activePlayback.generation !== feedGeneration ||
           activePlayback.owner !== owner || activePlayback.item.series_id !== target.series_id) return false;
       if (activePlayback.vid === target.vid) return true;
       var prepared = typeof episodePrefetch.peek === 'function' ? episodePrefetch.peek() : null;
@@ -4735,15 +4745,23 @@
     record.image.onerror = function () { finish(false); };
     record.image.src = source;
   }
+  function episodeCoverTargetCurrent(target, generation) {
+    var current = activePlayback || playbackRequest;
+    return !!(current && generation === feedGeneration && current.generation === generation && current.owner === accountEpoch &&
+      (current.item ? current.item.series_id : current.series_id) === target.series_id && current.vid === target.vid &&
+      current.episodeCoverAllowed !== false && !(current.presentation && current.presentation.rendered));
+  }
+  function reusePrewarmedEpisodeCover(target) {
+    if (!target || !prewarmedEpisodeCover || prewarmedEpisodeCover.failed ||
+        prewarmedEpisodeCover.key !== String(accountEpoch) + ':' + target.series_id + ':' + target.vid) return;
+    setEpisodeCover(target, { episode_cover: prewarmedEpisodeCover.source });
+  }
   function setEpisodeCover(target, data) {
     if (!target || !data || !data.episode_cover) return;
-    var playback = activePlayback;
+    var generation = feedGeneration;
     var hero = document.getElementById('hero');
     var cover = document.getElementById('hero-episode-cover');
-    if (!playback || playback.episodeCoverAllowed === false || !hero || !cover || !hero.classList.contains('is-preparing-video') ||
-        playback.generation !== feedGeneration || playback.owner !== accountEpoch ||
-        playback.item.series_id !== target.series_id || playback.vid !== target.vid ||
-        playback.presentation && playback.presentation.rendered) return;
+    if (!hero || !cover || !hero.classList.contains('is-preparing-video') || !episodeCoverTargetCurrent(target, generation)) return;
     var source = String(data.episode_cover);
     if (cover.__coverSource === source) {
       if (cover.__coverLoader === episodeCoverLoader && episodeCoverLoader) return;
@@ -4758,9 +4776,9 @@
     episodeCoverLoader = loader;
     cover.__coverLoader = loader;
     cover.__coverSource = source;
+    cover.__episodeTarget = { series_id: target.series_id, vid: target.vid, generation: generation, owner: accountEpoch };
     function revealLoadedCover() {
-      if (cover.__coverLoader !== loader || activePlayback !== playback || playback.generation !== feedGeneration ||
-          playback.owner !== accountEpoch || playback.presentation && playback.presentation.rendered ||
+      if (cover.__coverLoader !== loader || !episodeCoverTargetCurrent(target, generation) ||
           !hero.classList.contains('is-preparing-video')) return;
       cover.style.backgroundImage = 'url(' + JSON.stringify(loader.src) + ')';
       cover.classList.add('is-ready');
@@ -4778,8 +4796,10 @@
       if (cover.__coverLoader !== loader) return;
       cover.__coverLoader = null;
       cover.__coverSource = '';
+      cover.__episodeTarget = null;
       cover.style.backgroundImage = 'none';
       cover.classList.remove('is-ready');
+      hero.classList.remove('is-episode-cover');
     }
     if (prewarmed) {
       if (prewarmed.ready) revealLoadedCover();
@@ -5141,7 +5161,15 @@
     var nativeAtSwitch = nativePlaybackActive();
     var sameSeries = !!((activePlayback && (activePlayback.started || activePlayback.presentation && activePlayback.presentation.rendered) &&
       activePlayback.owner === accountEpoch && activePlayback.item.series_id === item.series_id) || hasLastPlaybackFrame(item));
-    var transitionKind = sameSeries ? 'episode' : activePlayback ? 'series' : 'initial';
+    // A second selection can arrive before the previous detail/source request
+    // has produced a playback session or a frame. Retain its drama identity,
+    // without granting it the frame/native reuse capabilities of sameSeries.
+    var sameDrama = sameSeries || (!!(activePlayback && activePlayback.owner === accountEpoch &&
+      activePlayback.generation === feedGeneration && activePlayback.item.series_id === item.series_id) ||
+      !!(!activePlayback && playbackRequest && playbackRequest.series_id === item.series_id &&
+        playbackRequest.owner === accountEpoch && playbackRequest.generation === feedGeneration &&
+        document.getElementById('hero').classList.contains('is-preparing-video')));
+    var transitionKind = sameDrama ? 'episode' : activePlayback ? 'series' : 'initial';
     var fastContinuation = !!(continuation && continuation.completed && canContinuePlayback(continuation) &&
       continuation.owner === accountEpoch && continuation.item.series_id === item.series_id &&
       forcedEpisode === continuation.episode + 1 && forcedPosition === 0 && libraryLoaded);
@@ -5160,7 +5188,8 @@
     if (!fastContinuation) saveProgress(true);
     activePlayback = null;
     if (typeof syncNativePlaybackPageState === 'function') syncNativePlaybackPageState();
-    playbackRequest = { index: index, episode: forcedEpisode, position: forcedPosition };
+    playbackRequest = { index: index, episode: forcedEpisode, position: forcedPosition,
+      series_id: item.series_id, owner: accountEpoch };
     playbackQuality = '';
     playbackQualities = [];
     feedIndex = index;
@@ -5176,18 +5205,19 @@
       capturedLastFrame = captureLastPlaybackFrame(item);
       // The standard Media3 Surface is not readable by the HTML canvas. Only
       // use the transparent frame transition when the previous frame really
-      // was captured; otherwise keep the poster/episode cover over the reset.
+      // was captured; otherwise keep the episode cover/reset background.
       if (playbackEngineName() !== 'mpv' && !capturedLastFrame) keepRangeFrame = false;
     } else clearLastPlaybackFrame();
     var keepEpisodeCover = playbackEngineName() === 'mpv' || !sameSeries || nativeAtSwitch || !capturedLastFrame ||
       ((typeof webosShell === 'undefined' || !webosShell) && !nativeAtSwitch && capturedLastFrame);
     var generation = ++feedGeneration;
+    playbackRequest.generation = generation;
     if (autoCinemaCandidate && autoCinemaGeneration && generation !== autoCinemaGeneration) cancelPendingAutoCinema();
     holdPlaybackAudio(generation);
     clearTimeout(controlsTimer);
     hero.classList.add('is-feed', 'is-preparing-video');
     hero.classList.remove('is-catalog-loading', 'is-starting-video', 'is-range-source-reset');
-    hero.classList.toggle('is-episode-transition', sameSeries);
+    hero.classList.toggle('is-episode-transition', sameDrama);
     hero.classList.toggle('is-range-transition', keepRangeFrame);
     hero.classList.toggle('is-native-mpv-episode-transition', mpvTransition);
     hero.classList.toggle('is-native-media3-episode-transition', sameSeries && nativeAtSwitch && playbackEngineName() !== 'mpv');
@@ -5195,6 +5225,13 @@
     updateFeedCounter();
     var incomingResume = resumeCheckpoint && recommendationResume(resumeCheckpoint, libraryEntry(item.series_id), item);
     var incomingEpisode = forcedEpisode || (incomingResume ? incomingResume.episode : libraryLoaded ? resumeEpisode(libraryEntry(item.series_id), item) : 0);
+    var incomingVid = incomingEpisode === 1 ? firstVid(item) : item.vid_list && item.vid_list[incomingEpisode - 1];
+    // A prefetched target may know the VID before the recommendation's detail
+    // arrives. Reuse it only for this exact source generation and episode.
+    if (!incomingVid && prewarmedEpisodeCover && prewarmedEpisodeCover.generation === sourceGeneration &&
+        prewarmedEpisodeCover.series_id === item.series_id && prewarmedEpisodeCover.episode === incomingEpisode) incomingVid = prewarmedEpisodeCover.vid;
+    playbackRequest.vid = incomingVid || '';
+    if (sameDrama && incomingVid) reusePrewarmedEpisodeCover({ series_id: item.series_id, vid: incomingVid });
     if (sameSeries && !(recovery && recovery.recoveryAttempts)) beginPrefetchedEpisodeHint(item, incomingEpisode, generation, hintStartedAt, sourceGeneration);
     setFeatured(Object.assign({}, item, { start_episode: incomingEpisode }), !incomingEpisode, transitionKind);
     updateSeriesRows();
@@ -5237,6 +5274,11 @@
         if (generation !== feedGeneration || request.signal.aborted) return null;
         var vid = episode === 1 ? firstVid(detail) : detail.vid_list && detail.vid_list[episode - 1];
         if (!vid) throw new Error(uiText('content.episodeNoVideo', '第{episode}集暂无视频数据', { episode: episode }));
+        // The detail response is authoritative. An early preview based on
+        // stale list metadata must not remain over a different target VID.
+        var pendingCover = document.getElementById('hero-episode-cover').__episodeTarget;
+        if (pendingCover && (pendingCover.series_id !== item.series_id || pendingCover.vid !== vid ||
+            pendingCover.generation !== generation || pendingCover.owner !== accountEpoch)) clearEpisodeCover();
         var playing = Object.assign({}, item, detail, { start_episode: episode, vid: vid });
         activePlayback = { item: playing, episode: episode, vid: vid, position: position, generation: generation, owner: accountEpoch, started: false, stableSince: 0, lastWrite: 0, completed: false,
           episodeCoverAllowed: keepEpisodeCover,
@@ -5251,12 +5293,9 @@
             foreground_resolve_started_at: 0, foreground_resolve_ms: null,
             prepared_before_switch: false, reported: false } };
         if (autoCinemaCandidate && generation === autoCinemaGeneration) autoCinemaSession = activePlayback;
-        // Reuse the decoded next-episode preview immediately, without waiting
-        // for the stats render to deliver that same artwork again.
-        if (prefetchedEpisodeHint && prewarmedEpisodeCover && prewarmedEpisodeCover.ready && !prewarmedEpisodeCover.failed &&
-            prewarmedEpisodeCover.key === String(accountEpoch) + ':' + item.series_id + ':' + vid) {
-          setEpisodeCover({ series_id: item.series_id, vid: vid }, { episode_cover: prewarmedEpisodeCover.source });
-        }
+        // Artwork readiness is independent of the media prefetch mode and its
+        // quiet-loading deadline. Pending image decode can finish here too.
+        if (sameDrama) reusePrewarmedEpisodeCover({ series_id: item.series_id, vid: vid });
         setFeatured(playing, false, 'refresh');
         updateDetailProgress();
         setPlayerStatus(episodeLoadingText(episode));

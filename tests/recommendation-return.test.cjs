@@ -24,7 +24,7 @@ function fixture({ failSave = false, writeGate = null, sourceGate = null } = {})
   const video = node('hero-video');
   Object.assign(video, { currentTime: 39, duration: 90, paused: false, pause() { this.paused = true; }, removeAttribute(name) { delete this[name]; }, load() { calls.push('load'); } });
   const c = vm.createContext({ Promise, AbortController, URLSearchParams, Date, Object, Math, Number, clearTimeout, HongguoPagination,
-    calls, video, pages, channel, state,
+    calls, video, pages, channel, state, webosShell: false,
     document: { hidden: false, activeElement: pages.recommend, contains: () => true,
       getElementById: node, querySelectorAll: selector => selector === '.side-item' ? Object.values(pages) : [],
       querySelector: selector => selector === '.channel-tab.is-active' ? channel : pages[(selector.match(/data-page="([^"]+)"/) || [])[1]] || node('other') },
@@ -57,7 +57,7 @@ function fixture({ failSave = false, writeGate = null, sourceGate = null } = {})
     var feedItems=Array.from({length:5},function(_,i){return {series_id:'r'+i,title:'Drama '+i,vid:'r'+i+'-1',episode_count:3,vid_list:['r'+i+'-1','r'+i+'-2','r'+i+'-3']}}),feedIndex=1,feedGeneration=1,continuationGeneration=0;
     var recommendationAutoplayPending=false;
     var recommendationSession=null,accountEpoch=1,accountData={logged_in:true},activePlayback={item:feedItems[1],episode:2,position:12,vid:'r1-2',owner:1,generation:1,started:true,lastWrite:0,completed:false};
-    var playbackRequest=null,playbackInfoRequest=null,playbackPrefetchHandoff=null,controlsTimer=null,playbackQuality='',playbackQualities=[],playbackPreferences={quality:'720P'},applicationInBackground=false,prefetchedEpisodeHint=null;
+    var playbackRequest=null,playbackInfoRequest=null,playbackPrefetchHandoff=null,controlsTimer=null,playbackQuality='',playbackQualities=[],playbackPreferences={quality:'720P'},applicationInBackground=false,prefetchedEpisodeHint=null,prewarmedEpisodeCover=null;
     var playbackRecovery={reset:function(){},next:function(){return 'stop'},attempts:function(){return 0}};
     var libraryData={owner_id:'account',entries:[]},libraryReady=Promise.resolve(),libraryQueue=Promise.resolve(),libraryLoaded=true,libraryError='',libraryEditing=false;
     var playerReturnPage=null,playerReturnFocus=null;
@@ -74,7 +74,7 @@ function fixture({ failSave = false, writeGate = null, sourceGate = null } = {})
     function setFeatured(x){windowFeatured=x}function holdPlaybackAudio(){}function releasePlaybackAudio(){}
     function hasLastPlaybackFrame(){return false}function captureLastPlaybackFrame(){}function clearLastPlaybackFrame(){}
     function waitForPlaybackPaint(){return Promise.resolve(true)}function bindPlaybackPresentation(){}function clearRangeTransitionHint(){}function waitForPlaybackPrefetch(handoff){return handoff ? handoff.promise : Promise.resolve(null)}
-    function beginPrefetchedEpisodeHint(){}function setPlayerStatus(){}function showRecommendationPlaceholder(){}function episodeLoadingText(){return 'loading'}function revealControls(){}function showNotice(x){calls.push({kind:'notice',text:x})}
+    function reusePrewarmedEpisodeCover(){}function beginPrefetchedEpisodeHint(){}function setPlayerStatus(){}function showRecommendationPlaceholder(){}function episodeLoadingText(){return 'loading'}function revealControls(){}function showNotice(x){calls.push({kind:'notice',text:x})}
     function playMedia(v){v.paused=false;calls.push({kind:'play',src:v.src});return Promise.resolve()}
     function stageNativePlaybackStartPosition(){}
     function accountKeypadOpen(){return false}function hideWorkspacePages(){}function goFocus(x){document.activeElement=x}function firstContentFocus(){return pageMode()==='recommend'?activeChannel():document.getElementById('hero-feed-focus')}

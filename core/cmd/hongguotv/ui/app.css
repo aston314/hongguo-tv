@@ -135,11 +135,9 @@ html.desktop-shell .hero-media { -webkit-user-select: none; user-select: none; }
 .hero.is-feed .hero-media { background: #000; }
 .hero.is-feed .hero-backdrop, .hero.is-feed .hero-loading-poster { visibility: hidden; }
 .hero.is-preparing-video .hero-backdrop, .hero.is-preparing-video .hero-loading-poster { visibility: visible; }
-.hero.is-preparing-video.is-episode-transition.is-range-transition .hero-backdrop, .hero.is-preparing-video.is-episode-transition.is-range-transition .hero-loading-poster { visibility: hidden; }
-.desktop-shell .hero.is-preparing-video.is-episode-transition .hero-backdrop, .desktop-shell .hero.is-preparing-video.is-episode-transition .hero-loading-poster { visibility: hidden; }
-.hero.is-preparing-video.is-episode-transition.is-native-media3-episode-transition .hero-backdrop, .hero.is-preparing-video.is-episode-transition.is-native-media3-episode-transition .hero-loading-poster { visibility: hidden; }
+/* Navigation owns this rule even when canvas capture or native reuse fails. */
+.hero.is-preparing-video.is-episode-transition .hero-backdrop, .hero.is-preparing-video.is-episode-transition .hero-loading-poster { visibility: hidden; }
 .hero.is-preparing-video.is-episode-transition.is-native-mpv-episode-transition .hero-transition { background: transparent; }
-.hero.is-preparing-video.is-episode-transition.is-native-mpv-episode-transition .hero-backdrop, .hero.is-preparing-video.is-episode-transition.is-native-mpv-episode-transition .hero-loading-poster { visibility: hidden; }
 .hero.is-preparing-video:not(.is-starting-video) .hero-video { visibility: hidden !important; opacity: 0 !important; }
 .hero-video { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 1; width: 100%; height: 100%; object-fit: contain; visibility: hidden; opacity: 0; background: #000; }
 .hero-video.has-source { visibility: visible; opacity: 1; }

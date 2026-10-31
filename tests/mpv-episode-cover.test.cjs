@@ -21,7 +21,7 @@ function fixture(engine='mpv',imageDecode){
  Object.defineProperty(Image.prototype,'src',{set(value){this._src=value;},get(){return this._src;}});
  const paint=deferred();
  const playback={item:{series_id:'series-1'},vid:'vid-2',generation:8,owner:3,presentation:{rendered:false,pending:false,epoch:0}};
- const context=vm.createContext({document,Image,Promise,Date,feedGeneration:8,accountEpoch:3,activePlayback:playback,prewarmedEpisodeCover:null,
+ const context=vm.createContext({document,Image,Promise,Date,feedGeneration:8,accountEpoch:3,activePlayback:playback,playbackRequest:null,prewarmedEpisodeCover:null,episodePrefetch:{peek(){return null;}},
    setTimeout(fn,delay){timers.push({fn,delay});return timers.length;},clearTimeout(){},
    playbackEngineName(){return engine;},nativePlaybackActive(){return root.classList.contains('native-playback');},
    isNativeMedia3PlaybackActive(){return root.classList.contains('native-playback')&&engine!=='mpv';},
@@ -33,11 +33,9 @@ function fixture(engine='mpv',imageDecode){
 }
 const target={series_id:'series-1',vid:'vid-2'};
 
-test('preparing playback shows the poster by default while Range and Media3 transitions suppress it',()=>{
+test('preparing playback shows a poster only outside same-drama episode transitions',()=>{
  assert.match(styles,/\.hero\.is-preparing-video \.hero-backdrop, \.hero\.is-preparing-video \.hero-loading-poster \{ visibility: visible; \}/);
- assert.match(styles,/\.hero\.is-preparing-video\.is-episode-transition\.is-range-transition \.hero-backdrop, \.hero\.is-preparing-video\.is-episode-transition\.is-range-transition \.hero-loading-poster \{ visibility: hidden; \}/);
- assert.match(styles,/\.hero\.is-preparing-video\.is-episode-transition\.is-native-media3-episode-transition \.hero-backdrop, \.hero\.is-preparing-video\.is-episode-transition\.is-native-media3-episode-transition \.hero-loading-poster \{ visibility: hidden; \}/);
- assert.doesNotMatch(styles,/\.hero\.is-preparing-video\.is-episode-transition \.hero-backdrop, \.hero\.is-preparing-video\.is-episode-transition \.hero-loading-poster \{ visibility: hidden; \}/);
+ assert.match(styles,/\.hero\.is-preparing-video\.is-episode-transition \.hero-backdrop, \.hero\.is-preparing-video\.is-episode-transition \.hero-loading-poster \{ visibility: hidden; \}/);
  assert.match(styles,/\.hero\.is-episode-cover \.hero-episode-cover \{ visibility: visible; \}/);
 });
 
@@ -103,6 +101,38 @@ test('a pending prewarmed image can be adopted by its target playback after the 
  warmed.onload();
  assert.equal(f.cover.style.backgroundImage,'url("https://img.example/episode-2.jpg")');
  assert.equal(f.hero.classList.contains('is-episode-cover'),true);
+});
+
+test('a pending image decode can finish while detail resolution has no active playback and survive source attachment',()=>{
+ const f=fixture();
+ f.context.prewarmEpisodeCover(target,{episode_cover:'next.jpg'},f.playback);
+ const warmed=f.images[0];
+ f.context.feedGeneration=9;f.context.activePlayback=null;
+ f.context.playbackRequest={series_id:target.series_id,vid:target.vid,generation:9,owner:3};
+ f.context.reusePrewarmedEpisodeCover(target);
+ warmed.onload();
+ assert.equal(f.context.prewarmedEpisodeCover.ready,true);
+ assert.equal(f.cover.style.backgroundImage,'url("next.jpg")');
+ assert.equal(f.hero.classList.contains('is-episode-cover'),true);
+ f.context.activePlayback={...f.playback,generation:9};
+ f.context.reusePrewarmedEpisodeCover(target);
+ assert.equal(f.images.length,1);
+ assert.equal(f.hero.classList.contains('is-episode-cover'),true);
+});
+
+test('late prewarmed image callbacks cannot cover cancellation, another selection or an already rendered frame',()=>{
+ for(const kind of ['cancel','generation','owner','vid','rendered']) {
+  const f=fixture();
+  f.context.prewarmEpisodeCover(target,{episode_cover:'next.jpg'},f.playback);
+  f.context.reusePrewarmedEpisodeCover(target);
+  if(kind==='cancel')f.context.clearEpisodeCover();
+  if(kind==='generation')f.context.feedGeneration++;
+  if(kind==='owner')f.context.accountEpoch++;
+  if(kind==='vid')f.playback.vid='other';
+  if(kind==='rendered')f.playback.presentation.rendered=true;
+  f.images[0].onload();
+  assert.equal(f.hero.classList.contains('is-episode-cover'),false,kind);
+ }
 });
 
 test('Media3 keeps the episode cover through first-frame until playback advances, then fades for 180ms',async()=>{

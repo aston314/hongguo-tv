@@ -60,3 +60,46 @@ test('a loaded poster stays visible while the next episode cover is decoding', (
   assert.equal(c.backdrop.style.backgroundImage,'url("second.jpg")');
   assert.equal(c.poster.style.backgroundImage,'url("second.jpg")');
 });
+
+function featuredPosters({ android=false, webos=false }={}) {
+  const c=posters();
+  Object.assign(c,{androidShell:android,webosShell:webos});
+  vm.runInContext(`
+    var backdrop=node(),poster=node(),engagement=null;
+    var document={getElementById:function(id){return id==='hero-backdrop'?backdrop:id==='hero-loading-poster'?poster:null},querySelector:function(){return null}};
+    function updateSavedButtons(){}function setControlIcon(){}function updateSeasonControl(){}
+    function uiText(key,fallback){return fallback}
+  `+source.slice(source.indexOf('  function setFeatured('),source.indexOf('  function updateFeedCounter(')),c);
+  return c;
+}
+test('same-drama artwork is cleared on all platforms even when the old poster loads late', () => {
+  for(const platform of [{android:true},{android:false},{webos:true}])for(const loaded of [false,true]) {
+    const c=featuredPosters(platform);
+    c.setBackdrop(c.backdrop,{cover:'drama.jpg'},c.poster);
+    const old=c.backdrop.__coverLoader;
+    if(loaded)old.onload(); // Its pending animation callback must also be invalidated.
+    c.setFeatured({series_id:'one',cover:'drama.jpg'},false,'episode');
+    old.onload();c.paint();
+    assert.equal(c.backdrop.style.backgroundImage,'none');
+    assert.equal(c.poster.style.backgroundImage,'none');
+    assert.equal(c.backdrop.__coverLoader,null);
+    c.setFeatured({series_id:'one',cover:'drama.jpg'},false,'refresh');
+    assert.equal(c.backdrop.__coverLoader,null,'detail/stats refresh cannot restore the drama poster');
+  }
+});
+test('first playback and switching dramas load the target poster after a suppressed episode transition', () => {
+  for(const android of [false,true])for(const kind of ['initial','series']) {
+    const c=featuredPosters({android});
+    c.setFeatured({series_id:'one',cover:'old.jpg'},false,'episode');
+    c.setFeatured({series_id:'two',cover:'target.jpg'},false,kind);
+    c.backdrop.__coverLoader.onload();c.paint();
+    assert.equal(c.backdrop.style.backgroundImage,'url("target.jpg")');
+    assert.equal(c.poster.style.backgroundImage,'url("target.jpg")');
+  }
+});
+test('webOS follows the same no-drama-poster rule for episode switches', () => {
+  const c=featuredPosters({webos:true});
+  c.setFeatured({series_id:'one',cover:'drama.jpg'},false,'episode');
+  assert.equal(c.backdrop.__coverLoader,null);
+  assert.equal(c.poster.style.backgroundImage,'none');
+});

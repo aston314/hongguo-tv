@@ -8,7 +8,7 @@ const source = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'
 const slice = (a,b) => source.slice(source.indexOf('  function '+a+'('), source.indexOf('  function '+b+'('));
 const tick = () => new Promise(r=>setImmediate(r));
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}}
-function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,detailGate=null,captureFailure=false,native=false,prefetchReady=false,webos=false,sourceReplies=null}={}) {
+function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,detailGate=null,captureFailure=false,native=false,prefetchReady=false,webos=false,sourceReplies=null,inPlace=true}={}) {
   const gate=deferred(), calls=[], resolverURLs=[], writes=[], notices=[], frames=new Map(), handlers={}, timers=[];let frameID=0;
   function classes(...initial){const names=new Set(initial);return {add(...x){x.forEach(n=>names.add(n))},remove(...x){x.forEach(n=>names.delete(n))},contains(n){return names.has(n)},toggle(n,on){if(on)names.add(n);else names.delete(n)},names}}
   const hero={classList:classes('is-feed'),style:{}};
@@ -36,7 +36,7 @@ function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,d
   vm.runInContext(`
     var accountEpoch=2,feedGeneration=1,continuationGeneration=0,seasonSwitchRequest=null;
     function playbackEngineName(){return engine==='mpv'?'mpv':engine==='range'?'webview':'webview_media3'}
-    function mpvInPlaceReplaceAvailable(){return engine==='mpv'}
+    function mpvInPlaceReplaceAvailable(){return engine==='mpv'&&${inPlace}}
     function nativePlaybackActive(){return document.documentElement.classList.contains('native-playback')}
     function isNativeMedia3PlaybackActive(){return nativePlaybackActive()&&playbackEngineName()!=='mpv'}
     var autoCinemaCandidate=false,autoCinemaGeneration=0,autoCinemaSession=null;
@@ -54,7 +54,7 @@ function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,d
     function pageMode(){return 'player'}function isPlaybackPage(){return true}function isLibraryPage(){return false}
     function basicDrama(x){return x}function firstVid(x){return x.vid_list[0]}
     function getDetail(x){return ${detailGate ? 'detailGate.promise.then(function () { return x; })' : 'Promise.resolve(x)'}}function libraryEntry(){return null}function resumeEpisode(){return 1}
-    function closePlayerOptions(){}function closeDiscussion(){}function resetDanmaku(){}function cancelPlaybackPreparation(){clearPrefetchedEpisodeHint()}
+    function closePlayerOptions(){}function closeDiscussion(){}function resetDanmaku(){}function cancelPlaybackPreparation(){clearPrefetchedEpisodeHint();clearEpisodeCover()}
     function stageNativePlaybackStartPosition(){}
     function cancelPendingAutoCinema(){autoCinemaCandidate=false;autoCinemaGeneration=0;autoCinemaSession=null}function finishAutoCinema(){}
     function clearRangeTransitionHint(){}function waitForPlaybackPrefetch(handoff){return handoff ? handoff.promise : Promise.resolve(null)}function recoverPlaybackAfterError(){return false}
@@ -126,6 +126,61 @@ test('the decoded next-episode preview is attached before the full-file handoff 
   assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),true);
   assert.equal(f.c.activePlayback.presentation.rendered,false);
   assert.equal(f.video.src,'/media/complete.mp4');
+});
+
+test('ordinary episode switches show an exact prewarmed preview immediately before detail and source resolution',async()=>{
+  for(const [engine,native] of [['range',false],['standard',true],['mpv',true]])for(const fromPrefetch of [false,true]) {
+    const details=deferred(),source=deferred(),f=fixture({engine,native,detailGate:details,sourceGate:source});
+    f.gate.resolve();
+    f.c.prewarmedEpisodeCover={key:'2:9001:222',source:'https://img.example/next.jpg',ready:true,failed:false,
+      image:{src:'https://img.example/next.jpg'},waiters:[],series_id:'9001',vid:'222',episode:2,generation:1};
+    if(fromPrefetch)f.c.feedItems[0].vid_list=null;
+    f.c.playFeedItem(0,2,0);
+    assert.equal(f.c.activePlayback,null);
+    assert.equal(f.c.prefetchedEpisodeHint,null,'artwork must not depend on the full-download quiet hint');
+    assert.equal(f.hero.classList.contains('is-episode-cover'),true,engine);
+    await settlePlayback(f);
+    assert.equal(f.c.activePlayback,null,'detail is still pending');
+    assert.equal(f.hero.classList.contains('is-episode-cover'),true);
+    if(fromPrefetch)f.c.feedItems[0].vid_list=['111','222','333'];
+    details.resolve();await settlePlayback(f);
+    assert.equal(f.c.activePlayback.vid,'222');
+    assert.equal(f.hero.classList.contains('is-episode-cover'),true,'preview spans pending and active contexts');
+    source.resolve();await settlePlayback(f);
+    assert.equal(f.video.src,'/media/next.mp4');
+  }
+});
+
+test('early preview reuse rejects another account, drama, episode, stale prefetch identity and first opens',()=>{
+  for(const kind of ['account','drama','vid','generation','episode','initial']) {
+    const f=fixture({engine:'mpv',native:true});f.gate.resolve();
+    f.c.prewarmedEpisodeCover={key:'2:9001:222',source:'https://img.example/next.jpg',ready:true,failed:false,
+      image:{src:'https://img.example/next.jpg'},waiters:[],series_id:'9001',vid:'222',episode:2,generation:1};
+    if(kind==='account')f.c.prewarmedEpisodeCover.key='1:9001:222';
+    if(kind==='drama')f.c.prewarmedEpisodeCover.key='2:other:222';
+    if(kind==='vid')f.c.prewarmedEpisodeCover.key='2:9001:333';
+    if(kind==='generation'||kind==='episode'){
+      f.c.feedItems[0].vid_list=null;
+      f.c.prewarmedEpisodeCover[kind]=0;
+    }
+    if(kind==='initial')f.c.activePlayback=null;
+    f.c.playFeedItem(0,2,0);
+    assert.equal(f.hero.classList.contains('is-episode-cover'),false,kind);
+  }
+});
+
+test('authoritative detail replaces stale early preview identity before resolving media',async()=>{
+  const details=deferred(),source=deferred(),f=fixture({engine:'mpv',native:true,detailGate:details,sourceGate:source});
+  f.gate.resolve();
+  f.c.prewarmedEpisodeCover={key:'2:9001:222',source:'https://img.example/old-vid.jpg',ready:true,failed:false,
+    image:{src:'https://img.example/old-vid.jpg'},waiters:[]};
+  f.c.playFeedItem(0,2,0);await settlePlayback(f);
+  assert.equal(f.hero.classList.contains('is-episode-cover'),true);
+  f.c.feedItems[0].vid_list=['111','new-vid','333'];details.resolve();await settlePlayback(f);
+  assert.equal(f.c.activePlayback.vid,'new-vid');
+  assert.equal(f.hero.classList.contains('is-episode-cover'),false,'wrong-VID preview must be removed');
+  assert.equal(f.hero.classList.contains('is-episode-transition'),true,'never reveal drama artwork instead');
+  source.resolve();await settlePlayback(f);
 });
 
 test('an invalid full-file handoff restores ordinary loading before the foreground resolver runs',async()=>{
@@ -395,7 +450,7 @@ test('a captured frame covers source replacement until the new picture is presen
   assert.equal(f.canvas.width*f.canvas.height,0);
   assert.equal(f.hero.classList.contains('is-preparing-video'),false);
 });
-test('standard playback falls back to its poster when the previous frame cannot be captured',async()=>{
+test('standard playback suppresses the drama poster even when the previous frame cannot be captured',async()=>{
   for(const options of [{captureFailure:true},{captureFailure:'read'},{native:true},{noFrame:true}]){
     const f=fixture({engine:'range',...options});f.gate.resolve();f.video.src='/media/current.mp4';
     if(options.noFrame)f.video.readyState=0;
@@ -407,6 +462,43 @@ test('standard playback falls back to its poster when the previous frame cannot 
     assert.equal(f.hero.classList.contains('is-range-transition'),false);
     assert.equal(f.hero.classList.contains('is-range-source-reset'),false);
     assert.equal(f.hero.classList.contains('is-preparing-video'),true);
+    assert.equal(f.hero.classList.contains('is-episode-transition'),true);
+  }
+});
+test('MPV fenced switches suppress the drama poster without claiming an in-place transition',async()=>{
+  const f=fixture({engine:'mpv',native:true,inPlace:false});f.gate.resolve();
+  f.c.playFeedItem(0,2,0);await settlePlayback(f);
+  assert.equal(f.hero.classList.contains('is-native-mpv-episode-transition'),false);
+  assert.equal(f.hero.classList.contains('is-range-transition'),false);
+  assert.equal(f.hero.classList.contains('is-episode-transition'),true);
+  assert.equal(f.video.src,'/media/next.mp4');
+});
+test('rapid native selections keep same-drama poster suppression before any new frame or detail response',async()=>{
+  for(const phase of ['details','source','attached']) {
+    const detail=deferred(),source=deferred();
+    const f=fixture({engine:'mpv',native:true,inPlace:false,detailGate:phase==='details'?detail:null,sourceGate:phase==='source'?source:null});f.gate.resolve();
+    f.c.playFeedItem(0,2,0);await settlePlayback(f);
+    if(phase==='details')assert.equal(f.c.activePlayback,null);
+    else assert.equal(f.c.activePlayback.started,false);
+    f.c.playFeedItem(0,3,0);
+    assert.equal(f.hero.classList.contains('is-episode-transition'),true,phase);
+    detail.resolve();source.resolve();await settlePlayback(f);
+    assert.equal(f.c.activePlayback.episode,3);
+    assert.equal(f.hero.classList.contains('is-episode-transition'),true);
+  }
+});
+test('all platforms suppress episode posters and reset navigation for another drama, account, generation or first start',async()=>{
+  for(const kind of ['drama','account','generation','initial','webos']) {
+    const f=fixture({engine:'mpv',native:true,webos:kind==='webos'});f.gate.resolve();
+    f.c.playFeedItem(0,2,0);await settlePlayback(f);
+    assert.equal(f.hero.classList.contains('is-episode-transition'),true);
+    if(kind==='drama')f.c.feedItems=[{series_id:'other',vid_list:['444']}];
+    if(kind==='account')f.c.accountEpoch++;
+    if(kind==='generation'){f.c.activePlayback=null;f.c.feedGeneration++;}
+    if(kind==='webos'){f.c.activePlayback=null;f.c.playbackRequest=null;}
+    if(kind==='initial'){f.c.activePlayback=null;f.c.playbackRequest=null;}
+    f.c.playFeedItem(0,1,0);
+    assert.equal(f.hero.classList.contains('is-episode-transition'),false,kind);
   }
 });
 test('MPV keeps its episode-cover transition when canvas capture is unavailable',async()=>{
