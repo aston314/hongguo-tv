@@ -14,6 +14,7 @@
   var querystring = require('querystring');
   var createAccount = require('./account');
   var passportSign = require('./passport-sign');
+  var createPlaybackIdentity = require('./playback-identity');
   var rangeMedia = require('./range-media');
   var createMediaCache = require('./media-cache');
   var audioMedia = require('./audio-media');
@@ -38,7 +39,15 @@
   var cacheRoot = '';
   var mediaCache = null;
   var lastVideoModelDiagnostic = null;
-  var playbackDevicePromise = null;
+  var playbackIdentityClosed = false;
+  var playbackIdentity = newPlaybackIdentity();
+  function newPlaybackIdentity() {
+    return createPlaybackIdentity(function (signal) {
+      return createAccount.registerPlaybackDevice(function (target, method, headers, body, limit) {
+        return requestBuffer(target, method, headers, body, limit, signal, 8000);
+      });
+    });
+  }
 
   function fail(message, status, code, stage) { var error = new Error(message); error.code = code || 'PROVIDER_ERROR'; if (status) error.status = status; if (stage) error.stage = stage; return error; }
   function preparationCancelled() {
@@ -262,21 +271,6 @@
     };
   }
 
-  function getPlaybackDevice() {
-    if (!playbackDevicePromise) {
-      var pending = Promise.resolve().then(function () {
-        return createAccount.registerPlaybackDevice(function (target, method, headers, body, limit) {
-          return requestBuffer(target, method, headers, body, limit, null, 8000);
-        });
-      }).catch(function (error) {
-        if (playbackDevicePromise === pending) playbackDevicePromise = null;
-        throw error;
-      });
-      playbackDevicePromise = pending;
-    }
-    return playbackDevicePromise;
-  }
-
   function randomID() {
     var bytes = crypto.randomBytes(16);
     var text = '';
@@ -420,6 +414,8 @@
   function videoOptions(vid, signal, retry) {
     retry = retry || {};
     var transientRetries = 0;
+    var identityState = retry.identityState || { attempts: 0, emptyCount: 0, device: null, replaced: false };
+    var usedDevice;
     var maxTransientRetries = Math.max(0, Number(retry.maxTransientRetries) || 0);
     var maximum = Math.max(1, Math.min(3, Number(retry.maxAttempts) || 3));
     var offset = Number(retry.attemptOffset) || 0;
@@ -436,9 +432,12 @@
     }
     function next() {
       if (signal && signal.aborted) return Promise.reject(preparationCancelled());
-      attempt++;
+      attempt++; identityState.attempts++;
       recordDiagnostic({ stage: 'device_register', code: 'VIDEO_MODEL_REQUEST' });
-      return getPlaybackDevice().then(function (device) {
+      return playbackIdentity.get(signal).then(function (device) {
+        usedDevice = device;
+        if (identityState.device !== device) identityState.emptyCount = 0;
+        identityState.device = device;
         if (signal && signal.aborted) throw preparationCancelled();
         var stamp = Date.now();
         var params = playbackQuery(device, stamp);
@@ -458,11 +457,12 @@
         if (response.status < 200 || response.status >= 300) {
           throw fail('multi_video_model HTTP ' + response.status, response.status, 'VIDEO_MODEL_HTTP', 'multi_video_model');
         }
-        if (!response.body.length) {
+        var responseText = response.body.toString('utf8');
+        if (!trim(responseText)) {
           throw fail('multi_video_model 返回空响应', 502, 'VIDEO_MODEL_EMPTY', 'multi_video_model');
         }
         var envelope;
-        try { envelope = parseExactJSON(response.body.toString('utf8')); } catch (error) { throw fail('multi_video_model 响应不是有效 JSON', 502, 'VIDEO_MODEL_INVALID_JSON', 'multi_video_model'); }
+        try { envelope = parseExactJSON(responseText); } catch (error) { throw fail('multi_video_model 响应不是有效 JSON', 502, 'VIDEO_MODEL_INVALID_JSON', 'multi_video_model'); }
         var responseCode = modelString(envelope && (envelope.code == null ? envelope.Code : envelope.code));
         if (responseCode && responseCode !== '0') { throw fail('multi_video_model 拒绝了播放请求（' + responseCode + '）', 502, 'VIDEO_MODEL_REJECTED', 'multi_video_model'); }
         var data = envelope && envelope.data;
@@ -512,10 +512,31 @@
         var stage = error && error.stage || (error && error.code === 'ACCOUNT_DEVICE' ? 'device_register' : 'multi_video_model_transport');
         recordDiagnostic(Object.assign({}, diagnostic, { stage: stage,
           code: error && error.code === 'ACCOUNT_DEVICE' ? 'DEVICE_REGISTRATION_FAILED' : error && error.code || 'VIDEO_MODEL_NETWORK' }));
+        var confirmedEmpty = error.code === 'VIDEO_MODEL_EMPTY' && diagnostic.http_status === 200;
+        identityState.emptyCount = confirmedEmpty ? identityState.emptyCount + 1 : 0;
         error.stage = stage;
         error.videoModel = Object.assign({}, diagnostic); delete error.videoModel.video_id;
         if (diagnostic.http_status) error.upstreamStatus = diagnostic.http_status;
-        if (attempt < maximum && (!retry.allowRetry || retry.allowRetry()) && (error.code === 'VIDEO_MODEL_EMPTY' ||
+        if (identityState.emptyCount >= 3 && !identityState.replaced && (!retry.allowRetry || retry.allowRetry())) {
+          identityState.replaced = true;
+          if (typeof retry.onIdentityRefresh === 'function') retry.onIdentityRefresh();
+          return playbackIdentity.refreshAfterEmpty(usedDevice, signal).then(function () {
+            if (signal && signal.aborted) throw preparationCancelled();
+            if (retry.allowRetry && !retry.allowRetry()) throw error;
+            // Keep the existing phase budget (including an adopted prefetch),
+            // then allow at most three requests with the replacement identity.
+            maximum += 3;
+            identityState.emptyCount = 0;
+            if (typeof retry.onRetry === 'function') retry.onRetry(error, 0, offset + attempt);
+            return next();
+          }, function (refreshError) {
+            if (signal && signal.aborted || refreshError && refreshError.name === 'AbortError') throw preparationCancelled();
+            // Preserve the original empty-body diagnostic, including real HTTP
+            // 200, even when registration fails or is cooling down.
+            throw error;
+          });
+        }
+        if (identityState.attempts < 6 && attempt < maximum && (!retry.allowRetry || retry.allowRetry()) && (error.code === 'VIDEO_MODEL_EMPTY' ||
             maxTransientRetries > transientRetries && transientVideoModelError(error))) {
           var delay = offset + attempt === 1 ? 250 : 1000;
           if (error.code !== 'VIDEO_MODEL_EMPTY') transientRetries++;
@@ -764,6 +785,7 @@
       return Promise.resolve(resultWithReport({ path: '/minireel-proxy/media/' + token + '.mp4', quality: quality || '', qualities: [], vid: vid, mode: 'full' }, preparationReports[token] || { media_mode: 'full', media_preparation_stage: 'ready' }, false, true));
     }
     var record = { users: 0, foregroundUsers: 0, speculative: !!prefetch, settled: false, resolveCancel: audioCancel.create(),
+      identityState: { attempts: 0, emptyCount: 0, device: null, replaced: false },
       report: { media_mode: wantsRange ? 'range' : 'full', media_preparation_stage: 'resolve' } };
     rememberPreparation(token, record.report);
     var resolveStartedAt = Date.now();
@@ -774,11 +796,12 @@
       record.report.media_resolve_retry_delay_ms = delay;
     }
     function foregroundWaiting() { return record.foregroundUsers > 0; }
+    function identityRefreshing() { record.recoveryCancel = record.resolveCancel; }
     var job = measurePreparation(record.report, 'resolve', 'media_resolve_ms', function () {
       return videoOptions(vid, record.resolveCancel.signal, {
-        maxAttempts: prefetch ? 1 : 3,
+        identityState: record.identityState, maxAttempts: prefetch ? 1 : 3,
         maxTransientRetries: prefetch ? 0 : 2,
-        startedAt: resolveStartedAt, onRetry: retried, onDiagnostic: diagnostic, allowRetry: foregroundWaiting
+        startedAt: resolveStartedAt, onRetry: retried, onDiagnostic: diagnostic, onIdentityRefresh: identityRefreshing, allowRetry: foregroundWaiting
       }).catch(function (error) {
         if (!record.speculative || !record.foregroundUsers || !transientVideoModelError(error)) throw error;
         record.recoveryCancel = record.resolveCancel;
@@ -788,8 +811,8 @@
         return recoveryDelay(record.recoveryCancel.signal).then(function () {
           if (!record.foregroundUsers || record.recoveryCancel.signal.aborted) throw preparationCancelled();
           return videoOptions(vid, record.recoveryCancel.signal, {
-            maxAttempts: error.code === 'VIDEO_MODEL_EMPTY' ? 2 : 1, attemptOffset: 1,
-            startedAt: resolveStartedAt, onRetry: retried, onDiagnostic: diagnostic, allowRetry: foregroundWaiting
+            identityState: record.identityState, maxAttempts: error.code === 'VIDEO_MODEL_EMPTY' ? 2 : 1, attemptOffset: 1,
+            startedAt: resolveStartedAt, onRetry: retried, onDiagnostic: diagnostic, onIdentityRefresh: identityRefreshing, allowRetry: foregroundWaiting
           });
         });
       }).catch(function (error) {
@@ -1726,9 +1749,15 @@
     suggestions: suggestions, actorWorks: actorWorks, engagement: engagement, discussion: discussion, replies: replies,
     radar: radar, library: library, changeLibrary: changeLibrary,
     dataDirectory: dataDirectory,
-    startCache: function () { ensureCacheRoot(); mediaCache.start(); },
+    startCache: function () {
+      // Luna may wake the same JS Service instance after shutdown, without
+      // restarting its process. Never leave its playback identity closed.
+      if (playbackIdentityClosed) { playbackIdentity = newPlaybackIdentity(); playbackIdentityClosed = false; }
+      ensureCacheRoot(); mediaCache.start();
+    },
     closeCache: function () {
-      Object.keys(jobs).forEach(function (key) { if (jobs[key].recoveryCancel) jobs[key].recoveryCancel.abort('PLAYBACK_PREPARATION_CANCELLED'); });
+      playbackIdentityClosed = true; playbackIdentity.close();
+      Object.keys(jobs).forEach(function (key) { jobs[key].resolveCancel.abort('PLAYBACK_PREPARATION_CANCELLED'); });
       Object.keys(audioJobs).forEach(function (key) { audioJobs[key].cancel.abort(); });
       audioRange.close(); audioCache = [];
       if (typeof rangeMedia.clearHeadCache === 'function') rangeMedia.clearHeadCache();

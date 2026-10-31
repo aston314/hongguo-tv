@@ -17,6 +17,7 @@ node_bin=${NODE:-node}
 "$node_bin" --check "$repo_dir/webos/service/audio-range.js"
 "$node_bin" --check "$repo_dir/webos/service/audio-multipart.js"
 "$node_bin" --check "$repo_dir/webos/service/audio-cancel.js"
+"$node_bin" --check "$repo_dir/webos/service/playback-identity.js"
 
 "$node_bin" - "$repo_dir" <<'NODE'
 var fs = require('fs');
@@ -72,7 +73,7 @@ NODE
 "$node_bin" "$repo_dir/webos/service/passport-sign.test.js"
 "$node_bin" "$repo_dir/webos/service/provider.test.js"
 "$node_bin" "$repo_dir/webos/service/search-season.test.js"
-"$node_bin" --test "$repo_dir/tests/webos-prefetch-recovery.test.cjs"
+"$node_bin" --test "$repo_dir/tests/webos-prefetch-recovery.test.cjs" "$repo_dir/tests/webos-playback-identity.test.cjs"
 "$node_bin" --test "$repo_dir/tests/webos-audio-controller.test.cjs" "$repo_dir/tests/webos-audio-local.test.cjs" "$repo_dir/tests/webos-audio-install.test.cjs"
 "$node_bin" "$repo_dir/webos/service/media-cache.test.js"
 "$node_bin" "$repo_dir/webos/service/updates.test.js"

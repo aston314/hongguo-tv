@@ -43,3 +43,7 @@ play/info 绑定客户端断开信号。每个调用独立退出，不影响仍�
 准备报告增加 `media_resolve_retries`（恢复次数）与 `media_resolve_retry_reason`（错误代码），原取源耗时包含恢复等待。自动验证入口 `scripts/verify_webos.sh` 加入 `tests/webos-prefetch-recovery.test.cjs`，覆盖正常复用、并发恢复、连续失败、不可重试错误、取消后重入、实际 HTTP 断开及页面原有 1200ms 交接。
 
 反馈链接：[issue #57](https://github.com/aston314/hongguo-tv-releases/issues/57)、[issue #59](https://github.com/aston314/hongguo-tv-releases/issues/59)。
+
+## 匿名身份恢复（#109 / #111）
+
+以上历史重试策略由当前有界策略收紧：纯预取一次，前台临时网络/HTTP 错误最多三次；同一准备任务在同一身份下连续三次 HTTP 200 空响应后，额外允许一次身份替换和最多三次取源，总计不超过六次。后台转前台沿用原任务的计数，不能叠加新一轮预算。不同任务共享身份注册/刷新；详细规则及回归验证见 [匿名播放身份与空响应恢复](playback-identity-recovery.md#webos-独立服务)。
