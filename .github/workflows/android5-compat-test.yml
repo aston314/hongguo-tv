@@ -18,7 +18,6 @@ jobs:
     runs-on: ubuntu-22.04
     timeout-minutes: 45
     env:
-      ANDROID5_TEST_OUTPUT: ${{ runner.temp }}/android5-test
       HONGGUO_CORE_VERSION: 0.2.136-android5-test.1+${{ github.sha }}
       TEST_TAG: android5-compat-0.2.136-test.1
     steps:
@@ -27,7 +26,8 @@ jobs:
         run: |
           test "$GITHUB_REF" = refs/heads/codex/android5-compat-test
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
-          mkdir -p "$ANDROID5_TEST_OUTPUT"
+          echo "ANDROID5_TEST_OUTPUT=$RUNNER_TEMP/android5-test" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/android5-test"
       - uses: actions/setup-go@v5
         with:
           go-version: '1.25.x'
