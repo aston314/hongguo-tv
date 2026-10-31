@@ -30,4 +30,8 @@ final class MpvOutputState {
         }
         return result.toString();
     }
+
+    boolean videoDecodeError() {
+        return messages[2] > 0 && messages[2] <= 20;
+    }
 }

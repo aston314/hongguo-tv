@@ -4,6 +4,16 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class MpvOutputStateTest {
+    @Test public void onlyVideoDecodeErrorsPermitDecodeFallback() {
+        MpvOutputState state = new MpvOutputState();
+        assertFalse(state.videoDecodeError());
+        state.message(2, 10);
+        assertFalse(state.videoDecodeError());
+        state.message(3, 20);
+        assertTrue(state.videoDecodeError());
+        state.message(3, 30);
+        assertTrue(state.videoDecodeError());
+    }
     @Test public void recreatedSurfaceAllowsDeferredStartButRejectsStaleAndDuplicateStarts() {
         assertFalse(MpvStartPolicy.mayStart(true, false, false));
         assertTrue(MpvStartPolicy.mayStart(true, false, true));
