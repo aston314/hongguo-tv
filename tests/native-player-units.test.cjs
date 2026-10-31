@@ -681,7 +681,8 @@ test('supported, uncertain and unavailable codec checks keep HTML5 first even on
 test('a negative codec check does not persist a browser-wide preference or leak into the next source', async () => {
  const f=fixture('webview_media3',{canPlayType:type=>type.includes('avc1')?'probably':''});const video=f.document.getElementById('hero-video');
  video.src='/media/hevc.mp4';video.setSourceCodec('hevc');await video.play();
- f.context.window.HongguoNativePlayback.event(f.bridge.lastId,'firstframe',{width:720,height:1280});
+ f.context.window.HongguoNativePlayback.event(f.bridge.lastId,'frame',{width:720,height:1280});
+ assert.equal(f.context.window.HongguoNativePlaybackAdapter.diagnostics().final_first_frame,true);
  assert.equal(f.storage.getItem('hongguo.native-player.preference.v1'),null);
  video.src='/media/h264.mp4';video.setSourceCodec('h264');await video.play();assert.equal(f.bridge.plays,1);assert.equal(f.domVideo.paused,false);
  video.src='/media/unknown.mp4';await video.play();assert.equal(f.bridge.plays,1,'old source codec must be cleared');
