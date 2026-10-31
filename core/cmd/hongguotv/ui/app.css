@@ -121,6 +121,7 @@ html.desktop-shell .hero-media { -webkit-user-select: none; user-select: none; }
 .hero.is-preparing-video.is-episode-transition.is-range-transition.is-range-source-reset.is-starting-video .hero-video { visibility: visible !important; opacity: 1 !important; }
 .hero.is-preparing-video.is-episode-transition.is-range-transition:not(.is-range-transition-loading) .player-status.is-loading { visibility: hidden; }
 .hero.is-prefetched-episode-quiet .player-status.is-loading { visibility: hidden; }
+.hero.is-switch-loading-grace .player-status.is-loading { visibility: hidden; }
 .hero-backdrop { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 0; width: 100%; height: 100%; background-size: cover; background-position: center; background-repeat: no-repeat; opacity: .52; filter: saturate(.82); transition: opacity .2s ease; }
 /* Keep the full cover in the centre; the darker cover layer fills the sides.
    CSS backgrounds preserve the image ratio on Android 6 without object-fit. */

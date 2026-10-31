@@ -34,6 +34,7 @@
     function invalidate(candidate) {
       if (!candidate) return;
       candidate.cancelled = true;
+      try{if(options.onCancel&&candidate.data)options.onCancel(candidate.data,candidate.target,candidate.info);}catch(ignored){}
       if (candidate.request) candidate.request.abort();
     }
     function key(info) {
@@ -84,7 +85,11 @@
       }).then(function (data) {
         if (!current(candidate)) return null;
         candidate.state = data && data.path ? 'ready' : 'unavailable';
-        if (candidate.state === 'ready') candidate.timing.ready_at = now();
+        candidate.data=data;
+        if (candidate.state === 'ready') {
+          candidate.timing.ready_at = now();
+          try{if(options.onReady)options.onReady(data,candidate.target,candidate.info);}catch(ignored){}
+        }
         return data;
       }).catch(function (error) {
         // Retry only on a later eligible playback tick, never while paused,
@@ -128,7 +133,7 @@
     }
     function peek() {
       if (!entry || entry.cancelled || !entry.target) return null;
-      return { info: entry.info, target: entry.target, state: entry.state };
+      return { info: entry.info, target: entry.target, state: entry.state, data: entry.data };
     }
     return { maybe: maybe, cancel: cancel, cancelPending: cancelPending, keepFor: keepFor, consume: consume, peek: peek, readyFor: readyFor };
   }

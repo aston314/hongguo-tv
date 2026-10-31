@@ -97,8 +97,8 @@
       return value === '' ? 'no' : value === 'maybe' || value === 'probably' ? value : 'unknown';
     } catch (ignoredCodecSupport) { return 'unknown'; }
   }
-  function sourceCodecUnsupported() {
-    var codec = sourceCodec.toLowerCase();
+  function sourceCodecUnsupported(value) {
+    var codec = (value === undefined ? sourceCodec : String(value || "")).toLowerCase();
     if (codec === 'bytevc1' || codec === 'hevc' || codec === 'h265' || codec === 'hvc1' || codec === 'hev1') {
       return codecSupport('video/mp4; codecs="hvc1.1.6.L93.B0"') === 'no' &&
         codecSupport('video/mp4; codecs="hev1.1.6.L93.B0"') === 'no';
@@ -118,6 +118,7 @@
       cache_eligible: false, cache_written: false, dom_retry: false, started: false };
   }
   var attempt = newAttempt();
+  var nextNativePreload = null;
   if (fixedNative) { usingNative = true; document.documentElement.classList.add('native-playback'); }
 
   function isNative() { return nativeEnabled && usingNative; }
@@ -282,10 +283,37 @@
     if (!state.source) return;
     syncBounds();
     nativeDiagnosticId = diagnosticPage + '-' + loadId;
+    var preloadKey=nextNativePreload&&nextNativePreload.source===state.source?nextNativePreload.key:'';
+    var fastPresentation=!!(preloadKey&&attempt.switch_reason==='prepared_native_handoff'&&state.currentTime===0);
     var payload = JSON.stringify({ source: localSource(state.source), start_position: state.currentTime || 0,
-      paused: false, speed: state.playbackRate || 1, diagnostic_id: nativeDiagnosticId });
+      paused: false, speed: state.playbackRate || 1, diagnostic_id: nativeDiagnosticId,preload_key:preloadKey,fast_presentation:fastPresentation });
     try { nativeRequested = true; bridge.play(loadId, payload); } catch (error) { nativeRequested = false; dispatch('error', error); }
+    nextNativePreload=null;
   }
+  function cancelNativePreload(path) {
+    if(!nextNativePreload||path&&nextNativePreload.source!==path)return;
+    try{if(bridge.cancelPreload)bridge.cancelPreload(nextNativePreload.key);}catch(ignored){}
+    nextNativePreload=null;
+  }
+  function preloadRouteAllowed(codec) {
+    return sourceCodecUnsupported(codec);
+  }
+  function canFastHandoff(path) {
+    return !!(!fixedNative&&isNative()&&
+      nextNativePreload&&nextNativePreload.ready&&now()-nextNativePreload.startedAt<=120000&&(!path||nextNativePreload.source===path)&&preloadRouteAllowed(nextNativePreload.codec));
+  }
+  function preloadNativeNext(data) {
+    if(fixedNative||!isNative()||state.paused||state.ended||!state.started||
+        typeof bridge.preloadNext!=='function'||!data||!/^\/minireel-proxy\/media\/[a-f0-9]{24}\.mp4$/.test(data.path||''))return false;
+    // A current timeout fallback says nothing about HTML5 support for the
+    // next source. Require its own negative codec probe or explicit Media3.
+    if(!preloadRouteAllowed(data.video_codec))return false;
+    cancelNativePreload();
+    nextNativePreload={source:data.path,key:'preload-'+(++sequence),codec:data.video_codec,ready:false,startedAt:now()};
+    try{bridge.preloadNext(loadId,JSON.stringify({key:nextNativePreload.key,source:localSource(data.path)}));return true;}
+    catch(ignored){nextNativePreload=null;return false;}
+  }
+
   function startNativeFallback(force, reason) {
     if (!nativeEnabled || usingNative || nativeAttempted || !state.source || !force && state.paused) return false;
     nativeAttempted = true;
@@ -373,6 +401,8 @@
     } catch (ignored) {}
   }
   function resetToDomSource(next) {
+    var retained=!!next&&canFastHandoff(next);
+    if(next&&nextNativePreload&&nextNativePreload.source!==next)cancelNativePreload();
     sourceCodec = '';
     clearFallbackTimer();
     pendingDomResume = null;
@@ -383,20 +413,23 @@
     if (isNative()) {
       clearFallbackTimer();
       try {
-        if (fixedNative && next && bridge.begin) bridge.begin(loadId);
-        else if (bridge.stop) bridge.stop();
+        if(!retained){
+          if (fixedNative && next && bridge.begin) bridge.begin(loadId);
+          else if (bridge.stop) bridge.stop();
+        }
       } catch (ignoredStop) {}
-      usingNative = fixedNative;
-      if (!fixedNative) document.documentElement.classList.remove('native-playback');
+      usingNative = fixedNative||retained;
+      if (!fixedNative&&!retained) document.documentElement.classList.remove('native-playback');
     }
     attempt = newAttempt();
     nativeAttempted = false;
+    if(retained){nativeAttempted=true;attempt.switched=true;attempt.preferred_path='Media3';attempt.active_path='Media3';attempt.switch_reason='prepared_native_handoff';}
     state.source = next;
     state.currentTime = 0; state.startPosition = 0; state.duration = NaN; state.paused = true; state.ended = false;
     state.seeking = false; state.readyState = 0; state.videoWidth = 0; state.videoHeight = 0;
     state.seekPending = false; state.started = false;
     // The MPV edition never loads media into WebView, including between episodes.
-    if (!fixedNative) domVideo.src = next;
+    if (!fixedNative&&!retained) domVideo.src = next;
     else {
       proxy.error = null;
       proxy.networkState = next ? 2 : 0;
@@ -443,6 +476,7 @@
         }
         if (!nativeAttempted && attempt.preferred_path === 'Media3' && startNativeFallback(true, 'cached_media3')) return Promise.resolve();
         var observedAttempt = attempt, observedSource = state.source;
+        cancelNativePreload();
         var result;
         try { result = domVideo.play(); } catch (error) {
           return handleDomPlayFailure(error, observedAttempt, observedSource);
@@ -454,6 +488,7 @@
       }
       if (!state.source) return Promise.reject(new Error(t('content.noMediaUrl', '没有播放地址')));
       state.paused = false; state.ended = false;
+      if(!fixedNative&&attempt.switch_reason==='prepared_native_handoff'&&!attempt.started){beginAttempt();attempt.active_path='Media3';attempt.switch_started_at=now();}
       if (nativeRequested && bridge.resume) { try { bridge.resume(); } catch (ignored) {} }
       else invokePlay();
       return Promise.resolve();
@@ -492,6 +527,13 @@
     event: function (id, name, detail) {
       if (!isNative() || id !== loadId) return;
       detail = detail || {};
+      if(name==='preloadstate'){
+        if(nextNativePreload&&detail.key===nextNativePreload.key){
+          if(detail.state==='ready')nextNativePreload.ready=true;
+          else if(detail.state!=='queued'&&detail.state!=='claimed')nextNativePreload=null;
+        }
+        return;
+      }
       if (name === 'buffering' || name === 'waiting') { state.readyState = 1; state.seeking = false; dispatch('waiting', detail); return; }
       if (name === 'outputstate') { dispatch('nativeoutputstate', { type: 'nativeoutputstate', coreIdle: detail.core_idle }); return; }
       if (name === 'frame') {
@@ -527,7 +569,7 @@
         } else fallbackToDom();
       }
     },
-    progress: function (id, position, duration) {
+    progress: function (id, position, duration, detail) {
       if (!isNative() || id !== loadId) return;
       // PlayerBridge reports both values in milliseconds. Keep the adapter's
       // HTMLMediaElement-compatible state in seconds; leaving position in ms
@@ -537,6 +579,7 @@
       state.currentTime = isFinite(positionMs) && positionMs >= 0 ? positionMs / 1000 : 0;
       state.duration = isFinite(durationMs) && durationMs > 0 ? durationMs / 1000 : NaN;
       if (isFinite(state.duration) && state.currentTime > state.duration) state.currentTime = state.duration;
+      if(detail&&typeof detail.fast_presentation==='boolean')dispatch('nativeprogress',detail);
       if (state.seekPending) { state.seekPending = false; state.seeking = false; dispatch('seeked'); } else state.seeking = false; dispatch('timeupdate');
     }
   };
@@ -579,6 +622,9 @@
     engine: fixedNative ? 'mpv' : 'webview_media3',
     video: function () { return proxy; },
     isNative: isNative,
+    preloadNext:preloadNativeNext,
+    cancelPreload:cancelNativePreload,
+    canFastHandoff:canFastHandoff,
     nativeDiagnostics: function () {
       if (!isNative() || !state.source || !nativeDiagnosticId) return {};
       try {
