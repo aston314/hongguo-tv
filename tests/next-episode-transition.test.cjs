@@ -310,6 +310,33 @@ test('webOS consecutive source failures stop after one page refresh and show the
   assert.equal(f.resolverURLs.length, 2);
   assert(f.calls.includes('status:暂时无法播放这集'));
 });
+test('webOS provider-exhausted failures do not trigger another page recovery and retain the current failure', async () => {
+  const error=Object.assign(new Error('empty response'),{code:'VIDEO_MODEL_EMPTY',stage:'multi_video_model',status:502,
+    recoveryComplete:true,videoModel:{http_status:200,response_bytes:0,attempt:3,elapsed_ms:1400}});
+  const f=fixture({webos:true,engine:'range',sourceReplies:[error,null]});
+  f.c.window={HongguoPlaybackRecovery:require('../core/cmd/hongguotv/ui/playback-recovery')};
+  f.c.playbackRecovery=f.c.window.HongguoPlaybackRecovery.create({maxAttempts:1});
+  f.gate.resolve();f.handlers.ended();await settlePlayback(f,30);
+  assert.equal(f.resolverURLs.length,1);
+  assert.equal(f.c.playbackRecovery.attempts(),0);
+  assert(f.calls.includes('status:播放信息暂时获取失败，请稍后重试 · 错误码：VIDEO_MODEL_EMPTY'));
+  assert.equal(f.c.activePlayback.preparationError.response_bytes,0);
+  f.c.playFeedItem(0,3,0);await settlePlayback(f,30);
+  assert.equal(f.c.activePlayback.preparationError,undefined,'a new episode never inherits the previous error');
+});
+test('preparation recovery is disabled after leaving playback, changing generation or account, and in background', () => {
+  for(const changed of ['page','generation','account','hidden','background']) {
+    const f=fixture({webos:true,engine:'range'});
+    f.c.playbackRecovery=require('../core/cmd/hongguotv/ui/playback-recovery').create({maxAttempts:1});
+    if(changed==='page') f.c.isPlaybackPage=()=>false;
+    if(changed==='generation') f.c.feedGeneration++;
+    if(changed==='account') f.c.accountEpoch++;
+    if(changed==='hidden') f.document.hidden=true;
+    if(changed==='background') f.c.applicationInBackground=true;
+    const result=f.c.recoverPlaybackPreparation(f.c.activePlayback,{code:'VIDEO_MODEL_EMPTY',status:502},f.c.feedGeneration);
+    assert.equal(result,false,changed);assert.equal(f.c.playbackRecovery.attempts(),0);
+  }
+});
 test('webOS automatic handoffs consume the real coordinator on every episode using the same video', async () => {
   const f = fixture({ webos: true, engine: 'range' });
   f.c.window = { HongguoWebOS: {} };

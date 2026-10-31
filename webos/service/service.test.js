@@ -41,6 +41,7 @@ var provider = {
   mediaDiagnostics: function () { return { media_prepared: false, media_state: 'none' }; },
   cacheSession: function (body) { cacheSessionRequests.push(body); return { session: 'cache-session', accepted: true }; },
   videoModelDiagnostics: function () { return { stage: 'idle', code: 'NOT_RUN' }; },
+  foregroundVideoModelDiagnostics: function () { return { stage: 'multi_video_model', code: 'VIDEO_MODEL_EMPTY', response_bytes: 0 }; },
   library: function () { return { version: 1, entries: [], owner_id: '' }; },
   changeLibrary: function (change) { libraryChanges.push(change); return { version: 1, entries: [], owner_id: '' }; },
   searchHistory: function () { return { items: [], limit: 10 }; }
@@ -259,6 +260,7 @@ async function run() {
   var diagnostics = await request('GET', '/api/v1/diagnostics');
   assert.strictEqual(JSON.parse(diagnostics.body).ready, true);
   assert.strictEqual(JSON.parse(diagnostics.body).lastStartupError, null);
+  assert.deepStrictEqual(JSON.parse(diagnostics.body).video_model, { stage: 'multi_video_model', code: 'VIDEO_MODEL_EMPTY', response_bytes: 0 }, 'support diagnostics select the foreground report instead of the last speculative request');
 
   var stopped = await invoke('shutdown');
   assert.strictEqual(stopped.returnValue, true);

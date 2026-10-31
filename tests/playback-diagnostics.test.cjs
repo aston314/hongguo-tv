@@ -156,6 +156,21 @@ test('webOS exposes preparation timings before a source exists and includes Rang
   assert.doesNotMatch(JSON.stringify(diagnostics.report(fallback)),/media\.invalid|secret/);
 });
 
+test('webOS empty-response diagnostics distinguish upstream data failure from a stale held video error',()=>{
+  const preparationError={code:'VIDEO_MODEL_EMPTY',stage:'multi_video_model',http_status:200,response_bytes:0,attempt:3,elapsed_ms:1400,
+    url:'https://private.test?token=secret',video_id:'private-id'};
+  const s=snapshot({flags:{failed:true},preparationError,video:diagnostics.readVideo(video({error:{code:3}})),
+    core:{media_video_model:{code:'VIDEO_MODEL_OK',http_status:200,response_bytes:24000,attempt:1}}});
+  const report=diagnostics.report(s),rows=Object.fromEntries(report.rows.map(x=>[x.label,x.value]));
+  assert.match(report.summary,/空响应.*尚未进入视频解码/);
+  assert.equal(rows['播放信息错误'],'VIDEO_MODEL_EMPTY · multi_video_model');
+  assert.match(rows['播放信息响应'],/HTTP 200.*响应 0 B.*尝试 3 次.*1400ms/);
+  assert.equal(rows['最近错误'],'VIDEO_MODEL_EMPTY');
+  assert.doesNotMatch(JSON.stringify(report),/private|secret|24000/);
+  assert.equal(diagnostics.report({...s,flags:{source:true}}).rows.some(x=>x.label==='播放信息错误'),false);
+  assert.equal(diagnostics.report({...s,preparationError:null}).rows.some(x=>x.label==='播放信息错误'),false);
+});
+
 test('playback diagnostics report local route choice, switch reason, first frame and stage timings without source data',()=>{
   const s=snapshot({playbackRoute:{
     webview_version:'122.0.6261.94',preferred_path:'HTML5',active_path:'Media3',final_path:'Media3',

@@ -497,6 +497,9 @@
           error.code = payload.error || '';
           error.status = response.status;
           error.upstreamStatus = Number(payload.upstream_status) || 0;
+          error.stage = payload.stage || '';
+          error.videoModel = payload.video_model || null;
+          error.recoveryComplete = payload.recovery_complete === true;
           throw error;
         }
         var data = payload.data || payload;
@@ -2783,6 +2786,8 @@
       device: device || {}, userAgent: environment.userAgent, environmentRows: environment.rows,
       native: native || {},
       playbackRoute: playbackRoute,
+      preparationError: typeof webosShell !== 'undefined' && webosShell && activePlayback && activePlayback.generation === feedGeneration &&
+        activePlayback.owner === accountEpoch ? activePlayback.preparationError : null,
       timing: timingSnapshot,
       capturedAt: ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2) + ':' + ('0' + now.getSeconds()).slice(-2),
       video: readDiagnosticVideo(video),
@@ -4609,8 +4614,8 @@
   }
   function recoverPlaybackPreparation(playback, error, generation) {
     if (typeof webosShell === 'undefined' || !webosShell || !playback || activePlayback !== playback ||
-        playback.generation !== generation || generation !== feedGeneration ||
-        applicationInBackground || applicationHidden() || !isPlaybackPage() || !error || error.name === 'AbortError') return false;
+        playback.generation !== generation || generation !== feedGeneration || playback.owner !== accountEpoch ||
+        applicationInBackground || applicationHidden() || !isPlaybackPage() || !error || error.name === 'AbortError' || error.recoveryComplete) return false;
     var code = error.code || '';
     var temporary = [408, 425, 429, 500, 502, 503, 504].indexOf(Number(error.status)) >= 0;
     if (code === 'VIDEO_MODEL_HTTP' ? !temporary :
@@ -4622,6 +4627,19 @@
     var position = Math.max(0, Number(playback.position) || 0);
     playFeedItem(feedIndex, playback.episode, position, null, null, { recoveryAttempts: playbackRecovery.attempts(), automaticNext: !!(playback.timing && playback.timing.automatic_next) });
     return true;
+  }
+  function preparationFailureMessage(playback, error) {
+    var fallback = uiText('ui.cannotPlayEpisode', '暂时无法播放这集');
+    var recovery = typeof window !== 'undefined' && window.HongguoPlaybackRecovery;
+    if (!webosShell || !playback || playback !== activePlayback || playback.generation !== feedGeneration ||
+        playback.owner !== accountEpoch || !recovery || !recovery.preparationFailure) return fallback;
+    var failure = recovery.preparationFailure(error);
+    if (!failure) return fallback;
+    playback.preparationError = failure;
+    var message = failure.code === 'VIDEO_MODEL_NO_QUALITY' ?
+      uiText('ui.noCompatibleSource', '本集暂时没有兼容片源，请稍后重试') :
+      uiText('ui.playbackInfoUnavailable', '播放信息暂时获取失败，请稍后重试');
+    return message + ' · ' + uiText('ui.playbackErrorCode', '错误码：{code}', { code: failure.code });
   }
   function clearRangeTransitionHint() {
     clearTimeout(rangeTransitionTimer);
@@ -5414,7 +5432,7 @@
           hero.classList.remove('is-range-transition');
           video.classList.remove('has-source');
           if (typeof syncNativePlaybackPageState === 'function') syncNativePlaybackPageState();
-          setPlayerStatus(uiText('ui.cannotPlayEpisode', '暂时无法播放这集'), true);
+          setPlayerStatus(preparationFailureMessage(activePlayback, error), true);
         }
       });
   }

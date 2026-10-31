@@ -22,6 +22,7 @@
   function num(value) { return typeof value === 'number' && isFinite(value) ? Math.max(0, value) : 0; }
   function errorCode(value) { return typeof value === 'number' && isFinite(value) ? Math.round(value) : 0; }
   function metric(value) { return typeof value === 'number' && isFinite(value) && value >= 0 ? Math.floor(value) : tr('diagnostic.notObtained'); }
+  function diagnosticCode(value) { return typeof value === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,63}$/.test(value) ? value : ''; }
   function millis(value) { return typeof value === 'number' && isFinite(value) && value >= 0 ? Math.floor(value) + 'ms' : tr('diagnostic.notObtained'); }
   function clock(value) { var seconds = Math.floor(num(value)); return Math.floor(seconds / 60) + ':' + ('0' + seconds % 60).slice(-2); }
   function readVideo(video) {
@@ -53,9 +54,13 @@
     var provider = text(device.webview_version, 28), engineVersion = engine ? engine[1] : tr('diagnostic.unknown');
     var webview = provider ? provider + ' · Chromium ' + engineVersion : 'Chromium ' + engineVersion + tr('diagnostic.browserIdentity');
     var rows = [], summary;
+    var preparation = flags.failed && snapshot.preparationError;
+    var preparationCode = diagnosticCode(preparation && preparation.code);
     function add(label, value, wide) { rows.push({ label: label, value: value, wide: !!wide }); }
     var playerName = native.engine === 'mpv' ? 'MPV' : 'Media3';
-    if (native.error_kind === 'decoder') summary = tr('diagnostic.decoderFailure', { player: playerName, codec: native.video_mime === 'video/hevc' ? ' HEVC ' : '' });
+    if (preparationCode === 'VIDEO_MODEL_EMPTY') summary = tr('diagnostic.playbackInfoEmpty');
+    else if (preparationCode) summary = tr('diagnostic.prepareFailed');
+    else if (native.error_kind === 'decoder') summary = tr('diagnostic.decoderFailure', { player: playerName, codec: native.video_mime === 'video/hevc' ? ' HEVC ' : '' });
     else if (native.track_support === 'FORMAT_UNSUPPORTED_SUBTYPE' || native.track_support === 'FORMAT_UNSUPPORTED_TYPE') summary = tr('diagnostic.unsupportedTrack');
     else if (native.track_support === 'FORMAT_EXCEEDS_CAPABILITIES') summary = tr('diagnostic.exceedsCapabilities');
     else if (native.error_kind === 'network') summary = playerName + ' ' + tr('diagnostic.readVideoFailed');
@@ -166,7 +171,14 @@
     if (flags.source && core.media_prepared) request += core.media_mode === 'range' ? ' · ' + tr('diagnostic.rangeReady', { size: (num(core.media_bytes) / 1024).toFixed(0) + ' KB' }) : ' · ' + tr('diagnostic.mp4Ready', { size: (num(core.media_bytes) / 1048576).toFixed(1) + ' MB' });
     request += flags.source && core.media_http_status ? ' · HTTP ' + num(core.media_http_status) + '（' + num(core.media_age_seconds) + tr('diagnostic.secondsAgo') : core.unavailable ? ' · ' + tr('diagnostic.coreReadFailed') : ' · ' + tr('diagnostic.noMediaRequest');
     add(tr('diagnostic.request'), request);
-    add(tr('diagnostic.recentError'), native.error_kind ? playerName + ' ' + text(native.error_kind, 24) + (errorCode(native.error_code) ? '（' + errorCode(native.error_code) + '）' : '') : video.error ? (errorNames[video.error] ? tr(errorNames[video.error]) : tr('diagnostic.unknownMediaError')) + '（' + video.error + '）' : flags.failed ? tr('diagnostic.retryVisible') : flags.source && core.media_http_status >= 400 ? tr('diagnostic.localHttp', { status: num(core.media_http_status) }) : tr('diagnostic.noPlaybackError'));
+    if (preparationCode) {
+      add(tr('diagnostic.playbackInfoFailure'), preparationCode + ' · ' + (diagnosticCode(preparation.stage) || tr('diagnostic.notObtained')), true);
+      add(tr('diagnostic.playbackInfoResponse'), tr('diagnostic.playbackInfoResponseValue', {
+        status: metric(preparation.http_status), bytes: metric(preparation.response_bytes),
+        attempt: metric(preparation.attempt), elapsed: millis(preparation.elapsed_ms)
+      }), true);
+    }
+    add(tr('diagnostic.recentError'), preparationCode || (native.error_kind ? playerName + ' ' + text(native.error_kind, 24) + (errorCode(native.error_code) ? '（' + errorCode(native.error_code) + '）' : '') : video.error ? (errorNames[video.error] ? tr(errorNames[video.error]) : tr('diagnostic.unknownMediaError')) + '（' + video.error + '）' : flags.failed ? tr('diagnostic.retryVisible') : flags.source && core.media_http_status >= 400 ? tr('diagnostic.localHttp', { status: num(core.media_http_status) }) : tr('diagnostic.noPlaybackError')));
     return { summary: summary, rows: rows, capturedAt: snapshot.capturedAt };
   }
   var api = { readVideo: readVideo, report: report };

@@ -98,8 +98,10 @@
       if (!error || Number(error.status) >= 500 || !error.status) console.error('[hongguo-webos] provider error:', error && error.stack || error);
       var details = { ok: false, error: String(error && error.code || 'UPSTREAM_ERROR'), message: String(error && error.message || error || '上游请求失败'), playback_verified: false };
       if (error && error.stage) details.stage = String(error.stage);
-      if (error && Number(error.status)) details.upstream_status = Number(error.status);
-      if (provider.videoModelDiagnostics) details.video_model = provider.videoModelDiagnostics();
+      var upstreamStatus = error && error.videoModel ? error.upstreamStatus : error && error.status;
+      if (Number(upstreamStatus)) details.upstream_status = Number(upstreamStatus);
+      if (error && error.videoModel) details.video_model = error.videoModel;
+      if (error && error.recoveryComplete === true) details.recovery_complete = true;
       json(res, Number(error && error.status) || 502, details, req);
     }
     function supportedMethod(req) { return req.method === 'GET' || req.method === 'HEAD' || req.method === 'POST' || req.method === 'DELETE'; }
@@ -309,7 +311,7 @@
       var pathName = String(req.url || '/').split('?')[0];
       if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'POST' && req.method !== 'DELETE') return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
       if (pathName === '/api/v1/health') return json(res, 200, { ok: true, ready: !!(server && server.listening), service: 'hongguo-webos-service', port: port }, req);
-      if (pathName === '/api/v1/diagnostics') return json(res, 200, { ok: true, ready: !!(server && server.listening), port: port, lastStartupError: lastStartupError, video_model: provider.videoModelDiagnostics ? provider.videoModelDiagnostics() : { stage: 'unavailable', code: 'NOT_SUPPORTED' } }, req);
+      if (pathName === '/api/v1/diagnostics') return json(res, 200, { ok: true, ready: !!(server && server.listening), port: port, lastStartupError: lastStartupError, video_model: provider.foregroundVideoModelDiagnostics ? provider.foregroundVideoModelDiagnostics() : provider.videoModelDiagnostics ? provider.videoModelDiagnostics() : { stage: 'unavailable', code: 'NOT_SUPPORTED' } }, req);
       if (pathName === '/api/v1/status') return json(res, 200, statusPayload(), req);
       if (pathName.indexOf('/api/') === 0 || pathName.indexOf('/minireel-proxy/media/') === 0 || pathName === '/minireel-proxy/resolve') {
         try { return handleProvider(req, res, pathName); } catch (error) { return failure(req, res, error); }

@@ -55,7 +55,7 @@ function fixture(replies, warmHead) {
     }
     assert(options.path.startsWith('/novel/player/multi_video_model/v1/'));
     const index = requests.length, reply = replies[index] || {};
-    const item = { destroyed: false, body: [], respond: null };
+    const item = { destroyed: false, body: [], respond: null, at: Date.now() };
     requests.push(item);
     req.write = data => item.body.push(Buffer.from(data));
     req.destroy = error => { item.destroyed = true; if (error) process.nextTick(() => req.emit('error', error)); };
@@ -64,7 +64,8 @@ function fixture(replies, warmHead) {
       if (reply.network) { const error = new Error(reply.network); error.code = reply.network; req.emit('error', error); return; }
       const res = new PassThrough(); res.statusCode = reply.status || 200; res.headers = {};
       req.emit('response', res);
-      res.end(reply.empty ? '' : reply.body !== undefined ? reply.body : JSON.stringify({ data: { '456': { video_model: { video_list: [{
+      const vid = JSON.parse(Buffer.concat(item.body)).mixed_video_id_map['1004'][0];
+      res.end(reply.empty ? '' : reply.body !== undefined ? reply.body : JSON.stringify({ data: { [vid]: { video_model: { video_list: [{
         main_url: 'https://media.example.test/recovery.mp4', video_meta: { vheight: 720, definition: '720P' }, encrypt_info: { spade_a: spade() }
       }] } } } }));
     };
@@ -125,6 +126,8 @@ test('a foreground handoff recovers a failed speculative source once, without fu
     assert.equal(f.requests.length, 2); assert.equal(f.rangeOpens, 1); assert.equal(f.downloads, 0);
     assert.equal(result.value.preparation_timing.media_resolve_retries, 1);
     assert.equal((await background).value.path, result.value.path);
+    assert.equal(f.provider.foregroundVideoModelDiagnostics().code, 'VIDEO_MODEL_OK');
+    assert.equal(f.provider.foregroundVideoModelDiagnostics().attempt, 2, 'an adopted prefetch is the current foreground diagnostic');
   } finally { f.close(); }
 });
 
@@ -197,8 +200,8 @@ test('permission, missing source, malformed response and unsupported quality err
   } finally { f.close(); }
 });
 
-test('temporary transport errors recover, while exhausted empty responses have one extra bounded attempt', async () => {
-  for (const replies of [[{ hold: true, network: 'ECONNRESET' }, {}], [{ hold: true, empty: true }, { empty: true }, { empty: true }, {}]]) {
+test('temporary transport errors and empty responses recover within the shared budget', async () => {
+  for (const replies of [[{ hold: true, network: 'ECONNRESET' }, {}], [{ hold: true, empty: true }, { empty: true }, {}]]) {
     const f = fixture(replies);
     try { const b = observe(f.prepare(true)); await tick(); const p = observe(f.prepare(false)); f.requests[0].respond();
       assert(!(await p).error); await b; assert.equal(f.requests.length, replies.length); assert.equal(f.rangeOpens, 1);
@@ -206,11 +209,119 @@ test('temporary transport errors recover, while exhausted empty responses have o
   }
 });
 
-test('two exhausted empty-response attempts stop at six requests', async () => {
+test('shared empty responses stop at three requests with current-job diagnostics', async () => {
   const f = fixture([{ hold: true, empty: true }, ...Array.from({ length: 5 }, () => ({ empty: true }))]);
   try {
     const b = observe(f.prepare(true)); await tick(); const p = observe(f.prepare(false)); f.requests[0].respond();
-    assert.equal((await p).error.code, 'VIDEO_MODEL_EMPTY'); await b; assert.equal(f.requests.length, 6); assert.equal(f.rangeOpens, 0);
+    const { error } = await p;
+    assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); await b; assert.equal(f.requests.length, 3); assert.equal(f.rangeOpens, 0);
+    assert.equal(error.recoveryComplete, true);
+    assert.equal(error.upstreamStatus, 200, 'HTTP 200 upstream is distinct from the local 502 failure response');
+    assert.equal(error.videoModel.attempt, 3);
+    assert.equal(error.videoModel.http_status, 200);
+    assert.equal(error.videoModel.response_bytes, 0);
+    assert.equal(error.videoModel.stage, 'multi_video_model');
+    assert(f.requests[1].at - f.requests[0].at >= 230);
+    assert(f.requests[2].at - f.requests[1].at >= 980);
+    const report = f.provider.mediaDiagnostics('');
+    assert.equal(report.media_preparation_error_stage, 'multi_video_model');
+    assert.equal(report.media_preparation_error_code, 'VIDEO_MODEL_EMPTY');
+    assert.equal(report.media_video_model.attempt, 3);
+    assert(!/video_id|media\.example|cookie|token/i.test(JSON.stringify(error.videoModel)));
+  } finally { f.close(); }
+});
+
+test('direct empty responses back off twice, while speculative empty responses stay single-shot', async () => {
+  const f = fixture([{ empty: true }, { empty: true }, {}]);
+  try {
+    const current = await f.prepare(false);
+    assert.equal(f.requests.length, 3); assert.equal(f.registrations, 1);
+    assert(f.requests[1].at - f.requests[0].at >= 230);
+    assert(f.requests[2].at - f.requests[1].at >= 980);
+    assert.equal(current.preparation_timing.media_video_model.code, 'VIDEO_MODEL_OK');
+    assert.equal(current.preparation_timing.media_video_model.attempt, 3);
+    assert.equal(current.preparation_timing.media_preparation_error_code, undefined);
+    assert.equal(f.downloads, 0);
+  } finally { f.close(); }
+  const speculative = fixture([{ empty: true }, {}]);
+  try {
+    const { error } = await observe(speculative.prepare(true));
+    assert.equal(error.code, 'VIDEO_MODEL_EMPTY');
+    assert.equal(speculative.requests.length, 1);
+  } finally { speculative.close(); }
+});
+
+test('mixed empty and HTTP failures share the same three-request maximum', async () => {
+  const f = fixture([{ empty: true }, { status: 502 }, { empty: true }, {}]);
+  try {
+    const { error } = await observe(f.prepare(false));
+    assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); assert.equal(error.recoveryComplete, true);
+    assert.equal(f.requests.length, 3); assert.equal(error.videoModel.attempt, 3);
+    assert.equal(f.rangeOpens, 0); assert.equal(f.downloads, 0);
+  } finally { f.close(); }
+});
+
+test('cancelling direct empty-response backoff stops work; cancelling prefetch preserves its foreground waiter', async () => {
+  const f = fixture([{ empty: true }, {}]), a = cancel.create();
+  try {
+    const pending = observe(f.prepare(false, a.signal)); await tick(); a.abort();
+    assert.equal((await pending).error.name, 'AbortError'); await pause(300);
+    assert.equal(f.requests.length, 1);
+  } finally { f.close(); }
+  const shared = fixture([{ hold: true }, {}]), b = cancel.create();
+  try {
+    const speculative = observe(shared.prepare(true, b.signal)); await tick();
+    const current = observe(shared.prepare(false)); b.abort(); shared.requests[0].respond();
+    assert.equal((await speculative).error.name, 'AbortError');
+    assert(!(await current).error); assert.equal(shared.requests.length, 1);
+  } finally { shared.close(); }
+});
+
+test('a speculative waiter cannot continue foreground retries after its last foreground user leaves', async () => {
+  const f=fixture([{hold:true,empty:true},{}]),c=cancel.create();
+  try {
+    const current=observe(f.prepare(false,c.signal));await tick();
+    const prefetch=observe(f.prepare(true));c.abort();f.requests[0].respond();
+    assert.equal((await current).error.name,'AbortError');
+    assert.equal((await prefetch).error.code,'VIDEO_MODEL_EMPTY');
+    await pause(300);assert.equal(f.requests.length,1);
+  } finally { f.close(); }
+});
+
+test('leaving during direct backoff does not issue a delayed request for a remaining prefetch waiter', async () => {
+  const f=fixture([{hold:true,empty:true},{}]),c=cancel.create();
+  try {
+    const current=observe(f.prepare(false,c.signal));await tick();
+    const prefetch=observe(f.prepare(true));f.requests[0].respond();await tick();c.abort();
+    assert.equal((await current).error.name,'AbortError');
+    assert.equal((await prefetch).error.code,'VIDEO_MODEL_EMPTY');
+    assert.equal(f.requests.length,1);
+  } finally { f.close(); }
+});
+
+test('a later prefetch success never overwrites the foreground empty-response diagnostic', async () => {
+  const f = fixture([{ empty: true }, { empty: true }, { empty: true }, {}]);
+  try {
+    const { error } = await observe(f.prepare(false));
+    await f.provider.prepare('123', '789', '', true, 'range', true);
+    assert.equal(f.provider.videoModelDiagnostics().code, 'VIDEO_MODEL_OK');
+    assert.equal(error.videoModel.code, 'VIDEO_MODEL_EMPTY');
+    assert.equal(f.provider.mediaDiagnostics('').media_video_model.code, 'VIDEO_MODEL_EMPTY');
+    assert.equal(f.provider.mediaDiagnostics('').media_preparation_error_code, 'VIDEO_MODEL_EMPTY');
+    assert.equal(f.provider.foregroundVideoModelDiagnostics().code, 'VIDEO_MODEL_EMPTY');
+  } finally { f.close(); }
+});
+
+test('a late older foreground result cannot overwrite the newest foreground failure', async () => {
+  const f=fixture([{hold:true},{empty:true},{empty:true},{empty:true}]);
+  try {
+    const old=observe(f.prepare(false));await tick();
+    const current=await observe(f.provider.prepare('123','789','',true,'range',false));
+    assert.equal(current.error.code,'VIDEO_MODEL_EMPTY');
+    f.requests[0].respond();assert(!(await old).error);
+    assert.equal(f.provider.foregroundVideoModelDiagnostics().code,'VIDEO_MODEL_EMPTY');
+    assert.equal(f.provider.foregroundVideoModelDiagnostics().attempt,3);
+    assert.equal(f.provider.mediaDiagnostics('').media_preparation_error_code,'VIDEO_MODEL_EMPTY');
   } finally { f.close(); }
 });
 
@@ -272,6 +383,35 @@ function request(s, prefetch) {
   });
   return { promise, abort() { req.destroy(); } };
 }
+
+test('HTTP playback failures carry their own sanitized diagnostic after unrelated prefetch completes', async () => {
+  const f = fixture([{ empty: true }, { empty: true }, { empty: true }, {}]);
+  const prepare = f.provider.prepare;
+  f.provider.prepare = (...args) => prepare(...args).catch(async error => {
+    await prepare('123', '789', '', true, 'range', true); throw error;
+  });
+  const s = await service(f);
+  try {
+    const result = await request(s, false).promise;
+    assert.equal(result.status, 502); assert.equal(result.data.upstream_status, 200);
+    assert.equal(result.data.error, 'VIDEO_MODEL_EMPTY'); assert.equal(result.data.recovery_complete, true);
+    assert.equal(result.data.video_model.code, 'VIDEO_MODEL_EMPTY');
+    assert.equal(result.data.video_model.response_bytes, 0); assert.equal(result.data.video_model.attempt, 3);
+    assert.equal(result.data.stage, 'multi_video_model');
+    assert.equal(result.data.video_model.video_id, undefined);
+  } finally { await s.shutdown(); f.close(); }
+});
+
+test('a transport failure with no HTTP response does not invent an upstream HTTP 502', async () => {
+  const f=fixture([{network:'ECONNRESET'},{network:'ECONNRESET'},{network:'ECONNRESET'}]),s=await service(f);
+  try {
+    const result=await request(s,false).promise;
+    assert.equal(result.status,502);assert.equal(result.data.error,'ECONNRESET');
+    assert.equal(result.data.upstream_status,undefined);assert.equal(result.data.video_model.http_status,undefined);
+    assert.equal(result.data.video_model.stage,'multi_video_model_transport');
+    assert.equal(result.data.video_model.attempt,3);assert.equal(result.data.recovery_complete,true);
+  } finally { await s.shutdown();f.close(); }
+});
 
 test('actual HTTP handoff and the page 1200ms deadline recover without a retry-button click', async () => {
   const f = fixture([{ status: 502, hold: true }, {}]), s = await service(f);

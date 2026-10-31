@@ -36,6 +36,26 @@ test('webOS preparation reads the current job even when the previous episode src
   assert.equal(request({preparing:true,mode:''}),'');
 });
 
+test('webOS diagnostic snapshots retain only the active account and generation preparation failure',()=>{
+  const f=fixture({preparing:true,mode:''});
+  const error={code:'VIDEO_MODEL_EMPTY',stage:'multi_video_model',http_status:200,response_bytes:0,attempt:3,elapsed_ms:1300};
+  f.context.webosShell=true;
+  f.context.activePlayback.preparationError=error;
+  f.context.refreshPlaybackDiagnostics();
+  assert.equal(f.reports.at(-1).preparationError,error);
+  f.context.accountEpoch++;
+  f.context.refreshPlaybackDiagnostics();
+  assert.equal(f.reports.at(-1).preparationError,null);
+  f.context.activePlayback.owner=f.context.accountEpoch;
+  f.context.activePlayback.generation--;
+  f.context.refreshPlaybackDiagnostics();
+  assert.equal(f.reports.at(-1).preparationError,null);
+  f.context.activePlayback.generation=f.context.feedGeneration;
+  f.context.webosShell=false;
+  f.context.refreshPlaybackDiagnostics();
+  assert.equal(f.reports.at(-1).preparationError,null,'other platforms keep their diagnostic behavior');
+});
+
 test('delayed diagnostics cannot restore an old native warning after episode, account, source or player changes',()=>{
   for(const change of ['episode','account','source','player']) {
     const f=fixture({webos:false,src:media});

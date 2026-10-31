@@ -78,8 +78,8 @@ test('leaving playback cancels the network prefetch and an old account cannot co
 });
 
 function recoveryFixture() {
-  const calls = [], playback = { episode: 2, generation: 5, position: 0 };
-  const c = vm.createContext({ webosShell: true, activePlayback: playback, feedGeneration: 5, applicationInBackground: false,
+  const calls = [], playback = { episode: 2, generation: 5, position: 0, owner: 1 };
+  const c = vm.createContext({ webosShell: true, activePlayback: playback, feedGeneration: 5, accountEpoch: 1, applicationInBackground: false,
     applicationHidden: () => false, isPlaybackPage: () => true, playbackRecovery: recovery.create({ maxAttempts: 1 }),
     playbackEngineName: () => 'webos-html5', feedIndex: 0,
     playFeedItem(...args) { calls.push(args); }, Number, Math });
