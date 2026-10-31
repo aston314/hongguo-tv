@@ -631,6 +631,46 @@ async function prepared(options){
   return f;
 }
 async function present(f){f.paint();f.paint();await tick();f.paint();await tick();}
+test('a ready adjacent native handoff can start without waiting for ordered history writes',async()=>{
+  const f=fixture({engine:'range',native:true});await readyFullEpisode(f);
+  f.c.window={HongguoNativePlaybackAdapter:{canFastHandoff:()=>true}};
+  f.c.playFeedItem(0,2,0);await settlePlayback(f);
+  assert.equal(f.video.src,'/media/complete.mp4');assert.equal(f.c.activePlayback.fastNativeTransition,true);
+  assert(f.calls.includes('history:1'));assert(f.video.muted);assert(f.hero.classList.contains('is-preparing-video'));
+  f.gate.resolve();await settlePlayback(f);
+});
+test('ordinary native next episodes retain the existing history gate when preloaded samples are not ready',async()=>{
+  const f=fixture({engine:'range',native:true});await readyFullEpisode(f);
+  f.c.window={HongguoNativePlaybackAdapter:{canFastHandoff:()=>false}};
+  f.c.playFeedItem(0,2,0);await settlePlayback(f);assert.notEqual(f.video.src,'/media/complete.mp4');
+  f.gate.resolve();await settlePlayback(f);assert.equal(f.c.activePlayback.fastNativeTransition,false);
+});
+async function preparedFastPresentation(confirmed=true){
+  const f=await prepared({engine:'range',native:true});f.c.activePlayback.fastNativeTransition=true;
+  f.hero.classList.add('is-episode-cover');f.handlers.nativeframe();f.handlers.playing();await settlePlayback(f);
+  assert(f.hero.classList.contains('is-preparing-video'));assert(!f.timers.some(t=>t.delay===50||t.delay===200));
+  f.handlers.nativeprogress({fast_presentation:confirmed});f.video.currentTime=.05;f.handlers.timeupdate();await settlePlayback(f);
+  return f;
+}
+test('only a rendered, advancing and confirmed native handoff uses the short cover guard',async()=>{
+  for(const confirmed of [false,true]){
+    const f=await preparedFastPresentation(confirmed);assert(f.video.muted);assert(f.hero.classList.contains('is-preparing-video'));
+    const timer=f.timers.find(t=>t.delay===(confirmed?50:200));assert(timer);timer.fn();await tick();
+    assert(!f.hero.classList.contains('is-preparing-video'));f.paint();await tick();assert.equal(f.video.muted,false);
+  }
+});
+test('short-cover callbacks cannot reveal a stale, paused, buffering, background or failed playback',async()=>{
+  for(const kind of ['generation','source','waiting','pause','background','failure']){
+    const f=await preparedFastPresentation(),timer=f.timers.find(t=>t.delay===50);
+    if(kind==='generation')f.c.feedGeneration++;
+    if(kind==='source')f.video.src='/another.mp4';
+    if(kind==='waiting')f.handlers.waiting();
+    if(kind==='pause'){f.video.paused=true;f.handlers.pause()}
+    if(kind==='background')f.c.applicationInBackground=true;
+    if(kind==='failure')f.c.activePlayback.presentation.failed=true;
+    timer.fn();f.paint();await tick();assert(f.hero.classList.contains('is-preparing-video'),kind);assert(f.video.muted,kind);
+  }
+});
 test('webOS rewritten media identity releases the loading cover and held audio',async()=>{
   const f=await prepared();
   const base='http://127.0.0.1:7655',path='/minireel-proxy/media/0123456789abcdef01234567.mp4';

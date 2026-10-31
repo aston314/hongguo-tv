@@ -400,6 +400,11 @@
   var playbackPrefetchHandoff = null;
   var playbackAudioHold = null;
   var playbackTiming = [];
+  var playbackLoadingGrace=window.HongguoPlaybackLoadingGrace?window.HongguoPlaybackLoadingGrace.create({
+    quiet:function(value){document.getElementById('hero').classList.toggle('is-switch-loading-grace',value);},
+    valid:function(info){return info.generation===feedGeneration&&!applicationInBackground&&!applicationHidden()&&isPlaybackPage()&&document.getElementById('hero').classList.contains('is-preparing-video');},
+    show:function(){clearPrefetchedEpisodeHint();document.getElementById('hero').classList.add('is-range-transition-loading');}
+  }):null;
   var playbackRecovery = HongguoPlaybackRecovery.create({ maxAttempts: 1 });
   // webOS can leave the first local Range response waiting on an upstream
   // request for several seconds. Keep that delay bounded for the TV player;
@@ -408,6 +413,13 @@
   // Bounded, memory-only diagnostics. No drama IDs, titles or account data.
   window.HongguoTVPlaybackTiming = { snapshot: function () { return playbackTiming.map(function (item) { return Object.assign({}, item); }); } };
   var episodePrefetch = HongguoEpisodePrefetch.create({
+    onReady:function(data,target,info){
+      var adapter=window.HongguoNativePlaybackAdapter;
+      if(!adapter||!adapter.preloadNext||!activePlayback||info.generation!==feedGeneration||
+          activePlayback.generation!==info.generation||activePlayback.owner!==info.owner||applicationInBackground||applicationHidden())return;
+      adapter.preloadNext(data);
+    },
+    onCancel:function(data){var adapter=window.HongguoNativePlaybackAdapter;if(adapter&&adapter.cancelPreload)adapter.cancelPreload(data.path);},
     maxRetries: window.HongguoWebOS ? 1 : 0,
     retryDelayMs: 3000,
     maxAgeMs: window.HongguoWebOS ? 120000 : 0,
@@ -2490,6 +2502,7 @@
     }, Math.max(0, 800 - (Date.now() - startedAt)));
   }
   function setPlayerStatus(message, failed) {
+    if((failed||!message)&&typeof playbackLoadingGrace!=='undefined'&&playbackLoadingGrace)playbackLoadingGrace.cancel();
     var panel = document.getElementById('player-status');
     var hero = document.getElementById('hero');
     if (failed && autoCinemaCandidate) cancelPendingAutoCinema();
@@ -4529,6 +4542,7 @@
   }
 
   function cancelPlaybackPreparation() {
+    if(typeof playbackLoadingGrace!=='undefined'&&playbackLoadingGrace)playbackLoadingGrace.cancel();
     clearPrefetchedEpisodeHint();
     clearRangeTransitionHint();
     clearRangeStallTimer();
@@ -5048,7 +5062,10 @@
       if (isNativeMedia3PlaybackActive() && playback.preserveNativeTransition && hasHeldFrame) {
         presentation.revealing = true;
         hero.classList.add('is-native-frame-revealing');
-        presentation.revealTimer = setTimeout(complete, 200);
+        // A real frame and advancing clock still gate presentation. Only an
+        // actually claimed, ready native preload can use the shorter guard.
+        var fast=playback.fastNativeTransition&&presentation.fastNativeProgress===true&&presentation.rendered&&presentation.progressed;
+        presentation.revealTimer = setTimeout(complete, fast?50:200);
         return;
       }
       // MPV's native frame signal is obtained from libmpv's output state, not
@@ -5227,6 +5244,16 @@
     var prefetchMode = typeof effectiveEpisodePrefetchMode === 'function' ? effectiveEpisodePrefetchMode() : 'range';
     episodePrefetch.keepFor(item.series_id, forcedEpisode, playbackPreferences.quality, accountEpoch, playbackMode, prefetchMode,
       typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default');
+    var preparedAdjacent=false,fastNativeTransition=false;
+    var preloadHint=episodePrefetch.peek?episodePrefetch.peek():null;
+    var nativeAdapter=typeof window!=='undefined'&&window.HongguoNativePlaybackAdapter;
+    if(sameSeries&&forcedPosition===0&&libraryLoaded&&!resumeCheckpoint&&activePlayback&&
+        forcedEpisode===activePlayback.episode+1&&preloadHint&&preloadHint.data){
+      var nextTarget={series_id:item.series_id,vid:preloadHint.target.vid,episode:forcedEpisode,quality:playbackPreferences.quality,
+        owner:accountEpoch,mode:playbackMode,prefetch_mode:prefetchMode,codec_mode:typeof playbackCodecMode==='function'?playbackCodecMode():'default'};
+      preparedAdjacent=episodePrefetch.readyFor(nextTarget);
+      fastNativeTransition=!!(preparedAdjacent&&nativeAtSwitch&&nativeAdapter&&nativeAdapter.canFastHandoff&&nativeAdapter.canFastHandoff(preloadHint.data.path));
+    }
     // ended has already queued the completed episode. Keep that write alive,
     // but do not queue it twice or make the next source wait for its fsync.
     if (!fastContinuation) saveProgress(true);
@@ -5277,7 +5304,9 @@
     playbackRequest.vid = incomingVid || '';
     if (sameDrama && incomingVid) reusePrewarmedEpisodeCover({ series_id: item.series_id, vid: incomingVid });
     if (sameSeries && !(recovery && recovery.recoveryAttempts)) beginPrefetchedEpisodeHint(item, incomingEpisode, generation, hintStartedAt, sourceGeneration);
-    setFeatured(Object.assign({}, item, { start_episode: incomingEpisode }), !incomingEpisode, transitionKind);
+    if(typeof playbackLoadingGrace!=='undefined'&&playbackLoadingGrace)playbackLoadingGrace.start({
+      eligible:preparedAdjacent&&!webosShell,generation:generation,started_at:switchStartedAt});
+    if(!fastNativeTransition)setFeatured(Object.assign({}, item, { start_episode: incomingEpisode }), !incomingEpisode, transitionKind);
     updateSeriesRows();
     setPlayerStatus(episodeLoadingText(incomingEpisode));
     if (keepRangeFrame) {
@@ -5293,7 +5322,7 @@
     var coveredReset = waitForPlaybackPaint(generation, request.signal).then(function (painted) {
       if (!painted) return false;
       video.pause();
-      if (keepRangeFrame) {
+      if (keepRangeFrame||fastNativeTransition) {
         updatePlaybackControls();
         return true;
       }
@@ -5302,7 +5331,8 @@
       updatePlaybackControls();
       return true;
     });
-    var waitForLibrary = fastContinuation ? Promise.resolve() : Promise.resolve(libraryReady).then(function () { return libraryQueue.catch(function () {}); });
+    // Preserve ordered history writes, without making a prepared source wait for fsync.
+    var waitForLibrary = fastContinuation||fastNativeTransition ? Promise.resolve() : Promise.resolve(libraryReady).then(function () { return libraryQueue.catch(function () {}); });
     if (resumeCheckpoint) waitForLibrary = Promise.all([waitForLibrary, resumeCheckpoint.ready]);
     Promise.all([waitForLibrary, coveredReset]).then(function (ready) {
       if (!ready[1] || generation !== feedGeneration || request.signal.aborted) return null;
@@ -5311,7 +5341,7 @@
       var episode = forcedEpisode || (resumed ? resumed.episode : resumeEpisode(entry, item));
       var position = forcedPosition !== undefined ? forcedPosition : resumed ? resumed.position : entry && episode === entry.episode && !entry.completed ? entry.position || 0 : 0;
       playbackRequest.episode = episode; playbackRequest.position = position;
-      setFeatured(Object.assign({}, item, { start_episode: episode }), false, 'refresh');
+      if(!fastNativeTransition)setFeatured(Object.assign({}, item, { start_episode: episode }), false, 'refresh');
       setPlayerStatus(episodeLoadingText(episode));
       var source = episode === 1 && firstVid(item) ? Promise.resolve(item) : getDetail(item, request.signal);
       return source.then(function (detail) {
@@ -5325,6 +5355,7 @@
             pendingCover.generation !== generation || pendingCover.owner !== accountEpoch)) clearEpisodeCover();
         var playing = Object.assign({}, item, detail, { start_episode: episode, vid: vid });
         activePlayback = { item: playing, episode: episode, vid: vid, position: position, generation: generation, owner: accountEpoch, started: false, stableSince: 0, lastWrite: 0, completed: false,
+          fastNativeTransition:fastNativeTransition,
           episodeCoverAllowed: keepEpisodeCover,
           preserveNativeTransition: sameSeries,
           endedPending: false,
@@ -5369,6 +5400,7 @@
             activePlayback.timing.handoff_wait_ms = Math.max(0, Date.now() - activePlayback.timing.handoff_started_at);
             return prepared;
           }
+          if(typeof playbackLoadingGrace!=='undefined'&&playbackLoadingGrace)playbackLoadingGrace.cancel();
           // Revalidate the prepared cache entry; the core reuses the same file
           // and retries a failed or timed-out speculative job through the
           // normal resolver. The 1.2s handoff budget keeps navigation responsive.
@@ -8178,6 +8210,10 @@
     if (!activePlayback || !activePlayback.presentation || !event || typeof event.coreIdle !== 'boolean') return;
     activePlayback.presentation.nativeCoreIdle = event.coreIdle;
     finishPlaybackPreparation(activePlayback);
+  });
+  media.addEventListener('nativeprogress',function(event){
+    if(!activePlayback||!activePlayback.presentation||!event||!currentPlaybackPresentation(activePlayback,activePlayback.presentation,media))return;
+    activePlayback.presentation.fastNativeProgress=event.fast_presentation===true;
   });
   function checkPlaybackData() {
     if (!activePlayback) return;

@@ -24,6 +24,7 @@ import androidx.media3.common.Player;
 import androidx.media3.common.Format;
 import androidx.media3.common.VideoSize;
 import androidx.media3.common.Tracks;
+import androidx.media3.common.Timeline;
 import androidx.media3.datasource.DefaultHttpDataSource;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.exoplayer.DefaultLoadControl;
@@ -55,9 +56,29 @@ final class PlayerBridge implements NativePlayerAdapter {
     private volatile String diagnostic="{}";
     private JSONObject diagnosticFields=new JSONObject();
     private ExoPlayer player;
+    private Media3SourcePreloader sourcePreloader;
     private boolean playerCompatibility, playerPcmAudio, playerLive, playerForceSoftwareHevc;
     private Map<String,String> playerHeaders=Collections.emptyMap();
-    private Session session;
+    private volatile Session session;
+    private Runnable idleRelease;
+    private long reuseGeneration;
+    @JavascriptInterface public void preloadNext(String owner,String payload){
+        if(owner==null||payload==null||payload.length()>4096)return;
+        try{
+            JSONObject data=new JSONObject(payload);String source=data.optString("source"),key=data.optString("key");
+            if(!key.matches("preload-[0-9]+")||!MediaUrlPolicy.valid(source)
+                    ||!Uri.parse(source).getPath().matches("/minireel-proxy/media/[a-f0-9]{24}\\.mp4"))return;
+            handler.post(()->{
+                Session current=session;
+                if(destroyed||background||sourcePreloader==null||current==null||current.live
+                        ||!current.wantsPlay||!current.firstFrame||!current.id.equals(owner)||!currentMediaMatches(current))return;
+                try{sourcePreloader.offer(owner,key,source);}catch(Exception ignored){sourcePreloader.discard("error");}
+            });
+        }catch(Exception ignored){}
+    }
+    @JavascriptInterface public void cancelPreload(String key){
+        if(key==null)return;handler.post(()->{if(sourcePreloader!=null)sourcePreloader.cancel(key);});
+    }
     private long nextSessionGeneration;
     private boolean destroyed, background;
     private float requestedVolume = 1f;
@@ -68,14 +89,21 @@ final class PlayerBridge implements NativePlayerAdapter {
     private Runnable timeout;
     private final Runnable progress=new Runnable(){public void run(){
         if(destroyed)return;
+        long nextDelay=500;
         if(session!=null&&player!=null&&session.firstFrame){
             Session target=session;long duration=player.getDuration(),position=player.getCurrentPosition();
-            if(!target.live&&target.clock.observe(position,SystemClock.elapsedRealtime(),player.isPlaying()&&!background))fail(target,"clock",0);
+            long now=SystemClock.elapsedRealtime();boolean running=player.isPlaying()&&!background&&target.wantsPlay&&currentMediaMatches(target);
+            if(!target.live&&target.clock.observe(position,now,running))fail(target,"clock",0);
             else{
+                String detail="";
+                if(target.startupProgress.observe(position,now,running)){
+                    try{detail=","+new JSONObject().put("fast_presentation",target.fastPresentation).toString();}catch(Exception ignored){}
+                }
                 updateDiagnostic(target,diagnosticFields.optString("state","playing"));
-                web.evaluateJavascript("window.HongguoNativePlayback&&window.HongguoNativePlayback.progress("+JSONObject.quote(target.id)+","+position+","+Math.max(0,duration)+")",null);
+                web.evaluateJavascript("window.HongguoNativePlayback&&window.HongguoNativePlayback.progress("+JSONObject.quote(target.id)+","+position+","+Math.max(0,duration)+detail+")",null);
+                nextDelay=target.startupProgress.delayMs(now,running);
             }
-        }handler.postDelayed(this,500);
+        }handler.postDelayed(this,nextDelay);
     }};
     private static final class Session {
         final long generation;
@@ -87,9 +115,15 @@ final class PlayerBridge implements NativePlayerAdapter {
         final boolean compatibility;
         final boolean pcmAudio;
         final PlaybackClock clock=new PlaybackClock();
+        final StartupProgress startupProgress=new StartupProgress();
+        boolean fastPresentationRequested, fastPresentation;
         int candidate;
         boolean wantsPlay = true, firstFrame;
         long position;
+        long frameAt;
+        boolean playerReused;
+        String preloadKey="", mediaItemId="";
+        boolean sourcePreloaded, preloadReady, preloadColdRetried;
         boolean triedSoftwareHevcFallback;
         boolean forceSoftwareHevc;
         Session(long generation, String id, List<String> urls, Map<String,String> headers,boolean live,boolean compatibility) {
@@ -135,16 +169,18 @@ final class PlayerBridge implements NativePlayerAdapter {
             }
             handler.post(()->{
                 if(destroyed)return;
-                clearTimeout();
+                clearTimeout();cancelIdleRelease();
+                session=null;
                 // Keep the native surface and ExoPlayer alive across ordinary source
                 // changes. The media item is cleared below after the new session is
                 // installed; callbacks for the cleared item see no matching media id.
-                if(player!=null){player.setVolume(0);player.pause();player.clearMediaItems();}
+                if(player!=null){player.setVolume(0);player.pause();}
                 diagnosticFields=new JSONObject();videoWidth=videoHeight=0;
                 session=new Session(++nextSessionGeneration,loadId,urls,headers,"hls".equals(data.optString("format")),"compatibility".equals(decoderMode()));
-                String diagnosticId=data.optString("diagnostic_id","");
-                if(diagnosticId.matches("[A-Za-z0-9_-]{1,120}"))session.diagnosticId=diagnosticId;
+                session.diagnosticId=data.optString("diagnostic_id", "");
                 session.position=PlaybackStart.positionMs(data.optDouble("start_position",0),session.live);
+                session.preloadKey=data.optString("preload_key","");
+                session.fastPresentationRequested=data.optBoolean("fast_presentation",false);
                 session.wantsPlay=!data.optBoolean("paused",false);
                 if(urls.isEmpty()){event(session,"error");return;}
                 if(!applyBounds()){fail(session,"display",0);return;}
@@ -157,27 +193,36 @@ final class PlayerBridge implements NativePlayerAdapter {
     }
     private void startCandidate(Session target) {
         if(destroyed||session!=target)return;
-        target.firstFrame=false;target.clock.reset();videoWidth=videoHeight=0;
+        target.firstFrame=false;target.clock.reset();target.startupProgress.reset();target.fastPresentation=false;videoWidth=videoHeight=0;
         if(texture!=null)texture.setTransform(new Matrix());
         else surface.setLayoutParams(new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER));
         ExoPlayer active=ensurePlayer(target);
         if(active==null||session!=target)return;
         active.setVolume(requestedMuted ? 0 : requestedVolume);
         active.pause();
-        active.clearMediaItems();
         event(target,"buffering");
         MediaItem item=new MediaItem.Builder()
             .setMediaId(target.generation+"#"+target.candidate)
             .setUri(target.urls.get(target.candidate))
             .setMimeType(target.live?MimeTypes.APPLICATION_M3U8:MimeTypes.VIDEO_MP4).build();
-        active.setMediaItem(item,target.position);
+        target.mediaItemId=item.mediaId;
+        Media3SourcePreloader.Claim prepared=sourcePreloader!=null
+            ?sourcePreloader.take(target.preloadKey,target.urls.get(target.candidate),target.position,target.candidate):null;
+        target.sourcePreloaded=prepared!=null;
+        if(prepared!=null){
+            target.mediaItemId=prepared.item.mediaId;target.preloadReady=prepared.lease.readyMs>=0;
+            active.setMediaSource(prepared.source,target.position);
+        }else active.setMediaItem(item,target.position);
+
         active.prepare();active.setPlayWhenReady(target.wantsPlay&&!background);
+        if(sourcePreloader!=null)sourcePreloader.activated(prepared);
         timeout=()->{if(session==target&&player==active&&currentMediaMatches(target)&&!target.firstFrame&&!background)retry(target,"first_frame_timeout",0);};
         handler.postDelayed(timeout,25000);
     }
     private ExoPlayer ensurePlayer(Session target) {
-        if(player!=null&&playerCompatibility==target.compatibility&&playerPcmAudio==target.pcmAudio&&playerLive==target.live&&playerHeaders.equals(target.headers)&&playerForceSoftwareHevc==target.forceSoftwareHevc)return player;
+        if(player!=null&&(sourcePreloader!=null||target.live)&&playerCompatibility==target.compatibility&&playerPcmAudio==target.pcmAudio&&playerLive==target.live&&playerHeaders.equals(target.headers)&&playerForceSoftwareHevc==target.forceSoftwareHevc){target.playerReused=true;return player;}
         releasePlayer();
+        target.playerReused=false;
         final Session configuredTarget=target;
         DefaultHttpDataSource.Factory source=new DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(10000).setReadTimeoutMs(120000).setDefaultRequestProperties(target.headers);
@@ -219,7 +264,22 @@ final class PlayerBridge implements NativePlayerAdapter {
                 .setBufferDurationsMs(3000,10000,750,1500)
                 .setBackBuffer(0,false).build());
         }
-        ExoPlayer active=builder.build();
+        ExoPlayer built;
+        if(!configuredTarget.live){
+            try{
+                sourcePreloader=new Media3SourcePreloader(web.getContext(),handler,renderers,new DefaultMediaSourceFactory(source),
+                    (lease,state)->{
+                        Session current=session;String eventOwner="claimed".equals(state)&&current!=null?current.id:lease.owner;
+                        try{send(eventOwner,"preloadstate",new JSONObject().put("state",state).put("key",lease.key)
+                            .put("elapsed_ms",SystemClock.elapsedRealtime()-lease.startedAt));}catch(Exception ignored){}
+                    });
+                built=sourcePreloader.buildPlayer(builder);
+            }catch(Exception ignored){
+                if(sourcePreloader!=null){sourcePreloader.release();sourcePreloader=null;}
+                built=new ExoPlayer.Builder(web.getContext(),renderers).setMediaSourceFactory(new DefaultMediaSourceFactory(source)).build();
+            }
+        }else built=builder.build();
+        final ExoPlayer active=built;
         player=active;playerCompatibility=target.compatibility;playerPcmAudio=target.pcmAudio;playerLive=target.live;playerForceSoftwareHevc=target.forceSoftwareHevc;playerHeaders=new HashMap<>(target.headers);
         if(surface!=null)active.setVideoSurfaceView(surface);else active.setVideoTextureView(texture);
         active.setPlaybackParameters(PlaybackParameters.DEFAULT);
@@ -239,6 +299,10 @@ final class PlayerBridge implements NativePlayerAdapter {
                 updateDiagnostic(current,"preparing");saveDiagnostic();
             }
             @Override public void onVideoDecoderInitialized(AnalyticsListener.EventTime time,String name,long timestamp,long duration){decoder("video_decoder",name);}
+            @Override public void onRenderedFirstFrame(AnalyticsListener.EventTime time,Object output,long renderTimeMs){
+                Session current=session;
+                if(player==active&&analyticsMatches(time,current))renderedFirstFrame(current,active);
+            }
             @Override public void onAudioDecoderInitialized(AnalyticsListener.EventTime time,String name,long timestamp,long duration){decoder("audio_decoder",name);}
         });
         active.addListener(new Player.Listener(){
@@ -258,19 +322,6 @@ final class PlayerBridge implements NativePlayerAdapter {
                 }
             }
             @Override public void onVideoSizeChanged(VideoSize size){if(current()){videoWidth=size.width;videoHeight=size.height;pixelRatio=size.pixelWidthHeightRatio;fit();}}
-            @Override public void onRenderedFirstFrame(){
-                Session current=session;if(!current())return;current.firstFrame=true;clearTimeout();
-                JSONObject frame = new JSONObject();
-                try { frame.put("width", videoWidth).put("height", videoHeight); } catch (Exception ignored) {}
-                // Keep audio held until the HTML cover has painted. If the
-                // device reports the first frame before STATE_READY or
-                // onIsPlayingChanged, emit playing here as well; otherwise
-                // the page can keep its loading cover while the clock moves.
-                active.setVolume(requestedMuted ? 0 : requestedVolume);
-                event(current,"frame", frame);
-                if(!current.wantsPlay) event(current,"paused");
-                else if(active.isPlaying()) event(current,"playing");
-            }
             @Override public void onPlaybackStateChanged(int state){
                 if(!current())return;
                 Session current=session;
@@ -288,6 +339,29 @@ final class PlayerBridge implements NativePlayerAdapter {
             }
         });
         return active;
+    }
+    private boolean analyticsMatches(AnalyticsListener.EventTime time,Session target){
+        if(destroyed||target==null||session!=target||!currentMediaMatches(target)||time.timeline.isEmpty()
+                ||time.windowIndex<0||time.windowIndex>=time.timeline.getWindowCount())return false;
+        MediaItem item=time.timeline.getWindow(time.windowIndex,new Timeline.Window()).mediaItem;
+        return target.mediaItemId.equals(item.mediaId);
+    }
+    private void renderedFirstFrame(Session current,ExoPlayer active){
+        if(session!=current||player!=active||current.firstFrame)return;
+        // Reused decoders need not emit another size-change callback when the
+        // next episode has identical dimensions. Read the current size here.
+        VideoSize size=active.getVideoSize();
+        if(size.width>0&&size.height>0){videoWidth=size.width;videoHeight=size.height;pixelRatio=size.pixelWidthHeightRatio;fit();}
+        else {Format format=active.getVideoFormat();if(format!=null&&format.width>0&&format.height>0){videoWidth=format.width;videoHeight=format.height;fit();}}
+        current.firstFrame=true;current.frameAt=SystemClock.elapsedRealtime();clearTimeout();
+        current.fastPresentation=current.fastPresentationRequested&&current.playerReused&&current.sourcePreloaded&&current.preloadReady
+            &&!current.live&&current.position==0&&current.candidate==0&&!current.preloadColdRetried;
+        current.startupProgress.begin(current.frameAt,active.getCurrentPosition(),current.fastPresentation);
+        JSONObject frame=new JSONObject();
+        try{frame.put("width",videoWidth).put("height",videoHeight);}catch(Exception ignored){}
+        active.setVolume(requestedMuted?0:requestedVolume);event(current,"frame",frame);
+        if(!current.wantsPlay)event(current,"paused");else if(active.isPlaying())event(current,"playing");
+        if(current.fastPresentation&&current.wantsPlay&&!background){handler.removeCallbacks(progress);handler.postDelayed(progress,50);}
     }
     private void recordTrackDiagnostics(Session target,Tracks tracks){
         if(session!=target)return;
@@ -380,6 +454,7 @@ final class PlayerBridge implements NativePlayerAdapter {
         return value.toString();
     }
     private void retry(Session target,String kind,int code){
+        if(retryWithoutPreload(target))return;
         clearTimeout();if(session!=target)return;
         if(player!=null&&target.firstFrame&&!target.live)target.position=Math.max(0,player.getCurrentPosition());
         if(++target.candidate<target.urls.size())startCandidate(target);
@@ -387,6 +462,7 @@ final class PlayerBridge implements NativePlayerAdapter {
     }
     private void fail(Session target,String kind,int code){
         if(session!=target)return;
+        if(retryWithoutPreload(target))return;
         try{diagnosticFields.put("error_kind",kind).put("error_code",code);}catch(Exception ignored){}
         updateDiagnostic(target,"error");
         saveDiagnostic();
@@ -396,8 +472,26 @@ final class PlayerBridge implements NativePlayerAdapter {
             web.evaluateJavascript("window.HongguoNativePlayback&&window.HongguoNativePlayback.event("+JSONObject.quote(target.id)+",\"error\","+detail.toString()+")",null);
         }catch(Exception ignored){event(target,"error");}
     }
-    @JavascriptInterface public void begin(String id){handler.post(()->{if(!destroyed){releasePlayer();markInactive();session=null;holder.setVisibility(View.GONE);}});}
-    @JavascriptInterface public void stop(){handler.post(()->{releasePlayer();markInactive();session=null;holder.setVisibility(View.GONE);});}
+    private boolean retryWithoutPreload(Session target){
+        if(session!=target||!target.sourcePreloaded||target.firstFrame||target.preloadColdRetried)return false;
+        clearTimeout();target.preloadColdRetried=true;target.preloadKey="";target.sourcePreloaded=false;
+        startCandidate(target);return true;
+    }
+    private void cancelIdleRelease(){
+        ++reuseGeneration;
+        if(idleRelease!=null){handler.removeCallbacks(idleRelease);idleRelease=null;}
+    }
+    private void suspendForSourceChange(){
+        clearTimeout();cancelIdleRelease();markInactive();session=null;
+        if(player!=null){player.setVolume(0);player.pause();}
+        // Keep the same media item/decoder and Surface for a short source-change
+        // window. A real exit still releases resources after this bounded lease.
+        final ExoPlayer held=player;final long lease=reuseGeneration;
+        idleRelease=()->{if(lease==reuseGeneration&&session==null&&player==held){releasePlayer();holder.setVisibility(View.GONE);}};
+        handler.postDelayed(idleRelease,2000);
+    }
+    @JavascriptInterface public void begin(String id){handler.post(()->{if(!destroyed)suspendForSourceChange();});}
+    @JavascriptInterface public void stop(){handler.post(()->{if(!destroyed)suspendForSourceChange();});}
     @JavascriptInterface public void pause(){handler.post(()->{if(session!=null){session.clock.reset();session.wantsPlay=false;clearTimeout();if(player!=null)player.pause();if(session.firstFrame)event(session,"paused");}});}
     @JavascriptInterface public void setSpeed(double speed){
         if(Double.isNaN(speed)||Double.isInfinite(speed)||speed<=0||speed>4)return;
@@ -437,7 +531,10 @@ final class PlayerBridge implements NativePlayerAdapter {
     private void updateDiagnostic(Session target,String state){
         if(session!=target)return;
         try{
-            diagnosticFields.put("diagnostic_id",target.diagnosticId).put("state",state).put("surface",surface!=null?"SurfaceView":"TextureView")
+            diagnosticFields.put("diagnostic_id",target.diagnosticId)
+                .put("native_player_reused",target.playerReused).put("native_source_preloaded",target.sourcePreloaded)
+                .put("native_preload_ready",target.preloadReady);
+            diagnosticFields.put("state",state).put("surface",surface!=null?"SurfaceView":"TextureView")
                 .put("mode",target.compatibility?"compatibility":"standard")
                 .put("audio_output",target.pcmAudio?"PCM":"system")
                 .put("clock_ratio",target.clock.ratio())
@@ -478,11 +575,11 @@ final class PlayerBridge implements NativePlayerAdapter {
     private boolean currentMediaMatches(Session target){
         if(player==null||target==null)return false;
         MediaItem item=player.getCurrentMediaItem();
-        return item!=null&&(target.generation+"#"+target.candidate).equals(item.mediaId);
+        return item!=null&&target.mediaItemId.equals(item.mediaId);
     }
     private void clearTimeout(){if(timeout!=null){handler.removeCallbacks(timeout);timeout=null;}}
-    private void releasePlayer(){clearTimeout();ExoPlayer old=player;player=null;playerHeaders=Collections.emptyMap();playerCompatibility=false;playerPcmAudio=false;playerLive=false;if(old!=null){old.setVolume(0);if(surface!=null)old.clearVideoSurfaceView(surface);else old.clearVideoTextureView(texture);old.release();}}
-    public void onPause(){background=true;clearTimeout();if(session!=null)session.clock.reset();if(player!=null)player.pause();markInactive();}
+    private void releasePlayer(){clearTimeout();cancelIdleRelease();ExoPlayer old=player;player=null;playerHeaders=Collections.emptyMap();playerCompatibility=false;playerPcmAudio=false;playerLive=false;if(old!=null){old.setVolume(0);if(surface!=null)old.clearVideoSurfaceView(surface);else old.clearVideoTextureView(texture);old.release();}if(sourcePreloader!=null){sourcePreloader.release();sourcePreloader=null;}}
+    public void onPause(){background=true;clearTimeout();if(sourcePreloader!=null)sourcePreloader.discard("background");if(session!=null)session.clock.reset();if(player!=null)player.pause();markInactive();}
     public void onResume(){background=false;if(session!=null&&player!=null&&session.wantsPlay){
         if(!preferences.edit().putBoolean("playback_active",Build.VERSION.SDK_INT<=23&&!session.live).commit()){fail(session,"settings",0);return;}
         player.play();if(!session.firstFrame){Session target=session;ExoPlayer active=player;timeout=()->{if(session==target&&player==active&&!target.firstFrame)retry(target,"first_frame_timeout",0);};handler.postDelayed(timeout,25000);}}}

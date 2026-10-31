@@ -135,6 +135,64 @@ function activateNative(f) {
   return f.bridge.lastId;
 }
 
+const nextPreloadPath='/minireel-proxy/media/'+'b'.repeat(24)+'.mp4';
+function preparedNativeFixture(){
+  const f=fixture('webview_media3',{canPlayType:type=>type.includes('avc1')?'probably':''});
+  f.bridge.preloads=[];f.bridge.cancelledPreloads=[];
+  f.bridge.preloadNext=(owner,payload)=>f.bridge.preloads.push({owner,...JSON.parse(payload)});
+  f.bridge.cancelPreload=key=>f.bridge.cancelledPreloads.push(key);
+  const video=f.document.getElementById('hero-video');video.src='/minireel-proxy/media/'+'a'.repeat(24)+'.mp4';video.setSourceCodec('bytevc1');video.play();
+  f.context.window.HongguoNativePlayback.event(f.bridge.lastId,'frame',{width:1280,height:720});
+  f.context.window.HongguoNativePlayback.event(f.bridge.lastId,'playing');
+  return f;
+}
+test('only an explicitly unsupported next codec preloads while Media3 is already playing',()=>{
+  const f=preparedNativeFixture(),adapter=f.context.window.HongguoNativePlaybackAdapter;
+  for(const codec of ['h264','unknown',''])assert.equal(adapter.preloadNext({path:nextPreloadPath,video_codec:codec}),false);
+  assert.equal(adapter.preloadNext({path:nextPreloadPath,video_codec:'bytevc1'}),true);
+  assert.equal(f.bridge.preloads.length,1);assert.equal(f.bridge.preloads[0].owner,f.bridge.lastId);
+  f.document.getElementById('hero-video').pause();assert.equal(adapter.preloadNext({path:nextPreloadPath,video_codec:'bytevc1'}),false);
+  const unknown=fixture();unknown.bridge.preloadNext=()=>assert.fail('unknown codec support must not preload');activateNative(unknown);
+  unknown.context.window.HongguoNativePlayback.event(unknown.bridge.lastId,'frame',{width:1280,height:720});unknown.context.window.HongguoNativePlayback.event(unknown.bridge.lastId,'playing');
+  assert.equal(unknown.context.window.HongguoNativePlaybackAdapter.preloadNext({path:nextPreloadPath,video_codec:'bytevc1'}),false);
+  const mpv=fixture('mpv');mpv.bridge.preloadNext=()=>assert.fail('fixed MPV must not preload Media3');activateNative(mpv);
+  mpv.context.window.HongguoNativePlayback.event(mpv.bridge.lastId,'frame',{width:1280,height:720});mpv.context.window.HongguoNativePlayback.event(mpv.bridge.lastId,'playing');
+  assert.equal(mpv.context.window.HongguoNativePlaybackAdapter.preloadNext({path:nextPreloadPath,video_codec:'bytevc1'}),false);
+});
+test('a ready native handoff retains its player and diagnostics identity without a hidden HTML5 load',()=>{
+  const f=preparedNativeFixture(),adapter=f.context.window.HongguoNativePlaybackAdapter,video=f.document.getElementById('hero-video');
+  const oldDiagnostic=f.bridge.lastPayload.diagnostic_id,htmlSource=f.domVideo.src,stops=f.bridge.stops;
+  adapter.preloadNext({path:nextPreloadPath,video_codec:'bytevc1'});const queued=f.bridge.preloads[0];
+  assert.equal(adapter.canFastHandoff(nextPreloadPath),false);
+  f.context.window.HongguoNativePlayback.event(f.bridge.lastId,'preloadstate',{key:'stale',state:'ready'});assert.equal(adapter.canFastHandoff(nextPreloadPath),false);
+  f.context.window.HongguoNativePlayback.event(f.bridge.lastId,'preloadstate',{key:queued.key,state:'ready'});assert.equal(adapter.canFastHandoff(nextPreloadPath),true);
+  video.pause();video.src=nextPreloadPath;video.load();video.setSourceCodec('bytevc1');video.play();
+  assert.equal(adapter.isNative(),true);assert.equal(f.domVideo.src,htmlSource);assert.equal(f.bridge.stops,stops);
+  assert.equal(f.bridge.lastPayload.preload_key,queued.key);assert.equal(f.bridge.lastPayload.fast_presentation,true);
+  assert.notEqual(f.bridge.lastPayload.diagnostic_id,oldDiagnostic);assert.equal(adapter.diagnostics().switch_reason,'prepared_native_handoff');
+  f.bridge.diagnostic={diagnostic_id:oldDiagnostic};assert.deepEqual(Object.keys(adapter.nativeDiagnostics()),[]);
+});
+test('expired or cancelled native preloads cannot preserve the next source',()=>{
+  for(const mode of ['expired','cancelled','wrong_source']){
+    const f=preparedNativeFixture(),adapter=f.context.window.HongguoNativePlaybackAdapter;
+    adapter.preloadNext({path:nextPreloadPath,video_codec:'bytevc1'});
+    f.context.window.HongguoNativePlayback.event(f.bridge.lastId,'preloadstate',{key:f.bridge.preloads[0].key,state:'ready'});
+    if(mode==='expired')f.clock.advance(120001);
+    if(mode==='cancelled')adapter.cancelPreload();
+    assert.equal(adapter.canFastHandoff(mode==='wrong_source'?'/other':nextPreloadPath),false,mode);
+  }
+});
+test('a supported next source stays HTML5 first and stale native progress cannot confirm presentation',()=>{
+  const f=preparedNativeFixture(),adapter=f.context.window.HongguoNativePlaybackAdapter,video=f.document.getElementById('hero-video');
+  adapter.preloadNext({path:nextPreloadPath,video_codec:'bytevc1'});
+  const old=f.bridge.lastId;let confirmations=0;video.addEventListener('nativeprogress',()=>confirmations++);
+  f.context.window.HongguoNativePlayback.progress('stale',50,1000,{fast_presentation:true});assert.equal(confirmations,0);
+  f.context.window.HongguoNativePlayback.progress(old,50,1000,{fast_presentation:true});assert.equal(confirmations,1);
+  video.src='/media/h264.mp4';video.setSourceCodec('h264');video.play();assert.equal(adapter.isNative(),false);
+  assert.equal(f.bridge.cancelledPreloads.length,1);
+  f.context.window.HongguoNativePlayback.progress(old,100,1000,{fast_presentation:true});assert.equal(confirmations,1);
+});
+
 test('current native diagnostics reject persisted and delayed snapshots across loads and page reloads', () => {
   for (const engine of ['webview_media3', 'mpv']) {
     const f = fixture(engine), adapter = f.context.window.HongguoNativePlaybackAdapter;

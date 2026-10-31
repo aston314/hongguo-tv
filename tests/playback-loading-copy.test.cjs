@@ -2,6 +2,7 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
+const {create:createLoadingGrace}=require('../core/cmd/hongguotv/ui/playback-loading-grace.js');
 require('./helpers/app-text.cjs');
 const source = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'), 'utf8');
 const functions = source.slice(source.indexOf('  function clearPrefetchedEpisodeHint('),source.indexOf('  function setControlIcon('));
@@ -33,6 +34,14 @@ test('first start shows only the spinner until the real target episode resolves,
   f.c.setPlayerStatus(f.c.episodeLoadingText(7));
   assert.equal(f.text.textContent,'第7集');assert.equal(f.text.classList.contains('is-hidden'),false);assert.equal(f.panel.querySelector('.player-spinner'),spinner);
   assert.equal(f.c.reveals,0);
+});
+test('completion or a playback error cancels delayed loading without suppressing error actions',()=>{
+  for(const failed of [false,true]){
+    const f=fixture();f.c.playbackLoadingGrace=createLoadingGrace({schedule:()=>1,unschedule:()=>{},quiet:value=>f.hero.classList.toggle('is-switch-loading-grace',value)});
+    f.c.playbackLoadingGrace.start({eligible:true,started_at:Date.now()});f.c.setPlayerStatus('loading');assert(f.hero.classList.contains('is-switch-loading-grace'));
+    f.c.setPlayerStatus(failed?'failure':'',failed);assert(!f.hero.classList.contains('is-switch-loading-grace'));
+    assert.equal(f.retry.classList.contains('is-hidden'),!failed);assert.equal(f.panel.classList.contains('is-loading'),false);
+  }
 });
 test('same-drama episode switches use the target episode alone, with no repeated title',()=>{
   const f=fixture();f.hero.classList.add('is-episode-transition');

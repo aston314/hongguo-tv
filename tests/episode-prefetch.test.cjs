@@ -11,6 +11,14 @@ function fixture(lookup) {
   const p=create({lookup:lookup || (async x=>target({quality:x.quality})),prepare:async(x,signal)=>{calls.push(x);signals.push(signal);return {path:'/media/next.mp4'};}});
   return {p,calls,signals};
 }
+test('prepared media is offered once, cancelled offers are released, and stale async completion cannot offer',async()=>{
+  const ready=[],cancelled=[],gate=deferred();
+  const p=create({lookup:async()=>target(),prepare:()=>gate.promise,onReady:(...args)=>ready.push(args),onCancel:(...args)=>cancelled.push(args)});
+  p.maybe(info());await tick();p.cancel();gate.resolve({path:'/old.mp4'});await tick();assert.equal(ready.length,0);
+  const q=create({lookup:async()=>target(),prepare:async()=>({path:'/next.mp4'}),onReady:(...args)=>ready.push(args),onCancel:(...args)=>cancelled.push(args)});
+  q.maybe(info());await tick();assert.equal(ready.length,1);assert.equal(q.peek().data.path,'/next.mp4');
+  q.cancel();assert.equal(cancelled.length,1);assert.equal(cancelled[0][0].path,'/next.mp4');
+});
 test('starts once after five stable playback seconds, early in a long episode', async()=>{
   const f=fixture();
   for(const x of [info({stable_seconds:4.99}),info({stable_seconds:0,position:110}),info({stable_seconds:NaN}),info({stable_seconds:undefined}),info({paused:true}),info({active:false}),info({started:false}),info({ended:true}),info({duration:NaN}),info({duration:Infinity})]) f.p.maybe(x);
