@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 )
@@ -165,5 +166,84 @@ func TestLibraryConcurrentWritesAndHTTPValidation(t *testing.T) {
 	}
 	if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil || !payload.OK || len(payload.Data.Entries) != 8 {
 		t.Fatalf("GET library failed: %s", response.Body.String())
+	}
+}
+
+func TestLibraryRequestDecodeErrorsAreSpecificAndPrivate(t *testing.T) {
+	store, err := newLibraryStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &server{libraryStore: store}
+	for _, tc := range []struct {
+		name, body, code, field string
+		status                  int
+	}{
+		{"oversized detail", `{"action":"progress","drama":{"intro":"` + strings.Repeat("剧", libraryRequestLimit) + `"}}`, "LIBRARY_REQUEST_TOO_LARGE", "", 413},
+		{"oversized trailing whitespace", `{"action":"clear","kind":"history"}` + strings.Repeat(" ", libraryRequestLimit), "LIBRARY_REQUEST_TOO_LARGE", "", 413},
+		{"wrong nested type", `{"action":"progress","drama":{"tags":"private-value"}}`, "LIBRARY_FIELD_TYPE", "drama.tags", 400},
+		{"wrong episode type", `{"action":"progress","episode":"private-value"}`, "LIBRARY_FIELD_TYPE", "episode", 400},
+		{"unknown nested field", `{"action":"progress","drama":{"private-field":"private-value"}}`, "LIBRARY_FIELD_UNKNOWN", "", 400},
+		{"unknown root field", `{"action":"progress","private-field":"private-value"}`, "LIBRARY_FIELD_UNKNOWN", "", 400},
+		{"invalid JSON", `{"private-value":`, "LIBRARY_REQUEST_INVALID", "", 400},
+		{"empty JSON", ``, "LIBRARY_REQUEST_INVALID", "", 400},
+		{"trailing object", `{"action":"clear","kind":"history"} {}`, "LIBRARY_REQUEST_TRAILING", "", 400},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			response := httptest.NewRecorder()
+			s.library(response, httptest.NewRequest(http.MethodPost, "/api/v1/library", strings.NewReader(tc.body)))
+			var payload struct {
+				OK    bool   `json:"ok"`
+				Code  string `json:"code"`
+				Field string `json:"field"`
+				Error string `json:"error"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &payload); err != nil {
+				t.Fatal(err)
+			}
+			if response.Code != tc.status || payload.OK || payload.Code != tc.code || payload.Field != tc.field || payload.Error == "" {
+				t.Fatalf("unexpected rejection: status=%d payload=%+v", response.Code, payload)
+			}
+			if strings.Contains(response.Body.String(), "private-") {
+				t.Fatal("decoder leaked request values or unknown field names")
+			}
+			if len(store.snapshot().Entries) != 0 {
+				t.Fatal("rejected request changed records")
+			}
+		})
+	}
+}
+
+func TestLibraryBoundedDetailProgressSurvivesHTTPAndRestart(t *testing.T) {
+	dir := t.TempDir()
+	store, err := newLibraryStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	drama := libraryFixture()
+	drama.Intro = strings.Repeat("剧情🎬", 333) + "完"
+	drama.Tags = []string{"一", "二", "三", "四", "五", "六", "七", "八"}
+	drama = cleanLibraryDrama(drama)
+	body, err := json.Marshal(LibraryChange{Action: "progress", Drama: drama, Episode: 3,
+		VideoID: "7654933376318589977", Position: 12.5, Duration: 180.25})
+	if err != nil || len(body) >= libraryRequestLimit {
+		t.Fatalf("invalid bounded fixture: bytes=%d err=%v", len(body), err)
+	}
+	// Also exercise the inclusive HTTP byte boundary, not only small bodies.
+	body = append(body, bytes.Repeat([]byte(" "), libraryRequestLimit-len(body))...)
+	response := httptest.NewRecorder()
+	s := &server{libraryStore: store}
+	s.library(response, httptest.NewRequest(http.MethodPost, "/api/v1/library", bytes.NewReader(body)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("bounded detail rejected: %d %s", response.Code, response.Body.String())
+	}
+	reopened, err := newLibraryStore(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := reopened.snapshot().Entries
+	if len(entries) != 1 || entries[0].Episode != 3 || entries[0].VideoID != "7654933376318589977" ||
+		entries[0].Position != 12.5 || entries[0].Duration != 180.25 || entries[0].Drama.Intro != drama.Intro || len(entries[0].Drama.Tags) != 8 {
+		t.Fatalf("progress lost after restart: %+v", entries)
 	}
 }

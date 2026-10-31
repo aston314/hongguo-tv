@@ -9,11 +9,15 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
+	"strings"
 	"sync"
 	"time"
 )
 
 var errLibrarySave = errors.New("保存本地记录失败")
+
+const libraryRequestLimit = 32768
 
 type LibraryEntry struct {
 	Drama        Drama        `json:"drama"`
@@ -283,6 +287,53 @@ func (s *libraryStore) persistLocked(data LibraryData) error {
 	return nil
 }
 
+// Only known schema paths may be returned to the UI. Decoder errors can also
+// contain user-supplied values or field names; never return their raw text.
+func libraryRequestField(field string) string {
+	t := reflect.TypeOf(LibraryChange{})
+	for _, part := range strings.Split(field, ".") {
+		found := false
+		if t.Kind() != reflect.Struct {
+			return ""
+		}
+		for i := 0; i < t.NumField(); i++ {
+			f := t.Field(i)
+			if strings.Split(f.Tag.Get("json"), ",")[0] == part {
+				t, found = f.Type, true
+				break
+			}
+		}
+		if !found {
+			return ""
+		}
+	}
+	return field
+}
+
+func writeLibraryDecodeError(w http.ResponseWriter, err error, trailing bool) {
+	status, code, message, field := http.StatusBadRequest, "LIBRARY_REQUEST_INVALID", "记录请求格式无效", ""
+	var tooLarge *http.MaxBytesError
+	var wrongType *json.UnmarshalTypeError
+	switch {
+	case errors.As(err, &tooLarge):
+		status, code, message = http.StatusRequestEntityTooLarge, "LIBRARY_REQUEST_TOO_LARGE", "记录内容过大，请重新打开剧集后重试"
+	case trailing:
+		code, message = "LIBRARY_REQUEST_TRAILING", "记录请求包含多余内容"
+	case errors.As(err, &wrongType):
+		code, message, field = "LIBRARY_FIELD_TYPE", "记录字段格式无效", libraryRequestField(wrongType.Field)
+		if field != "" {
+			message += "：" + field
+		}
+	case strings.HasPrefix(err.Error(), "json: unknown field "):
+		code, message = "LIBRARY_FIELD_UNKNOWN", "记录包含不支持的字段，请重启应用后重试"
+	}
+	payload := map[string]any{"ok": false, "error": message, "code": code}
+	if field != "" {
+		payload["field"] = field
+	}
+	writeJSON(w, status, payload)
+}
+
 func (s *server) library(w http.ResponseWriter, r *http.Request) {
 	if s.libraryStore == nil {
 		writeError(w, http.StatusServiceUnavailable, "本地记录尚未就绪")
@@ -302,15 +353,15 @@ func (s *server) library(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 32768))
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, libraryRequestLimit))
 	decoder.DisallowUnknownFields()
 	var change LibraryChange
 	if err := decoder.Decode(&change); err != nil {
-		writeError(w, http.StatusBadRequest, "记录请求无效")
+		writeLibraryDecodeError(w, err, false)
 		return
 	}
 	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		writeError(w, http.StatusBadRequest, "记录请求包含多余内容")
+		writeLibraryDecodeError(w, err, true)
 		return
 	}
 	var data LibraryData

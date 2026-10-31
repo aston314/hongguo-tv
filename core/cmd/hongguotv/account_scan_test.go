@@ -165,6 +165,23 @@ func TestQRLoginPersistsVerifiedAccountAndUsesExistingFavoriteWrite(t *testing.T
 	if writes.Load() != 1 {
 		t.Fatal("existing favorite API was not used exactly once")
 	}
+	// Progress goes through the same strict local HTTP endpoint after QR login;
+	// it does not depend on an upstream history write being accepted first.
+	s := &server{accounts: m, libraryStore: m.guest}
+	body := `{"owner_id":"123456789","action":"progress","drama":{"series_id":"7690163276214176792","title":"扫码后单剧播放","intro":"简介","tags":["剧情"],"episode_count":144,"series_status":"0"},"episode":3,"video_id":"7654933376318589977","position":12.5,"duration":180.25,"completed":false}`
+	response := httptest.NewRecorder()
+	s.library(response, httptest.NewRequest(http.MethodPost, "/api/v1/library", strings.NewReader(body)))
+	if response.Code != http.StatusOK {
+		t.Fatalf("QR local progress rejected: %d %s", response.Code, response.Body.String())
+	}
+	progressStore, err := newLibraryStore(filepath.Join(m.dir, "accounts", status.Profile.UID))
+	if err != nil {
+		t.Fatal(err)
+	}
+	progress := progressStore.snapshot()
+	if len(progress.Entries) != 1 || progress.Entries[0].Episode != 3 || progress.Entries[0].Position != 12.5 || progress.Entries[0].VideoID != "7654933376318589977" {
+		t.Fatalf("QR progress was not persisted: %+v", progress.Entries)
+	}
 	info, err := os.Stat(filepath.Join(m.dir, "account.json"))
 	if err != nil || runtime.GOOS != "windows" && info.Mode().Perm() != 0600 {
 		t.Fatal("account file not private")

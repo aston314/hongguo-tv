@@ -3198,6 +3198,11 @@
   function basicDrama(item) {
     var result = {};
     ['series_id', 'title', 'cover', 'cover_fallback', 'intro', 'score', 'episode_count', 'tags', 'season_index', 'is_multi_season', 'content_type', 'video_category_type', 'following_update', 'followed', 'follow_count', 'show_update_frequency', 'latest_watched_episode', 'has_watched_latest_episode', 'series_status'].forEach(function (key) { if (item[key] !== undefined) result[key] = item[key]; });
+    // Match cleanLibraryDrama before crossing the 32 KiB HTTP boundary. Detail
+    // descriptions can be much longer than the summary kept in local records.
+    // Keep the full detail and its episode arrays untouched for the player.
+    if (typeof result.intro === 'string') result.intro = Array.from(result.intro).slice(0, 1000).join('');
+    if (Array.isArray(result.tags)) result.tags = result.tags.slice(0, 8);
     return result;
   }
   function followState(item) {
