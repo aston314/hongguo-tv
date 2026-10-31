@@ -34,7 +34,7 @@ func TestMiniReelPlaybackDeviceCacheRegistersOnce(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			device, err := cache.get()
+			device, err := cache.get(context.Background())
 			if err == nil && (device.deviceID != "1234567890123456789" || device.installID != "2234567890123456789" || device.cdid != "test-cdid") {
 				t.Errorf("device = %#v", device)
 			}
@@ -61,14 +61,14 @@ func TestMiniReelPlaybackDeviceCacheRetriesRegistrationFailure(t *testing.T) {
 		}
 		return miniReelDevice{deviceID: "1234567890123456789", installID: "2234567890123456789"}, nil
 	})
-	if _, err := cache.get(); err == nil {
+	if _, err := cache.get(context.Background()); err == nil {
 		t.Fatal("first registration unexpectedly succeeded")
 	}
-	device, err := cache.get()
+	device, err := cache.get(context.Background())
 	if err != nil || device.deviceID == "" {
 		t.Fatalf("registration retry = %#v, %v", device, err)
 	}
-	if _, err := cache.get(); err != nil {
+	if _, err := cache.get(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if got := registrations.Load(); got != 2 {

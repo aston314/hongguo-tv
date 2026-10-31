@@ -50,6 +50,7 @@ const (
 	miniReelMaxBytes           = 512 << 20
 	miniReelMaxCache           = 512 << 20
 	miniReelVideoModelAttempts = 3
+	miniReelIdentityRefreshGap = 30 * time.Second
 	miniReelCacheKeyVersion    = "v3"
 )
 
@@ -106,6 +107,7 @@ var miniReelSeasonIdentity = struct {
 }{}
 
 var errMiniReelVideoModelEmpty = errors.New("MiniReel video_model response is empty")
+var errMiniReelIdentityRefreshCoolingDown = errors.New("anonymous playback identity refresh is cooling down")
 
 type miniReelDevice struct {
 	deviceID  string
@@ -114,11 +116,12 @@ type miniReelDevice struct {
 }
 
 type miniReelPlaybackDeviceCache struct {
-	mu       sync.Mutex
-	register func() (miniReelDevice, error)
-	device   miniReelDevice
-	ready    bool
-	pending  *miniReelPlaybackDeviceRegistration
+	mu           sync.Mutex
+	register     func() (miniReelDevice, error)
+	device       miniReelDevice
+	ready        bool
+	pending      *miniReelPlaybackDeviceRegistration
+	refreshAfter time.Time
 }
 
 type miniReelPlaybackDeviceRegistration struct {
@@ -131,34 +134,85 @@ func newMiniReelPlaybackDeviceCache(register func() (miniReelDevice, error)) *mi
 	return &miniReelPlaybackDeviceCache{register: register}
 }
 
-func (c *miniReelPlaybackDeviceCache) get() (miniReelDevice, error) {
+func (c *miniReelPlaybackDeviceCache) get(ctx context.Context) (miniReelDevice, error) {
+	if err := ctx.Err(); err != nil {
+		return miniReelDevice{}, err
+	}
 	c.mu.Lock()
+	if pending := c.pending; pending != nil {
+		c.mu.Unlock()
+		return pending.wait(ctx)
+	}
 	if c.ready {
 		device := c.device
 		c.mu.Unlock()
 		return device, nil
 	}
+	pending := c.startRegistrationLocked()
+	c.mu.Unlock()
+	return pending.wait(ctx)
+}
+
+// Refresh only the identity that produced the confirmed empty responses. A late
+// failure from an older request must reuse the replacement, not replace it again.
+func (c *miniReelPlaybackDeviceCache) refreshAfterEmpty(ctx context.Context, failed miniReelDevice) (miniReelDevice, error) {
+	if err := ctx.Err(); err != nil {
+		return miniReelDevice{}, err
+	}
+	c.mu.Lock()
 	if pending := c.pending; pending != nil {
 		c.mu.Unlock()
-		<-pending.done
-		return pending.device, pending.err
+		return pending.wait(ctx)
 	}
+	if c.ready && c.device != failed {
+		device := c.device
+		c.mu.Unlock()
+		return device, nil
+	}
+	now := time.Now()
+	if now.Before(c.refreshAfter) {
+		c.mu.Unlock()
+		return miniReelDevice{}, errMiniReelIdentityRefreshCoolingDown
+	}
+	// Count failed registrations too, so a service outage cannot turn concurrent
+	// play/prefetch requests into an unbounded registration loop.
+	c.refreshAfter = now.Add(miniReelIdentityRefreshGap)
+	pending := c.startRegistrationLocked()
+	c.mu.Unlock()
+	log.Printf("[minireel] refreshing anonymous playback identity after repeated HTTP 200 empty responses")
+	return pending.wait(ctx)
+}
+
+// The registration has its own bounded timeout. One canceled playback request
+// may stop waiting without canceling registration needed by another request.
+func (c *miniReelPlaybackDeviceCache) startRegistrationLocked() *miniReelPlaybackDeviceRegistration {
 	pending := &miniReelPlaybackDeviceRegistration{done: make(chan struct{})}
 	c.pending = pending
-	c.mu.Unlock()
-
-	pending.device, pending.err = c.register()
-	c.mu.Lock()
-	if pending.err == nil {
-		c.device = pending.device
-		c.ready = true
-	}
-	if c.pending == pending {
+	go func() {
+		device, err := c.register()
+		c.mu.Lock()
+		defer c.mu.Unlock()
+		pending.device, pending.err = device, err
+		if err == nil {
+			c.device = device
+			c.ready = true
+		}
 		c.pending = nil
+		close(pending.done)
+	}()
+	return pending
+}
+
+func (p *miniReelPlaybackDeviceRegistration) wait(ctx context.Context) (miniReelDevice, error) {
+	select {
+	case <-ctx.Done():
+		return miniReelDevice{}, ctx.Err()
+	case <-p.done:
+		if err := ctx.Err(); err != nil {
+			return miniReelDevice{}, err
+		}
+		return p.device, p.err
 	}
-	close(pending.done)
-	c.mu.Unlock()
-	return pending.device, pending.err
 }
 
 var miniReelPlaybackIdentity = newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice)
@@ -758,6 +812,10 @@ func miniReelNativeOptionsEndpoint(ctx context.Context, vid, endpoint string) ([
 }
 
 func miniReelNativeOptionsEndpointMode(ctx context.Context, vid, endpoint, codecMode string) ([]miniReelOption, error) {
+	return miniReelNativeOptionsWithIdentityCache(ctx, vid, endpoint, codecMode, miniReelPlaybackIdentity)
+}
+
+func miniReelNativeOptionsWithIdentityCache(ctx context.Context, vid, endpoint, codecMode string, identity *miniReelPlaybackDeviceCache) ([]miniReelOption, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -765,11 +823,26 @@ func miniReelNativeOptionsEndpointMode(ctx context.Context, vid, endpoint, codec
 	if err != nil {
 		return nil, err
 	}
-	device, err := miniReelPlaybackIdentity.get()
+	device, err := identity.get(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("匿名播放设备注册失败，请点击重试再次尝试: %w", err)
 	}
-	return miniReelNativeOptionsEndpointWithDeviceMode(ctx, vid, endpoint, device, codecMode)
+	options, sourceErr := miniReelNativeOptionsEndpointWithDeviceMode(ctx, vid, endpoint, device, codecMode)
+	if !errors.Is(sourceErr, errMiniReelVideoModelEmpty) {
+		return options, sourceErr
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	replacement, err := identity.refreshAfterEmpty(ctx, device)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, fmt.Errorf("%w; anonymous playback identity recovery: %v", sourceErr, err)
+	}
+	// A resolver gets at most one replacement, even if that identity is empty too.
+	return miniReelNativeOptionsEndpointWithDeviceMode(ctx, vid, endpoint, replacement, codecMode)
 }
 
 func registerMiniReelPlaybackDevice() (miniReelDevice, error) {
@@ -802,6 +875,9 @@ func miniReelNativeOptionsEndpointWithDeviceMode(ctx context.Context, vid, endpo
 	}
 	var lastErr error
 	for attempt := 0; attempt < miniReelVideoModelAttempts; attempt++ {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		options, err := miniReelNativeOptionsAttemptMode(ctx, vid, endpoint, device, codecMode)
 		if err == nil {
 			return options, nil
@@ -872,7 +948,10 @@ func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoi
 	}
 	if len(bytes.TrimSpace(data)) == 0 {
 		log.Printf("[minireel] multi_video_model empty response status=%d content_length=%d tt_logid=%q", resp.StatusCode, resp.ContentLength, resp.Header.Get("X-Tt-Logid"))
-		return nil, errMiniReelVideoModelEmpty
+		if resp.StatusCode == http.StatusOK {
+			return nil, errMiniReelVideoModelEmpty
+		}
+		return nil, fmt.Errorf("MiniReel multi_video_model response is empty (HTTP %d)", resp.StatusCode)
 	}
 	var envelope map[string]any
 	decoder := json.NewDecoder(bytes.NewReader(data))
