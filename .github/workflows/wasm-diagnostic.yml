@@ -26,7 +26,7 @@ jobs:
           sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.10.2"
+          gradle-version: "8.13"
       - name: Build isolated diagnostic APK
         run: gradle -p android :wasm-diagnostic:assembleDebug
       - name: Verify APK package and API floor

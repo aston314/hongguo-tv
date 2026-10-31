@@ -46,7 +46,7 @@ jobs:
           # repository. Retry after clearing only sdkmanager's temp download;
           # a transient mirror failure must not consume the whole release.
           for attempt in 1 2 3; do
-            if sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018"; then
+            if sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"; then
               exit 0
             fi
             echo "Android SDK package install failed (attempt $attempt), retrying…" >&2
@@ -57,7 +57,7 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.10.2"
+          gradle-version: "8.13"
       - name: Test Go core
         run: go test ./...
       - name: Check TV JavaScript and pagination

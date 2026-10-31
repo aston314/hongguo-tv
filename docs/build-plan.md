@@ -4,22 +4,23 @@
 
 ## 已核对的参考流程
 
-现有 8787 项目的构建流程使用：
+本项目当前的 Android 构建配置：
 
-| 项目 | 参考配置 |
+| 项目 | 当前配置 |
 | --- | --- |
 | Runner | `ubuntu-latest` |
 | Go | `1.25.x` |
 | Java | Temurin 17 |
-| Android compile/target SDK | 35 |
+| Android compile SDK | 36 |
+| Android target SDK | 35 |
 | Android 最低版本 | API 23 |
 | Build Tools | 35.0.0 |
 | NDK | 27.2.12479018 |
-| Gradle | 8.10.2 |
-| Android Gradle Plugin | 8.7.3 |
+| Gradle | 8.13 |
+| Android Gradle Plugin | 8.13.2 |
 | ABI | arm64-v8a、armeabi-v7a、x86_64 |
 
-上述是现有项目的基线。TV 项目现在已经把播放能力编进 Go 核心，不依赖 8787 或 57828 进程；CI 仍需分别验证三个 ABI 的构建产物和 Android TV 播放运行态。
+Media3 1.11.1 的 AAR 要求 compileSdk 36，因此升级 AGP/Gradle 并提高 compileSdk；targetSdk 35 和 minSdk 23 保持不变。TV 项目把播放能力编进 Go 核心，不依赖 8787 或 57828 进程；CI 仍分别验证三个 ABI 的构建产物和 Android TV 播放运行态。
 
 ## 构建链路
 

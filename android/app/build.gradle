@@ -10,7 +10,7 @@ def releaseSigningReady = signingVariables.every { System.getenv(it) }
 
 android {
     namespace "rocks.aston.hongguotv"
-    compileSdk 35
+    compileSdk 36
 
     flavorDimensions "player"
 
