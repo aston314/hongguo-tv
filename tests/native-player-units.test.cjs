@@ -192,7 +192,7 @@ test('WebView remains the default until native fallback is requested', () => {
   proxy.pause();
 });
 
-test('standard Media3 starts first and keeps one bounded HTML5 fallback', async () => {
+test('standardMedia3 test flavor starts on Media3 and keeps one bounded HTML5 fallback', async () => {
   const f = fixture('media3'), video = f.document.getElementById('hero-video');
   video.src = '/media/test.mp4';
   await video.play();
@@ -207,7 +207,7 @@ test('standard Media3 starts first and keeps one bounded HTML5 fallback', async 
   assert.equal(f.bridge.plays, 1, 'a Media3 failure must not loop back into native playback');
 });
 
-test('standard Media3 retries for a new source after HTML5 fallback', async () => {
+test('standardMedia3 retries Media3 for a new source after HTML5 fallback', async () => {
   const f = fixture('media3'), video = f.document.getElementById('hero-video');
   video.src = '/media/first.mp4';
   await video.play();

@@ -31,6 +31,14 @@ android {
             dimension "player"
             resValue "string", "app_name", "红果短剧"
             buildConfigField "String", "VARIANT_ID", '"standard"'
+            buildConfigField "String", "PLAYER_ENGINE", '"webview_media3"'
+        }
+        standardMedia3 {
+            dimension "player"
+            applicationIdSuffix ".media3test"
+            versionNameSuffix "-media3-test"
+            resValue "string", "app_name", "红果短剧"
+            buildConfigField "String", "VARIANT_ID", '"standard"'
             buildConfigField "String", "PLAYER_ENGINE", '"media3"'
         }
         mpv {
@@ -88,8 +96,8 @@ dependencies {
     implementation "androidx.tvprovider:tvprovider:1.0.0"
     implementation "androidx.media3:media3-exoplayer:1.8.0"
     implementation "androidx.media3:media3-exoplayer-hls:1.8.0"
-    standardImplementation "io.github.anilbeesetti:nextlib-media3ext:1.8.0-0.9.0"
-    // LGPL MPV libraries stay isolated to MPV. Standard Media3 includes
-    // NextLib's GPL-3.0 FFmpeg renderer for bounded software fallback.
+    standardMedia3Implementation "io.github.anilbeesetti:nextlib-media3ext:1.8.0-0.9.0"
+    // LGPL MPV libraries stay isolated to the MPV flavor. NextLib's GPL-3.0
+    // FFmpeg renderer is isolated to standardMedia3 for evaluation only.
     testImplementation "junit:junit:4.13.2"
 }

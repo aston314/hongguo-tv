@@ -104,7 +104,8 @@ final class PlayerBridge implements NativePlayerAdapter {
         portraitBackdrop=new PortraitBackdropCapture(web);
         preferences=web.getContext().getSharedPreferences("doudou_playback",Context.MODE_PRIVATE);
         diagnostic=preferences.getString("last_diagnostics","{}");
-        // Standard Android playback starts on Media3; WebView is the bounded fallback.
+        // The standardMedia3 evaluation flavor starts on Media3; the regular
+        // standard flavor keeps this bridge as the bounded fallback.
         surface=new SurfaceView(web.getContext());texture=null;renderView=surface;
         renderView.setFocusable(false);holder.addView(renderView,new FrameLayout.LayoutParams(-1,-1));
         holder.setVisibility(View.GONE);handler.postDelayed(progress,500);
@@ -353,8 +354,9 @@ final class PlayerBridge implements NativePlayerAdapter {
     }
     private void retrySoftwareDecoder(Session target){
         if(session!=target||destroyed||target.triedSoftwareDecoderFallback)return;
-        // Standard supplies its FFmpeg renderer. Other bridge configurations
-        // retain the platform-software HEVC fallback.
+        // The standardMedia3 evaluation flavor supplies its own FFmpeg renderer. The
+        // production standard flavor retains the existing platform-software
+        // HEVC fallback and therefore still needs an advertised decoder.
         if(!PlayerRendererPolicy.ffmpegAvailable()){
             boolean hasSoftwareHevc=false;
             try{
