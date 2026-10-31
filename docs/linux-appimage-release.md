@@ -1,8 +1,8 @@
 # 红果短剧 Linux AppImage 测试版
 
-本次 0.2.136 在连续收到空播放信息时提供有上限的匿名身份恢复，并补齐播放准备失败诊断。本机记录发送前按保存规则裁剪简介和标签，记录校验失败可显示具体原因。
+本次 0.2.137 延续有上限的空播放响应匿名身份恢复，并提供可选的竖屏动态模糊背景延伸，默认仍为黑色。标准版 Android 的 Media3 更新不改变 Linux 播放路径。
 
-延续 0.2.134 的按需 GPU 合成配置，减少兼容设备播放时的软件合成开销。如有白屏或显卡兼容问题，完全退出后通过 `HONGGUO_WEBKIT_GPU_POLICY=never ./hongguo-desktop-0.2.136-x86_64.AppImage --appimage-extract-and-run` 恢复原来的软件合成方式。也接受数值 `2`；未设置时使用 `on-demand`（`1`）。此项仅影响 Linux 窗口合成，不修改解码器或其他平台。
+延续 0.2.134 的按需 GPU 合成配置，减少兼容设备播放时的软件合成开销。如有白屏或显卡兼容问题，完全退出后通过 `HONGGUO_WEBKIT_GPU_POLICY=never ./hongguo-desktop-0.2.137-x86_64.AppImage --appimage-extract-and-run` 恢复原来的软件合成方式。也接受数值 `2`；未设置时使用 `on-demand`（`1`）。此项仅影响 Linux 窗口合成，不修改解码器或其他平台。
 
 本次 Linux x86_64 AppImage 须通过 Ubuntu 24.04 与 Debian 12 容器中的真实红果数据和视频播放检查后才发布。测试使用 Xvfb、软件图形和软件解码，不能替代用户机器上的安装、硬件解码、显示器或扬声器验证。
 
