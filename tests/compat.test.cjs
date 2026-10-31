@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const compat = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/compat.js'), 'utf8');
-function oldWebView() {
+function oldWebView(searchParams) {
   const context = vm.createContext({setTimeout, clearTimeout});
   vm.runInContext(`
     window = this; events = {}; xhrs = [];
@@ -30,9 +30,82 @@ function oldWebView() {
     Object.assign=undefined;Number.isFinite=undefined;Array.from=undefined;
     URLSearchParams=undefined;AbortController=undefined;fetch=undefined;
   `, context);
+  if (searchParams) context.URLSearchParams = searchParams;
   vm.runInContext(compat, context);
   return context;
 }
+// Chromium 49–60 has URLSearchParams, but treats a record as a string.
+function StringOnlySearchParams(values) {
+  return new URLSearchParams(values === undefined ? '' : String(values));
+}
+StringOnlySearchParams.prototype = URLSearchParams.prototype;
+
+test('Chromium 52 playback requests retain every source parameter', async () => {
+  const c = oldWebView(StringOnlySearchParams);
+  const pending = vm.runInContext(`fetch('/api/v1/play/info?' + new URLSearchParams({
+    series_id:'1234567890',vid:'9876543210',quality:'720p',fallback:'1',mode:'range',codec_mode:'default'
+  }))`, c);
+  const url = new URL(c.xhrs[0].url, 'http://127.0.0.1');
+  assert.deepEqual(Object.fromEntries(url.searchParams), {
+    series_id:'1234567890',vid:'9876543210',quality:'720p',fallback:'1',mode:'range',codec_mode:'default'
+  });
+  c.xhrs[0].respond(200, '{"ok":true}');
+  await pending;
+});
+test('partial query APIs encode Unicode, reserved characters and primitive values correctly', () => {
+  const c = oldWebView(StringOnlySearchParams);
+  const values = {q:'红果 & 剧 + % # 😀',cursor:'a=b&c+d%20',empty:'',offset:0,enabled:false,missing:undefined,nothing:null};
+  c.queryValues = values;
+  const actual = vm.runInContext('new URLSearchParams(queryValues).toString()', c);
+  assert.equal(actual, new URLSearchParams(values).toString());
+  const nullRecord = Object.assign(Object.create(null), {q:'无原型',offset:2});
+  c.queryValues = nullRecord;
+  assert.equal(vm.runInContext('new URLSearchParams(queryValues).toString()', c), new URLSearchParams(nullRecord).toString());
+});
+test('legacy query adaptation preserves native strings, duplicates, methods and instances', () => {
+  const c = oldWebView(StringOnlySearchParams);
+  const result = vm.runInContext(`(function(){
+    var query = new URLSearchParams('tag=a&tag=b&q=hello+world');
+    var copy = new URLSearchParams(query);
+    query.set('q','新剧 & 续集');query.append('tag','c');
+    return JSON.stringify({copy:copy.toString(),query:query.toString(),native:query instanceof URLSearchParams});
+  })()`, c);
+  const actual = JSON.parse(result);
+  assert.equal(actual.copy, 'tag=a&tag=b&q=hello+world');
+  assert.deepEqual(new URLSearchParams(actual.query).getAll('tag'), ['a','b','c']);
+  assert.equal(new URLSearchParams(actual.query).get('q'), '新剧 & 续集');
+  assert.equal(actual.native, true);
+  const adapted = c.URLSearchParams;
+  vm.runInContext(compat, c);
+  assert.equal(c.URLSearchParams, adapted);
+});
+test('query constructors that reject record input still support app records', () => {
+  function RejectRecordSearchParams(values) {
+    if (values !== null && typeof values === 'object') throw new TypeError('record input unavailable');
+    return new URLSearchParams(values);
+  }
+  RejectRecordSearchParams.prototype = URLSearchParams.prototype;
+  const c = oldWebView(RejectRecordSearchParams);
+  const query = vm.runInContext(`new URLSearchParams({series_id:'123',vid:'456'}).toString()`, c);
+  assert.equal(query, 'series_id=123&vid=456');
+});
+test('modern query APIs and their native constructor are left unchanged', () => {
+  const c = oldWebView(URLSearchParams);
+  assert.equal(c.URLSearchParams, URLSearchParams);
+  vm.runInContext(compat, c);
+  assert.equal(c.URLSearchParams, URLSearchParams);
+});
+test('missing query APIs support setting quality and fallback parameters without losing IDs', () => {
+  const c = oldWebView();
+  const query = vm.runInContext(`(function(){
+    var params = new URLSearchParams({series_id:'123',vid:'456',quality:'1080p'});
+    params.set('quality','720p');params.set('codec_mode','default');params.set('mode','range');
+    return params.toString();
+  })()`, c);
+  assert.deepEqual(Object.fromEntries(new URLSearchParams(query)), {
+    series_id:'123',vid:'456',quality:'720p',codec_mode:'default',mode:'range'
+  });
+});
 test('Chromium 44 missing DOM/collection APIs are restored without losing Unicode', () => {
   const c=oldWebView();
   const value=vm.runInContext(`JSON.stringify({

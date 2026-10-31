@@ -28,13 +28,32 @@
     return null;
   };
   if (!Element.prototype.remove) Element.prototype.remove = function () { if (this.parentNode) this.parentNode.removeChild(this); };
-  if (!window.URLSearchParams) {
+  var NativeSearchParams = window.URLSearchParams;
+  var searchParamsRecords = false;
+  try {
+    // Chromium 49–60 exposes the API but stringifies records as [object Object].
+    searchParamsRecords = typeof NativeSearchParams === 'function' &&
+      new NativeSearchParams({ hongguo: '1' }).toString() === 'hongguo=1';
+  } catch (ignoredSearchParams) {}
+  if (typeof NativeSearchParams === 'function' && !searchParamsRecords) {
+    window.URLSearchParams = function (values) {
+      if (values && Object.prototype.toString.call(values) === '[object Object]' && !(values instanceof NativeSearchParams)) {
+        var params = new NativeSearchParams();
+        Object.keys(values).forEach(function (key) { params.append(key, String(values[key])); });
+        return params;
+      }
+      return new NativeSearchParams(values);
+    };
+    // Keep native encoding, methods, duplicate keys and instanceof behavior.
+    window.URLSearchParams.prototype = NativeSearchParams.prototype;
+  } else if (typeof NativeSearchParams !== 'function') {
     // The app constructs query strings from plain objects, not URLs.
     window.URLSearchParams = function (values) { this.values = Object.assign({}, values || {}); };
     window.URLSearchParams.prototype.toString = function () {
       var values = this.values;
       return Object.keys(values).map(function (key) { return encodeURIComponent(key) + '=' + encodeURIComponent(String(values[key])); }).join('&');
     };
+    window.URLSearchParams.prototype.set = function (key, value) { this.values[String(key)] = String(value); };
   }
   var legacyAbort = typeof window.AbortController !== 'function';
   if (legacyAbort) {
