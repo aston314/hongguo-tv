@@ -26,6 +26,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebResourceError;
 import android.webkit.WebResourceRequest;
+import android.webkit.RenderProcessGoneDetail;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -175,6 +176,26 @@ public class MainActivity extends Activity {
                 }
                 view.evaluateJavascript("window.HongguoTV && window.HongguoTV." +
                         (activityForeground ? "resumeFromBackground()" : "pauseForBackground()"), null);
+            }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                if (destroyed) return true;
+                android.util.Log.w("HongguoMainActivity", "WebView render process gone: didCrash=" +
+                        (detail != null && detail.didCrash()));
+                pageReady = false;
+                if (coreUrl != null && !isFinishing()) {
+                    startupPanel.setVisibility(View.VISIBLE);
+                    startupAnimation.start();
+                    if (view != null) {
+                        view.post(() -> {
+                            if (!destroyed && !isFinishing() && coreUrl != null) {
+                                view.loadUrl(coreUrl);
+                            }
+                        });
+                    }
+                }
+                return true;
             }
         });
         webView.setWebChromeClient(new WebChromeClient() {

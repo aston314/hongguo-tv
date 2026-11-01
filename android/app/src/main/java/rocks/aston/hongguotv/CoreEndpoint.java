@@ -24,7 +24,26 @@ final class CoreEndpoint {
     }
 
     boolean matches(String service, String instance, String version, String expectedVersion) {
-        return "hongguo-tv-core".equals(service) && instanceId.equals(instance)
-                && expectedVersion != null && !expectedVersion.isEmpty() && expectedVersion.equals(version);
+        if (!"hongguo-tv-core".equals(service) || !instanceId.equals(instance)) {
+            return false;
+        }
+        if (expectedVersion == null || expectedVersion.isEmpty() || version == null || version.isEmpty()) {
+            return false;
+        }
+        if (expectedVersion.equals(version)) {
+            return true;
+        }
+        if ("dev".equals(version) || "dev".equals(expectedVersion)) {
+            return true;
+        }
+        if (expectedVersion.endsWith("-dev")) {
+            String base = expectedVersion.substring(0, expectedVersion.length() - 4);
+            return base.equals(version) || version.startsWith(base);
+        }
+        if (version.endsWith("-dev")) {
+            String base = version.substring(0, version.length() - 4);
+            return base.equals(expectedVersion) || expectedVersion.startsWith(base);
+        }
+        return false;
     }
 }
