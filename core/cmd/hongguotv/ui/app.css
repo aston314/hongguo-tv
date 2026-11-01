@@ -26,7 +26,7 @@ button:focus { outline: none; }
 .brand-mark svg { width: 18px; height: 18px; fill: currentColor; }
 .side-nav { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 5px; overflow-y: auto; margin-top: 20px; padding: 10px 8px; scrollbar-width: none; }
 .side-nav::-webkit-scrollbar { display: none; }
-.side-item { display: flex; align-items: center; gap: 15px; width: 100%; min-height: 54px; padding: 0 16px; font-size: 20px; text-align: left; color: #c5c5ce; background: transparent; border-radius: 13px; transition: background .12s, color .12s, transform .12s; }
+.side-item { display: flex; align-items: center; gap: 15px; width: 100%; min-height: 54px; padding: 0 16px; font-size: 20px; text-align: left; color: #c5c5ce; background: transparent; border-radius: 13px; transition: none; }
 .side-item.is-active { color: #f35d7b; background: rgba(243,93,123,.22); font-weight: 700; }
 /* Leave room for the transformed focus ring inside the independently scrolling nav. */
 .side-item.is-focused, .side-item:focus:not(.pointer-focus-muted) { color: #fff; background: rgba(255,255,255,.17); box-shadow: 0 0 0 2px #fff; transform: scale(1.018); }
