@@ -308,3 +308,28 @@ html.tv-shell .radar-filter { font-size: 15px; }
 html.tv-shell .radar-table-head { font-size: 14px; }
 html.tv-shell .radar-row { font-size: 16px; }
 html.tv-shell .radar-rank { font-size: 17px; }
+
+/* Android TV media queries see the CSS viewport. Some TVs render a 1920x1080
+   app surface through a 960x540 CSS viewport, so restore the existing wide
+   rules for that TV surface without changing the base layout or phone rules. */
+html.tv-shell.tv-layout-1080 .search-heading-row { display: flex; }
+html.tv-shell.tv-layout-1080 .search-box { margin-top: 0; }
+html.tv-shell.tv-layout-1080 .search-results,
+html.tv-shell.tv-layout-1080 .new-grid,
+html.tv-shell.tv-layout-1080 .library-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+html.tv-shell.tv-layout-1080 .follow-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+html.tv-shell.tv-layout-1080 .detail-related-list { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+html.tv-shell.tv-layout-1080 .actor-works-list { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+html.tv-shell.tv-layout-1080 .page-workspace { padding-left: 34px; padding-right: 34px; }
+html.tv-shell.tv-layout-1080 .rank-layout { gap: 32px; }
+html.tv-shell.tv-layout-1080 .rank-subnav { flex-basis: 160px; }
+html.tv-shell.tv-layout-1080 .rank-row { grid-template-columns: 42px 116px minmax(0, 1fr) 94px; gap: 18px; }
+html.tv-shell.tv-layout-1080 .rank-row-image { width: 116px; height: 150px; }
+html.tv-shell.tv-layout-1080 .follow-notification-play-content { grid-template-columns: 116px minmax(0, 1fr) auto; gap: 18px; }
+html.tv-shell.tv-layout-1080 .follow-notification-image { width: 116px; height: 150px; }
+
+/* A 1280x720 TV surface keeps the existing medium-density rules, but the
+   generic 1080px query must not collapse follow/detail content to phone-like
+   four-column grids. */
+html.tv-shell.tv-layout-720 .follow-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+html.tv-shell.tv-layout-720 .detail-related-list { grid-template-columns: repeat(4, minmax(0, 1fr)); }

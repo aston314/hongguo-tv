@@ -1,6 +1,8 @@
 package rocks.aston.hongguotv;
 
 import android.content.Context;
+import android.content.pm.PackageManager;
+import android.content.res.Configuration;
 import android.content.pm.PackageInfo;
 import android.os.Build;
 import android.os.Process;
@@ -9,6 +11,18 @@ import org.json.JSONObject;
 
 /** Read-only, non-identifying device facts. Capture on the WebView's UI thread. */
 final class DeviceDiagnostics {
+    static boolean isTelevision(Context context) {
+        try {
+            Configuration configuration = context.getResources().getConfiguration();
+            if ((configuration.uiMode & Configuration.UI_MODE_TYPE_MASK)
+                    == Configuration.UI_MODE_TYPE_TELEVISION) return true;
+            PackageManager packageManager = context.getPackageManager();
+            return packageManager != null && packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK);
+        } catch (Exception ignored) {
+            return false;
+        }
+    }
+
     static String snapshot(Context context) {
         JSONObject facts = new JSONObject();
         try {

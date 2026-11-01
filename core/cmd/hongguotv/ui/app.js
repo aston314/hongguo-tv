@@ -161,6 +161,7 @@
   }
   var androidShell = /HongguoTV-Android/.test(navigator.userAgent);
   var webosShell = !!window.HongguoWebOS;
+  var tvLayout = window.HongguoTVLayout;
   // Explicit Wails configuration or ?platform=desktop; TV browser previews
   // retain the Android interaction model but do not expose native settings.
   var desktopShell = !!window.HongguoDesktop;
@@ -180,8 +181,16 @@
   var playbackMenuHintPreviewForced = /(?:^|[?&])show-playback-menu-hint=1(?:&|$)/.test((window.location && window.location.search) || '');
   var playbackMenuHintAvailable = androidShell || webosShell || playbackMenuHintPreviewForced;
   function applicationHidden() { return desktopShell ? !!window.HongguoDesktop.background : !!document.hidden; }
+  function refreshTvLayout() {
+    var television = false;
+    try { television = !!(window.HongguoTVDiagnostics && window.HongguoTVDiagnostics.isTelevision()); } catch (ignored) {}
+    var metrics = tvLayout && typeof tvLayout.read === 'function' ? tvLayout.read(window) : null;
+    if (tvLayout && typeof tvLayout.apply === 'function') tvLayout.apply(document, metrics, androidShell && television);
+    return metrics;
+  }
   document.documentElement.classList.toggle('desktop-shell', desktopShell);
   document.documentElement.classList.toggle('tv-shell', androidShell || webosShell);
+  refreshTvLayout();
   var numericKeypad;
   var accountNumberScan;
   var accountPhoneCountries = window.HongguoPhoneCountries || [];
@@ -7668,6 +7677,7 @@
   document.addEventListener('keydown', handleKey, true);
   document.addEventListener('scroll', queueTailCheck, true);
   window.addEventListener('resize', queueTailCheck);
+  window.addEventListener('resize', refreshTvLayout);
   window.addEventListener('resize', layoutLastPlaybackFrame);
   window.addEventListener('resize', resizePlaybackMenuHint);
   window.addEventListener('resize', function () { if (endRecommendations && endRecommendations.isOpen()) scrollEndRecommendationIntoView(document.activeElement); });
