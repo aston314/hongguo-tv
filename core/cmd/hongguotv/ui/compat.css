@@ -257,42 +257,47 @@
   .app-shell.sidebar-icons .side-icon { width: 30px; height: 30px; }
 }
 
-/* Shell typography must not override the shared short-viewport sidebar rules above. */
-html.tv-shell .page-context { font-size: 18px; }
-html.tv-shell .channel-tab { font-size: 18px; }
-html.tv-shell .top-status { font-size: 14px; }
-html.tv-shell .hero-top-copy strong { font-size: 19px; }
-html.tv-shell .hero-top-copy span { font-size: 15px; }
-html.tv-shell .hero-top-right { font-size: 14px; }
-html.tv-shell .hero-top-right strong { font-size: 17px; }
-html.tv-shell .catalog-heading { font-size: 20px; }
-html.tv-shell .catalog-card-title { font-size: 18px; }
-html.tv-shell .catalog-card-meta { font-size: 13px; }
-html.tv-shell .hero-title { font-size: 26px; }
-html.tv-shell .hero-episode { font-size: 17px; }
-html.tv-shell .hero-summary { max-height: 48px; font-size: 16px; }
-html.tv-shell .search-suggestion-name { font-size: 17px; }
-html.tv-shell .search-suggestion-meta,
-html.tv-shell .search-suggestion-kind { font-size: 13px; }
-html.tv-shell .search-result-card-title,
-html.tv-shell .new-card-title,
-html.tv-shell .library-card-title { font-size: 17px; }
-html.tv-shell .search-result-card-meta,
-html.tv-shell .new-card-meta,
-html.tv-shell .library-card-meta { font-size: 14px; }
-html.tv-shell .library-card-time { font-size: 13px; }
-html.tv-shell .new-filter,
-html.tv-shell .rank-view-tab { font-size: 16px; }
-html.tv-shell .rank-row-title { font-size: 20px; }
-html.tv-shell .rank-row-meta,
-html.tv-shell .rank-row-intro { font-size: 14px; }
-html.tv-shell .rank-row-heat { font-size: 16px; }
-html.tv-shell .radar-view-tab { font-size: 16px; }
-html.tv-shell .radar-title { font-size: 25px; }
-html.tv-shell .radar-status { font-size: 14px; }
-html.tv-shell .radar-section-heading h3 { font-size: 22px; }
-html.tv-shell .radar-section-heading span { font-size: 14px; }
-html.tv-shell .radar-filter { font-size: 15px; }
-html.tv-shell .radar-table-head { font-size: 14px; }
-html.tv-shell .radar-row { font-size: 16px; }
-html.tv-shell .radar-rank { font-size: 17px; }
+/* TV typography is an enhancement for genuinely wide CSS viewports.
+   Narrow Android TV WebViews (for example 1280x720 Zidoo or 960x540
+   Shield) keep the shared responsive rules used by the normal web shell. */
+@media (min-width: 1600px) {
+  /* Shell typography must not override the shared short-viewport sidebar rules above. */
+  html.tv-shell .page-context { font-size: 18px; }
+  html.tv-shell .channel-tab { font-size: 18px; }
+  html.tv-shell .top-status { font-size: 14px; }
+  html.tv-shell .hero-top-copy strong { font-size: 19px; }
+  html.tv-shell .hero-top-copy span { font-size: 15px; }
+  html.tv-shell .hero-top-right { font-size: 14px; }
+  html.tv-shell .hero-top-right strong { font-size: 17px; }
+  html.tv-shell .catalog-heading { font-size: 20px; }
+  html.tv-shell .catalog-card-title { font-size: 18px; }
+  html.tv-shell .catalog-card-meta { font-size: 13px; }
+  html.tv-shell .hero-title { font-size: 26px; }
+  html.tv-shell .hero-episode { font-size: 17px; }
+  html.tv-shell .hero-summary { max-height: 48px; font-size: 16px; }
+  html.tv-shell .search-suggestion-name { font-size: 17px; }
+  html.tv-shell .search-suggestion-meta,
+  html.tv-shell .search-suggestion-kind { font-size: 13px; }
+  html.tv-shell .search-result-card-title,
+  html.tv-shell .new-card-title,
+  html.tv-shell .library-card-title { font-size: 17px; }
+  html.tv-shell .search-result-card-meta,
+  html.tv-shell .new-card-meta,
+  html.tv-shell .library-card-meta { font-size: 14px; }
+  html.tv-shell .library-card-time { font-size: 13px; }
+  html.tv-shell .new-filter,
+  html.tv-shell .rank-view-tab { font-size: 16px; }
+  html.tv-shell .rank-row-title { font-size: 20px; }
+  html.tv-shell .rank-row-meta,
+  html.tv-shell .rank-row-intro { font-size: 14px; }
+  html.tv-shell .rank-row-heat { font-size: 16px; }
+  html.tv-shell .radar-view-tab { font-size: 16px; }
+  html.tv-shell .radar-title { font-size: 25px; }
+  html.tv-shell .radar-status { font-size: 14px; }
+  html.tv-shell .radar-section-heading h3 { font-size: 22px; }
+  html.tv-shell .radar-section-heading span { font-size: 14px; }
+  html.tv-shell .radar-filter { font-size: 15px; }
+  html.tv-shell .radar-table-head { font-size: 14px; }
+  html.tv-shell .radar-row { font-size: 16px; }
+  html.tv-shell .radar-rank { font-size: 17px; }
+}
