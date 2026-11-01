@@ -37,6 +37,8 @@ jobs:
           VERSION: zidoo-preview-${{ github.sha }}
       - name: Build standard debug APK
         run: gradle --no-daemon --max-workers=1 -p android assembleStandardDebug
+        env:
+          HONGGUO_CORE_VERSION: zidoo-preview-${{ github.sha }}
       - name: Upload standard debug APK
         uses: actions/upload-artifact@v4
         with:
