@@ -129,9 +129,6 @@ public class MainActivity extends Activity {
             @JavascriptInterface public String readDevice() {
                 return pageReady && !destroyed ? diagnosticDeviceJSON : "{}";
             }
-            @JavascriptInterface public int layoutViewportWidth() {
-                return DeviceDiagnostics.layoutViewportWidth(MainActivity.this);
-            }
             @JavascriptInterface public boolean isTelevision() {
                 return DeviceDiagnostics.isTelevision(MainActivity.this);
             }

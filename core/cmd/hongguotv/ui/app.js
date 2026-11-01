@@ -2658,13 +2658,26 @@
     function valid(value) { return typeof value === 'number' && isFinite(value) && value > 0; }
     function dimensions(w, h) { return valid(w) && valid(h) ? w + ' × ' + h : uiText('ui.notObtained', '未取得'); }
     var pixels = valid(width) && valid(height) && valid(dpr) ? dimensions(Math.round(width * dpr), Math.round(height * dpr)) : uiText('ui.notObtained', '未取得');
-    return { userAgent: userAgent, rows: [
+    var rows = [
       { label: uiText('ui.viewportSize', '视口尺寸'), value: dimensions(width, height) },
       { label: uiText('ui.screenSize', '屏幕尺寸'), value: dimensions(screen.width, screen.height) },
       { label: 'DPR', value: valid(dpr) ? String(dpr) : uiText('ui.notObtained', '未取得') },
       { label: uiText('ui.pixelEstimate', '像素估算'), value: pixels },
       { label: 'User Agent', value: userAgent || uiText('ui.notObtained', '未取得'), wide: true }
-    ] };
+    ];
+    if (window.HongguoTVDiagnostics && window.HongguoTVViewport && typeof window.HongguoTVViewport.describe === 'function') {
+      var layout = {};
+      try { layout = window.HongguoTVViewport.describe() || {}; } catch (ignoredLayout) {}
+      var layoutLabel = '未调整';
+      if (layout.state === 'applied') layoutLabel = '已调整：' + dimensions(layout.beforeWidth, layout.beforeHeight) + ' → 1280，缩放 ' + layout.scale;
+      else if (layout.state === 'not-television') layoutLabel = '未调整：设备未识别为 Android TV';
+      else if (layout.state === 'viewport-unchanged') layoutLabel = '未调整：当前 WebView 视口为 ' + dimensions(layout.beforeWidth, layout.beforeHeight);
+      else if (layout.state === 'bridge-pending' || layout.state === 'bridge-unavailable') layoutLabel = '未调整：Android 识别桥未就绪';
+      else if (layout.state === 'viewport-pending' || layout.state === 'viewport-unavailable') layoutLabel = '未调整：WebView 视口尺寸不可用';
+      else if (layout.state === 'viewport-meta-missing') layoutLabel = '未调整：网页缺少 viewport 配置';
+      rows.splice(4, 0, { label: 'TV 布局视口判定', value: layoutLabel, wide: true });
+    }
+    return { userAgent: userAgent, rows: rows };
   }
   function readDiagnosticVideo(video) {
     var api = window.HongguoPlaybackDiagnostics;

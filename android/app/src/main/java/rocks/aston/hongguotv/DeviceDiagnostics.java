@@ -6,7 +6,6 @@ import android.content.res.Configuration;
 import android.content.pm.PackageInfo;
 import android.os.Build;
 import android.os.Process;
-import android.util.DisplayMetrics;
 import android.webkit.WebView;
 import org.json.JSONObject;
 
@@ -32,16 +31,6 @@ final class DeviceDiagnostics {
         } catch (Exception ignored) {
             return false;
         }
-    }
-
-    static int layoutViewportWidth(Context context) {
-        DisplayMetrics metrics = context.getResources().getDisplayMetrics();
-        Configuration configuration = context.getResources().getConfiguration();
-        return TvViewportPolicy.targetWidth(isTelevision(context),
-                metrics == null ? 0 : metrics.widthPixels,
-                metrics == null ? 0 : metrics.heightPixels,
-                metrics == null ? 0 : metrics.densityDpi,
-                configuration.screenWidthDp, configuration.screenHeightDp);
     }
 
     static String snapshot(Context context) {
