@@ -17,7 +17,15 @@ final class DeviceDiagnostics {
             if ((configuration.uiMode & Configuration.UI_MODE_TYPE_MASK)
                     == Configuration.UI_MODE_TYPE_TELEVISION) return true;
             PackageManager packageManager = context.getPackageManager();
-            return packageManager != null && packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK);
+            if (packageManager == null) return false;
+            if (packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) return true;
+            // Some Android set-top boxes (including older Zidoo/Realtek
+            // firmware) expose neither the TV UI mode nor Leanback, while
+            // still advertising HDMI-CEC. Treat that capability as a TV
+            // signal so their full-screen WebView is not classified by its
+            // small CSS viewport as a phone layout.
+            return Build.VERSION.SDK_INT >= 17
+                    && packageManager.hasSystemFeature(PackageManager.FEATURE_HDMI_CEC);
         } catch (Exception ignored) {
             return false;
         }
