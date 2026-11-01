@@ -9,12 +9,12 @@ import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory;
 
-/** Prefer platform decoding and expose NextLib FFmpeg for bounded software fallback. */
+/** Keep WebView HTML5 primary; Media3 remains available as a bounded fallback. */
 @android.annotation.SuppressLint("UnsafeOptInUsageError")
 final class PlayerRendererPolicy {
     private PlayerRendererPolicy() {}
 
-    static boolean primaryPlayback() { return true; }
+    static boolean primaryPlayback() { return false; }
     static boolean ffmpegAvailable() { return true; }
 
     static DefaultRenderersFactory create(Context context, boolean preferFfmpeg,

@@ -188,11 +188,12 @@ test('WebView remains the default until native fallback is requested', () => {
   proxy.play();
   assert.equal(proxy.src, '/media/test.mp4');
   assert.equal(f.bridge.lastId, null);
+  assert.equal(f.context.window.HongguoNativePlaybackAdapter.diagnostics().preferred_path, 'HTML5');
   assert.equal(f.rootClassNames.has('native-playback'), false);
   proxy.pause();
 });
 
-test('standard Media3 starts first and keeps one bounded HTML5 fallback', async () => {
+test('explicit Media3-primary mode keeps one bounded HTML5 fallback', async () => {
   const f = fixture('media3'), video = f.document.getElementById('hero-video');
   video.src = '/media/test.mp4';
   await video.play();
@@ -207,7 +208,7 @@ test('standard Media3 starts first and keeps one bounded HTML5 fallback', async 
   assert.equal(f.bridge.plays, 1, 'a Media3 failure must not loop back into native playback');
 });
 
-test('standard Media3 retries for a new source after HTML5 fallback', async () => {
+test('Media3-primary mode retries for a new source after HTML5 fallback', async () => {
   const f = fixture('media3'), video = f.document.getElementById('hero-video');
   video.src = '/media/first.mp4';
   await video.play();

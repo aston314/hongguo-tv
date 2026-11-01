@@ -104,7 +104,7 @@ final class PlayerBridge implements NativePlayerAdapter {
         portraitBackdrop=new PortraitBackdropCapture(web);
         preferences=web.getContext().getSharedPreferences("doudou_playback",Context.MODE_PRIVATE);
         diagnostic=preferences.getString("last_diagnostics","{}");
-        // Standard Android playback starts on Media3; WebView is the bounded fallback.
+        // Standard Android playback starts on WebView; Media3 is the bounded fallback.
         surface=new SurfaceView(web.getContext());texture=null;renderView=surface;
         renderView.setFocusable(false);holder.addView(renderView,new FrameLayout.LayoutParams(-1,-1));
         holder.setVisibility(View.GONE);handler.postDelayed(progress,500);
