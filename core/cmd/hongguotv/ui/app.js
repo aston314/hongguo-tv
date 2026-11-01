@@ -161,7 +161,6 @@
   }
   var androidShell = /HongguoTV-Android/.test(navigator.userAgent);
   var webosShell = !!window.HongguoWebOS;
-  var tvLayout = window.HongguoTVLayout;
   // Explicit Wails configuration or ?platform=desktop; TV browser previews
   // retain the Android interaction model but do not expose native settings.
   var desktopShell = !!window.HongguoDesktop;
@@ -181,16 +180,8 @@
   var playbackMenuHintPreviewForced = /(?:^|[?&])show-playback-menu-hint=1(?:&|$)/.test((window.location && window.location.search) || '');
   var playbackMenuHintAvailable = androidShell || webosShell || playbackMenuHintPreviewForced;
   function applicationHidden() { return desktopShell ? !!window.HongguoDesktop.background : !!document.hidden; }
-  function refreshTvLayout() {
-    var television = false;
-    try { television = !!(window.HongguoTVDiagnostics && window.HongguoTVDiagnostics.isTelevision()); } catch (ignored) {}
-    var metrics = tvLayout && typeof tvLayout.read === 'function' ? tvLayout.read(window) : null;
-    if (tvLayout && typeof tvLayout.apply === 'function') tvLayout.apply(document, metrics, androidShell && television);
-    return metrics;
-  }
   document.documentElement.classList.toggle('desktop-shell', desktopShell);
   document.documentElement.classList.toggle('tv-shell', androidShell || webosShell);
-  refreshTvLayout();
   var numericKeypad;
   var accountNumberScan;
   var accountPhoneCountries = window.HongguoPhoneCountries || [];
@@ -2667,20 +2658,13 @@
     function valid(value) { return typeof value === 'number' && isFinite(value) && value > 0; }
     function dimensions(w, h) { return valid(w) && valid(h) ? w + ' × ' + h : uiText('ui.notObtained', '未取得'); }
     var pixels = valid(width) && valid(height) && valid(dpr) ? dimensions(Math.round(width * dpr), Math.round(height * dpr)) : uiText('ui.notObtained', '未取得');
-    var rows = [
+    return { userAgent: userAgent, rows: [
       { label: uiText('ui.viewportSize', '视口尺寸'), value: dimensions(width, height) },
       { label: uiText('ui.screenSize', '屏幕尺寸'), value: dimensions(screen.width, screen.height) },
       { label: 'DPR', value: valid(dpr) ? String(dpr) : uiText('ui.notObtained', '未取得') },
       { label: uiText('ui.pixelEstimate', '像素估算'), value: pixels },
       { label: 'User Agent', value: userAgent || uiText('ui.notObtained', '未取得'), wide: true }
-    ];
-    if (window.HongguoTVDiagnostics && tvLayout && typeof tvLayout.describe === 'function') {
-      var layout = {};
-      try { layout = tvLayout.describe() || {}; } catch (ignoredLayout) {}
-      var layoutLabel = layout.state === 'applied' ? '短视口侧栏布局：' + dimensions(layout.width, layout.height) : layout.state === 'not-television' ? '基础媒体查询：设备未识别为 Android TV' : '基础媒体查询：' + dimensions(layout.width, layout.height);
-      rows.splice(4, 0, { label: 'TV 布局路径', value: layoutLabel, wide: true });
-    }
-    return { userAgent: userAgent, rows: rows };
+    ] };
   }
   function readDiagnosticVideo(video) {
     var api = window.HongguoPlaybackDiagnostics;
@@ -7684,7 +7668,6 @@
   document.addEventListener('keydown', handleKey, true);
   document.addEventListener('scroll', queueTailCheck, true);
   window.addEventListener('resize', queueTailCheck);
-  window.addEventListener('resize', refreshTvLayout);
   window.addEventListener('resize', layoutLastPlaybackFrame);
   window.addEventListener('resize', resizePlaybackMenuHint);
   window.addEventListener('resize', function () { if (endRecommendations && endRecommendations.isOpen()) scrollEndRecommendationIntoView(document.activeElement); });

@@ -24,8 +24,8 @@ final class DeviceDiagnostics {
             if (packageManager == null) return false;
             if (packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)) return true;
             // Older set-top boxes may omit both TV UI mode and Leanback while
-            // still exposing HDMI-CEC. This is only a capability signal; the
-            // WebView layout falls back to its normal media queries otherwise.
+            // still exposing HDMI-CEC. This is only a capability signal;
+            // WebView layout always uses the shared CSS media queries.
             return Build.VERSION.SDK_INT >= 17
                     && packageManager.hasSystemFeature(FEATURE_HDMI_CEC);
         } catch (Exception ignored) {
