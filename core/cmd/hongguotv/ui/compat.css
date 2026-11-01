@@ -257,46 +257,57 @@
   .app-shell.sidebar-icons .side-icon { width: 30px; height: 30px; }
 }
 
-/* Preserve the tuned compact Shield scale and wide-TV scale. The intermediate
-   1280px Zidoo viewport uses the shared responsive typography. */
-@media (max-width: 1023px), (min-width: 1600px) {
-  /* Shell typography must not override the shared short-viewport sidebar rules above. */
-  html.tv-shell .page-context { font-size: 18px; }
-  html.tv-shell .channel-tab { font-size: 18px; }
-  html.tv-shell .top-status { font-size: 14px; }
-  html.tv-shell .hero-top-copy strong { font-size: 19px; }
-  html.tv-shell .hero-top-copy span { font-size: 15px; }
-  html.tv-shell .hero-top-right { font-size: 14px; }
-  html.tv-shell .hero-top-right strong { font-size: 17px; }
-  html.tv-shell .catalog-heading { font-size: 20px; }
-  html.tv-shell .catalog-card-title { font-size: 18px; }
-  html.tv-shell .catalog-card-meta { font-size: 13px; }
-  html.tv-shell .hero-title { font-size: 26px; }
-  html.tv-shell .hero-episode { font-size: 17px; }
-  html.tv-shell .hero-summary { max-height: 48px; font-size: 16px; }
-  html.tv-shell .search-suggestion-name { font-size: 17px; }
-  html.tv-shell .search-suggestion-meta,
-  html.tv-shell .search-suggestion-kind { font-size: 13px; }
-  html.tv-shell .search-result-card-title,
-  html.tv-shell .new-card-title,
-  html.tv-shell .library-card-title { font-size: 17px; }
-  html.tv-shell .search-result-card-meta,
-  html.tv-shell .new-card-meta,
-  html.tv-shell .library-card-meta { font-size: 14px; }
-  html.tv-shell .library-card-time { font-size: 13px; }
-  html.tv-shell .new-filter,
-  html.tv-shell .rank-view-tab { font-size: 16px; }
-  html.tv-shell .rank-row-title { font-size: 20px; }
-  html.tv-shell .rank-row-meta,
-  html.tv-shell .rank-row-intro { font-size: 14px; }
-  html.tv-shell .rank-row-heat { font-size: 16px; }
-  html.tv-shell .radar-view-tab { font-size: 16px; }
-  html.tv-shell .radar-title { font-size: 25px; }
-  html.tv-shell .radar-status { font-size: 14px; }
-  html.tv-shell .radar-section-heading h3 { font-size: 22px; }
-  html.tv-shell .radar-section-heading span { font-size: 14px; }
-  html.tv-shell .radar-filter { font-size: 15px; }
-  html.tv-shell .radar-table-head { font-size: 14px; }
-  html.tv-shell .radar-row { font-size: 16px; }
-  html.tv-shell .radar-rank { font-size: 17px; }
+/* Preserve the v0.2.137 TV layout. Only short CSS viewports use the shared
+   compact sidebar above; TV detection must not shrink regular-height layouts. */
+@media (min-height: 561px) and (max-height: 850px) {
+  html.tv-shell .brand { height: 48px; font-size: 21px; }
+  html.tv-shell .side-nav { margin-top: 8px; padding-top: 6px; padding-bottom: 6px; }
+  html.tv-shell .side-item { min-height: 54px; padding-left: 16px; padding-right: 16px; font-size: 20px; }
+  html.tv-shell .side-icon { flex-basis: 32px; width: 32px; height: 32px; }
+  html.tv-shell .sidebar-bottom { margin-top: 4px; padding-top: 6px; }
+  html.tv-shell .sidebar-bottom .side-item + .side-item { margin-top: 3px; }
+  html.tv-shell .app-shell.sidebar-icons .side-item { min-height: 54px; padding: 9px 0; }
+  html.tv-shell .app-shell.sidebar-icons .side-icon { flex-basis: 36px; width: 36px; height: 36px; }
 }
+@media (min-height: 561px) {
+  .legacy-flex-gap.tv-shell .side-nav .side-item + .side-item { margin-top: 3px; }
+}
+
+html.tv-shell .page-context { font-size: 18px; }
+html.tv-shell .channel-tab { font-size: 18px; }
+html.tv-shell .top-status { font-size: 14px; }
+html.tv-shell .hero-top-copy strong { font-size: 19px; }
+html.tv-shell .hero-top-copy span { font-size: 15px; }
+html.tv-shell .hero-top-right { font-size: 14px; }
+html.tv-shell .hero-top-right strong { font-size: 17px; }
+html.tv-shell .catalog-heading { font-size: 20px; }
+html.tv-shell .catalog-card-title { font-size: 18px; }
+html.tv-shell .catalog-card-meta { font-size: 13px; }
+html.tv-shell .hero-title { font-size: 26px; }
+html.tv-shell .hero-episode { font-size: 17px; }
+html.tv-shell .hero-summary { max-height: 48px; font-size: 16px; }
+html.tv-shell .search-suggestion-name { font-size: 17px; }
+html.tv-shell .search-suggestion-meta,
+html.tv-shell .search-suggestion-kind { font-size: 13px; }
+html.tv-shell .search-result-card-title,
+html.tv-shell .new-card-title,
+html.tv-shell .library-card-title { font-size: 17px; }
+html.tv-shell .search-result-card-meta,
+html.tv-shell .new-card-meta,
+html.tv-shell .library-card-meta { font-size: 14px; }
+html.tv-shell .library-card-time { font-size: 13px; }
+html.tv-shell .new-filter,
+html.tv-shell .rank-view-tab { font-size: 16px; }
+html.tv-shell .rank-row-title { font-size: 20px; }
+html.tv-shell .rank-row-meta,
+html.tv-shell .rank-row-intro { font-size: 14px; }
+html.tv-shell .rank-row-heat { font-size: 16px; }
+html.tv-shell .radar-view-tab { font-size: 16px; }
+html.tv-shell .radar-title { font-size: 25px; }
+html.tv-shell .radar-status { font-size: 14px; }
+html.tv-shell .radar-section-heading h3 { font-size: 22px; }
+html.tv-shell .radar-section-heading span { font-size: 14px; }
+html.tv-shell .radar-filter { font-size: 15px; }
+html.tv-shell .radar-table-head { font-size: 14px; }
+html.tv-shell .radar-row { font-size: 16px; }
+html.tv-shell .radar-rank { font-size: 17px; }
