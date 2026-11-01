@@ -58,7 +58,8 @@ test('actor works modal traps focus, restores its opener on Back, and retries wi
   assert.match(actorBlock, /actorWorksReturnFocus = arguments\.length > 2 && arguments\[2\] \? arguments\[2\] : document\.activeElement/);
   assert.match(actorBlock, /goFocus\(target\)/);
   assert.match(actorBlock, /if \(!restoreSearchSuggestionFocus\(\)\) goFocus\(target\)/);
-  assert.match(focusBlock, /actorWorksOpen\) \{ if \(!element\.closest\('#actor-works-modal'\)\) return; \}/);
+  assert.match(source, /\['#actor-works-modal', function \(\) \{ return typeof actorWorksOpen !== 'undefined' && actorWorksOpen; \}\]/);
+  assert.match(focusBlock, /var root = activeModalRoot\(\);[\s\S]*if \(root\) \{ if \(!element\.closest\(root\)\) return; \}/);
   assert.match(modalMove, /if \(zone === 'actorWorks'\)/);
   assert.match(source, /rank-row-play, \.rank-row-detail, \.rank-row-actor/);
 });

@@ -296,3 +296,29 @@ html.tv-shell .radar-filter { font-size: 15px; }
 html.tv-shell .radar-table-head { font-size: 14px; }
 html.tv-shell .radar-row { font-size: 16px; }
 html.tv-shell .radar-rank { font-size: 17px; }
+
+/* TV home (recommendation feed) layout. Keeps overlays inside a ~5% safe
+   area, removes the duplicate top-left title and gives the watched video a
+   visible focus cue while controls are shown. */
+html.tv-shell .hero.is-feed .hero-top-copy { display: none; }
+html.tv-shell .hero-top-right { top: 54px; right: 5%; padding: 6px 12px; background: rgba(12,13,18,.55); border-radius: 18px; }
+html.tv-shell .hero-top-right span { color: #a9a9b3; font-size: 13px; }
+html.tv-shell .right-actions { right: 5%; }
+html.tv-shell .bottom-controls { left: 5%; right: 5%; bottom: 48px; }
+html.tv-shell .hero-title, html.tv-shell .hero-episode, html.tv-shell .hero-summary { left: 5%; }
+html.tv-shell .hero-title { bottom: 252px; font-size: 30px; }
+html.tv-shell .hero-episode { bottom: 220px; }
+html.tv-shell .hero-summary { bottom: 150px; max-width: 900px; max-width: min(900px, 60%); max-height: 78px; font-size: 17px; -webkit-line-clamp: 3; }
+html.tv-shell .hero-feed-focus { top: 0; right: 0; bottom: 0; left: 0; width: auto; height: auto; border-radius: 0; transition: box-shadow .14s ease-out; }
+html.tv-shell .app-shell:not(.is-controls-hidden) .hero-feed-focus.is-focused { opacity: 1; background: transparent; box-shadow: inset 0 0 0 3px rgba(255,255,255,.85); }
+@media (prefers-reduced-motion: reduce) { html.tv-shell .hero-feed-focus { transition: none; } }
+
+/* TV bottom bar: rarely used speed/diagnostics move into the 更多 menu.
+   Desktop keeps its direct buttons and has no 更多 button. */
+.control-more, .hero-nav-hint { display: none; }
+html.tv-shell .control-more { display: inline-block; }
+html.tv-shell .playback-buttons [data-action="speed"],
+html.tv-shell .playback-buttons [data-action="diagnostics"] { display: none; }
+html:not(.tv-shell) #player-menu-speed, html:not(.tv-shell) #player-menu-diagnostics { display: none; }
+html.tv-shell .hero-nav-hint { display: block; color: #a9a9b3; font-size: 13px; }
+html.tv-shell .app-shell:not(.is-cinema) .hero-nav-hint { display: none; }
