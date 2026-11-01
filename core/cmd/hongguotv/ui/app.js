@@ -161,6 +161,7 @@
   }
   var androidShell = /HongguoTV-Android/.test(navigator.userAgent);
   var webosShell = !!window.HongguoWebOS;
+  var tvLayout = window.HongguoTVLayout;
   // Explicit Wails configuration or ?platform=desktop; TV browser previews
   // retain the Android interaction model but do not expose native settings.
   var desktopShell = !!window.HongguoDesktop;
@@ -180,8 +181,16 @@
   var playbackMenuHintPreviewForced = /(?:^|[?&])show-playback-menu-hint=1(?:&|$)/.test((window.location && window.location.search) || '');
   var playbackMenuHintAvailable = androidShell || webosShell || playbackMenuHintPreviewForced;
   function applicationHidden() { return desktopShell ? !!window.HongguoDesktop.background : !!document.hidden; }
+  function refreshTvLayout() {
+    var television = false;
+    try { television = !!(window.HongguoTVDiagnostics && window.HongguoTVDiagnostics.isTelevision()); } catch (ignored) {}
+    var metrics = tvLayout && typeof tvLayout.read === 'function' ? tvLayout.read(window) : null;
+    if (tvLayout && typeof tvLayout.apply === 'function') tvLayout.apply(document, metrics, androidShell && television);
+    return metrics;
+  }
   document.documentElement.classList.toggle('desktop-shell', desktopShell);
   document.documentElement.classList.toggle('tv-shell', androidShell || webosShell);
+  refreshTvLayout();
   var numericKeypad;
   var accountNumberScan;
   var accountPhoneCountries = window.HongguoPhoneCountries || [];
@@ -2665,17 +2674,11 @@
       { label: uiText('ui.pixelEstimate', '像素估算'), value: pixels },
       { label: 'User Agent', value: userAgent || uiText('ui.notObtained', '未取得'), wide: true }
     ];
-    if (window.HongguoTVDiagnostics && window.HongguoTVViewport && typeof window.HongguoTVViewport.describe === 'function') {
+    if (window.HongguoTVDiagnostics && tvLayout && typeof tvLayout.describe === 'function') {
       var layout = {};
-      try { layout = window.HongguoTVViewport.describe() || {}; } catch (ignoredLayout) {}
-      var layoutLabel = '未调整';
-      if (layout.state === 'applied') layoutLabel = '已调整：' + dimensions(layout.beforeWidth, layout.beforeHeight) + ' → 1280，缩放 ' + layout.scale;
-      else if (layout.state === 'not-television') layoutLabel = '未调整：设备未识别为 Android TV';
-      else if (layout.state === 'viewport-unchanged') layoutLabel = '未调整：当前 WebView 视口为 ' + dimensions(layout.beforeWidth, layout.beforeHeight);
-      else if (layout.state === 'bridge-pending' || layout.state === 'bridge-unavailable') layoutLabel = '未调整：Android 识别桥未就绪';
-      else if (layout.state === 'viewport-pending' || layout.state === 'viewport-unavailable') layoutLabel = '未调整：WebView 视口尺寸不可用';
-      else if (layout.state === 'viewport-meta-missing') layoutLabel = '未调整：网页缺少 viewport 配置';
-      rows.splice(4, 0, { label: 'TV 布局视口判定', value: layoutLabel, wide: true });
+      try { layout = tvLayout.describe() || {}; } catch (ignoredLayout) {}
+      var layoutLabel = layout.state === 'applied' ? '短视口侧栏布局：' + dimensions(layout.width, layout.height) : layout.state === 'not-television' ? '基础媒体查询：设备未识别为 Android TV' : '基础媒体查询：' + dimensions(layout.width, layout.height);
+      rows.splice(4, 0, { label: 'TV 布局路径', value: layoutLabel, wide: true });
     }
     return { userAgent: userAgent, rows: rows };
   }
@@ -7681,6 +7684,7 @@
   document.addEventListener('keydown', handleKey, true);
   document.addEventListener('scroll', queueTailCheck, true);
   window.addEventListener('resize', queueTailCheck);
+  window.addEventListener('resize', refreshTvLayout);
   window.addEventListener('resize', layoutLastPlaybackFrame);
   window.addEventListener('resize', resizePlaybackMenuHint);
   window.addEventListener('resize', function () { if (endRecommendations && endRecommendations.isOpen()) scrollEndRecommendationIntoView(document.activeElement); });

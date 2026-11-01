@@ -118,7 +118,6 @@ public class MainActivity extends Activity {
         settings.setUserAgentString(settings.getUserAgentString() + " HongguoTV-Android");
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
-        settings.setUseWideViewPort(DeviceDiagnostics.isTelevision(this));
         // Fetch UI assets from the core embedded in this APK after updates.
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setMediaPlaybackRequiresUserGesture(false);

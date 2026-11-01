@@ -308,3 +308,15 @@ html.tv-shell .radar-filter { font-size: 15px; }
 html.tv-shell .radar-table-head { font-size: 14px; }
 html.tv-shell .radar-row { font-size: 16px; }
 html.tv-shell .radar-rank { font-size: 17px; }
+
+/* Only compact the sidebar for an Android TV exposing a 960x540-like CSS
+   viewport. Wide TV viewports keep their existing responsive layout rules. */
+html.tv-shell.tv-layout-base .brand { height: 38px; font-size: 18px; }
+html.tv-shell.tv-layout-base .side-nav { margin-top: 6px; padding-top: 6px; padding-bottom: 6px; }
+html.tv-shell.tv-layout-base .side-item { min-height: 38px; padding-left: 10px; padding-right: 10px; font-size: 18px; }
+html.tv-shell.tv-layout-base .side-icon { flex-basis: 28px; width: 28px; height: 28px; }
+html.tv-shell.tv-layout-base .sidebar-bottom { margin-top: 4px; padding-top: 4px; }
+html.tv-shell.tv-layout-base .sidebar-bottom .side-item + .side-item,
+html.legacy-flex-gap.tv-shell.tv-layout-base .side-nav .side-item + .side-item { margin-top: 2px; }
+html.tv-shell.tv-layout-base .app-shell.sidebar-icons .side-item { min-height: 0; padding: 3px 0; }
+html.tv-shell.tv-layout-base .app-shell.sidebar-icons .side-icon { flex-basis: 30px; width: 30px; height: 30px; }
