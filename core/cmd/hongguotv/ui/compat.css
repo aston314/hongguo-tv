@@ -309,7 +309,9 @@ html.tv-shell .hero-title, html.tv-shell .hero-episode, html.tv-shell .hero-summ
 html.tv-shell .hero-title { bottom: 252px; font-size: 30px; }
 html.tv-shell .hero-episode { bottom: 220px; }
 html.tv-shell .hero-summary { bottom: 150px; max-width: 900px; max-width: min(900px, 60%); max-height: 78px; font-size: 17px; -webkit-line-clamp: 3; }
-html.tv-shell .hero-feed-focus { top: 0; right: 0; bottom: 0; left: 0; width: auto; height: auto; border-radius: 0; transition: box-shadow .14s ease-out; }
+/* Chromium 83 does not stretch an absolutely positioned <button> from its
+   insets, so size it explicitly. */
+html.tv-shell .hero-feed-focus { top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%; border-radius: 0; transition: box-shadow .14s ease-out; }
 html.tv-shell .app-shell:not(.is-controls-hidden) .hero-feed-focus.is-focused { opacity: 1; background: transparent; box-shadow: inset 0 0 0 3px rgba(255,255,255,.85); }
 @media (prefers-reduced-motion: reduce) { html.tv-shell .hero-feed-focus { transition: none; } }
 
