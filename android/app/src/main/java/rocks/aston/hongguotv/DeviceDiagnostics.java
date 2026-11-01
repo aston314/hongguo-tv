@@ -12,6 +12,10 @@ import org.json.JSONObject;
 
 /** Read-only, non-identifying device facts. Capture on the WebView's UI thread. */
 final class DeviceDiagnostics {
+    // PackageManager does not expose this feature key in every Android SDK
+    // platform used by the project, although the framework feature is stable.
+    private static final String FEATURE_HDMI_CEC = "android.hardware.hdmi.cec";
+
     static boolean isTelevision(Context context) {
         try {
             Configuration configuration = context.getResources().getConfiguration();
@@ -24,7 +28,7 @@ final class DeviceDiagnostics {
             // still exposing HDMI-CEC. This is only a capability signal; the
             // WebView layout falls back to its normal media queries otherwise.
             return Build.VERSION.SDK_INT >= 17
-                    && packageManager.hasSystemFeature(PackageManager.FEATURE_HDMI_CEC);
+                    && packageManager.hasSystemFeature(FEATURE_HDMI_CEC);
         } catch (Exception ignored) {
             return false;
         }
