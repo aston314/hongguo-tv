@@ -257,10 +257,9 @@
   .app-shell.sidebar-icons .side-icon { width: 30px; height: 30px; }
 }
 
-/* TV typography is an enhancement for genuinely wide CSS viewports.
-   Narrow Android TV WebViews (for example 1280x720 Zidoo or 960x540
-   Shield) keep the shared responsive rules used by the normal web shell. */
-@media (min-width: 1600px) {
+/* Preserve the tuned compact Shield scale and wide-TV scale. The intermediate
+   1280px Zidoo viewport uses the shared responsive typography. */
+@media (max-width: 1023px), (min-width: 1600px) {
   /* Shell typography must not override the shared short-viewport sidebar rules above. */
   html.tv-shell .page-context { font-size: 18px; }
   html.tv-shell .channel-tab { font-size: 18px; }
