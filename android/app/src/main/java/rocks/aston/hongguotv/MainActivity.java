@@ -118,6 +118,7 @@ public class MainActivity extends Activity {
         settings.setUserAgentString(settings.getUserAgentString() + " HongguoTV-Android");
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
+        settings.setUseWideViewPort(DeviceDiagnostics.isTelevision(this));
         // Fetch UI assets from the core embedded in this APK after updates.
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
         settings.setMediaPlaybackRequiresUserGesture(false);
@@ -127,6 +128,12 @@ public class MainActivity extends Activity {
         webView.addJavascriptInterface(new Object() {
             @JavascriptInterface public String readDevice() {
                 return pageReady && !destroyed ? diagnosticDeviceJSON : "{}";
+            }
+            @JavascriptInterface public int layoutViewportWidth() {
+                return DeviceDiagnostics.layoutViewportWidth(MainActivity.this);
+            }
+            @JavascriptInterface public boolean isTelevision() {
+                return DeviceDiagnostics.isTelevision(MainActivity.this);
             }
         }, "HongguoTVDiagnostics");
         webView.addJavascriptInterface(new PlaybackPreferences(this), "HongguoTVPreferences");
