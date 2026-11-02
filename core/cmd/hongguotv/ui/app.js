@@ -5730,6 +5730,9 @@
     searchSuggestionOpen = false;
     searchSuggestionFocusedKey = '';
     if (searchSuggestions) {
+      if (document.activeElement && searchSuggestions.contains(document.activeElement)) {
+        try { document.activeElement.blur(); } catch (ignored) {}
+      }
       searchSuggestions.classList.add('is-hidden');
       searchSuggestions.setAttribute('aria-hidden', 'true');
     }
@@ -5859,6 +5862,9 @@
     if (!item) return;
     searchSuggestionReturnKey = button && button.dataset.suggestionKey || item.key || item.name;
     var returnFocus = searchInput;
+    if (button && typeof button.blur === 'function') {
+      try { button.blur(); } catch (ignored) {}
+    }
     closeSearchSuggestions(false);
     if (item.kind === 'short_play_actor' && item.actor_id) {
       openActorWorks({ actor_id: item.actor_id, title: item.name }, false, returnFocus);
