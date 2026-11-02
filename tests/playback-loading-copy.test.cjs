@@ -124,10 +124,11 @@ function beginReadySwitch(f,startedAt=1000) {
   f.c.setPlayerStatus(f.c.episodeLoadingText(2));
 }
 
-test('a ready full-file switch hides the loading panel through paints and waiting callbacks until 800ms',()=>{
+test('a ready full-file switch shows the target at 800ms and adds its spinner only at 3 seconds',()=>{
   const f=fixture({frameScheduler:true});beginReadySwitch(f);
   f.paint();f.paint();
   assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),true);
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),true);
   assert.equal(f.hero.classList.contains('is-transition-loading'),true,'preparation still owns controls');
   assert.equal(f.timers[0].delay,800);
   const listeners={};
@@ -141,29 +142,43 @@ test('a ready full-file switch hides the loading panel through paints and waitin
   f.advance(800);f.timers[0].fn();
   assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),false);
   assert.equal(f.hero.classList.contains('is-range-transition-loading'),true);
-  assert.equal(f.text.textContent,'正在准备播放…');
+  assert.equal(f.text.textContent,'第2集');
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),true);
   assert.equal(f.panel.classList.contains('is-loading'),true);
+  assert.equal(f.timers[1].delay,2200);
   listeners.waiting();
-  assert.equal(f.text.textContent,'正在准备播放…','late waiting must not restore the episode number');
+  assert.equal(f.text.textContent,'第2集');
+  f.advance(2199);
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),true);
+  f.advance(1);f.timers[1].fn();
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),false);
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),false);
+  assert.equal(f.text.textContent,'第2集');
+  listeners.waiting();
+  assert.equal(f.text.textContent,'第2集');
+  assert.equal(f.spinner.classList.contains('is-hidden'),false);
 });
 
-test('first frame and explicit errors cancel the quiet hint without a late spinner or error suppression',()=>{
-  for(const failed of [false,true]) {
+test('first frame and explicit errors cancel every hint stage without a late spinner or error suppression',()=>{
+  for(const elapsed of [0,800,3000]) for(const failed of [false,true]) {
     const f=fixture({frameScheduler:true});beginReadySwitch(f);
-    const staleTimer=f.timers[0];
+    if(elapsed){f.advance(elapsed);f.timers[0].fn();}
+    const staleTimers=f.timers.slice(),pending=staleTimers[staleTimers.length-1];
     if(!failed)f.hero.classList.remove('is-preparing-video');
     f.c.setPlayerStatus(failed?'暂时无法播放这集':'',failed);
-    f.paint();f.paint();staleTimer.fn();
-    assert.equal(staleTimer.cancelled,true);
+    f.paint();f.paint();staleTimers.forEach(timer=>timer.fn());
+    assert.equal(pending.cancelled,true);
     assert.equal(f.c.prefetchedEpisodeHint,null);
     assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),false);
+    assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),false);
     assert.equal(f.panel.classList.contains('is-hidden'),!failed);
     assert.equal(f.retry.classList.contains('is-hidden'),!failed);
+    assert.equal(f.diagnostics.classList.contains('is-hidden'),!failed);
     assert.equal(f.text.textContent,failed?'暂时无法播放这集':'');
   }
 });
 
-test('natural continuation carries its original deadline instead of starting another 800ms window',()=>{
+test('natural continuation carries both original deadlines across pending detail and source requests',()=>{
   const f=fixture();f.hero.classList.remove('is-preparing-video');beginReadySwitch(f);
   f.c.activePlayback.started=true;f.c.activePlayback.continuationPending=true;
   const staleTimer=f.timers[0];
@@ -172,16 +187,72 @@ test('natural continuation carries its original deadline instead of starting ano
   staleTimer.fn();assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),true);
   f.advance(200);f.timers[1].fn();
   assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),false);
-  assert.equal(f.text.textContent,'正在准备播放…');
+  assert.equal(f.text.textContent,'第2集');
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),true);
+  assert.equal(f.timers[2].delay,2200);
+  f.advance(900);
+  f.c.beginPrefetchedEpisodeHint(f.c.activePlayback.item,2,4,1000,4);
+  assert.equal(f.timers[2].cancelled,true);
+  assert.equal(f.timers[3].delay,1300,'3 seconds remains measured from the original continuation');
+  f.advance(1300);f.timers[3].fn();
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),false);
+  assert.equal(f.text.textContent,'第2集');
 });
 
 test('obsolete timers cannot write into a new generation, account, background or different page',()=>{
-  for(const invalidate of [c=>c.feedGeneration++,c=>c.accountEpoch++,c=>c.applicationInBackground=true,c=>c.applicationHidden=()=>true,c=>c.isPlaybackPage=()=>false]) {
-    const f=fixture();beginReadySwitch(f);invalidate(f.c);
-    const previous=f.text.textContent;f.timers[0].fn();
+  for(const elapsed of [0,800]) for(const invalidate of [c=>c.feedGeneration++,c=>c.accountEpoch++,c=>c.applicationInBackground=true,c=>c.applicationHidden=()=>true,c=>c.isPlaybackPage=()=>false]) {
+    const f=fixture();beginReadySwitch(f);
+    if(elapsed){f.advance(elapsed);f.timers[0].fn();}
+    invalidate(f.c);
+    const previous=f.text.textContent;f.timers[f.timers.length-1].fn();
     assert.equal(f.c.prefetchedEpisodeHint,null);
+    assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),false);
     assert.equal(f.text.textContent,previous);
   }
+});
+
+test('a delayed timer skips obsolete intermediate stages instead of restarting the 3 second budget',()=>{
+  const f=fixture();beginReadySwitch(f);f.advance(3500);f.timers[0].fn();
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),false);
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),false);
+  assert.equal(f.text.textContent,'第2集');
+  assert.equal(f.timers.length,1);
+});
+
+test('rapid selection rejects old hint callbacks and always labels the latest target',()=>{
+  for(const elapsed of [0,800]) {
+    const f=fixture();beginReadySwitch(f);
+    if(elapsed){f.advance(elapsed);f.timers[0].fn();}
+    const staleTimers=f.timers.slice();
+    f.c.feedGeneration++;
+    const item={series_id:'series-1',vid_list:['111','222','333']};
+    f.c.episodePrefetch.peek=()=>({info:{generation:5},target:{vid:'333'}});
+    f.c.beginPrefetchedEpisodeHint(item,3,5,1000+elapsed,5);
+    f.c.setPlayerStatus(f.c.episodeLoadingText(3));
+    const current=f.c.prefetchedEpisodeHint;
+    staleTimers.forEach(timer=>timer.fn());
+    assert.equal(f.c.prefetchedEpisodeHint,current);
+    assert.equal(f.text.textContent,'第3集');
+    assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),true);
+    f.advance(800);f.timers[f.timers.length-1].fn();
+    assert.equal(f.text.textContent,'第3集');
+    assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),true);
+    f.c.clearPrefetchedEpisodeHint();
+    f.c.setPlayerStatus(f.c.episodeLoadingText(1));
+    assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),false);
+    assert.equal(f.text.textContent,'第1集','non-prefetched previous episode keeps normal loading');
+    assert.equal(f.spinner.classList.contains('is-hidden'),false);
+  }
+});
+
+test('clearing a ready hint restores ordinary buffering and its spinner immediately',()=>{
+  const f=fixture();beginReadySwitch(f);f.advance(800);f.timers[0].fn();
+  f.hero.classList.remove('is-preparing-video');f.c.activePlayback.started=true;
+  f.c.setPlayerStatus('正在缓冲…');
+  assert.equal(f.c.prefetchedEpisodeHint,null);
+  assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),false);
+  assert.equal(f.text.textContent,'正在缓冲…');
+  assert.equal(f.spinner.classList.contains('is-hidden'),false);
 });
 
 test('webOS, range strategy, pending or stale prefetches retain normal episode loading',()=>{
@@ -191,6 +262,7 @@ test('webOS, range strategy, pending or stale prefetches retain normal episode l
     f.c.setPlayerStatus(f.c.episodeLoadingText(2));
     assert.equal(f.c.prefetchedEpisodeHint,null);
     assert.equal(f.hero.classList.contains('is-prefetched-episode-quiet'),false);
+    assert.equal(f.hero.classList.contains('is-prefetched-episode-text-only'),false);
     assert.equal(f.text.textContent,'第2集');
   }
 });

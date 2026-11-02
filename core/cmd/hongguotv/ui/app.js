@@ -2494,7 +2494,7 @@
   function clearPrefetchedEpisodeHint() {
     if (prefetchedEpisodeHint) clearTimeout(prefetchedEpisodeHint.timer);
     prefetchedEpisodeHint = null;
-    document.getElementById('hero').classList.remove('is-prefetched-episode-quiet');
+    document.getElementById('hero').classList.remove('is-prefetched-episode-quiet', 'is-prefetched-episode-text-only');
   }
   function beginPrefetchedEpisodeHint(item, episode, generation, startedAt, sourceGeneration) {
     clearPrefetchedEpisodeHint();
@@ -2512,20 +2512,26 @@
       started_at: startedAt, revealed: Date.now() - startedAt >= 800, timer: null };
     prefetchedEpisodeHint = hint;
     var hero = document.getElementById('hero');
-    hero.classList.toggle('is-prefetched-episode-quiet', !hint.revealed);
-    if (hint.revealed) { hero.classList.add('is-range-transition-loading'); return; }
-    hint.timer = setTimeout(function () {
+    function updateHint() {
       if (prefetchedEpisodeHint !== hint) return;
       if (hint.generation !== feedGeneration || hint.owner !== accountEpoch || applicationInBackground || applicationHidden() || !isPlaybackPage()) {
         clearPrefetchedEpisodeHint(); return;
       }
-      hint.revealed = true;
-      hero.classList.remove('is-prefetched-episode-quiet');
-      // The normal 320ms Range hint must not hide this longer deadline,
-      // including when natural continuation spent time reading details.
-      hero.classList.add('is-range-transition-loading');
-      setPlayerStatus(uiText('ui.preparingPlayback', '正在准备播放…'));
-    }, Math.max(0, 800 - (Date.now() - startedAt)));
+      var elapsed = Math.max(0, Date.now() - hint.started_at);
+      hint.revealed = elapsed >= 800;
+      hero.classList.toggle('is-prefetched-episode-quiet', !hint.revealed);
+      hero.classList.toggle('is-prefetched-episode-text-only', elapsed < 3000);
+      if (hint.revealed) {
+        // Keep the original switch deadline through natural continuation.
+        // Show the target episode first, and a spinner only after 3 seconds.
+        hero.classList.add('is-range-transition-loading');
+        setPlayerStatus(episodeLoadingText(hint.episode));
+      }
+      if (prefetchedEpisodeHint === hint && elapsed < 3000) {
+        hint.timer = setTimeout(updateHint, (hint.revealed ? 3000 : 800) - elapsed);
+      }
+    }
+    updateHint();
   }
   function setPlayerStatus(message, failed) {
     var panel = document.getElementById('player-status');
@@ -2535,7 +2541,7 @@
     var preparing = hero.classList.contains('is-preparing-video') || activePlayback && (activePlayback.continuationPending || !activePlayback.started);
     if (prefetchedEpisodeHint) {
       if (failed || !message || !preparing || prefetchedEpisodeHint.generation !== feedGeneration || prefetchedEpisodeHint.owner !== accountEpoch) clearPrefetchedEpisodeHint();
-      else message = uiText('ui.preparingPlayback', '正在准备播放…');
+      else message = episodeLoadingText(prefetchedEpisodeHint.episode);
     }
     var transition = !!(message && !failed && preparing);
     if (failed) { clearEpisodeCover(); if (portraitBackdrop) portraitBackdrop.reset(); }
