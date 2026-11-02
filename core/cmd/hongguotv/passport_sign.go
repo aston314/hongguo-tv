@@ -1,7 +1,8 @@
 package main
 
-// Passport signatures are independent of the lightweight playback signer.
-// All signing runs on-device; no external signing service receives account data.
+// Account and playback request builders share these signing primitives while
+// retaining separate profiles. Signing stays local; no external signing service
+// receives account data.
 import (
 	"bytes"
 	"crypto/md5"

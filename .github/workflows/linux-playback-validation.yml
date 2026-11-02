@@ -35,6 +35,12 @@ jobs:
           sudo apt-get install -y --no-install-recommends build-essential pkg-config libgtk-3-dev libwebkit2gtk-4.1-dev gstreamer1.0-tools gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-pulseaudio xvfb xauth dbus-x11 pulseaudio pulseaudio-utils ffmpeg imagemagick python3-pil fonts-noto-cjk openbox xdotool
           mkdir -p "$HONGGUO_PROBE_OUTPUT" "$XDG_CACHE_HOME" "$XDG_CONFIG_HOME"
           { uname -a; pkg-config --modversion gtk+-3.0 webkit2gtk-4.1; gst-inspect-1.0 --version; gst-inspect-1.0 avdec_h265; gst-inspect-1.0 avdec_aac; } > "$HONGGUO_PROBE_OUTPUT/environment.txt"
+      - name: Verify a live signed source without unsigned fallback
+        env:
+          HONGGUO_LIVE_MINIREEL: '1'
+          HONGGUO_LIVE_MINIREEL_SIGNED_ONLY: '1'
+          HONGGUO_LIVE_MINIREEL_VIDEO_ID: '7696024766267804697'
+        run: go test ./core/cmd/hongguotv -run '^TestMiniReelLiveRegisteredPlaybackSource$' -count=1 -v
       - name: Build actual Go core and opt-in Wails probe
         run: |
           node --check scripts/linux_playback_probe.js

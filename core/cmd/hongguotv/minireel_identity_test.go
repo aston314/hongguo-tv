@@ -329,7 +329,21 @@ func TestMiniReelLiveRegisteredPlaybackSource(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
-	options, err := miniReelNativeOptions(ctx, "7690963562042248217")
+	vid := firstNonEmpty(os.Getenv("HONGGUO_LIVE_MINIREEL_VIDEO_ID"), "7690963562042248217")
+	var options []miniReelOption
+	var err error
+	signedOnly := os.Getenv("HONGGUO_LIVE_MINIREEL_SIGNED_ONLY") == "1"
+	if signedOnly {
+		var device miniReelDevice
+		device, err = miniReelPlaybackIdentity.get(ctx)
+		if err == nil {
+			// One signed request only: this evidence cannot accidentally be
+			// satisfied by the unsigned compatibility fallback.
+			options, err = miniReelNativeOptionsAttemptMode(ctx, vid, miniReelAPIBase+miniReelAPIPath, device, "default")
+		}
+	} else {
+		options, err = miniReelNativeOptions(ctx, vid)
+	}
 	if err != nil {
 		t.Fatalf("live registered-device playback source request failed: %v", err)
 	}
@@ -344,7 +358,7 @@ func TestMiniReelLiveRegisteredPlaybackSource(t *testing.T) {
 	if len(options[0].Key) != 16 {
 		t.Fatal("live playback source did not contain a valid CENC key")
 	}
-	source, err := openMiniReelRangeSource(ctx, options[0], "7690963562042248217")
+	source, err := openMiniReelRangeSource(ctx, options[0], vid)
 	if err != nil {
 		t.Fatalf("live playback Range initialization failed: %v", err)
 	}
@@ -359,5 +373,5 @@ func TestMiniReelLiveRegisteredPlaybackSource(t *testing.T) {
 	if len(frame) != first.Size {
 		t.Fatalf("live first sample bytes = %d, want %d", len(frame), first.Size)
 	}
-	t.Logf("live playback verified: quality=%q range_bytes=%d init_bytes=%d indexed_samples=%d first_sample_bytes=%d", options[0].Quality, source.Length, len(source.Prefix), len(source.Samples), len(frame))
+	t.Logf("live playback verified: signed_only=%t quality=%q range_bytes=%d init_bytes=%d indexed_samples=%d first_sample_bytes=%d", signedOnly, options[0].Quality, source.Length, len(source.Prefix), len(source.Samples), len(frame))
 }
