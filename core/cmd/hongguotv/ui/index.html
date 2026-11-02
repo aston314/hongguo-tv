@@ -350,6 +350,12 @@
           <div class="app-update-actions"><button class="portrait-background-action account-action" data-mode="black" data-focus="portrait-background-black" aria-pressed="true" data-i18n="settings.portraitBackgroundBlack">黑色</button><button class="portrait-background-action account-action" data-mode="blur" data-focus="portrait-background-blur" aria-pressed="false" data-i18n="settings.portraitBackgroundBlur">动态模糊</button></div>
           <p id="portrait-background-state" role="status" aria-live="polite"></p>
         </div>
+        <div class="settings-card app-update-card" id="danmaku-region-settings">
+          <h2 data-i18n="settings.danmakuRegion">弹幕显示区域</h2>
+          <p data-i18n="settings.danmakuRegionDescription">选择弹幕显示在画面中的范围。默认保持现状；顶部区域可以减少对人物和画面主体的遮挡。</p>
+          <div class="app-update-actions"><button class="danmaku-region-action account-action" data-mode="current" data-focus="danmaku-region-current" aria-pressed="true" data-i18n="settings.danmakuRegionDefault">当前区域（保持现状）</button><button class="danmaku-region-action account-action" data-mode="half" data-focus="danmaku-region-half" aria-pressed="false" data-i18n="settings.danmakuRegionHalf">顶部 1/2</button><button class="danmaku-region-action account-action" data-mode="quarter" data-focus="danmaku-region-quarter" aria-pressed="false" data-i18n="settings.danmakuRegionQuarter">顶部 1/4</button></div>
+          <p id="danmaku-region-state" role="status" aria-live="polite"></p>
+        </div>
         <div class="settings-card app-update-card is-hidden" id="episode-prefetch-settings">
           <h2 data-i18n="settings.episodePrefetch">下一集预取方式</h2>
           <p data-i18n="settings.episodePrefetchDescription">选择切集前的准备方式。边播边下占用较少；整集预下载切集更快，但会增加网络、存储和处理器占用。</p>

@@ -376,6 +376,8 @@ html.desktop-shell .hero-media { -webkit-user-select: none; user-select: none; }
 .player-compose-scan svg { width: 19px; height: 19px; }
 .player-options.is-composer { width: calc(100% - 56px); max-width: 440px; }
 .danmaku-layer { position: absolute; z-index: 3; top: 12%; right: 0; bottom: 20%; left: 0; overflow: hidden; pointer-events: none; }
+.danmaku-layer.is-region-half { top: 8%; bottom: 42%; }
+.danmaku-layer.is-region-quarter { top: 8%; bottom: 67%; }
 .danmaku-line { position: absolute; left: 100%; white-space: nowrap; color: #fff; font-size: 22px; font-weight: 600; text-shadow: 1px 1px 3px #000, -1px -1px 2px #000; animation: danmaku-travel 9s linear forwards; }
 .danmaku-layer.is-paused .danmaku-line { animation-play-state: paused; }
 @keyframes danmaku-travel { to { transform: translateX(calc(-100vw - 100%)); } }
