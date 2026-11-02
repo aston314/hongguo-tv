@@ -127,6 +127,9 @@
         headers: headers || {},
         timeout: Math.max(1000, Number(timeoutMs) || 90000)
       };
+      // Connection: close alone can still reuse an idle socket. These bounded
+      // playback retries must start outside the shared agent's socket pool.
+      if (headers && headers.Connection === 'close') options.agent = false;
       var request;
       try { request = transport.request(options); } catch (error) { finish(error); return; }
       if (signal) signal.addEventListener('abort', aborted);
@@ -450,8 +453,20 @@
           Accept: 'application/json; charset=utf-8,application/x-protobuf',
           'Content-Type': 'application/json; charset=UTF-8'
         };
+        var query = sortedQuery(params), endpoint = API_BASE;
+        // Keep the shared prefetch/foreground budget. A third consecutive
+        // empty response still gets the original unsigned compatibility path.
+        if (identityState.emptyCount < 2) {
+          var signed;
+          try { signed = passportSign.signPlayback(params, Buffer.from(body), stamp, device.deviceID); }
+          catch (error) { throw fail('播放请求签名失败', 502, 'VIDEO_MODEL_SIGN', 'multi_video_model'); }
+          query = signed.query;
+          Object.assign(headers, signed.headers);
+          if (identityState.emptyCount === 1) endpoint = 'https://api5-normal-hl.fqnovel.com';
+        }
+        if (identityState.emptyCount > 0) headers.Connection = 'close';
         recordDiagnostic({ stage: 'multi_video_model', code: 'VIDEO_MODEL_REQUEST' });
-        return requestBuffer(API_BASE + API_PATH + '?' + sortedQuery(params), 'POST', headers, Buffer.from(body), MAX_JSON, signal);
+        return requestBuffer(endpoint + API_PATH + '?' + query, 'POST', headers, Buffer.from(body), MAX_JSON, signal);
       }).then(function (response) {
         recordDiagnostic({ stage: 'multi_video_model', http_status: response.status, response_bytes: response.body.length, code: 'VIDEO_MODEL_RESPONSE' });
         if (response.status < 200 || response.status >= 300) {

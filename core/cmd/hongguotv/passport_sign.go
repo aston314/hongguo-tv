@@ -1,7 +1,8 @@
 package main
 
-// Passport signatures are independent of the lightweight playback signer.
-// All signing runs on-device; no external signing service receives account data.
+// Account and playback request builders share these signing primitives while
+// retaining separate profiles. Signing stays local; no external signing service
+// receives account data.
 import (
 	"bytes"
 	"crypto/md5"
@@ -261,6 +262,10 @@ func (p *protocolProto) float(field int, n float32) {
 }
 
 func passportProto(query string, ts, nonce uint32, deviceID string, q [32]byte, m [16]byte, f13 []byte) []byte {
+	return passportProtoVersion(query, ts, nonce, deviceID, q, m, f13, "7.3.5.32")
+}
+
+func passportProtoVersion(query string, ts, nonce uint32, deviceID string, q [32]byte, m [16]byte, f13 []byte, version string) []byte {
 	var device, env, report, count, p protocolProto
 	device.sint(1, 1)
 	device.sint(2, 2)
@@ -306,7 +311,7 @@ func passportProto(query string, ts, nonce uint32, deviceID string, q [32]byte, 
 	env.sint(7, 11001)
 	env.blob(12, device)
 	env.blob(13, report)
-	env.text(14, "7.3.5.32")
+	env.text(14, version)
 	count.sint(1, 111)
 	count.sint(2, 10)
 	count.sint(3, 694367)
@@ -317,7 +322,7 @@ func passportProto(query string, ts, nonce uint32, deviceID string, q [32]byte, 
 	p.text(4, "8662")
 	p.text(5, deviceID)
 	p.text(6, "1588093228")
-	p.text(7, "7.3.5.32")
+	p.text(7, version)
 	p.text(8, "v04.06.04-ml-android")
 	p.sint(9, 67503104)
 	p.blob(10, mustProtocolHex("4001000000000000"))
@@ -460,8 +465,12 @@ func passportAESV3(data []byte, ts uint32) ([]byte, error) {
 }
 
 func passportMedusa(query string, ts, nonce, hashRand, xmRand uint32, deviceID string, iv uint32, q [32]byte, m [16]byte) (string, error) {
+	return passportMedusaVersion(query, ts, nonce, hashRand, xmRand, deviceID, iv, q, m, "7.3.5.32")
+}
+
+func passportMedusaVersion(query string, ts, nonce, hashRand, xmRand uint32, deviceID string, iv uint32, q [32]byte, m [16]byte, version string) (string, error) {
 	f13 := passportF13(iv, ts, q, m)
-	p := passportProto(query, ts, nonce, deviceID, q, m, f13)
+	p := passportProtoVersion(query, ts, nonce, deviceID, q, m, f13, version)
 	signKey := mustProtocolHex("8ebdfa3806ecc5cee79423e6029ed82540bc2218bb7eaef71cb691f7aa8aa2f5")
 	key := passportSM3(append(append(append([]byte(nil), signKey...), protocolLE(hashRand)...), signKey...))
 	d1 := (hashRand >> 16) & 255
@@ -490,6 +499,10 @@ func passportMedusa(query string, ts, nonce, hashRand, xmRand uint32, deviceID s
 }
 
 func signPassportRequest(q url.Values, body []byte, stamp int64, deviceID string) (string, http.Header, error) {
+	return signPassportRequestVersion(q, body, stamp, deviceID, "7.3.5.32")
+}
+
+func signPassportRequestVersion(q url.Values, body []byte, stamp int64, deviceID, version string) (string, http.Header, error) {
 	raw, iv, hash, m, err := passportTuneQuery(q, body, stamp)
 	if err != nil {
 		return "", nil, err
@@ -502,7 +515,7 @@ func signPassportRequest(q url.Values, body []byte, stamp int64, deviceID string
 		}
 	}
 	ts := uint32(stamp / 1000)
-	medusa, err := passportMedusa(raw, ts, n[0], n[1], n[2], deviceID, iv, hash, m)
+	medusa, err := passportMedusaVersion(raw, ts, n[0], n[1], n[2], deviceID, iv, hash, m, version)
 	if err != nil {
 		return "", nil, err
 	}

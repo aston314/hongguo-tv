@@ -881,7 +881,8 @@ func miniReelNativeOptionsEndpointWithDeviceMode(ctx context.Context, vid, endpo
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		options, err := miniReelNativeOptionsAttemptMode(ctx, vid, endpoint, device, codecMode)
+		requestEndpoint, signed := miniReelPlaybackAttemptPolicy(endpoint, attempt)
+		options, err := miniReelNativeOptionsAttemptPolicy(ctx, vid, requestEndpoint, device, nil, codecMode, signed, attempt > 0)
 		if err == nil {
 			return options, nil
 		}
@@ -910,6 +911,10 @@ func miniReelNativeOptionsAttemptWithClient(ctx context.Context, vid, endpoint s
 }
 
 func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoint string, device miniReelDevice, client *http.Client, codecMode string) (options []miniReelOption, err error) {
+	return miniReelNativeOptionsAttemptPolicy(ctx, vid, endpoint, device, client, codecMode, true, false)
+}
+
+func miniReelNativeOptionsAttemptPolicy(ctx context.Context, vid, endpoint string, device miniReelDevice, client *http.Client, codecMode string, signed, freshConnection bool) (options []miniReelOption, err error) {
 	started := time.Now()
 	diagnostic := playbackPreparationDiagnostic{Code: "VIDEO_MODEL_TRANSPORT", Stage: "multi_video_model", Attempt: 1}
 	defer func() { err = finishPlaybackPreparation(err, diagnostic, started) }()
@@ -928,21 +933,47 @@ func miniReelNativeOptionsAttemptWithClientMode(ctx context.Context, vid, endpoi
 		"player_so_load": {"1"}, "pv_player": {"71332"}, "ssmix": {"a"}, "update_version_code": {"71332"}, "version_code": {"71332"},
 		"version_name": {"7.1.3.32"}, "compliance_status": {"0"},
 	}
-	query := params.Encode()
 	bodyBytes, _ := json.Marshal(map[string]any{
 		"biz_param":          map[string]any{"detail_page_version": 0, "device_level": 3, "disable_digg_stat": false, "need_all_video_definition": true, "need_mp4_align": false, "use_os_player": false, "use_server_dns": false, "video_platform": 1024},
 		"mixed_video_id_map": map[string][]string{"1004": {vid}},
 	})
+	query, headers := params.Encode(), make(http.Header)
+	if signed {
+		diagnostic.Code = "VIDEO_MODEL_SIGN"
+		query, headers, err = miniReelSignPlaybackRequest(params, bodyBytes, stamp, device.deviceID)
+		if err != nil {
+			return nil, errors.New("MiniReel playback request signing failed")
+		}
+	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint+"?"+query, bytes.NewReader(bodyBytes))
 	if err != nil {
 		return nil, err
 	}
+	req.Header = headers
 	req.Header.Set("User-Agent", miniReelPlaybackUA)
 	req.Header.Set("Accept", "application/json; charset=utf-8,application/x-protobuf")
 	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
+	req.Close = freshConnection
+	diagnostic.Code = "VIDEO_MODEL_TRANSPORT"
 	apiClient := miniReelNoRedirectClient(client, 35*time.Second)
+	if freshConnection {
+		transport := apiClient.Transport
+		if transport == nil {
+			transport = http.DefaultTransport
+		}
+		if transport, ok := transport.(*http.Transport); ok {
+			fresh := transport.Clone()
+			fresh.DisableKeepAlives = true
+			apiClient.Transport = fresh
+		}
+	}
 	resp, err := apiClient.Do(req)
 	if err != nil {
+		// A url.Error contains the signed URL and anonymous device identifiers.
+		var requestError *url.Error
+		if errors.As(err, &requestError) {
+			return nil, fmt.Errorf("MiniReel playback transport failed: %w", requestError.Err)
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
