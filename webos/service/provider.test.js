@@ -406,7 +406,7 @@ async function run() {
     var dramaLike = provider.changeLibrary({ action: 'like', drama: drama, value: true });
     assert(dramaLike.entries[0].liked_at > 0, 'guest series-like behavior is retained');
 
-    var beforeRetry = videoModelRequests;
+    var beforeRetry = videoModelRequests, beforePlaybackRequests = playbackRequests.length;
     videoModelEmptyResponses = 2;
     var playbackProbe = await provider.inspectVideoModel('1334567890123456789');
     assert.strictEqual(playbackProbe.ok, true, 'registered playback request resolves after bounded empty-response retries');
@@ -419,14 +419,34 @@ async function run() {
     assert.strictEqual(deviceRegistration.query.iid || '', '', 'registration does not send a fabricated install id');
     var playbackIdentity = playbackRequests[0].query;
     assert(playbackIdentity.device_id && playbackIdentity.iid && playbackIdentity.cdid, 'playback uses the registered identity');
-    playbackRequests.forEach(function (call) {
+    playbackRequests.slice(beforePlaybackRequests).forEach(function (call, index) {
       assert.strictEqual(call.options.path.split('?')[0], '/novel/player/multi_video_model/v1/');
       assert.strictEqual(call.query.device_id, playbackIdentity.device_id, 'playback identity stays stable across source attempts');
       assert.strictEqual(call.query.iid, playbackIdentity.iid, 'install identity stays stable across source attempts');
-      assert.strictEqual(call.options.headers['X-Medusa'], undefined, 'playback uses the registered-device endpoint without the Passport signature');
+      if (index < 2) {
+        assert(call.options.headers['X-Medusa'], 'playback request includes its own signature');
+        assert.strictEqual(call.query.ts, call.options.headers['X-Khronos']);
+        assert.strictEqual(call.query._rticket, call.options.headers['X-SS-Req-Ticket']);
+        var stamp = Number(call.query.ts), gorgon = Buffer.from(call.options.headers['X-Gorgon'], 'hex');
+        var rawBody = Buffer.from(JSON.stringify(call.body));
+        // Parse the transmitted bytes rather than rebuilding its signed query.
+        var rawQuery = call.options.path.split('?')[1];
+        assert.strictEqual(call.options.headers['X-Gorgon'], require('./passport-sign').gorgon(rawQuery, rawBody, stamp, gorgon.readUInt16LE(2)));
+        assert.strictEqual(call.options.hostname, index === 1 ? 'api5-normal-hl.fqnovel.com' : 'api5-normal-sinfonlineb.fqnovel.com');
+      } else {
+        assert.strictEqual(call.options.headers['X-Medusa'], undefined, 'third attempt preserves unsigned compatibility');
+        assert.strictEqual(call.options.hostname, 'api5-normal-sinfonlineb.fqnovel.com');
+      }
+      if (index > 0) {
+        assert.strictEqual(call.options.headers.Connection, 'close');
+        assert.strictEqual(call.options.agent, false, 'empty-response retry does not reuse the failed connection');
+      }
+      assert.strictEqual(call.options.headers.Cookie || '', '', 'playback signing does not use account cookies');
+      assert.strictEqual(call.options.headers['X-Tt-Token'] || '', '', 'playback signing does not use an account token');
       assert.strictEqual(call.body.mixed_video_id_map['1004'].length, 1);
       assert(/^\d+$/.test(call.body.mixed_video_id_map['1004'][0]), 'playback request targets an exact video ID');
     });
+    assert.notStrictEqual(playbackRequests[beforePlaybackRequests].options.headers['X-Medusa'], playbackRequests[beforePlaybackRequests + 1].options.headers['X-Medusa'], 'retry signs again');
 
     videoModelFallback = 'https://api5-normal-sinfonlineb.fqnovel.com/playback/fallback';
     fallbackResponseBody = JSON.stringify({ code: 0, video_info: { code: 0, data: { video_list: { '720': { backup_url_list: ['https://media.example.test/fallback.mp4'], codec_type: 'h264', vheight: 720, quality_desc: '720P' } }, video_duration: 91 } } });
