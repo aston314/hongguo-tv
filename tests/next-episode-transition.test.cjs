@@ -22,7 +22,7 @@ function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,d
   const c=vm.createContext({Promise,AbortController,URLSearchParams,Date,Object,Number,Math,clearTimeout,console,
     setTimeout(fn,delay){timers.push({fn,delay});return timers.length},
     requestAnimationFrame(fn){frames.set(++frameID,fn);return frameID},cancelAnimationFrame(id){frames.delete(id)},
-    engine,video,calls,resolverURLs,writes,notices,gate,detailGate,document,uiText,webosShell:webos,
+    engine,video,calls,resolverURLs,writes,notices,gate,detailGate,document,uiText,webosShell:webos,shell:{classList:classes()},
     apiError(payload,status,key,fallback){return payload&&(payload.error||payload.message)||fallback||('HTTP '+status)},
     fetch:async(url,options)=>{
       assert.equal(url,'/api/v1/library');const change=JSON.parse(options.body);calls.push('history:'+change.episode);writes.push(change);

@@ -40,7 +40,7 @@ test('other platform bundles do not load the webOS audio scripts',()=>{
 });
 function element(hidden=false){
  const classes=new Set(hidden?['is-hidden']:[]),attrs={},events={};
- return {attrs,events,children:[],style:{},textContent:'',classList:{contains:c=>classes.has(c),add:c=>classes.add(c),remove:c=>classes.delete(c),toggle(c,value){if(value)classes.add(c);else classes.delete(c);}},setAttribute:(k,v)=>attrs[k]=v,removeAttribute:k=>delete attrs[k],addEventListener:(k,fn)=>events[k]=fn,appendChild(n){this.children.push(n);},querySelector(){return this.children.find(n=>/is-selected/.test(n.className))||this.children[0]||element();},dataset:{}};
+ return {attrs,events,children:[],style:{},textContent:'',classList:{contains:c=>classes.has(c),add:c=>classes.add(c),remove:c=>classes.delete(c),toggle(c,value){if(value)classes.add(c);else classes.delete(c);}},getAttribute:k=>attrs[k]??null,hasAttribute:k=>Object.hasOwn(attrs,k),setAttribute:(k,v)=>attrs[k]=v,removeAttribute:k=>delete attrs[k],addEventListener:(k,fn)=>events[k]=fn,appendChild(n){this.children.push(n);},querySelector(){return this.children.find(n=>/is-selected/.test(n.className))||this.children[0]||element();},dataset:{}};
 }
 function pageFixture(f,webosShell=true){
  const elements={'hero-video':f.video,'webos-audio-settings':element(true),'webos-audio-toggle':element(),'control-progress':element()},speed=element();let saved=0,updates=0,focus=null,closed=0;

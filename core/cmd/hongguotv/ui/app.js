@@ -2479,6 +2479,9 @@
   }
   function revealControls() {
     controlsManuallyHidden = false;
+    // Hidden progress ticks skip painting the controls. Sync before revealing
+    // them, without refreshing on every pointer move while already visible.
+    if (shell.classList.contains('is-controls-hidden')) updatePlaybackControls();
     shell.classList.remove('is-controls-hidden');
     scheduleControlsHide();
   }
@@ -2583,7 +2586,7 @@
     var button = document.querySelector('[data-action="' + action + '"]');
     var text = button.querySelector('.control-label');
     if (text.textContent !== label) text.textContent = label;
-    button.setAttribute('aria-label', label);
+    if (button.getAttribute('aria-label') !== label) button.setAttribute('aria-label', label);
     var use = button.querySelector('use');
     if (use.getAttribute('href') !== '#' + icon) {
       use.setAttribute('href', '#' + icon);
@@ -2599,12 +2602,17 @@
     var duration = Number.isFinite(video.duration) ? video.duration : 0;
     var position = Math.min(duration, Number(video.currentTime) || 0);
     var progress = document.getElementById('control-progress');
-    document.querySelector('.time-label').textContent = clockText(position) + ' / ' + clockText(duration);
-    progress.disabled = !duration;
-    progress.setAttribute('aria-valuemax', String(Math.floor(duration)));
-    progress.setAttribute('aria-valuenow', String(Math.floor(position)));
-    progress.setAttribute('aria-valuetext', clockText(position) + ' / ' + clockText(duration));
-    progress.querySelector('span').style.width = (duration ? position / duration * 100 : 0) + '%';
+    var timeText = clockText(position) + ' / ' + clockText(duration);
+    var timeLabel = document.querySelector('.time-label');
+    if (timeLabel.textContent !== timeText) timeLabel.textContent = timeText;
+    if (progress.disabled !== !duration) progress.disabled = !duration;
+    var max = String(Math.floor(duration)), now = String(Math.floor(position));
+    if (progress.getAttribute('aria-valuemax') !== max) progress.setAttribute('aria-valuemax', max);
+    if (progress.getAttribute('aria-valuenow') !== now) progress.setAttribute('aria-valuenow', now);
+    if (progress.getAttribute('aria-valuetext') !== timeText) progress.setAttribute('aria-valuetext', timeText);
+    var fill = progress.querySelector('span');
+    var width = (duration ? position / duration * 100 : 0) + '%';
+    if (fill.style.width !== width) fill.style.width = width;
     var paused = video.paused || video.ended;
     setControlIcon('pause', paused ? uiText('ui.play', '播放') : uiText('ui.pause', '暂停'), paused ? 'icon-play' : 'icon-pause');
     var speedLabel = video.playbackRate + 'x';
@@ -2615,13 +2623,13 @@
     var speedButton = document.querySelector('[data-action="speed"]');
     if (speedButton) {
       var speedHidden = !playbackSpeedAvailable();
-      speedButton.classList.toggle('is-hidden', speedHidden);
+      if (speedButton.classList.contains('is-hidden') !== speedHidden) speedButton.classList.toggle('is-hidden', speedHidden);
       if (speedHidden) {
-        speedButton.tabIndex = -1;
-        speedButton.setAttribute('aria-hidden', 'true');
+        if (speedButton.getAttribute('tabindex') !== '-1') speedButton.tabIndex = -1;
+        if (speedButton.getAttribute('aria-hidden') !== 'true') speedButton.setAttribute('aria-hidden', 'true');
       } else {
-        speedButton.removeAttribute('aria-hidden');
-        speedButton.removeAttribute('tabindex');
+        if (speedButton.hasAttribute('aria-hidden')) speedButton.removeAttribute('aria-hidden');
+        if (speedButton.hasAttribute('tabindex')) speedButton.removeAttribute('tabindex');
       }
     }
     setControlIcon('speed', speedLabel, 'icon-speed');
@@ -8280,7 +8288,7 @@
     tickDanmaku();
     checkPlaybackProgress(media);
     if (!activePlayback || !activePlayback.started) return;
-    updatePlaybackControls();
+    if (!shell.classList.contains('is-controls-hidden')) updatePlaybackControls();
     maybePrefetchNextEpisode(media);
     saveProgress(false);
   });
