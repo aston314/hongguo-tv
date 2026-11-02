@@ -1,8 +1,8 @@
 # 红果短剧 Linux AppImage 测试版
 
-本次 0.2.138 将 Linux AppImage 测试包同步到统一主线并重新打包；Linux 播放和界面行为没有功能变更。标准版 Android 的播放策略更新不改变 Linux 播放路径。
+本次 0.2.139 与统一主线同步：设置新增启动页面（推荐、排行榜、新剧、历史、收藏），非推荐页启动不先加载推荐或自动播放；搜索建议先退出再打开目标内容，取消过期操作；侧栏焦点取消底色和尺寸过渡。Linux 播放路径不变。
 
-延续 0.2.134 的按需 GPU 合成配置，减少兼容设备播放时的软件合成开销。如有白屏或显卡兼容问题，完全退出后通过 `HONGGUO_WEBKIT_GPU_POLICY=never ./hongguo-desktop-0.2.138-x86_64.AppImage --appimage-extract-and-run` 恢复原来的软件合成方式。也接受数值 `2`；未设置时使用 `on-demand`（`1`）。此项仅影响 Linux 窗口合成，不修改解码器或其他平台。
+延续 0.2.134 的按需 GPU 合成配置，减少兼容设备播放时的软件合成开销。如有白屏或显卡兼容问题，完全退出后通过 `HONGGUO_WEBKIT_GPU_POLICY=never ./hongguo-desktop-0.2.139-x86_64.AppImage --appimage-extract-and-run` 恢复原来的软件合成方式。也接受数值 `2`；未设置时使用 `on-demand`（`1`）。此项仅影响 Linux 窗口合成，不修改解码器或其他平台。
 
 本次 Linux x86_64 AppImage 须通过 Ubuntu 24.04 与 Debian 12 容器中的真实红果数据和视频播放检查后才发布。测试使用 Xvfb、软件图形和软件解码，不能替代用户机器上的安装、硬件解码、显示器或扬声器验证。
 
