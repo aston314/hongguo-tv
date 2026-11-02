@@ -89,7 +89,7 @@ class ReleaseSourceTests(unittest.TestCase):
         # actions/checkout can represent the remote annotated tag locally by
         # its commit. Fetching back into the same tag would reject clobbering.
         git(self.clone, "tag", "v1.2.6", self.main_sha)
-        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/desktop.yml").read_text()
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/desktop.yml").read_text(encoding="utf-8")
         commands = workflow.split('          git fetch --no-tags origin "refs/tags/v$APP_VERSION"', 1)[1]
         commands = 'git fetch --no-tags origin "refs/tags/v$APP_VERSION"' + commands.split('          if [[ "${GITHUB_REF_TYPE:-}"', 1)[0]
         # Python's Windows PATH may resolve bash to the WSL launcher even
