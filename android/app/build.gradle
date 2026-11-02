@@ -31,7 +31,7 @@ android {
             dimension "player"
             resValue "string", "app_name", "红果短剧"
             buildConfigField "String", "VARIANT_ID", '"standard"'
-            buildConfigField "String", "PLAYER_ENGINE", '"media3"'
+            buildConfigField "String", "PLAYER_ENGINE", '"webview_media3"'
         }
         mpv {
             dimension "player"
@@ -86,10 +86,35 @@ gradle.taskGraph.whenReady { graph ->
 dependencies {
     implementation "androidx.core:core:1.13.1"
     implementation "androidx.tvprovider:tvprovider:1.0.0"
-    implementation "androidx.media3:media3-exoplayer:1.11.1"
-    implementation "androidx.media3:media3-exoplayer-hls:1.11.1"
-    standardImplementation "io.github.anilbeesetti:nextlib-media3ext:1.11.1-0.17.0"
-    // LGPL MPV libraries stay isolated to MPV. Standard Media3 includes
-    // NextLib's GPL-3.0 FFmpeg renderer for bounded software fallback.
+    // Keep standard's v0.2.136 Media3 fallback independent of the MPV flavor.
+    standardImplementation "androidx.media3:media3-exoplayer:1.8.0"
+    standardImplementation "androidx.media3:media3-exoplayer-hls:1.8.0"
+    mpvImplementation "androidx.media3:media3-exoplayer:1.11.1"
+    mpvImplementation "androidx.media3:media3-exoplayer-hls:1.11.1"
+    // LGPL native libraries remain isolated to src/mpv/jniLibs.
+    // Standard uses platform decoders and does not bundle NextLib/FFmpeg.
     testImplementation "junit:junit:4.13.2"
+}
+
+// Check resolved artifacts, not just declared versions: a transitive dependency
+// must never silently upgrade standard or add back a software renderer.
+tasks.register("verifyPlayerDependencyIsolation") {
+    doLast {
+        [standard: "1.8.0", mpv: "1.11.1"].each { flavor, version ->
+            ["Debug", "Release"].each { buildType ->
+                def modules = configurations.getByName("${flavor}${buildType}RuntimeClasspath")
+                        .resolvedConfiguration.resolvedArtifacts.collect { it.moduleVersion.id }
+                def media = modules.findAll { it.group == "androidx.media3" }
+                if (!media.any { it.name == "media3-exoplayer" } ||
+                        !media.any { it.name == "media3-exoplayer-hls" } ||
+                        media.any { it.version != version }) {
+                    throw new GradleException("Unexpected ${flavor}${buildType} Media3 dependencies: ${media}")
+                }
+                if (modules.any { it.group.contains("nextlib") || it.name.contains("ffmpeg") || it.name.contains("media3ext") }) {
+                    throw new GradleException("Unexpected bundled FFmpeg dependency in ${flavor}${buildType}")
+                }
+                println("Verified ${flavor}${buildType}: Media3 ${version}, no NextLib/FFmpeg extensions")
+            }
+        }
+    }
 }

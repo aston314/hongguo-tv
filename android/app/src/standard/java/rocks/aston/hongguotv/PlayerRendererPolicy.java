@@ -7,19 +7,17 @@ import androidx.media3.exoplayer.audio.AudioSink;
 import androidx.media3.exoplayer.audio.DefaultAudioSink;
 import androidx.media3.exoplayer.mediacodec.MediaCodecSelector;
 
-import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory;
-
-/** Keep WebView HTML5 primary; Media3 remains available as a bounded fallback. */
+/** v0.2.136: HTML5 first, with a platform-decoder-only Media3 fallback. */
 @android.annotation.SuppressLint("UnsafeOptInUsageError")
 final class PlayerRendererPolicy {
     private PlayerRendererPolicy() {}
 
     static boolean primaryPlayback() { return false; }
-    static boolean ffmpegAvailable() { return true; }
 
-    static DefaultRenderersFactory create(Context context, boolean preferFfmpeg,
+    static DefaultRenderersFactory create(Context context, boolean forceSoftwareHevc,
                                            boolean pcmAudio, MediaCodecSelector selector) {
-        NextRenderersFactory renderers = new NextRenderersFactory(context) {
+        // The selector already applies the bounded system-HEVC retry policy.
+        DefaultRenderersFactory renderers = new DefaultRenderersFactory(context) {
             @Override protected AudioSink buildAudioSink(Context value, boolean floatOutput,
                                                           boolean playbackParams) {
                 if (!pcmAudio) return super.buildAudioSink(value, floatOutput, playbackParams);
@@ -29,9 +27,6 @@ final class PlayerRendererPolicy {
         };
         renderers.setEnableDecoderFallback(true);
         renderers.setMediaCodecSelector(selector);
-        renderers.setExtensionRendererMode(preferFfmpeg
-                ? DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER
-                : DefaultRenderersFactory.EXTENSION_RENDERER_MODE_ON);
         return renderers;
     }
 }

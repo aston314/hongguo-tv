@@ -92,6 +92,8 @@ jobs:
         run: |
           python3 scripts/prepare_mpv.py
           python3 scripts/package_mpv_sources.py --out "$RUNNER_TEMP/hongguo-tv-mpv-library-source-$APP_VERSION.zip"
+      - name: Verify standard and MPV dependency isolation
+        run: gradle --no-daemon --max-workers=1 -p android :app:verifyPlayerDependencyIsolation
       - name: Restore signing key
         run: |
           test -n "$ANDROID_KEYSTORE_BASE64" || { echo "Missing release signing key" >&2; exit 1; }

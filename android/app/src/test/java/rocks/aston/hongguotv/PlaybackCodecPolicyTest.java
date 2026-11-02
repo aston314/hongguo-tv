@@ -25,20 +25,18 @@ public class PlaybackCodecPolicyTest {
         assertFalse(PlaybackCodecPolicy.preferSoftware("video/avc", 28));
     }
 
-    @Test public void decoderFallbackCoversMedia3DecoderErrorsAndBothVideoFamilies() {
-        assertTrue(PlaybackCodecPolicy.decoderFailure(3001));
-        assertTrue(PlaybackCodecPolicy.decoderFailure(4999));
-        assertFalse(PlaybackCodecPolicy.decoderFailure(2001));
-        assertTrue(PlaybackCodecPolicy.excludesDecoderForSoftwareFallback(
-                true, "video/avc", "OMX.vendor.h264.decoder"));
-        assertTrue(PlaybackCodecPolicy.excludesDecoderForSoftwareFallback(
-                true, "video/hevc", "OMX.vendor.hevc.decoder"));
-        assertFalse(PlaybackCodecPolicy.excludesDecoderForSoftwareFallback(
-                true, "audio/mp4a-latm", "OMX.vendor.audio.decoder"));
-        assertFalse(PlaybackCodecPolicy.excludesDecoderForSoftwareFallback(
-                false, "video/hevc", "OMX.vendor.hevc.decoder"));
-        assertTrue(PlaybackCodecPolicy.shouldRetrySoftwareDecoder(true, false, false));
-        assertFalse(PlaybackCodecPolicy.shouldRetrySoftwareDecoder(true, true, false));
-        assertFalse(PlaybackCodecPolicy.shouldRetrySoftwareDecoder(true, false, true));
+    @Test public void androidSixKeepsHardwareHevcOrderAndPcmAudioLikeV136() {
+        assertFalse(PlaybackCodecPolicy.preferSoftware("video/hevc", 23));
+        assertTrue(PlaybackCodecPolicy.allowsInMode("video/hevc", "OMX.vendor.hevc.decoder", false));
+        assertTrue(PlaybackCodecPolicy.pcmAudio(false, false, 23));
+        assertFalse(PlaybackCodecPolicy.pcmAudio(false, true, 23));
+        assertFalse(PlaybackCodecPolicy.pcmAudio(false, false, 24));
+        assertTrue(PlaybackCodecPolicy.pcmAudio(true, true, 30));
+    }
+
+    @Test public void decoderErrorsKeepV136ClassificationWithoutAnFfmpegRetry() {
+        assertEquals("source", PlaybackCodecPolicy.failureKind(3001));
+        assertEquals("decoder", PlaybackCodecPolicy.failureKind(4001));
+        assertEquals("network", PlaybackCodecPolicy.failureKind(2001));
     }
 }

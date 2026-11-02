@@ -8,6 +8,20 @@ import re
 import subprocess
 import zipfile
 
+def verify_native_libraries(names, variant):
+    for abi in ('arm64-v8a', 'armeabi-v7a', 'x86_64'):
+        assert f'lib/{abi}/libhongguotv.so' in names
+        for library in ('libmpv.so', 'libhongguompv.so'):
+            assert (f'lib/{abi}/{library}' in names) == (variant == 'mpv')
+    # The MPV build embeds its own FFmpeg in libmpv. Neither APK should contain
+    # the separate NextLib/Media3 FFmpeg libraries removed from standard.
+    ffmpeg = ('libavcodec', 'libavutil', 'libswresample', 'libswscale', 'libmedia3ext', 'libffmpeg', 'libnextlib')
+    assert not any(name.startswith('lib/') and Path(name).name.lower().startswith(ffmpeg) and name.endswith('.so')
+                   for name in names), 'Unexpected standalone FFmpeg/NextLib library'
+    assert not any('media_kit' in name or 'fftools' in name for name in names)
+    assert ('assets/mpv-notices.txt' in names) == (variant == 'mpv')
+    assert 'assets/media3-ffmpeg-notices.txt' not in names
+
 def verify(apk, variant, version, code, debug=False):
     tools = Path(os.environ['ANDROID_HOME']) / 'build-tools/35.0.0'
     badging = subprocess.check_output([str(tools / 'aapt'), 'dump', 'badging', str(apk)], text=True)
@@ -24,15 +38,7 @@ def verify(apk, variant, version, code, debug=False):
     assert signer
     with zipfile.ZipFile(apk) as archive:
         names = archive.namelist()
-        for abi in ('arm64-v8a', 'armeabi-v7a', 'x86_64'):
-            assert f'lib/{abi}/libhongguotv.so' in names
-            for library in ('libmpv.so', 'libhongguompv.so'):
-                assert (f'lib/{abi}/{library}' in names) == (variant == 'mpv')
-            for library in ('libavcodec.so', 'libavutil.so', 'libswresample.so', 'libswscale.so', 'libmedia3ext.so'):
-                assert (f'lib/{abi}/{library}' in names) == (variant == 'standard')
-        assert not any('media_kit' in name or 'fftools' in name for name in names)
-        assert ('assets/mpv-notices.txt' in names) == (variant == 'mpv')
-        assert ('assets/media3-ffmpeg-notices.txt' in names) == (variant == 'standard')
+        verify_native_libraries(names, variant)
     assert 0 < apk.stat().st_size <= 100 * 1024 * 1024
     return {'variant': variant, 'package': package, 'version': version, 'version_code': code,
             'size': apk.stat().st_size, 'signers': sorted(signer)}

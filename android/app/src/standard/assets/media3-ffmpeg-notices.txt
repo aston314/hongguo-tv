@@ -1,8 +1,0 @@
-Hongguo TV Android standard edition
-
-This APK includes NextLib Media3 Extensions 1.11.1-0.17.0
-from https://github.com/anilbeesetti/nextlib.
-
-NextLib Media3 Extensions and its bundled FFmpeg libraries are distributed
-under the GNU General Public License v3.0. The upstream source repository is
-https://github.com/anilbeesetti/nextlib.
