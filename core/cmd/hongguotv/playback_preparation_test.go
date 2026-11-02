@@ -103,7 +103,7 @@ func TestPlaybackPreparationIdentityReplacementPreservesBoundedEmptyAndCounts(t 
 	defer remote.Close()
 	_, err := miniReelNativeOptionsWithIdentityCache(context.Background(), "123", remote.URL, "default", cache)
 	d := playbackPreparationDetails(err)
-	if !errors.Is(err, errMiniReelVideoModelEmpty) || d.Attempt != 4 || calls.Load() != 4 || registrations.Load() != 2 {
+	if !errors.Is(err, errMiniReelVideoModelEmpty) || d.Attempt != 6 || calls.Load() != 6 || registrations.Load() != 2 {
 		t.Fatalf("empty = %+v, %v; calls=%d regs=%d", d, err, calls.Load(), registrations.Load())
 	}
 	assertPlaybackPreparationPublic(t, err, "VIDEO_MODEL_EMPTY", "multi_video_model", 200)

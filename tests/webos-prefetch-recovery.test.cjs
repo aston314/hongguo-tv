@@ -57,7 +57,7 @@ function fixture(replies, warmHead, registrationReplies = []) {
     }
     assert(options.path.startsWith('/novel/player/multi_video_model/v1/'));
     const index = requests.length, reply = replies[index] || {};
-    const item = { destroyed: false, body: [], respond: null, host: options.hostname || options.host, headers: options.headers, agent: options.agent, at: Date.now(), device: new URL('https://fixture.test'+options.path).searchParams.get('device_id') };
+    const item = { destroyed: false, body: [], respond: null, at: Date.now(), device: new URL('https://fixture.test'+options.path).searchParams.get('device_id') };
     requests.push(item);
     req.write = data => item.body.push(Buffer.from(data));
     req.destroy = error => { item.destroyed = true; if (error) process.nextTick(() => req.emit('error', error)); };
@@ -211,24 +211,24 @@ test('temporary transport errors and empty responses recover within the shared b
   }
 });
 
-test('shared empty responses use one replacement and stop at four requests with current-job diagnostics', async () => {
-  const f = fixture([{ hold: true, empty: true }, ...Array.from({ length: 3 }, () => ({ empty: true }))]);
+test('shared empty responses use one replacement and stop at six requests with current-job diagnostics', async () => {
+  const f = fixture([{ hold: true, empty: true }, ...Array.from({ length: 5 }, () => ({ empty: true }))]);
   try {
     const b = observe(f.prepare(true)); await tick(); const p = observe(f.prepare(false)); f.requests[0].respond();
     const { error } = await p;
-    assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); await b; assert.equal(f.requests.length, 4); assert.equal(f.registrations,2); assert.equal(f.rangeOpens, 0);
+    assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); await b; assert.equal(f.requests.length, 6); assert.equal(f.registrations,2); assert.equal(f.rangeOpens, 0);
     assert.equal(error.recoveryComplete, true);
     assert.equal(error.upstreamStatus, 200, 'HTTP 200 upstream is distinct from the local 502 failure response');
-    assert.equal(error.videoModel.attempt, 4);
+    assert.equal(error.videoModel.attempt, 6);
     assert.equal(error.videoModel.http_status, 200);
     assert.equal(error.videoModel.response_bytes, 0);
     assert.equal(error.videoModel.stage, 'multi_video_model');
-    assert(f.requests[1].at - f.requests[0].at >= 280);
-    assert(f.requests[2].at - f.requests[1].at >= 580);
+    assert(f.requests[1].at - f.requests[0].at >= 230);
+    assert(f.requests[2].at - f.requests[1].at >= 980);
     const report = f.provider.mediaDiagnostics('');
     assert.equal(report.media_preparation_error_stage, 'multi_video_model');
     assert.equal(report.media_preparation_error_code, 'VIDEO_MODEL_EMPTY');
-    assert.equal(report.media_video_model.attempt, 4);
+    assert.equal(report.media_video_model.attempt, 6);
     assert(!/video_id|media\.example|cookie|token/i.test(JSON.stringify(error.videoModel)));
   } finally { f.close(); }
 });
@@ -237,9 +237,9 @@ test('direct empty responses back off twice, while speculative empty responses s
   const f = fixture([{ empty: true }, { empty: true }, {}]);
   try {
     const current = await f.prepare(false);
-    assert.equal(f.requests.length, 3); assert.equal(f.registrations, 2);
-    assert(f.requests[1].at - f.requests[0].at >= 280);
-    assert(f.requests[2].at - f.requests[1].at >= 580);
+    assert.equal(f.requests.length, 3); assert.equal(f.registrations, 1);
+    assert(f.requests[1].at - f.requests[0].at >= 230);
+    assert(f.requests[2].at - f.requests[1].at >= 980);
     assert.equal(current.preparation_timing.media_video_model.code, 'VIDEO_MODEL_OK');
     assert.equal(current.preparation_timing.media_video_model.attempt, 3);
     assert.equal(current.preparation_timing.media_preparation_error_code, undefined);
@@ -254,13 +254,13 @@ test('direct empty responses back off twice, while speculative empty responses s
   } finally { speculative.close(); }
 });
 
-test('mixed failures after a confirmed empty share one refresh and a four-request maximum', async () => {
-  const f = fixture([{ empty: true }, { status: 502 }, { empty: true }, { empty: true }]);
+test('mixed empty and HTTP failures share the same three-request maximum', async () => {
+  const f = fixture([{ empty: true }, { status: 502 }, { empty: true }, {}]);
   try {
     const { error } = await observe(f.prepare(false));
     assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); assert.equal(error.recoveryComplete, true);
-    assert.equal(f.requests.length, 4); assert.equal(error.videoModel.attempt, 4);
-    assert.equal(f.registrations, 2, 'only the confirmed empty may refresh identity');
+    assert.equal(f.requests.length, 3); assert.equal(error.videoModel.attempt, 3);
+    assert.equal(f.registrations, 1, 'mixed failures must not refresh identity');
     assert.equal(f.rangeOpens, 0); assert.equal(f.downloads, 0);
   } finally { f.close(); }
 });
@@ -298,13 +298,13 @@ test('leaving during direct backoff does not issue a delayed request for a remai
     const current=observe(f.prepare(false,c.signal));await tick();
     const prefetch=observe(f.prepare(true));f.requests[0].respond();await tick();c.abort();
     assert.equal((await current).error.name,'AbortError');
-    assert.equal((await prefetch).error.name,'AbortError');
+    assert.equal((await prefetch).error.code,'VIDEO_MODEL_EMPTY');
     assert.equal(f.requests.length,1);
   } finally { f.close(); }
 });
 
 test('a later prefetch success never overwrites the foreground empty-response diagnostic', async () => {
-  const f = fixture([...Array.from({length:4},()=>({empty:true})),{}]);
+  const f = fixture([...Array.from({length:6},()=>({empty:true})),{}]);
   try {
     const { error } = await observe(f.prepare(false));
     await f.provider.prepare('123', '789', '', true, 'range', true);
@@ -317,14 +317,14 @@ test('a later prefetch success never overwrites the foreground empty-response di
 });
 
 test('a late older foreground result cannot overwrite the newest foreground failure', async () => {
-  const f=fixture([{hold:true},...Array.from({length:4},()=>({empty:true}))]);
+  const f=fixture([{hold:true},...Array.from({length:6},()=>({empty:true}))]);
   try {
     const old=observe(f.prepare(false));await tick();
     const current=await observe(f.provider.prepare('123','789','',true,'range',false));
     assert.equal(current.error.code,'VIDEO_MODEL_EMPTY');
     f.requests[0].respond();assert(!(await old).error);
     assert.equal(f.provider.foregroundVideoModelDiagnostics().code,'VIDEO_MODEL_EMPTY');
-    assert.equal(f.provider.foregroundVideoModelDiagnostics().attempt,4);
+    assert.equal(f.provider.foregroundVideoModelDiagnostics().attempt,6);
     assert.equal(f.provider.mediaDiagnostics('').media_preparation_error_code,'VIDEO_MODEL_EMPTY');
   } finally { f.close(); }
 });
@@ -389,7 +389,7 @@ function request(s, prefetch) {
 }
 
 test('HTTP playback failures carry their own sanitized diagnostic after unrelated prefetch completes', async () => {
-  const f = fixture([...Array.from({length:4},()=>({empty:true})),{}]);
+  const f = fixture([...Array.from({length:6},()=>({empty:true})),{}]);
   const prepare = f.provider.prepare;
   f.provider.prepare = (...args) => prepare(...args).catch(async error => {
     await prepare('123', '789', '', true, 'range', true); throw error;
@@ -400,7 +400,7 @@ test('HTTP playback failures carry their own sanitized diagnostic after unrelate
     assert.equal(result.status, 502); assert.equal(result.data.upstream_status, 200);
     assert.equal(result.data.error, 'VIDEO_MODEL_EMPTY'); assert.equal(result.data.recovery_complete, true);
     assert.equal(result.data.video_model.code, 'VIDEO_MODEL_EMPTY');
-    assert.equal(result.data.video_model.response_bytes, 0); assert.equal(result.data.video_model.attempt, 4);
+    assert.equal(result.data.video_model.response_bytes, 0); assert.equal(result.data.video_model.attempt, 6);
     assert.equal(result.data.stage, 'multi_video_model');
     assert.equal(result.data.video_model.video_id, undefined);
   } finally { await s.shutdown(); f.close(); }
@@ -450,7 +450,7 @@ test('confirmed empty responses replace once, recover on request four and reuse 
   try {
     const value=await f.prepare(false);
     assert.equal(f.requests.length,4);assert.equal(f.registrations,2);assert.equal(value.mode,'range');assert.equal(f.downloads,0);
-    assert.deepEqual(f.requests.map(r=>r.device),['1234567890123456781','1234567890123456782','1234567890123456782','1234567890123456782']);
+    assert.deepEqual(f.requests.map(r=>r.device),['1234567890123456781','1234567890123456781','1234567890123456781','1234567890123456782']);
     assert.equal(value.preparation_timing.media_video_model.attempt,4);
     await f.provider.prepare('123','789','',true,'range',false);
     assert.equal(f.requests[4].device,'1234567890123456782');assert.equal(f.registrations,2);
@@ -468,23 +468,23 @@ test('an adopted prefetch carries its empty-response count and request limit thr
 });
 
 test('different episodes share one registration refresh and new requests wait for it', async () => {
-  const f=fixture([{empty:true,hold:true},{empty:true,hold:true},{},{},{}],null,[{}, {hold:true}]);
+  const f=fixture([{empty:true,hold:true},{empty:true,hold:true},{empty:true},{empty:true},{empty:true,hold:true},{empty:true,hold:true},{},{},{}],null,[{}, {hold:true}]);
   try {
     const first=f.prepare(false),second=f.provider.prepare('123','789','',true,'range',false);
     await until(()=>f.requests.length===2);f.requests[0].respond();f.requests[1].respond();
-    await until(()=>f.registrations===2);
-    const newcomer=f.provider.inspectVideoModel('999');await tick();assert.equal(f.requests.length,2,'new caller must wait instead of using the old identity');
+    await until(()=>f.requests.length===6);f.requests[4].respond();await until(()=>f.registrations===2);f.requests[5].respond();
+    const newcomer=f.provider.inspectVideoModel('999');await tick();assert.equal(f.requests.length,6,'new caller must wait instead of using the old identity');
     f.registrationRequests[1].respond();assert.equal((await newcomer).ok,true);await Promise.all([first,second]);
-    assert.equal(f.registrations,2);assert.equal(f.requests.length,5);assert(f.requests.slice(2).every(r=>r.device==='1234567890123456782'));
+    assert.equal(f.registrations,2);assert.equal(f.requests.length,9);assert(f.requests.slice(6).every(r=>r.device==='1234567890123456782'));
   } finally {f.close();}
 });
 
 test('a late old-identity failure uses the replacement without invalidating it', async () => {
-  const f=fixture([{empty:true,hold:true},{empty:true,hold:true},{},{}]);
+  const f=fixture([{empty:true},{empty:true,hold:true},{empty:true},{empty:true},{},{}]);
   try {
     const first=f.prepare(false);await until(()=>f.requests.length===1);
     const older=f.provider.prepare('123','789','',true,'range',false);await until(()=>f.requests.length===2);
-    f.requests[0].respond();await first;assert.equal(f.registrations,2);f.requests[1].respond();await older;
+    await first;assert.equal(f.registrations,2);f.requests[1].respond();await older;
     assert.equal(f.registrations,2);assert.equal(f.requests.at(-1).device,'1234567890123456782');
   } finally {f.close();}
 });
@@ -499,13 +499,13 @@ test('registration failure preserves the old identity and cannot bypass the refr
 });
 
 test('foreground cancellation during refresh stops the old job but preserves the shared registration', async () => {
-  const f=fixture([{empty:true},{}],null,[{}, {hold:true}]),c=cancel.create();
+  const f=fixture([{empty:true},{empty:true},{empty:true},{}],null,[{}, {hold:true}]),c=cancel.create();
   try {
     const foreground=observe(f.prepare(false,c.signal));await tick();const speculative=observe(f.prepare(true));
     await until(()=>f.registrations===2);c.abort();assert.equal((await foreground).error.name,'AbortError');assert.equal((await speculative).error.name,'AbortError');
     assert.equal(f.registrationRequests[1].destroyed,false,'a single cancelled job must not kill a shared registration');
-    const next=f.provider.prepare('123','789','',true,'range',false);await tick();assert.equal(f.requests.length,1);
-    f.registrationRequests[1].respond();await next;assert.equal(f.requests.length,2);assert.equal(f.requests[1].device,'1234567890123456782');
+    const next=f.provider.prepare('123','789','',true,'range',false);await tick();assert.equal(f.requests.length,3);
+    f.registrationRequests[1].respond();await next;assert.equal(f.requests.length,4);assert.equal(f.requests[3].device,'1234567890123456782');
   } finally {f.close();}
 });
 
@@ -527,64 +527,4 @@ test('shutdown and wake of the same Service recreate the identity cache and disc
     await s.shutdown();assert.equal((await old).error.name,'AbortError');assert.equal(f.registrationRequests[0].destroyed,true);
     await s.ensureReady();const next=await f.prepare(false);assert.equal(next.mode,'range');assert.equal(f.registrations,2);assert.equal(f.requests.length,1);assert.equal(f.requests[0].device,'1234567890123456782');
   } finally {await s.shutdown();f.close();}
-});
-
-test('the first empty switches identity and host after 300ms, with a fresh signature and connection', async () => {
-  const f=fixture([{empty:true},{}]);
-  try {
-    const value=await f.prepare(false);
-    assert.equal(value.mode,'range');assert.equal(f.requests.length,2);assert.equal(f.registrations,2);
-    assert.notEqual(f.requests[0].device,f.requests[1].device);
-    assert.equal(f.requests[0].host,'api5-normal-sinfonlineb.fqnovel.com');
-    assert.equal(f.requests[1].host,'api5-normal-hl.fqnovel.com');
-    assert(f.requests[1].at-f.requests[0].at>=280);
-    for(const item of f.requests) {
-      for(const name of ['X-Gorgon','X-Khronos','X-Ladon','X-Argus','X-Helios','X-Medusa']) assert(item.headers[name],name);
-      assert.equal(item.headers.Cookie,undefined);assert.equal(item.headers['X-Tt-Token'],undefined);
-    }
-    assert.notEqual(f.requests[0].headers['X-Medusa'],f.requests[1].headers['X-Medusa']);
-    assert.equal(f.requests[1].headers.Connection,'close');assert.equal(f.requests[1].agent,false);
-    assert.equal(Buffer.concat(f.requests[0].body).toString(),Buffer.concat(f.requests[1].body).toString());
-  } finally {f.close();}
-});
-
-test('replacement retries preserve signed primary and unsigned compatibility with increasing backoff', async () => {
-  const f=fixture([{empty:true},{empty:true},{empty:true},{}]);
-  try {
-    await f.prepare(false);assert.equal(f.registrations,2);assert.equal(f.requests.length,4);
-    assert.deepEqual(f.requests.map(x=>x.host),['api5-normal-sinfonlineb.fqnovel.com','api5-normal-hl.fqnovel.com','api5-normal-sinfonlineb.fqnovel.com','api5-normal-sinfonlineb.fqnovel.com']);
-    assert(f.requests.slice(0,3).every(x=>x.headers['X-Medusa']));assert.equal(f.requests[3].headers['X-Medusa'],undefined);
-    assert(f.requests.slice(1).every(x=>x.device===f.requests[1].device && x.headers.Connection==='close' && x.agent===false));
-    for(const [i,minimum] of [[1,280],[2,580],[3,980]]) assert(f.requests[i].at-f.requests[i-1].at>=minimum);
-  } finally {f.close();}
-});
-
-test('slow registration counts toward backoff instead of adding another 300ms', async () => {
-  const f=fixture([{empty:true},{}],null,[{}, {hold:true}]);
-  try {
-    const result=f.prepare(false);await until(()=>f.registrations===2);assert.equal(f.requests.length,1);
-    await pause(350);f.registrationRequests[1].respond();
-    const value=await Promise.race([result,pause(250).then(()=>{throw Error('registration delay was counted twice');})]);
-    assert.equal(value.mode,'range');assert.equal(f.requests.length,2);
-  } finally {f.close();}
-});
-
-test('a failed refresh and its cooldown continue signed alternate requests with the retained identity', async () => {
-  const f=fixture([{empty:true},{},{empty:true},{}],null,[{}, {status:503}]);
-  try {
-    await f.prepare(false);await f.provider.prepare('123','789','',true,'range',false);
-    assert.equal(f.registrations,2);assert.equal(f.requests.length,4);
-    assert(f.requests.every(x=>x.device===f.requests[0].device));
-    for(const i of [1,3]) {assert.equal(f.requests[i].host,'api5-normal-hl.fqnovel.com');assert(f.requests[i].headers['X-Medusa']);}
-  } finally {f.close();}
-});
-
-test('transport retries before the first empty still share the six-request ceiling', async () => {
-  const f=fixture([{status:502},{status:502},...Array.from({length:4},()=>({empty:true}))]);
-  try {
-    const {error}=await observe(f.prepare(false));assert.equal(error.code,'VIDEO_MODEL_EMPTY');
-    assert.equal(f.requests.length,6);assert.equal(error.videoModel.attempt,6);assert.equal(f.registrations,2);
-    assert(f.requests.slice(0,3).every(x=>x.device===f.requests[0].device));
-    assert(f.requests.slice(3).every(x=>x.device!==f.requests[0].device));
-  } finally {f.close();}
 });

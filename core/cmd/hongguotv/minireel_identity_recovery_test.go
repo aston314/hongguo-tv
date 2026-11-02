@@ -48,15 +48,16 @@ func TestMiniReelIdentityRecoveryReplacesEmptyIdentityAndReusesSuccess(t *testin
 			t.Fatalf("resolved options = %#v, %v", options, err)
 		}
 	}
-	if registrations.Load() != 2 || oldRequests.Load() != 1 || newRequests.Load() != 2 {
-		t.Fatalf("registrations/old/new = %d/%d/%d, want 2/1/2", registrations.Load(), oldRequests.Load(), newRequests.Load())
+	if registrations.Load() != 2 || oldRequests.Load() != 3 || newRequests.Load() != 2 {
+		t.Fatalf("registrations/old/new = %d/%d/%d, want 2/3/2", registrations.Load(), oldRequests.Load(), newRequests.Load())
 	}
 }
 
-func TestMiniReelIdentityRecoveryRefreshesAfterFirstEmpty(t *testing.T) {
+func TestMiniReelIdentityRecoveryKeepsIdentityAfterTransientEmpty(t *testing.T) {
 	var registrations, requests atomic.Int32
 	cache := newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
-		return miniReelRecoveryDevice(fmt.Sprint(registrations.Add(1))), nil
+		registrations.Add(1)
+		return miniReelRecoveryDevice("1"), nil
 	})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if requests.Add(1) == 3 {
@@ -67,15 +68,16 @@ func TestMiniReelIdentityRecoveryRefreshesAfterFirstEmpty(t *testing.T) {
 	if _, err := miniReelNativeOptionsWithIdentityCache(context.Background(), "123", server.URL, "default", cache); err != nil {
 		t.Fatal(err)
 	}
-	if registrations.Load() != 2 || requests.Load() != 3 {
-		t.Fatalf("registrations/requests = %d/%d, want 2/3", registrations.Load(), requests.Load())
+	if registrations.Load() != 1 || requests.Load() != 3 {
+		t.Fatalf("registrations/requests = %d/%d, want 1/3", registrations.Load(), requests.Load())
 	}
 }
 
 func TestMiniReelIdentityRecoveryStopsOnOtherErrorAfterEmpty(t *testing.T) {
 	var registrations, requests atomic.Int32
 	cache := newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
-		return miniReelRecoveryDevice(fmt.Sprint(registrations.Add(1))), nil
+		registrations.Add(1)
+		return miniReelRecoveryDevice("1"), nil
 	})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if requests.Add(1) == 3 {
@@ -84,7 +86,7 @@ func TestMiniReelIdentityRecoveryStopsOnOtherErrorAfterEmpty(t *testing.T) {
 	}))
 	defer server.Close()
 	_, err := miniReelNativeOptionsWithIdentityCache(context.Background(), "123", server.URL, "default", cache)
-	if err == nil || errors.Is(err, errMiniReelVideoModelEmpty) || registrations.Load() != 2 || requests.Load() != 3 {
+	if err == nil || errors.Is(err, errMiniReelVideoModelEmpty) || registrations.Load() != 1 || requests.Load() != 3 {
 		t.Fatalf("mixed failures triggered recovery: err=%v registrations=%d requests=%d", err, registrations.Load(), requests.Load())
 	}
 }
@@ -108,14 +110,14 @@ func TestMiniReelIdentityRecoveryIsBoundedAndCooldownExpires(t *testing.T) {
 	if err := resolve(); !errors.Is(err, errMiniReelVideoModelEmpty) {
 		t.Fatalf("persistent empty error = %v", err)
 	}
-	if registrations.Load() != 2 || requests.Load() != 4 {
-		t.Fatalf("registrations/requests = %d/%d, want 2/4", registrations.Load(), requests.Load())
+	if registrations.Load() != 2 || requests.Load() != 6 {
+		t.Fatalf("registrations/requests = %d/%d, want 2/6", registrations.Load(), requests.Load())
 	}
 	if err := resolve(); !errors.Is(err, errMiniReelVideoModelEmpty) {
 		t.Fatalf("cooldown error = %v", err)
 	}
-	if registrations.Load() != 2 || requests.Load() != 7 {
-		t.Fatalf("cooldown registrations/requests = %d/%d, want 2/7", registrations.Load(), requests.Load())
+	if registrations.Load() != 2 || requests.Load() != 9 {
+		t.Fatalf("cooldown registrations/requests = %d/%d, want 2/9", registrations.Load(), requests.Load())
 	}
 	cache.mu.Lock()
 	cache.refreshAfter = time.Now().Add(-time.Second)
@@ -123,8 +125,8 @@ func TestMiniReelIdentityRecoveryIsBoundedAndCooldownExpires(t *testing.T) {
 	if err := resolve(); err != nil {
 		t.Fatalf("recovery after cooldown = %v", err)
 	}
-	if registrations.Load() != 3 || requests.Load() != 9 {
-		t.Fatalf("after cooldown registrations/requests = %d/%d, want 3/9", registrations.Load(), requests.Load())
+	if registrations.Load() != 3 || requests.Load() != 13 {
+		t.Fatalf("after cooldown registrations/requests = %d/%d, want 3/13", registrations.Load(), requests.Load())
 	}
 }
 
@@ -219,7 +221,7 @@ func TestMiniReelIdentityRecoveryConcurrentRequestsShareReplacement(t *testing.T
 		case <-ctx.Done():
 			return
 		}
-		if oldRequests.Add(1) == workers {
+		if oldRequests.Add(1) == workers*miniReelVideoModelAttempts {
 			close(allOldRequests)
 		}
 	}))
@@ -236,8 +238,8 @@ func TestMiniReelIdentityRecoveryConcurrentRequestsShareReplacement(t *testing.T
 		}()
 	}
 	wg.Wait()
-	if registrations.Load() != 2 || oldRequests.Load() != workers || newRequests.Load() != workers {
-		t.Fatalf("registrations/old/new = %d/%d/%d, want 2/%d/%d", registrations.Load(), oldRequests.Load(), newRequests.Load(), workers, workers)
+	if registrations.Load() != 2 || oldRequests.Load() != workers*3 || newRequests.Load() != workers {
+		t.Fatalf("registrations/old/new = %d/%d/%d, want 2/%d/%d", registrations.Load(), oldRequests.Load(), newRequests.Load(), workers*3, workers)
 	}
 }
 
@@ -456,138 +458,5 @@ func TestMiniReelIdentityRecoveryNewRequestWaitsForReplacement(t *testing.T) {
 	}
 	if device := <-result; device != miniReelRecoveryDevice("2") || registrations.Load() != 2 {
 		t.Fatalf("new request did not use replacement: %#v, registrations=%d", device, registrations.Load())
-	}
-}
-
-func TestMiniReelIdentityRecoveryFirstEmptyBackoffAndCompatibility(t *testing.T) {
-	var registrations, oldRequests atomic.Int32
-	cache := newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
-		n := registrations.Add(1)
-		if n == 2 && oldRequests.Load() != 1 {
-			t.Error("identity was not refreshed after the first empty response")
-		}
-		return miniReelRecoveryDevice(fmt.Sprint(n)), nil
-	})
-	var mu sync.Mutex
-	var seen []time.Time
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		defer mu.Unlock()
-		seen = append(seen, time.Now())
-		n := len(seen)
-		if n == 1 {
-			oldRequests.Add(1)
-		} else if r.URL.Query().Get("device_id") != "2" || !r.Close {
-			t.Error("retry did not use the replacement identity and a fresh connection")
-		}
-		if n < 4 {
-			assertMiniReelPlaybackSignature(t, r)
-		} else {
-			if r.Header.Get("X-Medusa") != "" || r.URL.Query().Get("ts") != "" {
-				t.Error("unsigned compatibility request was lost")
-			}
-			_, _ = io.WriteString(w, miniReelRecoveryModel)
-		}
-	}))
-	defer server.Close()
-	options, err := miniReelNativeOptionsWithIdentityCache(context.Background(), "123", server.URL, "default", cache)
-	if err != nil || len(options) != 1 || registrations.Load() != 2 {
-		t.Fatalf("recovery = %#v, %v; registrations=%d", options, err, registrations.Load())
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	if len(seen) != 4 {
-		t.Fatalf("requests = %d, want 4", len(seen))
-	}
-	for i := 1; i < len(seen); i++ {
-		if gap := seen[i].Sub(seen[i-1]); gap < miniReelRetryDelay(i-1)-20*time.Millisecond {
-			t.Errorf("retry %d arrived too early: %v", i, gap)
-		}
-	}
-}
-
-func TestMiniReelIdentityRecoveryRefreshFailureContinuesCompatibility(t *testing.T) {
-	var registrations, requests atomic.Int32
-	cache := newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
-		if registrations.Add(1) > 1 {
-			return miniReelDevice{}, errors.New("registration unavailable")
-		}
-		return miniReelRecoveryDevice("1"), nil
-	})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("device_id") != "1" {
-			t.Error("failed registration discarded the old identity")
-		}
-		if requests.Add(1) > 1 {
-			_, _ = io.WriteString(w, miniReelRecoveryModel)
-		}
-	}))
-	defer server.Close()
-	for i := 0; i < 2; i++ {
-		if _, err := miniReelNativeOptionsWithIdentityCache(context.Background(), "123", server.URL, "default", cache); err != nil {
-			t.Fatal(err)
-		}
-	}
-	if registrations.Load() != 2 || requests.Load() != 3 {
-		t.Fatalf("registrations/requests = %d/%d, want 2/3", registrations.Load(), requests.Load())
-	}
-}
-
-func TestMiniReelIdentityRecoveryCancelDuringBackoffStopsRequests(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	var registrations, requests atomic.Int32
-	refreshed := make(chan struct{})
-	cache := newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
-		n := registrations.Add(1)
-		if n == 2 {
-			close(refreshed)
-		}
-		return miniReelRecoveryDevice(fmt.Sprint(n)), nil
-	})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests.Add(1) }))
-	defer server.Close()
-	result := make(chan error, 1)
-	go func() {
-		_, err := miniReelNativeOptionsWithIdentityCache(ctx, "123", server.URL, "default", cache)
-		result <- err
-	}()
-	select {
-	case <-refreshed:
-	case <-time.After(3 * time.Second):
-		t.Fatal("refresh did not start")
-	}
-	cancel()
-	select {
-	case err := <-result:
-		if !errors.Is(err, context.Canceled) || requests.Load() != 1 {
-			t.Fatalf("canceled backoff = %v, requests=%d", err, requests.Load())
-		}
-	case <-time.After(time.Second):
-		t.Fatal("cancellation remained blocked on retry delay")
-	}
-}
-
-func TestMiniReelIdentityRecoveryRegistrationTimeCountsAsBackoff(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-	var registrations, requests atomic.Int32
-	cache := newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
-		n := registrations.Add(1)
-		if n == 2 {
-			time.Sleep(350 * time.Millisecond)
-			// Another full 300ms sleep would cross this deadline.
-			time.AfterFunc(250*time.Millisecond, cancel)
-		}
-		return miniReelRecoveryDevice(fmt.Sprint(n)), nil
-	})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if requests.Add(1) > 1 {
-			_, _ = io.WriteString(w, miniReelRecoveryModel)
-		}
-	}))
-	defer server.Close()
-	if _, err := miniReelNativeOptionsWithIdentityCache(ctx, "123", server.URL, "default", cache); err != nil {
-		t.Fatalf("registration time was not counted toward backoff: %v", err)
 	}
 }

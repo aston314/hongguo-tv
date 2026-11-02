@@ -417,7 +417,8 @@
   function videoOptions(vid, signal, retry) {
     retry = retry || {};
     var transientRetries = 0;
-    var identityState = retry.identityState || { attempts: 0, emptyCount: 0, device: null, replaced: false, refreshAttempted: false };
+    var identityState = retry.identityState || { attempts: 0, emptyCount: 0, device: null, replaced: false };
+    var usedDevice;
     var maxTransientRetries = Math.max(0, Number(retry.maxTransientRetries) || 0);
     var maximum = Math.max(1, Math.min(3, Number(retry.maxAttempts) || 3));
     var offset = Number(retry.attemptOffset) || 0;
@@ -432,38 +433,12 @@
         retry.onDiagnostic(safe);
       }
     }
-    function mayRetry() { return !retry.allowRetry || retry.allowRetry(); }
-    function afterEmptyRefresh(error) {
-      identityState.refreshAttempted = true;
-      if (typeof retry.onIdentityRefresh === 'function') retry.onIdentityRefresh();
-      return playbackIdentity.refreshAfterEmpty(identityState.device, signal).then(function () {
-        identityState.replaced = true;
-        identityState.emptyCount = 0;
-        // Original identity once plus three replacement attempts; prior transport
-        // failures and an adopted prefetch still share the six-request ceiling.
-        maximum = Math.max(maximum, Math.min(6 - offset, attempt + 3));
-      }, function (refreshError) {
-        if (signal && signal.aborted || refreshError && refreshError.name === 'AbortError') throw preparationCancelled();
-        // Failed/throttled registration retains the old identity and its normal
-        // alternate-host/unsigned path. Do not turn cooldown into a playback ban.
-      }).then(function () {
-        if (signal && signal.aborted) throw preparationCancelled();
-        if (!mayRetry()) throw error;
-        var delay = Math.max(0, 300 - (Date.now() - identityState.emptyAt));
-        if (typeof retry.onRetry === 'function') retry.onRetry(error, delay, offset + attempt);
-        return (delay > 0 ? recoveryDelay(signal, delay) : Promise.resolve()).then(next);
-      });
-    }
     function next() {
       if (signal && signal.aborted) return Promise.reject(preparationCancelled());
-      // A prefetch may have failed before foreground adoption. Recover its
-      // confirmed empty response before sending another request with that ID.
-      if (identityState.emptyCount > 0 && !identityState.refreshAttempted && identityState.attempts < 6 && mayRetry()) {
-        return afterEmptyRefresh(identityState.lastEmpty);
-      }
       attempt++; identityState.attempts++;
       recordDiagnostic({ stage: 'device_register', code: 'VIDEO_MODEL_REQUEST' });
       return playbackIdentity.get(signal).then(function (device) {
+        usedDevice = device;
         if (identityState.device !== device) identityState.emptyCount = 0;
         identityState.device = device;
         if (signal && signal.aborted) throw preparationCancelled();
@@ -479,19 +454,17 @@
           'Content-Type': 'application/json; charset=UTF-8'
         };
         var query = sortedQuery(params), endpoint = API_BASE;
-        // A replacement starts at the alternate host, then signed primary and
-        // finally the original unsigned compatibility request.
-        var policyAttempt = identityState.emptyCount;
-        if (identityState.replaced && policyAttempt < 2) policyAttempt = policyAttempt === 0 ? 1 : 0;
-        if (policyAttempt < 2) {
+        // Keep the shared prefetch/foreground budget. A third consecutive
+        // empty response still gets the original unsigned compatibility path.
+        if (identityState.emptyCount < 2) {
           var signed;
           try { signed = passportSign.signPlayback(params, Buffer.from(body), stamp, device.deviceID); }
           catch (error) { throw fail('播放请求签名失败', 502, 'VIDEO_MODEL_SIGN', 'multi_video_model'); }
           query = signed.query;
           Object.assign(headers, signed.headers);
-          if (policyAttempt === 1) endpoint = 'https://api5-normal-hl.fqnovel.com';
+          if (identityState.emptyCount === 1) endpoint = 'https://api5-normal-hl.fqnovel.com';
         }
-        if (identityState.attempts > 1) headers.Connection = 'close';
+        if (identityState.emptyCount > 0) headers.Connection = 'close';
         recordDiagnostic({ stage: 'multi_video_model', code: 'VIDEO_MODEL_REQUEST' });
         return requestBuffer(endpoint + API_PATH + '?' + query, 'POST', headers, Buffer.from(body), MAX_JSON, signal);
       }).then(function (response) {
@@ -559,16 +532,28 @@
         error.stage = stage;
         error.videoModel = Object.assign({}, diagnostic); delete error.videoModel.video_id;
         if (diagnostic.http_status) error.upstreamStatus = diagnostic.http_status;
-        if (confirmedEmpty) {
-          identityState.emptyAt = Date.now();
-          identityState.lastEmpty = error;
-          if (!identityState.refreshAttempted && identityState.attempts < 6 && mayRetry()) {
-            return afterEmptyRefresh(error);
-          }
+        if (identityState.emptyCount >= 3 && !identityState.replaced && (!retry.allowRetry || retry.allowRetry())) {
+          identityState.replaced = true;
+          if (typeof retry.onIdentityRefresh === 'function') retry.onIdentityRefresh();
+          return playbackIdentity.refreshAfterEmpty(usedDevice, signal).then(function () {
+            if (signal && signal.aborted) throw preparationCancelled();
+            if (retry.allowRetry && !retry.allowRetry()) throw error;
+            // Keep the existing phase budget (including an adopted prefetch),
+            // then allow at most three requests with the replacement identity.
+            maximum += 3;
+            identityState.emptyCount = 0;
+            if (typeof retry.onRetry === 'function') retry.onRetry(error, 0, offset + attempt);
+            return next();
+          }, function (refreshError) {
+            if (signal && signal.aborted || refreshError && refreshError.name === 'AbortError') throw preparationCancelled();
+            // Preserve the original empty-body diagnostic, including real HTTP
+            // 200, even when registration fails or is cooling down.
+            throw error;
+          });
         }
         if (identityState.attempts < 6 && attempt < maximum && (!retry.allowRetry || retry.allowRetry()) && (error.code === 'VIDEO_MODEL_EMPTY' ||
             maxTransientRetries > transientRetries && transientVideoModelError(error))) {
-          var delay = confirmedEmpty ? (identityState.attempts === 1 ? 300 : identityState.attempts === 2 ? 600 : 1000) : (offset + attempt === 1 ? 250 : 1000);
+          var delay = offset + attempt === 1 ? 250 : 1000;
           if (error.code !== 'VIDEO_MODEL_EMPTY') transientRetries++;
           if (typeof retry.onRetry === 'function') retry.onRetry(error, delay, offset + attempt);
           return recoveryDelay(signal, delay).then(function () {
@@ -815,7 +800,7 @@
       return Promise.resolve(resultWithReport({ path: '/minireel-proxy/media/' + token + '.mp4', quality: quality || '', qualities: [], vid: vid, mode: 'full' }, preparationReports[token] || { media_mode: 'full', media_preparation_stage: 'ready' }, false, true));
     }
     var record = { users: 0, foregroundUsers: 0, speculative: !!prefetch, settled: false, resolveCancel: audioCancel.create(),
-      identityState: { attempts: 0, emptyCount: 0, device: null, replaced: false, refreshAttempted: false },
+      identityState: { attempts: 0, emptyCount: 0, device: null, replaced: false },
       report: { media_mode: wantsRange ? 'range' : 'full', media_preparation_stage: 'resolve' } };
     rememberPreparation(token, record.report);
     var resolveStartedAt = Date.now();
@@ -833,7 +818,7 @@
         maxTransientRetries: prefetch ? 0 : 2,
         startedAt: resolveStartedAt, onRetry: retried, onDiagnostic: diagnostic, onIdentityRefresh: identityRefreshing, allowRetry: foregroundWaiting
       }).catch(function (error) {
-        if (!record.speculative || record.identityState.attempts !== 1 || record.identityState.refreshAttempted || !record.foregroundUsers || !transientVideoModelError(error)) throw error;
+        if (!record.speculative || !record.foregroundUsers || !transientVideoModelError(error)) throw error;
         record.recoveryCancel = record.resolveCancel;
         // Keep this same job registered during backoff and recovery, so all
         // foreground callers share the remaining budget. No page retry loop.
