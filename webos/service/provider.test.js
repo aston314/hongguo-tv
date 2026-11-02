@@ -72,7 +72,7 @@ https.request = function (options) {
     if (options.path.indexOf('/service/2/device_register/') >= 0) {
       deviceRegisterRequests++;
       deviceRegistration = { options: options, query: Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams), body: Buffer.concat(requestChunks) };
-      body = JSON.stringify({ device_id_str: '1234567890123456789', install_id_str: '2234567890123456789' });
+      body = JSON.stringify({ device_id_str: '123456789012345678' + deviceRegisterRequests, install_id_str: '223456789012345678' + deviceRegisterRequests });
       if (deviceRegisterFailures > 0) { deviceRegisterFailures--; responseStatus = 503; }
     }
     if (options.path.indexOf('/novel/player/multi_video_model/v1/') >= 0) {
@@ -288,6 +288,7 @@ async function run() {
 
     var downloadsBeforePrefetch = mediaDownloadRequests;
     var prefetchError = await provider.prepare(seriesID, '4234567890123456789', '', false, 'range', true).then(function () { return null; }, function (error) { return error; });
+    assert.strictEqual(deviceRegisterRequests, 2, 'failed registration is retried once on the next playback request');
     assert(prefetchError && /CENC key/.test(prefetchError.message), 'Range prefetch without a key fails quietly');
     assert.strictEqual(mediaDownloadRequests, downloadsBeforePrefetch, 'failed Range prefetch never downloads the full episode');
     assert.strictEqual(videoModelRequests, 1, 'prefetch resolves the episode source before rejecting unsupported Range');
@@ -407,11 +408,11 @@ async function run() {
     assert(dramaLike.entries[0].liked_at > 0, 'guest series-like behavior is retained');
 
     var beforeRetry = videoModelRequests, beforePlaybackRequests = playbackRequests.length;
-    videoModelEmptyResponses = 2;
+    videoModelEmptyResponses = 3;
     var playbackProbe = await provider.inspectVideoModel('1334567890123456789');
     assert.strictEqual(playbackProbe.ok, true, 'registered playback request resolves after bounded empty-response retries');
-    assert.strictEqual(videoModelRequests - beforeRetry, 3, 'empty playback responses retry with the same registered identity');
-    assert.strictEqual(deviceRegisterRequests, 2, 'failed registration is retried once on the next playback request');
+    assert.strictEqual(videoModelRequests - beforeRetry, 4, 'the first empty refreshes identity, then preserves three compatibility attempts');
+    assert.strictEqual(deviceRegisterRequests, 3, 'empty-response recovery registers only one replacement identity');
     assert(deviceRegistration, 'anonymous playback identity was registered before the playback request');
     assert.strictEqual(deviceRegistration.options.headers.Cookie || '', '', 'anonymous playback registration has no account cookies');
     assert.strictEqual(deviceRegistration.options.headers['X-Tt-Token'] || '', '', 'anonymous playback registration has no account token');
@@ -419,11 +420,15 @@ async function run() {
     assert.strictEqual(deviceRegistration.query.iid || '', '', 'registration does not send a fabricated install id');
     var playbackIdentity = playbackRequests[0].query;
     assert(playbackIdentity.device_id && playbackIdentity.iid && playbackIdentity.cdid, 'playback uses the registered identity');
+    var replacementIdentity = playbackRequests[beforePlaybackRequests + 1].query;
+    assert.notStrictEqual(replacementIdentity.device_id, playbackIdentity.device_id, 'the first empty replaces the failed playback identity');
+    assert.notStrictEqual(replacementIdentity.iid, playbackIdentity.iid, 'the replacement has its own install identity');
     playbackRequests.slice(beforePlaybackRequests).forEach(function (call, index) {
       assert.strictEqual(call.options.path.split('?')[0], '/novel/player/multi_video_model/v1/');
-      assert.strictEqual(call.query.device_id, playbackIdentity.device_id, 'playback identity stays stable across source attempts');
-      assert.strictEqual(call.query.iid, playbackIdentity.iid, 'install identity stays stable across source attempts');
-      if (index < 2) {
+      var expectedIdentity = index === 0 ? playbackIdentity : replacementIdentity;
+      assert.strictEqual(call.query.device_id, expectedIdentity.device_id, 'replacement playback identity stays stable across source attempts');
+      assert.strictEqual(call.query.iid, expectedIdentity.iid, 'replacement install identity stays stable across source attempts');
+      if (index < 3) {
         assert(call.options.headers['X-Medusa'], 'playback request includes its own signature');
         assert.strictEqual(call.query.ts, call.options.headers['X-Khronos']);
         assert.strictEqual(call.query._rticket, call.options.headers['X-SS-Req-Ticket']);
@@ -434,7 +439,7 @@ async function run() {
         assert.strictEqual(call.options.headers['X-Gorgon'], require('./passport-sign').gorgon(rawQuery, rawBody, stamp, gorgon.readUInt16LE(2)));
         assert.strictEqual(call.options.hostname, index === 1 ? 'api5-normal-hl.fqnovel.com' : 'api5-normal-sinfonlineb.fqnovel.com');
       } else {
-        assert.strictEqual(call.options.headers['X-Medusa'], undefined, 'third attempt preserves unsigned compatibility');
+        assert.strictEqual(call.options.headers['X-Medusa'], undefined, 'final attempt preserves unsigned compatibility');
         assert.strictEqual(call.options.hostname, 'api5-normal-sinfonlineb.fqnovel.com');
       }
       if (index > 0) {
