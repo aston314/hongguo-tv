@@ -81,6 +81,27 @@ class ReleaseSourceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not an ancestor of origin/main"):
             verify("push", "refs/tags/v1.2.4", feature_sha)
 
+    def test_desktop_reads_annotated_remote_tag_without_replacing_checkout_tag(self):
+        git(self.seed, "tag", "-a", "v1.2.6", "-m", "release", self.main_sha)
+        git(self.seed, "push", "origin", "v1.2.6")
+        remote_tag = git(self.seed, "rev-parse", "refs/tags/v1.2.6")
+        # actions/checkout can represent the remote annotated tag locally by
+        # its commit. Fetching back into the same tag would reject clobbering.
+        git(self.clone, "tag", "v1.2.6", self.main_sha)
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/desktop.yml").read_text()
+        commands = workflow.split('          git fetch --no-tags origin "refs/tags/v$APP_VERSION"', 1)[1]
+        commands = 'git fetch --no-tags origin "refs/tags/v$APP_VERSION"' + commands.split('          if [[ "${GITHUB_REF_TYPE:-}"', 1)[0]
+        result = subprocess.run(["bash", "-e", "-c", commands], cwd=self.clone,
+                                env={**os.environ, "APP_VERSION": "1.2.6", "GITHUB_SHA": self.main_sha},
+                                text=True, capture_output=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(self.main_sha, git(self.clone, "rev-parse", "refs/tags/v1.2.6"))
+        self.assertEqual(remote_tag, git(self.remote, "rev-parse", "refs/tags/v1.2.6"))
+        wrong = subprocess.run(["bash", "-e", "-c", commands], cwd=self.clone,
+                               env={**os.environ, "APP_VERSION": "1.2.6", "GITHUB_SHA": "0" * 40},
+                               text=True, capture_output=True)
+        self.assertNotEqual(0, wrong.returncode)
+
 
 if __name__ == "__main__":
     unittest.main()
