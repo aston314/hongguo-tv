@@ -396,6 +396,15 @@
         if (fixedNative && next && bridge.begin) bridge.begin(loadId);
         else if (bridge.stop) bridge.stop();
       } catch (ignoredStop) {}
+      if (!fixedNative) {
+        // Transition audio may have been released on the native proxy while
+        // the paused HTML5 element still carries its earlier temporary mute.
+        // Snapshot the authoritative native state before switching getters
+        // back to the DOM element, so a later transition does not mistake
+        // that stale mute for the user's preference.
+        domVideo.volume = state.volume;
+        domVideo.muted = state.muted;
+      }
       usingNative = fixedNative;
       if (!fixedNative) document.documentElement.classList.remove('native-playback');
     }

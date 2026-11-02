@@ -103,7 +103,8 @@ function fixture(engine = 'webview_media3', options = {}) {
     stop() { this.stops++; },
     lastId: null,
     lastPayload: null,
-    setVolume() {},
+    volumeCalls: [],
+    setVolume(volume, muted) { this.volumeCalls.push({volume, muted}); },
     seekTo() {}
   };
   const window = { HongguoNativePlayer: bridge, addEventListener() {}, location: { origin: options.origin || 'http://127.0.0.1' }, localStorage: storage };
@@ -135,6 +136,125 @@ function activateNative(f) {
   }
   return f.bridge.lastId;
 }
+
+function installTransitionAudio(f) {
+  const part = (start, end) => appSource.slice(appSource.indexOf('  function ' + start + '('),
+    appSource.indexOf('  function ' + end + '('));
+  vm.runInContext('var playbackAudioHold = null;' + part('holdPlaybackAudio', 'hasLastPlaybackFrame') +
+    part('setPlaybackMuted', 'bindPlaybackPresentation'), f.context);
+}
+
+function nativeAfterAudioRelease() {
+  const f = fixture();
+  installTransitionAudio(f);
+  const video = f.document.getElementById('hero-video');
+  video.volume = .65;
+  video.muted = false;
+  video.src = '/media/first.mp4';
+  f.context.holdPlaybackAudio(1);
+  video.play();
+  assert.equal(f.context.window.HongguoNativePlaybackAdapter.enableNative(), true);
+  f.context.releasePlaybackAudio({generation: 1});
+  assert.equal(video.muted, false);
+  assert.equal(f.domVideo.muted, true, 'the inactive HTML5 element still holds its old transition mute');
+  return {f, video};
+}
+
+test('clearing a Media3 source transfers released audio before the next episode saves mute intent', async () => {
+  const {f, video} = nativeAfterAudioRelease();
+  video.pause();
+  f.context.releasePlaybackAudio();
+  video.removeAttribute('src');
+  video.load();
+  assert.equal(video.muted, false, 'clearing a native source must not revive the hidden HTML5 mute');
+  assert.equal(video.volume, .65);
+  f.context.holdPlaybackAudio(2);
+  video.src = '/media/next.mp4';
+  video.load();
+  await video.play();
+  assert.equal(video.muted, true, 'the next episode remains held until its presentation is ready');
+  f.context.releasePlaybackAudio({generation: 2});
+  assert.equal(video.muted, false);
+  assert.equal(video.volume, .65);
+  assert.equal(f.context.window.HongguoNativePlaybackAdapter.enableNative(), true);
+  assert.deepEqual(f.bridge.volumeCalls.at(-1), {volume: .65, muted: false});
+});
+
+test('quality source replacement carries the native mute and volume without an audio hold', async () => {
+  for (const muted of [false, true]) {
+    const {f, video} = nativeAfterAudioRelease();
+    video.volume = .35;
+    video.muted = muted;
+    video.pause();
+    video.src = '/media/quality.mp4';
+    video.load();
+    await video.play();
+    assert.equal(video.muted, muted);
+    assert.equal(video.volume, .35);
+    assert.equal(f.context.playbackAudioHold, null);
+    assert.equal(f.context.window.HongguoNativePlaybackAdapter.enableNative(), true);
+    assert.deepEqual(f.bridge.volumeCalls.at(-1), {volume: .35, muted});
+  }
+});
+
+test('rapid native-to-HTML5 episode changes keep the current audio hold and reject old releases', () => {
+  const {f, video} = nativeAfterAudioRelease();
+  f.context.holdPlaybackAudio(2);
+  video.pause();
+  video.src = '/media/episode-2.mp4';
+  assert.equal(video.muted, true);
+  f.context.holdPlaybackAudio(3);
+  video.src = '/media/episode-3.mp4';
+  f.context.releasePlaybackAudio({generation: 2});
+  assert.equal(video.muted, true, 'a previous presentation cannot release the new episode');
+  f.context.releasePlaybackAudio({generation: 3});
+  assert.equal(video.muted, false);
+  assert.equal(video.volume, .65);
+});
+
+test('mute choices made during a source transition survive the native-to-HTML5 handoff', () => {
+  for (const muted of [false, true]) {
+    const {f, video} = nativeAfterAudioRelease();
+    f.context.holdPlaybackAudio(2);
+    f.context.setPlaybackMuted(muted);
+    video.pause();
+    video.src = '/media/next.mp4';
+    assert.equal(video.muted, true, 'a user unmute must not bypass presentation protection');
+    f.context.releasePlaybackAudio({generation: 2});
+    assert.equal(video.muted, muted);
+    assert.equal(video.volume, .65);
+  }
+});
+
+test('source reset preserves explicit mute and zero volume rather than forcing sound on', () => {
+  for (const settings of [{volume: .7, muted: true}, {volume: 0, muted: true}]) {
+    const f = fixture(), video = f.document.getElementById('hero-video');
+    activateNative(f);
+    video.volume = settings.volume;
+    video.muted = settings.muted;
+    f.domVideo.volume = 1;
+    f.domVideo.muted = false;
+    video.src = '/media/next.mp4';
+    assert.equal(video.volume, settings.volume);
+    assert.equal(video.muted, settings.muted);
+  }
+});
+
+test('fixed native editions do not copy audio into the inactive HTML5 element on source reset', () => {
+  for (const engine of ['mpv', 'media3']) {
+    const f = fixture(engine), video = f.document.getElementById('hero-video');
+    activateNative(f);
+    video.volume = .4;
+    video.muted = false;
+    video.src = '/media/next.mp4';
+    assert.equal(f.context.window.HongguoNativePlaybackAdapter.isNative(), true);
+    assert.equal(video.volume, .4);
+    assert.equal(video.muted, false);
+    assert.equal(f.domVideo.volume, 1);
+    assert.equal(f.domVideo.muted, true);
+    assert.equal(f.domVideo.src, '');
+  }
+});
 
 test('current native diagnostics reject persisted and delayed snapshots across loads and page reloads', () => {
   for (const engine of ['webview_media3', 'mpv']) {
