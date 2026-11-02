@@ -39,6 +39,22 @@ final class PlaybackPreferences {
     }
 
     @JavascriptInterface
+    public String readStartupPage() {
+        return preferences.getString("startupPage", "recommend");
+    }
+
+    @JavascriptInterface
+    public void writeStartupPage(String value) {
+        if (!"recommend".equals(value) && !"rank".equals(value) && !"new".equals(value) &&
+                !"history".equals(value) && !"favorites".equals(value)) {
+            throw new IllegalArgumentException("invalid startup page");
+        }
+        if (!preferences.edit().putString("startupPage", value).commit()) {
+            throw new IllegalStateException("startup page was not saved");
+        }
+    }
+
+    @JavascriptInterface
     public String readLocale() {
         return preferences.getString("locale", "zh-CN");
     }

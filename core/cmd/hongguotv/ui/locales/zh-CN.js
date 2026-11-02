@@ -5,6 +5,9 @@
   // without changing the UI or the focus model.
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-CN'] = {
+    'settings.startupPage': '启动页面',
+    'settings.startupPageDescription': '选择打开应用时显示的页面。返回前台时保持原页面。',
+    'settings.startupPageCurrent': '下次启动：{page}',
   "settings.portraitBackground": "竖屏背景",
   "settings.portraitBackgroundDescription": "黑色或当前画面的动态模糊延伸。动态背景增加少量处理开销；设备不支持或处理较慢时保留黑边。",
   "settings.portraitBackgroundBlack": "黑色",

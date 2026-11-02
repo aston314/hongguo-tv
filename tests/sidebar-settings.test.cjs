@@ -77,6 +77,8 @@ test('settings remote focus follows the visible card order and keeps version upd
   const expanded = node('expanded', ['sidebar-display-action', 'account-action']);
   const icons = node('icons', ['sidebar-display-action', 'account-action']);
   const locale = node('locale', ['locale-action', 'account-action']);
+  const startupPages = ['recommend', 'rank', 'new', 'history', 'favorites'].map(page => node('startup-' + page, ['startup-page-action', 'account-action']));
+  const startupHistory = startupPages[3];
   const directionAll = node('directionAll', ['recommendation-direction-action', 'account-action']);
   const directionLandscape = node('directionLandscape', ['recommendation-direction-action', 'account-action']);
   const update = node('update', ['app-update-action', 'account-action']);
@@ -88,14 +90,14 @@ test('settings remote focus follows the visible card order and keeps version upd
   const portraitBlur = node('portraitBlur', ['portrait-background-action', 'account-action']);
   const decode = node('decode', ['playback-mode-action', 'account-action']);
   const sidebar = node('sidebar', ['side-item']);
-  const zones = { sidebarDisplay: [expanded, icons], localeActions: [locale], recommendationDirection: [directionAll, directionLandscape], appUpdates: [update], autoCinema: [autoCinema], webosAudio: [webosAudio], portraitBackground: [portraitBlack, portraitBlur], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], sidebar: [sidebar] };
+  const zones = { startupPage: startupPages, sidebarDisplay: [expanded, icons], localeActions: [locale], recommendationDirection: [directionAll, directionLandscape], appUpdates: [update], autoCinema: [autoCinema], webosAudio: [webosAudio], portraitBackground: [portraitBlack, portraitBlur], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], sidebar: [sidebar] };
   const visible = { update: true, autoCinema: true, webosAudio: true, portrait: false, prefetch: true, decode: true };
   const c = vm.createContext({
     coreConnectionModalOpen: false,
     scanModalOpen: () => false, supportModalOpen: false, confirmOpen: false,
     rankFilterOpen: false, playerOptionsOpen: false, detailModalOpen: false, discussionOpen: false,
     selectedSidebarDisplay: () => icons, activeSidebar: () => sidebar,
-    firstVisible: selector => selector.includes('recommendation-direction-action') ? directionAll : selector.includes('locale-action') ? locale : selector.includes('app-update') ? visible.update ? update : null : selector.includes('auto-cinema') ? visible.autoCinema ? autoCinema : null : selector.includes('webos-audio') ? visible.webosAudio ? webosAudio : null : selector.includes('portrait-background') ? visible.portrait ? portraitBlack : null : selector.includes('episode-prefetch') ? visible.prefetch ? prefetchRange : null : selector.includes('playback-mode') ? visible.decode ? decode : null : null,
+    firstVisible: selector => selector.includes('startup-page-action') ? startupHistory : selector.includes('recommendation-direction-action') ? directionAll : selector.includes('locale-action') ? locale : selector.includes('app-update') ? visible.update ? update : null : selector.includes('auto-cinema') ? visible.autoCinema ? autoCinema : null : selector.includes('webos-audio') ? visible.webosAudio ? webosAudio : null : selector.includes('portrait-background') ? visible.portrait ? portraitBlack : null : selector.includes('episode-prefetch') ? visible.prefetch ? prefetchRange : null : selector.includes('playback-mode') ? visible.decode ? decode : null : null,
     moveWithinZone: (zone, current, direction) => zones[zone][zones[zone].indexOf(current) + (direction === 'left' ? -1 : 1)] || null
   });
   vm.runInContext(fn('zoneOf', 'goFocus') + fn('moveFrom', 'accountKeypadOpen'), c);
@@ -103,7 +105,17 @@ test('settings remote focus follows the visible card order and keeps version upd
   assert.equal(c.moveFrom(expanded, 'right'), icons);
   assert.equal(c.moveFrom(icons, 'left'), expanded);
   assert.equal(c.moveFrom(expanded, 'left'), sidebar);
-  assert.equal(c.moveFrom(icons, 'down'), locale);
+  assert.equal(c.moveFrom(icons, 'down'), startupHistory);
+  assert.equal(c.zoneOf(startupHistory), 'startupPage');
+  assert.equal(c.moveFrom(startupHistory, 'up'), icons);
+  assert.equal(c.moveFrom(startupHistory, 'down'), locale);
+  assert.equal(c.moveFrom(locale, 'up'), startupHistory);
+  assert.equal(c.moveFrom(startupPages[0], 'left'), sidebar);
+  assert.equal(c.moveFrom(startupPages[4], 'right'), null);
+  for (let i = 0; i < startupPages.length - 1; i++) {
+    assert.equal(c.moveFrom(startupPages[i], 'right'), startupPages[i + 1]);
+    assert.equal(c.moveFrom(startupPages[i + 1], 'left'), startupPages[i]);
+  }
   assert.equal(c.moveFrom(locale, 'down'), directionAll);
   assert.equal(c.moveFrom(directionAll, 'right'), directionLandscape);
   assert.equal(c.moveFrom(directionAll, 'left'), sidebar);

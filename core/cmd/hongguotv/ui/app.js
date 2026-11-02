@@ -58,6 +58,7 @@
     localeActions: '.locale-action',
     recommendationDirection: '.recommendation-direction-action',
     sidebarDisplay: '.sidebar-display-action',
+    startupPage: '.startup-page-action',
     autoCinema: '.auto-cinema-action',
     webosAudio: '.webos-audio-action',
     portraitBackground: '.portrait-background-action',
@@ -146,6 +147,18 @@
       });
       document.getElementById('sidebar-display-state').textContent = data.mode === 'icons' ? uiText('settings.currentIcons', '当前：仅显示图标') : uiText('settings.currentExpanded', '当前：展开显示');
       syncNativePlayerBounds();
+    }
+  });
+  var startupPageSettings = window.HongguoStartupPage.create({
+    storage: sidebarStorage,
+    bridge: window.HongguoTVPreferences,
+    render: function (data) {
+      document.querySelectorAll('.startup-page-action').forEach(function (button) {
+        var selected = button.getAttribute('data-page') === data.page;
+        button.classList.toggle('account-primary', selected);
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      });
+      document.getElementById('startup-page-state').textContent = uiText('settings.startupPageCurrent', '下次启动：{page}', { page: uiText('nav.' + data.page, data.page) });
     }
   });
   function renderLocaleSettings() {
@@ -1162,6 +1175,7 @@
     if (element.classList.contains('locale-action')) return 'localeActions';
     if (element.classList.contains('recommendation-direction-action')) return 'recommendationDirection';
     if (element.classList.contains('sidebar-display-action')) return 'sidebarDisplay';
+    if (element.classList.contains('startup-page-action')) return 'startupPage';
     if (element.classList.contains('auto-cinema-action')) return 'autoCinema';
     if (element.classList.contains('webos-audio-action')) return 'webosAudio';
     if (element.classList.contains('portrait-background-action')) return 'portraitBackground';
@@ -1681,12 +1695,18 @@
     if (zone === 'sidebarDisplay') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return activeSidebar();
+      if (direction === 'down') return firstVisible('.startup-page-action[aria-pressed="true"]') || firstVisible('.startup-page-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action');
+      return null;
+    }
+    if (zone === 'startupPage') {
+      if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
+      if (direction === 'up') return selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'localeActions') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
-      if (direction === 'up') return selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'up') return firstVisible('.startup-page-action[aria-pressed="true"]') || firstVisible('.startup-page-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.app-update-action');
       return null;
     }
@@ -8523,6 +8543,11 @@
       if (!sidebarSettings.choose(button.getAttribute('data-mode'))) showNotice(uiText('settings.saveFailed', '设置未能保存，请重试。'));
     });
   });
+  document.querySelectorAll('.startup-page-action').forEach(function (button) {
+    button.addEventListener('click', function () {
+      if (!startupPageSettings.choose(button.getAttribute('data-page'))) showNotice(uiText('settings.saveFailed', '设置未能保存，请重试。'));
+    });
+  });
   renderLocaleSettings();
   document.querySelectorAll('.locale-action').forEach(function (button) {
     button.addEventListener('click', function () {
@@ -8753,6 +8778,24 @@
       });
     });
   }
+  function openStartupPage() {
+    var initialHomeProgram = null;
+    try {
+      if (window.HongguoTVHome && window.HongguoTVHome.consumeHomeProgram) {
+        var pendingHomeProgram = window.HongguoTVHome.consumeHomeProgram();
+        if (pendingHomeProgram) initialHomeProgram = JSON.parse(pendingHomeProgram);
+      }
+    } catch (error) { initialHomeProgram = null; }
+    if (initialHomeProgram && window.HongguoTV.openHomeProgram(initialHomeProgram)) return;
+    var page = startupPageSettings.page();
+    var target = page !== 'recommend' && document.querySelector('.side-item[data-page="' + page + '"]');
+    if (target) {
+      activatePage(target);
+      goFocus(activeSidebar());
+    } else {
+      loadCatalog(uiText('nav.recommend', '推荐'));
+    }
+  }
   updateWebOSAudioSettings();
   initRecommendationDirectionSettings();
   if (webosAudio && webosAudio.supported) {
@@ -8779,12 +8822,5 @@
   libraryReady = loadLibrary();
   pollAccount();
   accountPollTimer = setInterval(function () { if (!applicationHidden()) pollAccount(); }, 8000);
-    var initialHomeProgram = null;
-    try {
-      if (window.HongguoTVHome && window.HongguoTVHome.consumeHomeProgram) {
-        var pendingHomeProgram = window.HongguoTVHome.consumeHomeProgram();
-        if (pendingHomeProgram) initialHomeProgram = JSON.parse(pendingHomeProgram);
-      }
-    } catch (error) { initialHomeProgram = null; }
-    if (!initialHomeProgram || !window.HongguoTV.openHomeProgram(initialHomeProgram)) loadCatalog(uiText('nav.recommend', '推荐'));
+  openStartupPage();
 }());

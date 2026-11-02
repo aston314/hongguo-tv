@@ -315,6 +315,12 @@
           <div class="app-update-actions"><button class="sidebar-display-action account-action" id="sidebar-display-expanded" data-mode="expanded" data-focus="sidebar-display-expanded" aria-pressed="false" data-i18n="settings.sidebarExpanded">展开显示</button><button class="sidebar-display-action account-action" id="sidebar-display-icons" data-mode="icons" data-focus="sidebar-display-icons" aria-pressed="false" data-i18n="settings.sidebarIcons">仅显示图标</button></div>
           <p id="sidebar-display-state" role="status" aria-live="polite"></p>
         </div>
+        <div class="settings-card app-update-card" id="startup-page-settings">
+          <h2 data-i18n="settings.startupPage">启动页面</h2>
+          <p data-i18n="settings.startupPageDescription">选择打开应用时显示的页面。返回前台时保持原页面。</p>
+          <div class="app-update-actions"><button class="startup-page-action account-action" data-page="recommend" data-focus="startup-page-recommend" aria-pressed="false" data-i18n="nav.recommend">推荐</button><button class="startup-page-action account-action" data-page="rank" data-focus="startup-page-rank" aria-pressed="false" data-i18n="nav.rank">排行榜</button><button class="startup-page-action account-action" data-page="new" data-focus="startup-page-new" aria-pressed="false" data-i18n="nav.new">新剧</button><button class="startup-page-action account-action" data-page="history" data-focus="startup-page-history" aria-pressed="false" data-i18n="nav.history">历史</button><button class="startup-page-action account-action" data-page="favorites" data-focus="startup-page-favorites" aria-pressed="false" data-i18n="nav.favorites">收藏</button></div>
+          <p id="startup-page-state" role="status" aria-live="polite"></p>
+        </div>
         <div class="settings-card app-update-card" id="language-settings">
           <h2 data-i18n="settings.language">界面语言</h2>
           <p data-i18n="settings.languageDescription">选择应用界面语言。切换后会重新加载界面。</p>
@@ -539,6 +545,7 @@
   <script src="/auto-cinema.js"></script>
   <script src="/recommendation-direction.js"></script>
   <script src="/sidebar-settings.js"></script>
+  <script src="/startup-page.js"></script>
   <script src="/episode-wheel.js"></script>
   <script src="/playback-pointer.js"></script>
   <script src="/desktop.js"></script>
