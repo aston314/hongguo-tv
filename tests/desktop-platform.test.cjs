@@ -11,7 +11,7 @@ test('desktop media alone bypasses the Wails scheme; foreign URLs are not rewrit
 });
 test('desktop input keys preserve deletion, paste, arrows, tab, space and IME; Enter submits the right form',()=>{
  const keys=app.slice(app.indexOf('  function normalizedKey('),app.indexOf('  function showNotice('));
- const c=vm.createContext({window:{HongguoDesktopUI:{editing}},document:{activeElement:{tagName:'INPUT',id:'account-phone'}},desktopShell:true});
+ const c=vm.createContext({window:{HongguoDesktopUI:{editing}},document:{activeElement:{tagName:'INPUT',id:'account-phone'}},desktopShell:true,searchSuggestionActivation:null});
  vm.runInContext(`var keyNames={},numericKeypad;function handleEndRecommendationKey(){return false}function accountKeypadOpen(){return false}var actions=[];function accountSendCode(){actions.push('phone')}function accountLogin(){actions.push('code')}function submitSearch(){actions.push('search')}`+keys,c);
  for(const key of ['Backspace','Delete','ArrowLeft','ArrowDown','Tab',' ','v'])c.handleKey({key,ctrlKey:key==='v',preventDefault(){assert.fail(key)},stopPropagation(){assert.fail(key)}});
  c.handleKey({key:'Enter',isComposing:true,preventDefault(){assert.fail('IME')},stopPropagation(){}});
@@ -21,7 +21,7 @@ test('desktop input keys preserve deletion, paste, arrows, tab, space and IME; E
 test('desktop search Escape closes suggestions and keyboard arrows reach suggestions and search',()=>{
  const keys=app.slice(app.indexOf('  function normalizedKey('),app.indexOf('  function showNotice('));
  const input={tagName:'INPUT',id:'search-input',value:'剧名',selectionStart:2,selectionEnd:2,classList:{contains(){return false}}};
- const c=vm.createContext({window:{HongguoDesktopUI:{editing}},document:{activeElement:input},desktopShell:true,shell:{classList:{contains(){return false}}}});
+ const c=vm.createContext({window:{HongguoDesktopUI:{editing}},document:{activeElement:input},desktopShell:true,searchSuggestionActivation:null,shell:{classList:{contains(){return false}}}});
  vm.runInContext(`var keyNames={},numericKeypad,searchSuggestionOpen=true,backs=0,moved=[],focused=[];
  function handleEndRecommendationKey(){return false} function accountKeypadOpen(){return false}
  function handleBack(){backs++;searchSuggestionOpen=false;return true}

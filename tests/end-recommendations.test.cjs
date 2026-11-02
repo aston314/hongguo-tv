@@ -115,7 +115,7 @@ function keysFixture(){
   const document={activeElement:rows[0],getElementById:id=>id==='end-recommendations-track'?{children:rows}:close};
   const panel=create({isCurrent:()=>true,canPresent:()=>true,show(){},hide(){document.activeElement={id:'hero-feed-focus'}},play:item=>plays.push(item)});
   panel.offer({item:{series_id:'self'}},related);
-  const c=vm.createContext({document,endRecommendations:panel,coreConnectionModalOpen:false,endRecommendationIndex:0,autoCinemaCandidate:false,
+  const c=vm.createContext({document,endRecommendations:panel,coreConnectionModalOpen:false,endRecommendationIndex:0,autoCinemaCandidate:false,searchSuggestionActivation:null,
     goFocus(node){document.activeElement=node;const index=rows.indexOf(node);if(index>=0)c.endRecommendationIndex=index}});
   vm.runInContext(source.match(/  var keyNames = \{[\s\S]*?\n  \};/)[0]+slice('normalizedKey','showNotice')+slice('handleEndRecommendationKey','canContinuePlayback'),c);
   function press(key){let prevented=0,stopped=0;c.handleKey({...key,preventDefault(){prevented++},stopPropagation(){stopped++}});assert.equal(prevented,1);assert.equal(stopped,1)}

@@ -320,6 +320,7 @@
   var searchSuggestionReturnKey = '';
   var searchSuggestionFocusedKey = '';
   var searchSuggestionDismissedQuery = '';
+  var searchSuggestionActivation = null;
   var tailTimer = null;
   var playerReturnPage = null;
   var playerReturnFocus = null;
@@ -2024,6 +2025,10 @@
 
   function handleKey(event) {
     var key = normalizedKey(event);
+    if (searchSuggestionActivation && (key === 'Enter' || key === 'Escape')) {
+      if (key === 'Escape') handleBack();
+      event.preventDefault(); event.stopPropagation(); return;
+    }
     if (handleEndRecommendationKey(key, !!event.repeat)) { event.preventDefault(); event.stopPropagation(); return; }
     if (accountKeypadOpen()) {
       numericKeypad.handleKey(key, !!event.repeat);
@@ -3067,6 +3072,7 @@
     if (autoCinemaCandidate) cancelPendingAutoCinema();
     if (endRecommendations && endRecommendations.close(true)) return true;
     if (searchSuggestionOpen) { closeSearchSuggestions(true); return true; }
+    if (searchSuggestionActivation) { closeSearchSuggestions(true); return true; }
     if (searchScanOpen) { closeSearchScan(true); return true; }
     if (typeof danmakuScanOpen !== 'undefined' && danmakuScanOpen) { closeDanmakuScan(true); return true; }
     if (accountCountryModalOpen) { closeAccountCountryModal(false); return true; }
@@ -3110,6 +3116,7 @@
     return true;
   }
   function pauseForBackground() {
+    cancelSearchSuggestionActivation();
     if (accountQR && accountQR.snapshot().active) cancelAccountQR(false);
     if (typeof closePlaybackCommandMenu === 'function') closePlaybackCommandMenu(false);
     if (typeof closePlaybackMenuHint === 'function') closePlaybackMenuHint();
@@ -5722,6 +5729,7 @@
   }
 
   function closeSearchSuggestions(restoreInput) {
+    cancelSearchSuggestionActivation();
     clearTimeout(searchSuggestionTimer);
     searchSuggestionTimer = null;
     if (searchSuggestionRequest && searchSuggestionRequest.abort) searchSuggestionRequest.abort();
@@ -5845,6 +5853,7 @@
   }
 
   function scheduleSearchSuggestions() {
+    cancelSearchSuggestionActivation();
     if (!searchInput || pageMode() !== 'search') return;
     searchSuggestionReturnKey = '';
     clearTimeout(searchSuggestionTimer);
@@ -5855,23 +5864,53 @@
     searchSuggestionTimer = setTimeout(function () { loadSearchSuggestions(query); }, 240);
   }
 
+  function cancelSearchSuggestionActivation() {
+    var pending = searchSuggestionActivation;
+    if (!pending) return;
+    searchSuggestionActivation = null;
+    if (pending.frame !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(pending.frame);
+    clearTimeout(pending.timer);
+    searchSuggestionReturnKey = '';
+  }
+
   function activateSearchSuggestion(item, button) {
-    if (!item) return;
+    if (!item || searchSuggestionActivation || pageMode() !== 'search') return;
+    closeSearchSuggestions(false);
     searchSuggestionReturnKey = button && button.dataset.suggestionKey || item.key || item.name;
     var returnFocus = searchInput;
-    closeSearchSuggestions(false);
-    if (item.kind === 'short_play_actor' && item.actor_id) {
-      openActorWorks({ actor_id: item.actor_id, title: item.name }, false, returnFocus);
-      return;
+    var pending = { frame: null, timer: null, generation: searchSuggestionGeneration,
+      query: searchInput.value, owner: accountEpoch };
+    searchSuggestionActivation = pending;
+    function activate() {
+      if (searchSuggestionActivation !== pending) return;
+      searchSuggestionActivation = null;
+      if (pending.generation !== searchSuggestionGeneration || pending.query !== searchInput.value ||
+          pending.owner !== accountEpoch || pageMode() !== 'search' || applicationInBackground || applicationHidden() ||
+          detailModalOpen || actorWorksOpen || searchScanOpen) {
+        searchSuggestionReturnKey = '';
+        return;
+      }
+      if (item.kind === 'short_play_actor' && item.actor_id) {
+        openActorWorks({ actor_id: item.actor_id, title: item.name }, false, returnFocus);
+      } else if (item.drama && item.drama.series_id) {
+        openDetail(item.drama, undefined, returnFocus);
+      } else {
+        searchInput.value = item.name || searchInput.value;
+        searchSuggestionReturnKey = '';
+        goFocus(searchInput);
+        submitSearch();
+      }
     }
-    if (item.drama && item.drama.series_id) {
-      openDetail(item.drama, undefined, returnFocus);
-      return;
+    // Chromium 83 TV builds can crash when hiding the suggestion overlay and
+    // creating a modal in the same render commit. Allow a paint between them.
+    if (typeof requestAnimationFrame === 'function') {
+      pending.frame = requestAnimationFrame(function () {
+        if (searchSuggestionActivation !== pending) return;
+        pending.frame = requestAnimationFrame(activate);
+      });
+    } else {
+      pending.timer = setTimeout(activate, 80);
     }
-    searchInput.value = item.name || searchInput.value;
-    searchSuggestionReturnKey = '';
-    goFocus(searchInput);
-    submitSearch();
   }
 
   function lastSearchFilter() {
@@ -7563,6 +7602,7 @@
   }
 
   function activatePage(item, restoring) {
+    cancelSearchSuggestionActivation();
     if (portraitBackdrop) portraitBackdrop.reset();
     if (accountQR && accountQR.snapshot().active && item.dataset.page !== 'account') cancelAccountQR(false);
     if (item.dataset.page === 'recommend' && pageMode() === 'recommend') {

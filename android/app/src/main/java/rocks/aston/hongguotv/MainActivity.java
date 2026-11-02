@@ -7,12 +7,14 @@ import android.graphics.Rect;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.SystemClock;
+import android.util.Log;
 import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.drawable.AnimatedVectorDrawable;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -20,6 +22,7 @@ import android.view.WindowManager;
 import android.view.ViewTreeObserver;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.JavascriptInterface;
+import android.webkit.RenderProcessGoneDetail;
 import android.webkit.WebChromeClient;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -38,6 +41,7 @@ import java.io.InputStreamReader;
 import org.json.JSONObject;
 
 public class MainActivity extends Activity {
+    private static final RenderProcessRecoveryPolicy RENDER_RECOVERY = new RenderProcessRecoveryPolicy();
     private String coreUrl;
     private WebView webView;
     private Bitmap defaultVideoPoster;
@@ -58,6 +62,8 @@ public class MainActivity extends Activity {
     private volatile boolean destroyed;
     private boolean pageLoadFailed;
     private volatile boolean pageReady;
+    private volatile boolean rendererGone;
+    private boolean rendererRecoveryScheduled;
     private int routedVerticalKeys;
     private int routedHorizontalKeys;
     private int routedConfirmKeys;
@@ -148,6 +154,7 @@ public class MainActivity extends Activity {
         webView.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
+                if (destroyed || rendererGone || view != webView) return;
                 pageLoadFailed = false;
                 pageReady = false;
                 inputEditingState.reset();
@@ -161,12 +168,14 @@ public class MainActivity extends Activity {
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                if (destroyed || rendererGone || view != webView) return;
                 super.onReceivedError(view, request, error);
                 if (request.isForMainFrame()) { pageLoadFailed = true; showStartupFailure(); }
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
+                if (destroyed || rendererGone || view != webView) return;
                 super.onPageFinished(view, url);
                 if (!pageLoadFailed && coreUrl != null && url.startsWith(coreUrl)) {
                     startupPanel.setVisibility(View.GONE);
@@ -178,6 +187,12 @@ public class MainActivity extends Activity {
                 }
                 view.evaluateJavascript("window.HongguoTV && window.HongguoTV." +
                         (activityForeground ? "resumeFromBackground()" : "pauseForBackground()"), null);
+            }
+
+            @Override
+            @android.annotation.TargetApi(26)
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                return handleRenderProcessGone(view, detail.didCrash());
             }
         });
         webView.setWebChromeClient(new WebChromeClient() {
@@ -229,7 +244,17 @@ public class MainActivity extends Activity {
         startupPanel.addView(versionLabel, new LinearLayout.LayoutParams(-2, -2));
         startupRetry = new Button(this);
         startupRetry.setText("重试");
-        startupRetry.setOnClickListener(view -> { startCoreService(); waitForCore(); });
+        startupRetry.setOnClickListener(view -> {
+            if (rendererGone) {
+                if (!rendererRecoveryScheduled) {
+                    rendererRecoveryScheduled = true;
+                    recreate();
+                }
+            } else {
+                startCoreService();
+                waitForCore();
+            }
+        });
         startupPanel.addView(startupRetry, new LinearLayout.LayoutParams(-2, -2));
         content.addView(startupPanel, new FrameLayout.LayoutParams(-1, -1));
         setContentView(content);
@@ -243,6 +268,70 @@ public class MainActivity extends Activity {
         applyFullscreen();
         grantWebViewFocus(false);
         waitForCore();
+    }
+
+    private boolean handleRenderProcessGone(WebView view, boolean didCrash) {
+        // A duplicate callback for a view already retired by this Activity must
+        // not destroy a replacement or schedule a second recreation.
+        if (view != webView || rendererGone) return true;
+        rendererGone = true;
+        pageReady = false;
+        pageLoadFailed = true;
+        webView = null;
+        playbackPageActive = false;
+        setKeepScreenOn(false);
+        backPending = false;
+        inputEditingState.reset();
+        searchNavigationState.reset();
+        searchInputFocusPolicy.reset();
+        routedVerticalKeys = routedHorizontalKeys = routedConfirmKeys = 0;
+        if (startupThread != null) { startupThread.interrupt(); startupThread = null; }
+        if (appUpdater != null) { appUpdater.destroy(); appUpdater = null; }
+        if (exitDialog != null) { exitDialog.dismiss(); exitDialog = null; }
+        InputMethodManager keyboard = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (keyboard != null) keyboard.hideSoftInputFromWindow(getWindow().getDecorView().getWindowToken(), 0);
+        NativePlayerAdapter retiredPlayer = playerBridge;
+        playerBridge = null;
+        if (retiredPlayer != null) {
+            try { retiredPlayer.destroy(); }
+            catch (RuntimeException error) { Log.e("HongguoTv", "player cleanup after renderer exit failed", error); }
+        }
+        // Android forbids reuse of this WebView. Do not evaluate JS, reload,
+        // stopLoading or call its normal pause/resume lifecycle after exit.
+        if (view.getParent() instanceof ViewGroup) ((ViewGroup) view.getParent()).removeView(view);
+        view.destroy();
+        Log.e("HongguoTv", "WebView renderer exited; crashed=" + didCrash);
+        showRendererFailure();
+        recoverRendererIfAllowed();
+        return true;
+    }
+
+    private void showRendererFailure() {
+        if (destroyed || isFinishing()) return;
+        startupAnimation.stop();
+        startupMessage.setText("界面运行异常，播放已停止，请重试");
+        startupPanel.setVisibility(View.VISIBLE);
+        startupRetry.setVisibility(View.VISIBLE);
+        startupRetry.requestFocus();
+    }
+
+    private void recoverRendererIfAllowed() {
+        if (!rendererGone || rendererRecoveryScheduled || !activityForeground || destroyed || isFinishing()) return;
+        rendererRecoveryScheduled = true;
+        startupMessage.setText("界面运行异常，正在恢复…");
+        startupRetry.setVisibility(View.GONE);
+        startupAnimation.start();
+        // Leave the renderer callback before recreating the Activity. The Go
+        // service and its account/local records remain alive across recreation.
+        startupPanel.post(() -> {
+            if (destroyed || isFinishing()) return;
+            if (!activityForeground || !RENDER_RECOVERY.claimAutomaticRecovery(SystemClock.uptimeMillis())) {
+                rendererRecoveryScheduled = false;
+                showRendererFailure();
+                return;
+            }
+            recreate();
+        });
     }
 
     private void showStartupFailure() {
@@ -300,7 +389,7 @@ public class MainActivity extends Activity {
             final CoreEndpoint coreReady = ready;
             final String failureMessage = failure;
             runOnUiThread(() -> {
-                if (destroyed || isFinishing()) return;
+                if (destroyed || rendererGone || webView == null || isFinishing()) return;
                 if (coreReady != null) {
                     if (coreReady != CoreService.endpoint()) { showStartupFailure(); return; }
                     coreUrl = coreReady.url;
@@ -348,7 +437,7 @@ public class MainActivity extends Activity {
     }
 
     private void setKeepScreenOn(boolean active) {
-        playbackActive = active;
+        playbackActive = active && !rendererGone && !destroyed;
         syncKeepScreenOn();
     }
 
@@ -537,7 +626,7 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void setPlaybackPageActive(boolean active) {
-            if (destroyed) return;
+            if (destroyed || rendererGone) return;
             playbackPageActive = active;
         }
 
@@ -636,7 +725,7 @@ public class MainActivity extends Activity {
         backPending = true;
         webView.evaluateJavascript("!!(window.HongguoTV && window.HongguoTV.requestBack())", result -> {
             backPending = false;
-            if (!isFinishing() && !isDestroyed() && !"true".equals(result)) showExitConfirmation();
+            if (!rendererGone && !isFinishing() && !isDestroyed() && !"true".equals(result)) showExitConfirmation();
         });
     }
 
@@ -689,6 +778,7 @@ public class MainActivity extends Activity {
         }
         if (playerBridge != null) playerBridge.onResume();
         if (appUpdater != null) appUpdater.resume();
+        recoverRendererIfAllowed();
     }
 
     @Override
