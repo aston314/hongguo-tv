@@ -14,6 +14,14 @@ permissions:
   contents: read
 
 jobs:
+  release-source-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test release source guards on Windows
+        shell: bash
+        run: python3 -m unittest discover -s tests -p test_release_source.py
+
   build:
     if: github.event_name != 'workflow_dispatch' || inputs.core_preview == ''
     runs-on: ubuntu-latest

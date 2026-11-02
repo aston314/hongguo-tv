@@ -32,6 +32,7 @@ jobs:
       contents: write
     outputs:
       tag: ${{ steps.release.outputs.tag }}
+      source_commit: ${{ steps.release.outputs.source_commit }}
     steps:
       - uses: actions/checkout@v4
       - name: Verify release source line
@@ -49,7 +50,10 @@ jobs:
           # tag. Read its commit via FETCH_HEAD without replacing either tag.
           git fetch --no-tags origin "refs/tags/v$APP_VERSION"
           release_commit="$(git rev-parse 'FETCH_HEAD^{commit}')"
-          test "$release_commit" = "$GITHUB_SHA"
+          # Main may contain a publishing/test harness repair after tagging.
+          # Permit a retry only when all application and packaging sources
+          # remain identical, and embed the immutable tag's source identity.
+          git diff --exit-code "$release_commit" "$GITHUB_SHA" -- core desktop android webos scripts go.mod go.sum
           git fetch --no-tags --unshallow origin main || git fetch --no-tags origin main
           git merge-base --is-ancestor "$release_commit" FETCH_HEAD
           if [[ "${GITHUB_REF_TYPE:-}" == tag ]]; then
@@ -61,9 +65,10 @@ jobs:
             target_commit="$(gh release view "$tag" --json targetCommitish --jq .targetCommitish)"
             [[ "$target_commit" == "$release_commit" ]]
           else
-            gh release create "$tag" --draft --target "$GITHUB_SHA" --title "红果短剧桌面版 $APP_VERSION" --notes-file docs/desktop-release.md
+            gh release create "$tag" --draft --target "$release_commit" --title "红果短剧桌面版 $APP_VERSION" --notes-file docs/desktop-release.md
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "source_commit=$release_commit" >> "$GITHUB_OUTPUT"
 
   build:
     needs: prepare
@@ -91,7 +96,14 @@ jobs:
           node-version: 22
       - name: Read shared version
         shell: bash
-        run: python3 scripts/desktop_metadata.py --github-env "$GITHUB_ENV"
+        env:
+          RELEASE_SOURCE_COMMIT: ${{ needs.prepare.outputs.source_commit }}
+        run: |
+          python3 scripts/desktop_metadata.py --github-env "$GITHUB_ENV"
+          if [[ -n "$RELEASE_SOURCE_COMMIT" ]]; then
+            APP_VERSION=$(python3 -c 'import scripts.desktop_metadata as m; from pathlib import Path; print(m.metadata(Path("."))[0])')
+            echo "HONGGUO_CORE_VERSION=$APP_VERSION-$RELEASE_SOURCE_COMMIT" >> "$GITHUB_ENV"
+          fi
       - name: Test core and shared desktop UI
         shell: bash
         run: |
