@@ -31,8 +31,8 @@ var window = {
       updateChecks++;
       return Promise.resolve({ ok: true, json: function () { return Promise.resolve({ ok: true, data: {
         schema: 1, platform: 'webos', app_id: 'com.aston314.hongguo.webos', version_name: '0.2.117',
-        release_tag: 'webos-v0.2.117-test.25', release_url: 'https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.117-test.25',
-        release_notes: '测试说明', artifact_name: 'hongguo-webos-0.2.117-test.25.ipk', artifact_size: 123, artifact_sha256: 'a'.repeat(64)
+        release_tag: 'webos-v0.2.117-test.26', release_url: 'https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.117-test.26',
+        release_notes: '测试说明', artifact_name: 'hongguo-webos-0.2.117-test.26.ipk', artifact_size: 123, artifact_sha256: 'a'.repeat(64)
       } }); } });
     }
     if (String(input).indexOf('/api/v1/player/cache-session') >= 0) {

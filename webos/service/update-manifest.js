@@ -19,10 +19,10 @@
   function validate(value) {
     if (!value || value.schema !== 1 || value.platform !== 'webos' || value.app_id !== APP_ID) throw new Error('Wrong webOS update channel');
     parts(value.version_name);
-    var tag = 'webos-v' + value.version_name + '-test.25';
+    var tag = 'webos-v' + value.version_name + '-test.26';
     if (value.release_tag !== tag || value.release_url !== BASE + tag) throw new Error('Invalid webOS release URL');
     if (typeof value.release_notes !== 'string' || value.release_notes.length > 16000) throw new Error('Invalid webOS release notes');
-    if (value.artifact_name !== 'hongguo-webos-' + value.version_name + '-test.25.ipk' ||
+    if (value.artifact_name !== 'hongguo-webos-' + value.version_name + '-test.26.ipk' ||
         typeof value.artifact_size !== 'number' || value.artifact_size <= 0 || value.artifact_size > 100 * 1024 * 1024 || Math.floor(value.artifact_size) !== value.artifact_size ||
         typeof value.artifact_sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(value.artifact_sha256)) throw new Error('Invalid webOS release artifact');
     return { schema: 1, platform: 'webos', app_id: APP_ID, version_name: value.version_name,

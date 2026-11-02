@@ -43,10 +43,10 @@ jobs:
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then
             test "$GITHUB_REF_NAME" = "v$version"
           fi
-          tag="webos-v${version}-test.25"
+          tag="webos-v${version}-test.26"
           ipk=$(find dist/webos -maxdepth 1 -type f -name '*.ipk' -print -quit)
           test -n "$ipk"
-          asset="dist/webos/hongguo-webos-${version}-test.25.ipk"
+          asset="dist/webos/hongguo-webos-${version}-test.26.ipk"
           mv "$ipk" "$asset"
           (cd dist/webos && sha256sum "$(basename "$asset")" > SHA256SUMS.txt)
           echo "version=$version" >> "$GITHUB_OUTPUT"

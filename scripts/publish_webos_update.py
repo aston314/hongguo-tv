@@ -21,7 +21,7 @@ def version(value):
 
 def generate(ipk, app_version, notes):
     version(app_version)
-    expected = f'hongguo-webos-{app_version}-test.25.ipk'
+    expected = f'hongguo-webos-{app_version}-test.26.ipk'
     if ipk.name != expected or not 0 < ipk.stat().st_size <= 100 * 1024 * 1024:
         raise ValueError('Invalid webOS artifact')
     appinfo, _, _ = read_tar_member(ar_members(ipk)['data.tar.gz'], '/appinfo.json')
@@ -31,7 +31,7 @@ def generate(ipk, app_version, notes):
     text = notes.read_text().strip()
     if len(text) > 16000:
         raise ValueError('Release notes too long')
-    tag = f'webos-v{app_version}-test.25'
+    tag = f'webos-v{app_version}-test.26'
     return {'schema': 1, 'platform': 'webos', 'app_id': appinfo['id'], 'version_name': app_version,
             'release_tag': tag, 'release_url': f'https://github.com/{REPOSITORY}/releases/tag/{tag}',
             'release_notes': text, 'artifact_name': expected, 'artifact_size': ipk.stat().st_size,

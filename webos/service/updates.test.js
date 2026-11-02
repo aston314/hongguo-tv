@@ -9,8 +9,8 @@ var createBridge = require('../app/webos-updates').create;
 function sample(version) {
   version = version || '0.2.118';
   return { schema: 1, platform: 'webos', app_id: 'com.aston314.hongguo.webos', version_name: version,
-    release_tag: 'webos-v' + version + '-test.25', release_url: 'https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v' + version + '-test.25',
-    release_notes: '更新说明', artifact_name: 'hongguo-webos-' + version + '-test.25.ipk', artifact_size: 123,
+    release_tag: 'webos-v' + version + '-test.26', release_url: 'https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v' + version + '-test.26',
+    release_notes: '更新说明', artifact_name: 'hongguo-webos-' + version + '-test.26.ipk', artifact_size: 123,
     artifact_sha256: 'a'.repeat(64) };
 }
 function fixture() {

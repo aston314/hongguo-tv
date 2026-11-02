@@ -18,7 +18,7 @@ class WebOSUpdateTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.ipk = self.root / 'hongguo-webos-0.2.117-test.25.ipk'
+        self.ipk = self.root / 'hongguo-webos-0.2.117-test.26.ipk'
         data = BytesIO()
         with tarfile.open(fileobj=data, mode='w:gz') as archive:
             content = json.dumps({'id': 'com.aston314.hongguo.webos', 'version': '0.2.117'}).encode()
@@ -54,7 +54,7 @@ class WebOSUpdateTests(unittest.TestCase):
     def test_manifest_only_points_to_the_matching_webos_release(self):
         self.assertEqual(self.value['platform'], 'webos')
         self.assertEqual(self.value['artifact_sha256'], hashlib.sha256(self.ipk.read_bytes()).hexdigest())
-        self.assertEqual(self.value['release_url'], 'https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.117-test.25')
+        self.assertEqual(self.value['release_url'], 'https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.117-test.26')
         self.assertNotIn('download_url', self.value)
         with self.assertRaises(ValueError):
             channel.generate(self.ipk, '0.2.118', self.notes)
