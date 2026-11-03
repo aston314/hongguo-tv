@@ -18,7 +18,7 @@
 
 协议、解密和媒体文件已在 macOS 网络环境中用真实上游数据验证。优先使用 Range/CENC 按需读取；缺少强 ETag 等条件时仍安全回退到完整下载后解密，不会将失败的预取变为整集后台下载。磁盘缓存具有 512 MiB 总预算、2 小时闲置清理和播放占用保护，详见 [缓存策略](../docs/webos-media-cache.md)。
 
-0.2.144 新增弹幕显示区域设置（当前区域、顶部 1/2、顶部 1/4），默认保持原有位置。0.2.144 恢复 0.2.141 的播放链接获取机制：先完成当前匿名身份的三次兼容请求，连续空响应后才尝试一次身份恢复；撤回 0.2.142 的首次空响应立即换身份策略及新增等待，保留播放签名、官方备用地址与原有重试间隔，不影响登录账号。保留唯一 HTML5 主视频元素、Range 边播边下、有限下一集预取及 0.2.140 的播放控件优化。Android/桌面版的整集预下载提示分阶段调整不适用于 webOS。保留启动页面设置（推荐、排行榜、新剧、历史、收藏）、搜索建议切换与侧栏焦点改进、空响应时有限预算的匿名身份恢复；竖屏仍使用黑边，不开放动态背景设置。0.2.133 起的系列续播、预约、扫码登录和更新提醒能力保持不变。详见[下一集准备机制](../docs/episode-prefetch.md)。[下载 webOS 0.2.144 测试版](https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.144-test.26)；LG C5 回归反馈见 [Issue #70](https://github.com/aston314/hongguo-tv-releases/issues/70)。
+0.2.145 修复播放地址主目标与备用目标并发竞速时的响应归属问题，避免较慢的旧请求覆盖已经选中的播放地址。0.2.144 新增的弹幕显示区域设置、0.2.141 播放链接获取机制、播放签名、官方备用地址、匿名身份恢复、唯一 HTML5 主视频元素、Range 边播边下、有限下一集预取和 0.2.140 播放控件优化均保持不变。竖屏仍使用黑边，不开放动态背景设置。0.2.133 起的系列续播、预约、扫码登录和更新提醒能力保持不变。详见[下一集准备机制](../docs/episode-prefetch.md)。[下载 webOS 0.2.145 测试版](https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.145-test.26)；LG C5 回归反馈见 [Issue #70](https://github.com/aston314/hongguo-tv-releases/issues/70)。
 
 2026-10-25，用户在 [Issue #57](https://github.com/aston314/hongguo-tv-releases/issues/57) 回报 LG OLED65C5PTA（台湾版，固件 43.21.77、webOS SDK 11.2.0）安装 `hongguo-webos-0.2.117-test.25.ipk` 后，安装、启动、1080P 视频画面、声音、账号登录及原生遥控器滚轮均正常。安装方式为 Developer Mode + webOS Dev Manager 1.99.20，网络为台湾 Wi-Fi。
 
