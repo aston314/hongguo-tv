@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -14,6 +16,27 @@ import (
 	"testing"
 	"time"
 )
+
+func decodeMiniReelRequestBody(t *testing.T, r *http.Request) []byte {
+	t.Helper()
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Header.Get("Content-Encoding") != "gzip" {
+		return body
+	}
+	reader, err := gzip.NewReader(bytes.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer reader.Close()
+	decoded, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return decoded
+}
 
 type miniReelTestRoundTripper func(*http.Request) (*http.Response, error)
 
@@ -137,6 +160,9 @@ func TestMiniReelMultiVideoModelUsesRegisteredIdentityAndDirectModel(t *testing.
 		if r.Method != http.MethodPost || r.Header.Get("User-Agent") != miniReelPlaybackUA {
 			t.Errorf("unexpected playback request method/UA: %s %q", r.Method, r.Header.Get("User-Agent"))
 		}
+		if r.Header.Get("Content-Encoding") != "gzip" || r.Header.Get("Content-Type") != "application/json; charset=utf-8" {
+			t.Errorf("playback body encoding = %q/%q", r.Header.Get("Content-Encoding"), r.Header.Get("Content-Type"))
+		}
 		if got := r.URL.Query().Get("device_id"); got != device.deviceID {
 			t.Errorf("device_id = %q", got)
 		}
@@ -150,7 +176,7 @@ func TestMiniReelMultiVideoModelUsesRegisteredIdentityAndDirectModel(t *testing.
 			assertMiniReelPlaybackSignature(t, r)
 		}
 		var body map[string]any
-		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		if err := json.Unmarshal(decodeMiniReelRequestBody(t, r), &body); err != nil {
 			t.Fatal(err)
 		}
 		videoIDs := nestedMiniReelValue(body, "mixed_video_id_map", "1004").([]any)
@@ -196,6 +222,47 @@ func TestMiniReelMultiVideoModelUsesRegisteredIdentityAndDirectModel(t *testing.
 	}
 }
 
+func TestMiniReelMultiVideoModelUsesContentTypeBucket(t *testing.T) {
+	device := miniReelDevice{deviceID: "1234567890123456789", installID: "2234567890123456789", cdid: "00000000-0000-4000-8000-000000000001"}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body := map[string]any{}
+		if err := json.Unmarshal(decodeMiniReelRequestBody(t, r), &body); err != nil {
+			t.Fatal(err)
+		}
+		buckets, ok := body["mixed_video_id_map"].(map[string]any)
+		if !ok || len(buckets) != 1 {
+			t.Fatalf("mixed_video_id_map = %#v", body["mixed_video_id_map"])
+		}
+		ids, ok := buckets["2001"].([]any)
+		if !ok || len(ids) != 1 || ids[0] != "123" {
+			t.Fatalf("content type bucket = %#v", buckets)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w, `{"code":0,"data":{"123":{"video_model":{"video_list":[{"main_url":"https://media.example/video.mp4","video_meta":{"codec_type":"h264","vheight":720,"definition":"720p"}}]}}}}`)
+	}))
+	defer server.Close()
+
+	options, err := miniReelNativeOptionsEndpointWithDeviceModeForContentType(context.Background(), "123", server.URL, device, "default", "2001")
+	if err != nil || len(options) != 1 || options[0].Quality != "720P" {
+		t.Fatalf("content type resolve = %#v, %v", options, err)
+	}
+}
+
+func TestMiniReelContentTypeNormalizesAndSeparatesCache(t *testing.T) {
+	if got, err := normalizeMiniReelContentType(""); err != nil || got != miniReelDefaultContentType {
+		t.Fatalf("empty content type = %q, %v", got, err)
+	}
+	if _, err := normalizeMiniReelContentType("video"); err == nil {
+		t.Fatal("non-numeric content type accepted")
+	}
+	if legacy := miniReelCacheTokenWithCodec("123", "456", "720P", true, "full", "default"); legacy != miniReelCacheTokenWithCodecAndContentType("123", "456", "720P", true, "full", "default", "1004") {
+		t.Fatal("legacy cache token changed")
+	}
+	if a := miniReelCacheTokenWithCodecAndContentType("123", "456", "720P", true, "full", "default", "1004"); a == miniReelCacheTokenWithCodecAndContentType("123", "456", "720P", true, "full", "default", "2001") {
+		t.Fatal("content type did not isolate cache token")
+	}
+}
+
 func TestMiniReelMultiVideoModelSupportsLegacyEnvelopeAndRejectsInvalidResponse(t *testing.T) {
 	device := miniReelDevice{deviceID: "1234567890123456789", installID: "2234567890123456789"}
 	for _, fixture := range []string{
@@ -211,7 +278,7 @@ func TestMiniReelMultiVideoModelSupportsLegacyEnvelopeAndRejectsInvalidResponse(
 		_, err := miniReelNativeOptionsEndpointWithDevice(context.Background(), "123", server.URL+miniReelAPIPath, device)
 		server.Close()
 		if fixture == `{}` {
-			if err == nil || requests != 1 {
+			if err == nil || requests != miniReelVideoModelAttempts {
 				t.Fatalf("invalid response error = %v, requests = %d", err, requests)
 			}
 		} else if err != nil || requests != 1 {

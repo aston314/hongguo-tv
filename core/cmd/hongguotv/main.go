@@ -386,11 +386,16 @@ func (s *server) playInfo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	contentType, err := normalizeMiniReelContentType(r.URL.Query().Get("content_type"))
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	var result PlayInfo
 	if r.URL.Query().Get("mode") == "range" {
-		result, err = s.hongguo.PlayInfoRangeQualityMode(r.Context(), r.URL.Query().Get("series_id"), r.URL.Query().Get("vid"), quality, r.URL.Query().Get("fallback") == "1", r.URL.Query().Get("prefetch") != "1", codecMode)
+		result, err = s.hongguo.PlayInfoRangeQualityMode(r.Context(), r.URL.Query().Get("series_id"), r.URL.Query().Get("vid"), quality, r.URL.Query().Get("fallback") == "1", r.URL.Query().Get("prefetch") != "1", codecMode, contentType)
 	} else {
-		result, err = s.hongguo.PlayInfoQualityMode(r.Context(), r.URL.Query().Get("series_id"), r.URL.Query().Get("vid"), quality, r.URL.Query().Get("fallback") == "1", codecMode)
+		result, err = s.hongguo.PlayInfoQualityMode(r.Context(), r.URL.Query().Get("series_id"), r.URL.Query().Get("vid"), quality, r.URL.Query().Get("fallback") == "1", codecMode, contentType)
 	}
 	if err != nil {
 		writePlaybackPreparationError(w, err)

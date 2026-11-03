@@ -48,8 +48,8 @@ func TestMiniReelIdentityRecoveryReplacesEmptyIdentityAndReusesSuccess(t *testin
 			t.Fatalf("resolved options = %#v, %v", options, err)
 		}
 	}
-	if registrations.Load() != 2 || oldRequests.Load() != 3 || newRequests.Load() != 2 {
-		t.Fatalf("registrations/old/new = %d/%d/%d, want 2/3/2", registrations.Load(), oldRequests.Load(), newRequests.Load())
+	if registrations.Load() != 2 || oldRequests.Load() != 5 || newRequests.Load() != 2 {
+		t.Fatalf("registrations/old/new = %d/%d/%d, want 2/5/2", registrations.Load(), oldRequests.Load(), newRequests.Load())
 	}
 }
 
@@ -96,12 +96,7 @@ func TestMiniReelIdentityRecoveryIsBoundedAndCooldownExpires(t *testing.T) {
 	cache := newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
 		return miniReelRecoveryDevice(fmt.Sprint(registrations.Add(1))), nil
 	})
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		requests.Add(1)
-		if r.URL.Query().Get("device_id") == "3" {
-			_, _ = io.WriteString(w, miniReelRecoveryModel)
-		}
-	}))
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests.Add(1) }))
 	defer server.Close()
 	resolve := func() error {
 		_, err := miniReelNativeOptionsWithIdentityCache(context.Background(), "123", server.URL, "default", cache)
@@ -110,23 +105,28 @@ func TestMiniReelIdentityRecoveryIsBoundedAndCooldownExpires(t *testing.T) {
 	if err := resolve(); !errors.Is(err, errMiniReelVideoModelEmpty) {
 		t.Fatalf("persistent empty error = %v", err)
 	}
-	if registrations.Load() != 2 || requests.Load() != 6 {
-		t.Fatalf("registrations/requests = %d/%d, want 2/6", registrations.Load(), requests.Load())
+	if registrations.Load() != 5 || requests.Load() != 9 {
+		t.Fatalf("registrations/requests = %d/%d, want 5/9", registrations.Load(), requests.Load())
 	}
 	if err := resolve(); !errors.Is(err, errMiniReelVideoModelEmpty) {
 		t.Fatalf("cooldown error = %v", err)
 	}
-	if registrations.Load() != 2 || requests.Load() != 9 {
-		t.Fatalf("cooldown registrations/requests = %d/%d, want 2/9", registrations.Load(), requests.Load())
+	if registrations.Load() != 5 || requests.Load() != 12 {
+		t.Fatalf("cooldown registrations/requests = %d/%d, want 5/12", registrations.Load(), requests.Load())
 	}
 	cache.mu.Lock()
 	cache.refreshAfter = time.Now().Add(-time.Second)
 	cache.mu.Unlock()
-	if err := resolve(); err != nil {
+	miniReelPlaybackRecovery.mu.Lock()
+	for key := range miniReelPlaybackRecovery.lastStarted {
+		miniReelPlaybackRecovery.lastStarted[key] = time.Now().Add(-time.Hour)
+	}
+	miniReelPlaybackRecovery.mu.Unlock()
+	if err := resolve(); !errors.Is(err, errMiniReelVideoModelEmpty) {
 		t.Fatalf("recovery after cooldown = %v", err)
 	}
-	if registrations.Load() != 3 || requests.Load() != 13 {
-		t.Fatalf("after cooldown registrations/requests = %d/%d, want 3/13", registrations.Load(), requests.Load())
+	if registrations.Load() != 9 || requests.Load() != 21 {
+		t.Fatalf("after cooldown registrations/requests = %d/%d, want 9/21", registrations.Load(), requests.Load())
 	}
 }
 
@@ -162,8 +162,14 @@ func TestMiniReelIdentityRecoveryIgnoresOtherFailures(t *testing.T) {
 			}))
 			defer server.Close()
 			_, err := miniReelNativeOptionsWithIdentityCache(context.Background(), "123", server.URL, "default", cache)
-			if err == nil || errors.Is(err, errMiniReelVideoModelEmpty) {
+			if err == nil || (test.name != "missing model" && errors.Is(err, errMiniReelStreamMiss)) {
 				t.Fatalf("nonempty/transport/status failure misclassified: %v", err)
+			}
+			if test.name == "missing model" {
+				if registrations.Load() != 5 || requests.Load() != 9 {
+					t.Fatalf("missing model recovery registrations/requests = %d/%d, want 5/9", registrations.Load(), requests.Load())
+				}
+				return
 			}
 			if registrations.Load() != 1 || requests.Load() != 1 {
 				t.Fatalf("registrations/requests = %d/%d, want 1/1", registrations.Load(), requests.Load())
@@ -238,8 +244,8 @@ func TestMiniReelIdentityRecoveryConcurrentRequestsShareReplacement(t *testing.T
 		}()
 	}
 	wg.Wait()
-	if registrations.Load() != 2 || oldRequests.Load() != workers*3 || newRequests.Load() != workers {
-		t.Fatalf("registrations/old/new = %d/%d/%d, want 2/%d/%d", registrations.Load(), oldRequests.Load(), newRequests.Load(), workers*3, workers)
+	if registrations.Load() != 2 || oldRequests.Load() != workers*3+2 || newRequests.Load() != 1 {
+		t.Fatalf("registrations/old/new = %d/%d/%d, want 2/%d/1", registrations.Load(), oldRequests.Load(), newRequests.Load(), workers*3+2)
 	}
 }
 
@@ -290,8 +296,8 @@ func TestMiniReelIdentityRecoveryRegistrationFailureKeepsOldIdentity(t *testing.
 	if _, err := cache.refreshAfterEmpty(context.Background(), device); !errors.Is(err, errMiniReelIdentityRefreshCoolingDown) {
 		t.Fatalf("failed refresh was not throttled: %v", err)
 	}
-	if registrations.Load() != 2 {
-		t.Fatalf("registrations = %d, want 2", registrations.Load())
+	if registrations.Load() != 5 {
+		t.Fatalf("registrations = %d, want 5 bounded candidates", registrations.Load())
 	}
 }
 
@@ -458,5 +464,53 @@ func TestMiniReelIdentityRecoveryNewRequestWaitsForReplacement(t *testing.T) {
 	}
 	if device := <-result; device != miniReelRecoveryDevice("2") || registrations.Load() != 2 {
 		t.Fatalf("new request did not use replacement: %#v, registrations=%d", device, registrations.Load())
+	}
+}
+
+func TestMiniReelStreamMissBusinessCodeIsRecoverable(t *testing.T) {
+	device := miniReelRecoveryDevice("1")
+	var calls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		_, _ = io.WriteString(w, `{"code":110001,"data":{}}`)
+	}))
+	defer server.Close()
+	_, err := miniReelNativeOptionsEndpointWithDevice(context.Background(), "123", server.URL, device)
+	if err == nil || !errors.Is(err, errMiniReelStreamMiss) || calls.Load() != miniReelVideoModelAttempts {
+		t.Fatalf("business stream miss = %v calls=%d", err, calls.Load())
+	}
+	diagnostic := playbackPreparationDetails(err)
+	if diagnostic.Code != "VIDEO_MODEL_BUSINESS" || diagnostic.BusinessCode != "110001" {
+		t.Fatalf("business diagnostic = %+v", diagnostic)
+	}
+}
+
+func TestMiniReelIdentityRecoveryDoesNotPublishUnverifiedCandidate(t *testing.T) {
+	var registrations atomic.Int32
+	cache := newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
+		return miniReelRecoveryDevice(fmt.Sprint(registrations.Add(1))), nil
+	})
+	var candidateRequests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := r.URL.Query().Get("device_id")
+		if id == "1" {
+			return
+		}
+		candidateRequests.Add(1)
+		if id == "3" {
+			_, _ = io.WriteString(w, miniReelRecoveryModel)
+		}
+	}))
+	defer server.Close()
+	options, err := miniReelNativeOptionsWithIdentityCache(context.Background(), "123", server.URL, "default", cache)
+	if err != nil || len(options) != 1 {
+		t.Fatalf("candidate recovery = %#v, %v", options, err)
+	}
+	device, err := cache.get(context.Background())
+	if err != nil || device.deviceID != "3" {
+		t.Fatalf("published identity = %#v, %v", device, err)
+	}
+	if registrations.Load() != 3 || candidateRequests.Load() != 2 {
+		t.Fatalf("candidate registrations/requests = %d/%d, want 3/2", registrations.Load(), candidateRequests.Load())
 	}
 }

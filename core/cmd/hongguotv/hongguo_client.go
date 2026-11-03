@@ -168,28 +168,31 @@ type PlayInfo struct {
 	VideoWidth    int      `json:"video_width,omitempty"`
 	VideoHeight   int      `json:"video_height,omitempty"`
 	VideoCodec    string   `json:"video_codec,omitempty"`
+	ContentType   string   `json:"content_type,omitempty"`
 	Vid           string   `json:"vid"`
 	Mode          string   `json:"mode,omitempty"`
 	RangeFallback string   `json:"range_fallback,omitempty"`
 }
 
 type hongguoClient struct {
-	httpClient       *http.Client
-	apiBase          string
-	webBase          string
-	userAgent        string
-	internalPlayback func(context.Context, string, string, string, bool) (PlayInfo, error)
+	httpClient                  *http.Client
+	apiBase                     string
+	webBase                     string
+	userAgent                   string
+	internalPlayback            func(context.Context, string, string, string, bool) (PlayInfo, error)
+	internalPlaybackContentType func(context.Context, string, string, string, bool, string) (PlayInfo, error)
 }
 
 func newHongguoClient() *hongguoClient {
 	apiBase := strings.TrimRight(envOr("HONGGUO_API_BASE", defaultHongguoAPI), "/")
 	webBase := strings.TrimRight(envOr("HONGGUO_WEB_BASE", defaultHongguoWeb), "/")
 	return &hongguoClient{
-		httpClient:       &http.Client{Timeout: 80 * time.Second},
-		apiBase:          apiBase,
-		webBase:          webBase,
-		userAgent:        envOr("HONGGUO_USER_AGENT", defaultHongguoUA),
-		internalPlayback: embeddedMiniReelPlayInfo,
+		httpClient:                  &http.Client{Timeout: 80 * time.Second},
+		apiBase:                     apiBase,
+		webBase:                     webBase,
+		userAgent:                   envOr("HONGGUO_USER_AGENT", defaultHongguoUA),
+		internalPlayback:            embeddedMiniReelPlayInfo,
+		internalPlaybackContentType: embeddedMiniReelPlayInfoContentType,
 	}
 }
 
@@ -878,7 +881,7 @@ func (c *hongguoClient) PlayInfoQuality(ctx context.Context, seriesID, vid, qual
 	return c.PlayInfoQualityMode(ctx, seriesID, vid, quality, fallback, "default")
 }
 
-func (c *hongguoClient) PlayInfoQualityMode(ctx context.Context, seriesID, vid, quality string, fallback bool, codecMode string) (PlayInfo, error) {
+func (c *hongguoClient) PlayInfoQualityMode(ctx context.Context, seriesID, vid, quality string, fallback bool, codecMode string, contentTypes ...string) (PlayInfo, error) {
 	if !validID(seriesID) || !validID(vid) {
 		return PlayInfo{}, errors.New("播放参数无效")
 	}
@@ -890,7 +893,16 @@ func (c *hongguoClient) PlayInfoQualityMode(ctx context.Context, seriesID, vid, 
 		return PlayInfo{}, err
 	}
 	if codecMode == "default" {
-		result, err := c.internalPlayback(ctx, seriesID, vid, quality, fallback)
+		contentType, contentTypeErr := miniReelContentTypeArgument(contentTypes)
+		if contentTypeErr != nil {
+			return PlayInfo{}, contentTypeErr
+		}
+		var result PlayInfo
+		if contentType != miniReelDefaultContentType && c.internalPlaybackContentType != nil {
+			result, err = c.internalPlaybackContentType(ctx, seriesID, vid, quality, fallback, contentType)
+		} else {
+			result, err = c.internalPlayback(ctx, seriesID, vid, quality, fallback)
+		}
 		if err != nil {
 			return PlayInfo{}, fmt.Errorf("内置播放解析失败: %w", err)
 		}
@@ -902,13 +914,17 @@ func (c *hongguoClient) PlayInfoQualityMode(ctx context.Context, seriesID, vid, 
 		}
 		return result, nil
 	}
-	value, err := resolveMiniReelMediaQualityMode(ctx, seriesID, vid, quality, fallback, codecMode)
+	contentType, err := miniReelContentTypeArgument(contentTypes)
+	if err != nil {
+		return PlayInfo{}, err
+	}
+	value, err := resolveMiniReelMediaQualityMode(ctx, seriesID, vid, quality, fallback, codecMode, contentType)
 	if err != nil {
 		return PlayInfo{}, fmt.Errorf("内置播放解析失败: %w", err)
 	}
 	result := PlayInfo{
 		Path: asString(value["path"]), Quality: asString(value["quality"]), Qualities: value["qualities"].([]string),
-		VideoWidth: miniReelIntFromAny(value["video_width"]), VideoHeight: miniReelIntFromAny(value["video_height"]), VideoCodec: asString(value["video_codec"]),
+		VideoWidth: miniReelIntFromAny(value["video_width"]), VideoHeight: miniReelIntFromAny(value["video_height"]), VideoCodec: asString(value["video_codec"]), ContentType: asString(value["content_type"]),
 		Vid: firstNonEmpty(value["vid"], vid), Mode: asString(value["mode"]),
 	}
 	if result.Path == "" {
@@ -924,11 +940,15 @@ func (c *hongguoClient) PlayInfoRangeQuality(ctx context.Context, seriesID, vid,
 	return c.PlayInfoRangeQualityMode(ctx, seriesID, vid, quality, fallback, allowStandardFallback, "default")
 }
 
-func (c *hongguoClient) PlayInfoRangeQualityMode(ctx context.Context, seriesID, vid, quality string, fallback, allowStandardFallback bool, codecMode string) (PlayInfo, error) {
+func (c *hongguoClient) PlayInfoRangeQualityMode(ctx context.Context, seriesID, vid, quality string, fallback, allowStandardFallback bool, codecMode string, contentTypes ...string) (PlayInfo, error) {
 	if !validID(seriesID) || !validID(vid) {
 		return PlayInfo{}, errors.New("播放参数无效")
 	}
-	value, err := resolveMiniReelMediaRangeQualityMode(ctx, seriesID, vid, quality, fallback, allowStandardFallback, codecMode)
+	contentType, err := miniReelContentTypeArgument(contentTypes)
+	if err != nil {
+		return PlayInfo{}, err
+	}
+	value, err := resolveMiniReelMediaRangeQualityMode(ctx, seriesID, vid, quality, fallback, allowStandardFallback, codecMode, contentType)
 	if err != nil {
 		return PlayInfo{}, fmt.Errorf("按需读取播放准备失败: %w", err)
 	}
@@ -939,6 +959,7 @@ func (c *hongguoClient) PlayInfoRangeQualityMode(ctx context.Context, seriesID, 
 		VideoWidth:    miniReelIntFromAny(value["video_width"]),
 		VideoHeight:   miniReelIntFromAny(value["video_height"]),
 		VideoCodec:    asString(value["video_codec"]),
+		ContentType:   asString(value["content_type"]),
 		Vid:           firstNonEmpty(value["vid"], vid),
 		Mode:          asString(value["mode"]),
 		RangeFallback: asString(value["range_fallback"]),
@@ -946,7 +967,11 @@ func (c *hongguoClient) PlayInfoRangeQualityMode(ctx context.Context, seriesID, 
 }
 
 func embeddedMiniReelPlayInfo(ctx context.Context, seriesID, vid, quality string, fallback bool) (PlayInfo, error) {
-	value, err := resolveMiniReelMediaQuality(ctx, seriesID, vid, quality, fallback)
+	return embeddedMiniReelPlayInfoContentType(ctx, seriesID, vid, quality, fallback, miniReelDefaultContentType)
+}
+
+func embeddedMiniReelPlayInfoContentType(ctx context.Context, seriesID, vid, quality string, fallback bool, contentType string) (PlayInfo, error) {
+	value, err := resolveMiniReelMediaQualityMode(ctx, seriesID, vid, quality, fallback, "default", contentType)
 	if err != nil {
 		return PlayInfo{}, err
 	}
@@ -955,7 +980,7 @@ func embeddedMiniReelPlayInfo(ctx context.Context, seriesID, vid, quality string
 		Quality:     asString(value["quality"]),
 		Qualities:   value["qualities"].([]string),
 		VideoWidth:  miniReelIntFromAny(value["video_width"]),
-		VideoHeight: miniReelIntFromAny(value["video_height"]), VideoCodec: asString(value["video_codec"]),
+		VideoHeight: miniReelIntFromAny(value["video_height"]), VideoCodec: asString(value["video_codec"]), ContentType: asString(value["content_type"]),
 		Vid:  firstNonEmpty(value["vid"], vid),
 		Mode: asString(value["mode"]),
 	}, nil

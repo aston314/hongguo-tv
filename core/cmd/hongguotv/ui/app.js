@@ -417,6 +417,10 @@
   var playbackAudioHold = null;
   var playbackTiming = [];
   var playbackRecovery = HongguoPlaybackRecovery.create({ maxAttempts: 1 });
+  function playbackContentType(item) {
+    var value = item && item.content_type;
+    return /^[0-9]{1,16}$/.test(String(value || '')) ? String(value) : '';
+  }
   // webOS can leave the first local Range response waiting on an upstream
   // request for several seconds. Keep that delay bounded for the TV player;
   // desktop and MPV retain their existing recovery windows.
@@ -433,7 +437,7 @@
         if (!detail || detail.series_id !== info.series_id) return null;
         var next = HongguoEpisodePrefetch.nextPrefetchEpisode(detail, info.episode);
         return next ? { series_id: info.series_id, vid: next.vid, episode: next.episode, quality: info.quality || '',
-          fallback: '1', mode: info.mode || '', codec_mode: info.codec_mode || 'default', prefetch_mode: info.prefetch_mode || info.mode || '', owner: info.owner } : null;
+          fallback: '1', mode: info.mode || '', codec_mode: info.codec_mode || 'default', content_type: typeof playbackContentType === 'function' ? playbackContentType(info.item) : '', prefetch_mode: info.prefetch_mode || info.mode || '', owner: info.owner } : null;
       });
     },
     prepare: function (target, signal) {
@@ -2532,7 +2536,7 @@
       vid: item.vid_list && item.vid_list[episode - 1] || cached.target.vid,
       quality: playbackPreferences.quality, owner: accountEpoch, prefetch_mode: 'full',
       mode: typeof rangePlaybackEnabled === 'function' && rangePlaybackEnabled() ? 'range' : '',
-      codec_mode: typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default' };
+      codec_mode: typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default', content_type: typeof playbackContentType === 'function' ? playbackContentType(item) : '' };
     if (!episodePrefetch.readyFor(target)) return;
     var hint = { series_id: item.series_id, episode: episode, generation: generation, owner: accountEpoch,
       started_at: startedAt, revealed: Date.now() - startedAt >= 800, timer: null };
@@ -2953,7 +2957,7 @@
     clearRangeStallTimer();
     video.pause(); document.getElementById('player-options-message').textContent = uiText('ui.preparingQuality', '正在准备 {quality}…', { quality: value || uiText('ui.autoQuality', '自动清晰度') });
     qualityRequest = typeof AbortController === 'function' ? new AbortController() : null;
-    var q = new URLSearchParams({ series_id: playback.item.series_id, vid: playback.vid, quality: value });
+    var q = new URLSearchParams({ series_id: playback.item.series_id, vid: playback.vid, quality: value, content_type: typeof playbackContentType === 'function' ? playbackContentType(playback.item) : '' });
     q.set('codec_mode', typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default');
     if (rangePlaybackEnabled()) q.set('mode', 'range');
     fetchData('/api/v1/play/info?' + q, qualityRequest ? { signal: qualityRequest.signal } : {}).then(function (data) {
@@ -4769,6 +4773,7 @@
     episodePrefetch.maybe({ item: playback.item, series_id: playback.item.series_id, vid: playback.vid,
       episode: playback.episode, quality: playbackPreferences.quality, generation: playback.generation, owner: accountEpoch,
       codec_mode: typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default',
+      content_type: typeof playbackContentType === 'function' ? playbackContentType(playback.item) : '',
       mode: (typeof rangePlaybackEnabled === 'function' && rangePlaybackEnabled()) ? 'range' : '',
       prefetch_mode: mode,
       prefetch_after_seconds: HongguoEpisodePrefetch.prefetchThreshold(mode, playbackEngineName()),
@@ -5237,6 +5242,7 @@
     video.pause();
     var painted = waitForPlaybackPaint(generation, request && request.signal);
     var params = new URLSearchParams({ series_id: playback.item.series_id, vid: playback.vid, quality: playbackPreferences.quality, fallback: '1' });
+    if (typeof playbackContentType === 'function') params.set('content_type', playbackContentType(playback.item));
     params.set('codec_mode', typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default');
     var preparing = fetchData('/api/v1/play/info?' + params, request ? { signal: request.signal } : {});
     playbackInfoRequest = request;
@@ -5318,7 +5324,7 @@
     var playbackMode = (typeof rangePlaybackEnabled === 'function' && rangePlaybackEnabled()) ? 'range' : '';
     var prefetchMode = typeof effectiveEpisodePrefetchMode === 'function' ? effectiveEpisodePrefetchMode() : 'range';
     episodePrefetch.keepFor(item.series_id, forcedEpisode, playbackPreferences.quality, accountEpoch, playbackMode, prefetchMode,
-      typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default');
+      typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default', typeof playbackContentType === 'function' ? playbackContentType(item) : '');
     // ended has already queued the completed episode. Keep that write alive,
     // but do not queue it twice or make the next source wait for its fsync.
     if (!fastContinuation) saveProgress(true);
@@ -5436,7 +5442,7 @@
         updateDetailProgress();
         setPlayerStatus(episodeLoadingText(episode));
         var target = { series_id: item.series_id, vid: vid, episode: episode, quality: playbackPreferences.quality, owner: accountEpoch, mode: playbackMode,
-          codec_mode: typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default', prefetch_mode: prefetchMode };
+          codec_mode: typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default', content_type: typeof playbackContentType === 'function' ? playbackContentType(item) : '', prefetch_mode: prefetchMode };
         var handoff = episodePrefetch.consume(target);
         playbackPrefetchHandoff = handoff;
         activePlayback.timing.handoff_started_at = Date.now();
@@ -5466,6 +5472,7 @@
           // normal resolver. The 1.2s handoff budget keeps navigation responsive.
           activePlayback.timing.foreground_resolve_started_at = Date.now();
           var params = { series_id: item.series_id, vid: vid, quality: playbackPreferences.quality, fallback: '1', mode: playbackMode };
+          if (typeof playbackContentType === 'function') params.content_type = playbackContentType(item);
           params.codec_mode = typeof playbackCodecMode === 'function' ? playbackCodecMode() : 'default';
           return fetchData('/api/v1/play/info?' + new URLSearchParams(params), { signal: request.signal }).then(function (data) {
             playbackPrefetchHandoff = null;

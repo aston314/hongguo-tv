@@ -37,7 +37,7 @@
       if (candidate.request) candidate.request.abort();
     }
     function key(info) {
-      return [info.series_id, info.vid, info.episode, info.quality || '', info.mode || '', strategyOf(info), info.generation, info.owner].join(':');
+      return [info.series_id, info.vid, info.episode, info.quality || '', info.mode || '', strategyOf(info), info.codec_mode || 'default', info.content_type || '', info.generation, info.owner].join(':');
     }
     function current(candidate) {
       return !candidate.cancelled && (entry === candidate || candidate.claimed) && !(candidate.request && candidate.request.signal.aborted);
@@ -100,16 +100,18 @@
         return null;
       });
     }
-    function keepFor(seriesID, episode, quality, owner, mode, prefetchModeValue, codecModeValue) {
+    function keepFor(seriesID, episode, quality, owner, mode, prefetchModeValue, codecModeValue, contentTypeValue) {
       if (entry && (entry.info.series_id !== seriesID || entry.info.episode + 1 !== episode ||
           (entry.info.quality || '') !== (quality || '') || entry.info.owner !== owner || (entry.info.mode || '') !== (mode || '') ||
           (entry.info.codec_mode || 'default') !== (codecModeValue || 'default') ||
+          (entry.info.content_type || '') !== (contentTypeValue || '') ||
           strategyOf(entry.info) !== prefetchMode(prefetchModeValue || mode))) cancel();
     }
     function matches(candidate, target) {
       return !!(candidate && candidate.info.series_id === target.series_id && candidate.info.episode + 1 === target.episode &&
         (candidate.info.quality || '') === (target.quality || '') && candidate.info.owner === target.owner && (candidate.info.mode || '') === (target.mode || '') &&
-        (candidate.info.codec_mode || 'default') === (target.codec_mode || 'default') && strategyOf(candidate.info) === strategyOf(target) &&
+        (candidate.info.codec_mode || 'default') === (target.codec_mode || 'default') &&
+        (candidate.info.content_type || '') === (target.content_type || '') && strategyOf(candidate.info) === strategyOf(target) &&
         !(maxAgeFor(candidate) && candidate.state === 'ready' && now() - candidate.timing.ready_at >= maxAgeFor(candidate)) &&
         (!candidate.target || candidate.target.vid === target.vid));
     }
@@ -169,6 +171,7 @@
     var mode = normalizePrefetchMode(target.prefetch_mode || target.prefetchMode || target.mode);
     var params = { series_id: target.series_id || '', vid: target.vid || '', quality: target.quality || '', fallback: '1', prefetch: '1' };
     params.codec_mode = target.codec_mode || target.codecMode || 'default';
+    if (/^[0-9]{1,16}$/.test(String(target.content_type || ''))) params.content_type = String(target.content_type);
     if (mode !== 'full') params.mode = 'range';
     return params;
   }
