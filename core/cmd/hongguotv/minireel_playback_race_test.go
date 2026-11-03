@@ -48,13 +48,16 @@ func TestMiniReelPlaybackRaceUsesSpareForMissingModel(t *testing.T) {
 
 func TestMiniReelRouteRaceUsesAnotherProductionLineAfterEmptyResponse(t *testing.T) {
 	var routeCalls atomic.Int32
+	emptyObserved := make(chan struct{})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "/empty") {
 			routeCalls.Add(1)
 			_, _ = io.WriteString(w, ``)
+			close(emptyObserved)
 			return
 		}
 		routeCalls.Add(1)
+		<-emptyObserved
 		_, _ = io.WriteString(w, miniReelRecoveryModel)
 	}))
 	defer server.Close()
@@ -71,8 +74,8 @@ func TestMiniReelRouteRaceUsesAnotherProductionLineAfterEmptyResponse(t *testing
 	if err != nil || len(options) != 1 || options[0].Codec != "h264" {
 		t.Fatalf("route race result = %#v, %v", options, err)
 	}
-	if routeCalls.Load() < 2 {
-		t.Fatalf("route calls = %d, want both routes attempted", routeCalls.Load())
+	if routeCalls.Load() != 2 {
+		t.Fatalf("route calls = %d, want both routes attempted after empty response", routeCalls.Load())
 	}
 }
 
