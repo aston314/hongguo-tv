@@ -3,6 +3,7 @@ package rocks.aston.hongguotv;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.webkit.JavascriptInterface;
+import java.util.Locale;
 
 /** Local UI and playback settings survive restarts even when the core port changes. */
 final class PlaybackPreferences {
@@ -57,6 +58,16 @@ final class PlaybackPreferences {
     @JavascriptInterface
     public String readLocale() {
         return preferences.getString("locale", "zh-CN");
+    }
+
+    @JavascriptInterface
+    public boolean hasLocaleOverride() {
+        return preferences.contains("locale");
+    }
+
+    @JavascriptInterface
+    public String readSystemLocale() {
+        return Locale.getDefault().toLanguageTag();
     }
 
     @JavascriptInterface

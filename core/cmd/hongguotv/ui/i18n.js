@@ -31,10 +31,49 @@
     return localeFor(value) || DEFAULT_LOCALE;
   }
 
+  function systemLocaleCandidates() {
+    var candidates = [];
+    var bridge = root.HongguoTVPreferences;
+    if (bridge && typeof bridge.readSystemLocale === 'function') {
+      try {
+        var nativeLocale = bridge.readSystemLocale();
+        if (nativeLocale) candidates.push(nativeLocale);
+      } catch (ignoredNativeLocale) {}
+    }
+    var navigatorObject = root.navigator;
+    if (navigatorObject && Array.isArray(navigatorObject.languages)) {
+      for (var i = 0; i < navigatorObject.languages.length; i += 1) {
+        if (navigatorObject.languages[i]) candidates.push(navigatorObject.languages[i]);
+      }
+    }
+    if (navigatorObject && navigatorObject.language) candidates.push(navigatorObject.language);
+    return candidates;
+  }
+
+  function detectSystemLocale() {
+    var candidates = systemLocaleCandidates();
+    for (var i = 0; i < candidates.length; i += 1) {
+      var detected = localeFor(candidates[i]);
+      if (detected) return detected;
+    }
+    return DEFAULT_LOCALE;
+  }
+
   function readStoredLocale() {
     try {
-      if (root.HongguoTVPreferences && typeof root.HongguoTVPreferences.readLocale === 'function') return normalize(root.HongguoTVPreferences.readLocale());
-      return normalize(root.localStorage && root.localStorage.getItem(STORAGE_KEY));
+      var bridge = root.HongguoTVPreferences;
+      if (bridge && typeof bridge.readLocale === 'function') {
+        // New Android shells distinguish an explicit selection from the
+        // default value returned by older shells. Preserve old-shell behavior
+        // while allowing untouched installations to follow the system locale.
+        if (typeof bridge.hasLocaleOverride === 'function') {
+          if (bridge.hasLocaleOverride()) return normalize(bridge.readLocale());
+          return detectSystemLocale();
+        }
+        return normalize(bridge.readLocale());
+      }
+      var stored = root.localStorage && root.localStorage.getItem(STORAGE_KEY);
+      return stored ? normalize(stored) : detectSystemLocale();
     } catch (ignored) { return DEFAULT_LOCALE; }
   }
 
@@ -69,8 +108,16 @@
   }
 
   function localeFor(value) {
-    if (locales[value] && isCompleteLocale(value)) return value;
-    var language = String(value || '').toLowerCase().split('-')[0];
+    var raw = String(value || '');
+    if (locales[raw] && isCompleteLocale(raw)) return raw;
+    var normalized = raw.toLowerCase().replace(/_/g, '-');
+    var exact = Object.keys(locales).filter(function (key) {
+      return key.toLowerCase() === normalized && isCompleteLocale(key);
+    });
+    if (exact.length) return exact[0];
+    if (/^zh-(tw|hk|mo|hant)(-|$)/.test(normalized) && isCompleteLocale('zh-TW')) return 'zh-TW';
+    if (/^zh-(cn|sg|my|hans)(-|$)/.test(normalized) && isCompleteLocale('zh-CN')) return 'zh-CN';
+    var language = normalized.split('-')[0];
     for (var key in locales) {
       if (Object.prototype.hasOwnProperty.call(locales, key) && key.toLowerCase().split('-')[0] === language && isCompleteLocale(key)) return key;
     }

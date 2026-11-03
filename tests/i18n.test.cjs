@@ -35,7 +35,8 @@ function multilingualRuntime(overrides) {
     getItem() { return this.value; },
     setItem(_, value) { this.value = value; }
   };
-  const context = vm.createContext({ document, localStorage: storage, HongguoTVPreferences: bridge });
+  const navigator = overrides && overrides.navigator ? overrides.navigator : {};
+  const context = vm.createContext({ document, localStorage: storage, HongguoTVPreferences: bridge, navigator });
   vm.runInContext(localeSource + '\n' + traditionalLocaleSource + '\n' + japaneseLocaleSource + '\n' + i18nSource, context);
   return { context, document, listeners, storage };
 }
@@ -150,6 +151,47 @@ test('traditional Chinese and Japanese resources are complete and selectable', (
   const sourceKeys = Object.keys(context.HongguoLocales['zh-CN']).sort();
   assert.deepEqual(Array.from(Object.keys(context.HongguoLocales['zh-TW'])).sort(), sourceKeys);
   assert.deepEqual(Array.from(Object.keys(context.HongguoLocales['ja-JP'])).sort(), sourceKeys);
+});
+
+test('first launch follows the system locale and maps regional Chinese correctly', () => {
+  const traditional = multilingualRuntime({ navigator: { languages: ['zh-HK'], language: 'zh-HK' } });
+  assert.equal(traditional.context.HongguoI18n.locale(), 'zh-TW');
+
+  const japanese = multilingualRuntime({ navigator: { languages: ['ja-JP'], language: 'ja-JP' } });
+  assert.equal(japanese.context.HongguoI18n.locale(), 'ja-JP');
+
+  const fallback = multilingualRuntime({ navigator: { languages: ['en-US'], language: 'en-US' } });
+  assert.equal(fallback.context.HongguoI18n.locale(), 'zh-CN');
+});
+
+test('explicit locale preference wins over the system locale', () => {
+  const runtime = multilingualRuntime({
+    storageLocale: 'zh-CN',
+    navigator: { languages: ['ja-JP'], language: 'ja-JP' }
+  });
+  assert.equal(runtime.context.HongguoI18n.locale(), 'zh-CN');
+});
+
+test('Android bridge uses native system locale when no explicit override exists', () => {
+  const runtime = multilingualRuntime({
+    navigator: { languages: ['en-US'], language: 'en-US' },
+    bridge: {
+      hasLocaleOverride() { return false; },
+      readLocale() { return 'zh-CN'; },
+      readSystemLocale() { return 'ja-JP'; }
+    }
+  });
+  assert.equal(runtime.context.HongguoI18n.locale(), 'ja-JP');
+
+  const selected = multilingualRuntime({
+    navigator: { languages: ['ja-JP'], language: 'ja-JP' },
+    bridge: {
+      hasLocaleOverride() { return true; },
+      readLocale() { return 'zh-TW'; },
+      readSystemLocale() { return 'ja-JP'; }
+    }
+  });
+  assert.equal(selected.context.HongguoI18n.locale(), 'zh-TW');
 });
 
 test('localized status rendering is not overwritten by static locale application', () => {
