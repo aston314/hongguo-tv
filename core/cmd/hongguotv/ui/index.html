@@ -374,6 +374,16 @@
           <div class="app-update-actions"><button class="playback-mode-action account-action" id="mpv-decode-auto" data-mode="mpv_auto" data-focus="mpv-decode-auto" aria-pressed="false">自动解码</button><button class="playback-mode-action account-action" id="mpv-decode-software" data-mode="mpv_software" data-focus="mpv-decode-software" aria-pressed="false">软件解码</button></div>
           <p id="mpv-decode-state" role="status" aria-live="polite"></p>
         </div>
+        <div class="settings-card app-update-card" id="playback-custom-device-settings">
+          <h2 data-i18n="settings.customPlaybackDevice">播放地址兜底设备</h2>
+          <p data-i18n="settings.customPlaybackDeviceDescription">默认播放地址获取失败时，使用手机红果设备号再次尝试。只用于播放地址，不影响登录、历史、收藏、点赞或评论。</p>
+          <div class="playback-custom-device-fields">
+            <label><span data-i18n="settings.customPlaybackDeviceDid">did（必填）</span><input class="playback-custom-device-input" id="playback-custom-device-did" data-focus="playback-custom-device-did" type="text" inputmode="numeric" autocomplete="off" maxlength="32" aria-label="手机红果 did"></label>
+            <label><span data-i18n="settings.customPlaybackDeviceUid">uid（可选）</span><input class="playback-custom-device-input" id="playback-custom-device-uid" data-focus="playback-custom-device-uid" type="text" inputmode="numeric" autocomplete="off" maxlength="32" aria-label="手机红果 uid"></label>
+          </div>
+          <div class="app-update-actions"><button class="playback-custom-device-action account-action account-primary" id="playback-custom-device-save" data-focus="playback-custom-device-save" data-i18n="settings.customPlaybackDeviceSave">保存</button><button class="playback-custom-device-action account-action" id="playback-custom-device-clear" data-focus="playback-custom-device-clear" data-i18n="settings.customPlaybackDeviceClear">清除</button></div>
+          <p id="playback-custom-device-state" role="status" aria-live="polite"></p>
+        </div>
         <div class="settings-card app-update-card" id="app-update-card">
           <h2 data-i18n="settings.updates">版本更新</h2>
           <p><span data-i18n="settings.currentVersion">当前版本 </span><strong id="app-current-version" data-i18n="ui.readingVersion">读取中…</strong></p>

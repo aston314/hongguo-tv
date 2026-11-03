@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -64,6 +65,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s := &server{instanceID: *instanceID, startedAt: time.Now().UTC(), hongguo: newHongguoClient(), radar: newRadarService(*dataDir, nil), libraryStore: library}
+	if err := initPlaybackCustomDevice(filepath.Join(*dataDir, "playback-custom-device.json")); err != nil {
+		log.Printf("prepare custom playback device: %v", err)
+	}
 	s.numberInputs = newNumberInputManager()
 	defer s.numberInputs.close()
 	s.searchHistoryStore, err = newSearchHistoryStore(*dataDir)
@@ -112,6 +116,7 @@ func main() {
 	mux.HandleFunc("/api/v1/Search", s.search)
 	mux.HandleFunc("/api/v1/play/info", s.playInfo)
 	mux.HandleFunc("/api/v1/PlayInfo", s.playInfo)
+	mux.HandleFunc("/api/v1/playback/custom-device", s.playbackCustomDevice)
 	// The TV APK owns the MiniReel resolver and media cache.  These routes are
 	// served by the same process so the UI never needs a second playback host.
 	mux.HandleFunc("/minireel-proxy/resolve", handleMiniReelResolve)
@@ -135,7 +140,7 @@ func serveUI(root fs.FS) http.Handler {
 
 func (s *server) withCORS(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/v1/account") || r.URL.Path == "/api/v1/number-input" || strings.HasPrefix(r.URL.Path, "/api/v1/lists/") || r.URL.Path == "/api/v1/search" || r.URL.Path == "/api/v1/Search" || r.URL.Path == "/api/v1/follow" || r.URL.Path == "/api/v1/notifications" || strings.HasPrefix(r.URL.Path, "/api/v1/player/") || r.URL.Path == "/api/v1/series/seasons" || r.URL.Path == "/api/v1/replies" || r.URL.Path == "/api/v1/reservation" || r.URL.Path == "/api/v1/comments" || r.URL.Path == "/api/v1/danmaku" || r.URL.Path == "/api/v1/library" {
+		if strings.HasPrefix(r.URL.Path, "/api/v1/account") || r.URL.Path == "/api/v1/number-input" || strings.HasPrefix(r.URL.Path, "/api/v1/lists/") || r.URL.Path == "/api/v1/search" || r.URL.Path == "/api/v1/Search" || r.URL.Path == "/api/v1/follow" || r.URL.Path == "/api/v1/notifications" || strings.HasPrefix(r.URL.Path, "/api/v1/player/") || r.URL.Path == "/api/v1/series/seasons" || r.URL.Path == "/api/v1/replies" || r.URL.Path == "/api/v1/reservation" || r.URL.Path == "/api/v1/comments" || r.URL.Path == "/api/v1/danmaku" || r.URL.Path == "/api/v1/library" || r.URL.Path == "/api/v1/playback/custom-device" {
 			if !privateLocalRequest(r) {
 				writeError(w, http.StatusForbidden, "只允许应用本身访问账号和记录")
 				return
