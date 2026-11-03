@@ -51,7 +51,12 @@ const (
 	miniReelMaxCache           = 512 << 20
 	miniReelVideoModelAttempts = 3
 	miniReelIdentityRefreshGap = 30 * time.Second
-	miniReelCacheKeyVersion    = "v3"
+	// A successful primary request should not pay for a second registration.
+	// Start the spare target only when the primary has not produced a result in
+	// this short hedge window, and keep the whole race bounded.
+	miniReelPlaybackRaceDelay   = 150 * time.Millisecond
+	miniReelPlaybackRaceTimeout = 30 * time.Second
+	miniReelCacheKeyVersion     = "v3"
 )
 
 var miniReelDefinitionRE = regexp.MustCompile(`(?i)(\d{3,4})`)
@@ -107,6 +112,9 @@ var miniReelSeasonIdentity = struct {
 }{}
 
 var errMiniReelVideoModelEmpty = errors.New("MiniReel video_model response is empty")
+var errMiniReelVideoModelMissing = errors.New("MiniReel video_model is missing")
+var errMiniReelVideoListEmpty = errors.New("MiniReel video_list is empty")
+var errMiniReelNoCompatibleSource = errors.New("MiniReel has no compatible video source")
 var errMiniReelIdentityRefreshCoolingDown = errors.New("anonymous playback identity refresh is cooling down")
 
 type miniReelDevice struct {
@@ -216,6 +224,11 @@ func (p *miniReelPlaybackDeviceRegistration) wait(ctx context.Context) (miniReel
 }
 
 var miniReelPlaybackIdentity = newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice)
+
+// The spare is deliberately independent from the primary cache. It has its
+// own registered device identity and registration lifecycle, but remains lazy:
+// normal fast responses never create or use it.
+var miniReelPlaybackSpareIdentity = newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice)
 
 func handleMiniReelResolve(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
@@ -812,7 +825,140 @@ func miniReelNativeOptionsEndpoint(ctx context.Context, vid, endpoint string) ([
 }
 
 func miniReelNativeOptionsEndpointMode(ctx context.Context, vid, endpoint, codecMode string) ([]miniReelOption, error) {
-	return miniReelNativeOptionsWithIdentityCache(ctx, vid, endpoint, codecMode, miniReelPlaybackIdentity)
+	options, err := miniReelNativeOptionsWithIdentityRace(ctx, vid, endpoint, codecMode, miniReelPlaybackIdentity, miniReelPlaybackSpareIdentity)
+	if errors.Is(err, errMiniReelNoCompatibleSource) {
+		// Preserve the established caller contract: an otherwise valid response
+		// with no source reaches prepareMiniReelMedia, which adds the codec-aware
+		// user-facing error.
+		return nil, nil
+	}
+	return options, err
+}
+
+// miniReelNativeOptionsWithIdentityRace resolves a source against the cached
+// primary identity and, when the primary does not quickly produce a usable
+// result, one independent spare identity. Each target keeps the existing
+// signed/alternate-host/compatibility retry policy. The first valid source
+// cancels the losing request; account cookies are never part of either target.
+func miniReelNativeOptionsWithIdentityRace(ctx context.Context, vid, endpoint, codecMode string, primary, spare *miniReelPlaybackDeviceCache) ([]miniReelOption, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	codecMode, err := normalizeMiniReelCodecMode(codecMode)
+	if err != nil {
+		return nil, err
+	}
+	raceCtx, cancel := context.WithTimeout(ctx, miniReelPlaybackRaceTimeout)
+	defer cancel()
+	type targetResult struct {
+		name    string
+		options []miniReelOption
+		err     error
+	}
+	results := make(chan targetResult, 2)
+	start := func(name string, identity *miniReelPlaybackDeviceCache) {
+		go func() {
+			registrationStarted := time.Now()
+			device, err := identity.get(raceCtx)
+			if err != nil {
+				err = finishPlaybackPreparation(err, playbackPreparationDiagnostic{Code: "DEVICE_REGISTER_FAILED", Stage: "device_register"}, registrationStarted)
+			}
+			if err == nil {
+				options, sourceErr := miniReelNativeOptionsEndpointWithDeviceMode(raceCtx, vid, endpoint, device, codecMode)
+				if sourceErr != nil {
+					err = sourceErr
+				} else if len(options) == 0 {
+					// An empty option set means the response was valid but no
+					// source survived codec/URL validation. It is not an identity
+					// failure and must not cause identity rotation.
+					err = errMiniReelNoCompatibleSource
+				} else {
+					results <- targetResult{name: name, options: options}
+					return
+				}
+			}
+			select {
+			case results <- targetResult{name: name, err: err}:
+			case <-raceCtx.Done():
+			}
+		}()
+	}
+
+	start("primary", primary)
+	spareStarted := false
+	var primaryErr, spareErr error
+	timer := time.NewTimer(miniReelPlaybackRaceDelay)
+	defer timer.Stop()
+	for completed := 0; completed < 2; {
+		select {
+		case result := <-results:
+			completed++
+			if result.name == "primary" {
+				primaryErr = result.err
+				if result.err == nil {
+					cancel()
+					return result.options, nil
+				}
+				if !miniReelPlaybackTargetRetryable(result.err) {
+					cancel()
+					return nil, result.err
+				}
+			} else {
+				spareErr = result.err
+				if result.err == nil {
+					cancel()
+					return result.options, nil
+				}
+			}
+			if completed == 1 && !spareStarted {
+				// If the first result is a retryable primary failure, launch
+				// the spare immediately instead of waiting for the hedge timer.
+				if result.name == "primary" && result.err != nil {
+					start("spare", spare)
+					spareStarted = true
+				}
+			}
+		case <-timer.C:
+			if !spareStarted {
+				start("spare", spare)
+				spareStarted = true
+			}
+		case <-raceCtx.Done():
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if primaryErr != nil {
+				return nil, primaryErr
+			}
+			if spareErr != nil {
+				return nil, spareErr
+			}
+			return nil, raceCtx.Err()
+		}
+	}
+	if primaryErr != nil {
+		return nil, primaryErr
+	}
+	return nil, spareErr
+}
+
+func miniReelPlaybackTargetRetryable(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, errMiniReelVideoModelEmpty) || errors.Is(err, errMiniReelVideoModelMissing) || errors.Is(err, errMiniReelVideoListEmpty) {
+		return true
+	}
+	diagnostic := playbackPreparationDetails(err)
+	if strings.HasPrefix(diagnostic.Code, "VIDEO_MODEL_TRANSPORT") || strings.HasPrefix(diagnostic.Code, "VIDEO_MODEL_HTTP") || strings.HasPrefix(diagnostic.Code, "VIDEO_MODEL_READ") {
+		return true
+	}
+	switch diagnostic.Code {
+	case "VIDEO_MODEL_EMPTY", "VIDEO_MODEL_MISSING", "VIDEO_MODEL_LIST_EMPTY", "VIDEO_MODEL_JSON", "FALLBACK_API_FAILED", "DEVICE_REGISTER_FAILED":
+		return true
+	default:
+		return false
+	}
 }
 
 func miniReelNativeOptionsWithIdentityCache(ctx context.Context, vid, endpoint, codecMode string, identity *miniReelPlaybackDeviceCache) ([]miniReelOption, error) {
@@ -1022,7 +1168,7 @@ func miniReelNativeOptionsAttemptPolicy(ctx context.Context, vid, endpoint strin
 	model, ok := modelValue.(map[string]any)
 	if !ok {
 		diagnostic.Code = "VIDEO_MODEL_MISSING"
-		return nil, errors.New("MiniReel response has no video_model")
+		return nil, errMiniReelVideoModelMissing
 	}
 	optionModel := model
 	rows := miniReelMapsFromAny(optionModel["video_list"])
@@ -1035,6 +1181,10 @@ func miniReelNativeOptionsAttemptPolicy(ctx context.Context, vid, endpoint strin
 			}
 			rows = miniReelMapsFromAny(optionModel["video_list"])
 		}
+	}
+	if len(rows) == 0 {
+		diagnostic.Code = "VIDEO_MODEL_LIST_EMPTY"
+		return nil, errMiniReelVideoListEmpty
 	}
 	options = make([]miniReelOption, 0, len(rows))
 	for _, row := range rows {
