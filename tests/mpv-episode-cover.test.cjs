@@ -135,7 +135,7 @@ test('late prewarmed image callbacks cannot cover cancellation, another selectio
  }
 });
 
-test('Media3 keeps the episode cover through first-frame until playback advances, then fades for 180ms',async()=>{
+test('Media3 fades the episode cover after the native frame without waiting for playback progress',async()=>{
  const f=fixture('webview_media3');f.playback.preserveNativeTransition=true;
  f.context.setEpisodeCover(target,{episode_cover:'https://img.example/episode-2.jpg'});f.images[0].onload();
  f.context.handlers={};
@@ -147,13 +147,12 @@ test('Media3 keeps the episode cover through first-frame until playback advances
  assert.equal(f.hero.classList.contains('is-episode-cover'),true);
  f.paint.resolve(true);await new Promise(resolve=>setImmediate(resolve));
  assert.equal(f.hero.classList.contains('is-episode-cover'),true);
- assert.equal(f.playback.presentation.pending,false);
- f.playback.presentation.progressed=true;
+ assert.equal(f.playback.presentation.pending,true);
  f.context.finishPlaybackPreparation(f.playback);
  await new Promise(resolve=>setImmediate(resolve));
  assert.equal(f.hero.classList.contains('is-episode-cover'),true);
  assert.equal(f.hero.classList.contains('is-native-frame-revealing'),true);
- assert.equal(f.timers[0].delay,200);
+ assert.equal(f.timers[0].delay,32);
  f.timers[0].fn();
  assert.equal(f.hero.classList.contains('is-episode-cover'),false);
  assert.equal(f.hero.classList.contains('is-preparing-video'),false);

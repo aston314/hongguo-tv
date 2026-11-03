@@ -5138,14 +5138,16 @@
         presentation.revealTimer = setTimeout(complete, 180);
         return;
       }
-      if (isNativeMedia3PlaybackActive() && playback.preserveNativeTransition && hasHeldFrame && !presentation.progressed) {
-        presentation.pending = false;
-        return;
-      }
       if (isNativeMedia3PlaybackActive() && playback.preserveNativeTransition && hasHeldFrame) {
         presentation.revealing = true;
         hero.classList.add('is-native-frame-revealing');
-        presentation.revealTimer = setTimeout(complete, 200);
+        // Media3's nativeframe already identifies the target episode's first
+        // rendered frame. Waiting for the 500ms progress poll here leaves the
+        // same first image over the real video and looks like a repeated
+        // opening. The two RAFs above are the compositor boundary; one more
+        // short frame lets SurfaceFlinger latch the frame without adding a
+        // visible duplicate interval.
+        presentation.revealTimer = setTimeout(complete, 32);
         return;
       }
       // MPV's native frame signal is obtained from libmpv's output state, not
