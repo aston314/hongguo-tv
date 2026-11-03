@@ -230,6 +230,19 @@ var miniReelPlaybackIdentity = newMiniReelPlaybackDeviceCache(registerMiniReelPl
 // normal fast responses never create or use it.
 var miniReelPlaybackSpareIdentity = newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice)
 
+// Playback identities are kept per route. The upstream resolver has started
+// returning HTTP 200 with an empty body on some host/device combinations; a
+// single identity shared by every route makes that failure contagious. Keep
+// route state independent while still creating registrations lazily.
+var miniReelPlaybackRouteIdentities = []*miniReelPlaybackDeviceCache{
+	newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice),
+	newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice),
+	newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice),
+	newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice),
+	newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice),
+	newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice),
+}
+
 func handleMiniReelResolve(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		w.Header().Set("Allow", "GET, HEAD, OPTIONS")
@@ -825,6 +838,16 @@ func miniReelNativeOptionsEndpoint(ctx context.Context, vid, endpoint string) ([
 }
 
 func miniReelNativeOptionsEndpointMode(ctx context.Context, vid, endpoint, codecMode string) ([]miniReelOption, error) {
+	if miniReelIsProductionPlaybackEndpoint(endpoint) {
+		options, err := miniReelNativeOptionsWithRouteRace(ctx, vid, codecMode)
+		if errors.Is(err, errMiniReelNoCompatibleSource) {
+			// Preserve the established caller contract: an otherwise valid
+			// response with no source reaches prepareMiniReelMedia, which adds
+			// the codec-aware user-facing error.
+			return nil, nil
+		}
+		return options, err
+	}
 	options, err := miniReelNativeOptionsWithIdentityRace(ctx, vid, endpoint, codecMode, miniReelPlaybackIdentity, miniReelPlaybackSpareIdentity)
 	if errors.Is(err, errMiniReelNoCompatibleSource) {
 		// Preserve the established caller contract: an otherwise valid response
@@ -833,6 +856,105 @@ func miniReelNativeOptionsEndpointMode(ctx context.Context, vid, endpoint, codec
 		return nil, nil
 	}
 	return options, err
+}
+
+type miniReelPlaybackRouteTarget struct {
+	name     string
+	endpoint string
+	identity *miniReelPlaybackDeviceCache
+}
+
+// Keep this list explicit. The desktop client uses the same family of
+// sinfonline/api3/api5 hosts, and the service may make only a subset usable
+// for a given network or anonymous device at any moment.
+func miniReelProductionPlaybackRoutes() []miniReelPlaybackRouteTarget {
+	hosts := []string{
+		"api5-normal-sinfonlinea.fqnovel.com",
+		"api5-normal-sinfonlinec.fqnovel.com",
+		"api5-normal-sinfonlineb.fqnovel.com",
+		"api3-normal-sinfonlinea.fqnovel.com",
+		"api3-normal-sinfonlineb.fqnovel.com",
+		"api3-normal-sinfonlinec.fqnovel.com",
+	}
+	routes := make([]miniReelPlaybackRouteTarget, 0, len(hosts))
+	for i, host := range hosts {
+		routes = append(routes, miniReelPlaybackRouteTarget{
+			name:     host,
+			endpoint: "https://" + host + miniReelAPIPath,
+			identity: miniReelPlaybackRouteIdentities[i],
+		})
+	}
+	return routes
+}
+
+func miniReelIsProductionPlaybackEndpoint(endpoint string) bool {
+	return endpoint == miniReelAPIBase+miniReelAPIPath
+}
+
+// Resolve production playback against independent API routes concurrently.
+// One successful route cancels all losers; failed routes are reported only
+// after every candidate has completed, so an empty response on the original
+// api5 route cannot mask a working api3/sinfonline route.
+func miniReelNativeOptionsWithRouteRace(ctx context.Context, vid, codecMode string) ([]miniReelOption, error) {
+	return miniReelNativeOptionsWithRouteTargets(ctx, vid, codecMode, miniReelProductionPlaybackRoutes())
+}
+
+func miniReelNativeOptionsWithRouteTargets(ctx context.Context, vid, codecMode string, routes []miniReelPlaybackRouteTarget) ([]miniReelOption, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	codecMode, err := normalizeMiniReelCodecMode(codecMode)
+	if err != nil {
+		return nil, err
+	}
+	raceCtx, cancel := context.WithTimeout(ctx, miniReelPlaybackRaceTimeout)
+	defer cancel()
+	type result struct {
+		options []miniReelOption
+		err     error
+	}
+	if len(routes) == 0 {
+		return nil, errMiniReelVideoModelEmpty
+	}
+	results := make(chan result, len(routes))
+	for _, route := range routes {
+		route := route
+		go func() {
+			options, routeErr := miniReelNativeOptionsWithIdentityCache(raceCtx, vid, route.endpoint, codecMode, route.identity)
+			if routeErr == nil && len(options) == 0 {
+				routeErr = errMiniReelNoCompatibleSource
+			}
+			select {
+			case results <- result{options: options, err: routeErr}:
+			case <-raceCtx.Done():
+			}
+		}()
+	}
+	var lastRetryable error
+	for range routes {
+		select {
+		case item := <-results:
+			if item.err == nil && len(item.options) > 0 {
+				cancel()
+				return item.options, nil
+			}
+			if item.err != nil {
+				lastRetryable = item.err
+			}
+		case <-raceCtx.Done():
+			if err := ctx.Err(); err != nil {
+				return nil, err
+			}
+			if lastRetryable != nil {
+				return nil, lastRetryable
+			}
+			return nil, raceCtx.Err()
+		}
+	}
+	if lastRetryable == nil {
+		lastRetryable = errMiniReelVideoModelEmpty
+	}
+	return nil, lastRetryable
 }
 
 // miniReelNativeOptionsWithIdentityRace resolves a source against the cached

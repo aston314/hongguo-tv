@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
@@ -42,6 +43,36 @@ func TestMiniReelPlaybackRaceUsesSpareForMissingModel(t *testing.T) {
 	}
 	if primaryRequests.Load() != 1 || spareRequests.Load() != 1 {
 		t.Fatalf("requests = %d/%d, want one request per target for missing model", primaryRequests.Load(), spareRequests.Load())
+	}
+}
+
+func TestMiniReelRouteRaceUsesAnotherProductionLineAfterEmptyResponse(t *testing.T) {
+	var routeCalls atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/empty") {
+			routeCalls.Add(1)
+			_, _ = io.WriteString(w, ``)
+			return
+		}
+		routeCalls.Add(1)
+		_, _ = io.WriteString(w, miniReelRecoveryModel)
+	}))
+	defer server.Close()
+	identity := func(label string) *miniReelPlaybackDeviceCache {
+		return newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
+			return miniReelRecoveryDevice(label), nil
+		})
+	}
+	routes := []miniReelPlaybackRouteTarget{
+		{name: "empty", endpoint: server.URL + "/empty", identity: identity("empty")},
+		{name: "working", endpoint: server.URL + "/working", identity: identity("working")},
+	}
+	options, err := miniReelNativeOptionsWithRouteTargets(context.Background(), "123", "default", routes)
+	if err != nil || len(options) != 1 || options[0].Codec != "h264" {
+		t.Fatalf("route race result = %#v, %v", options, err)
+	}
+	if routeCalls.Load() < 2 {
+		t.Fatalf("route calls = %d, want both routes attempted", routeCalls.Load())
 	}
 }
 
