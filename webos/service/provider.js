@@ -23,6 +23,8 @@
   var API_BASE = 'https://api5-normal-sinfonlineb.fqnovel.com';
   var WEB_BASE = 'https://hongguoduanju.com';
   var API_PATH = '/novel/player/multi_video_model/v1/';
+  var VIDEO_TAB_BASE = 'https://api5-normal-sinfonlineb.fqnovel.com';
+  var VIDEO_TAB_PATH = '/reading/bookapi/video_tab/multi_video_model/v1/';
   var APP_UA = 'com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
   var PLAYBACK_UA = 'com.phoenix.read/71532 (Linux; U; Android 9; SM-N9860; Build/PQ3A.190705.10241111;tt-ok/3.12.13.20)';
   var FALLBACK_UA = 'com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
@@ -274,6 +276,23 @@
     };
   }
 
+  function videoTabQuery(device, stamp, vid) {
+    var query = playbackQuery(device, stamp);
+    Object.assign(query, {
+      player_so_load: '1',
+      video_id: String(vid),
+      video_id_type: '0',
+      device_level: '1',
+      need_all_video_definition: '1',
+      need_mp4_align: '0',
+      use_os_player: '0',
+      video_platform: '1024',
+      source: '0',
+      from_video_id: ''
+    });
+    return query;
+  }
+
   function randomID() {
     var bytes = crypto.randomBytes(16);
     var text = '';
@@ -281,7 +300,13 @@
     for (i = 0; i < bytes.length; i++) text += String(bytes[i] % 10);
     return '1' + text.slice(1, 16);
   }
-  function freshDevice() { return { deviceID: randomID(), installID: randomID() }; }
+  function freshDevice() { return { deviceID: randomID(), installID: randomID(), cookies: {} }; }
+  function playbackCookieHeader(cookies) {
+    var allowed = { install_id: true, ttreq: true, 'store-region': true, 'store-region-src': true };
+    return Object.keys(cookies || {}).filter(function (key) {
+      return allowed[key] && trim(cookies[key]);
+    }).sort().map(function (key) { return key + '=' + String(cookies[key]); }).join('; ');
+  }
   function reverseBits(value) {
     var out = 0, i;
     for (i = 0; i < 8; i++) out |= ((value >> i) & 1) << (7 - i);
@@ -354,6 +379,143 @@
     if (Array.isArray(value)) return value;
     if (!value || typeof value !== 'object') return [];
     return Object.keys(value).map(function (key) { return value[key]; }).filter(function (row) { return row && typeof row === 'object'; });
+  }
+  function asMap(value) { return value && typeof value === 'object' && !Array.isArray(value) ? value : null; }
+
+  function businessCode(envelope) {
+    var code = envelope && (envelope.code == null ? envelope.Code : envelope.code);
+    if (modelString(code)) return modelString(code);
+    var data = asMap(envelope && envelope.data);
+    return modelString(data && (data.code == null ? data.Code : data.code));
+  }
+
+  function videoTabEnvelope(vid, root) {
+    var data = asMap(root && root.data);
+    if (!data) return null;
+    var rows = asMap(data.video_model_data) || data;
+    var row = asMap(rows[String(vid)]);
+    if (!row && data.video_model != null) row = data;
+    if (!row) {
+      Object.keys(rows).some(function (key) {
+        var candidate = asMap(rows[key]);
+        if (candidate && candidate.video_model != null) { row = candidate; return true; }
+        return false;
+      });
+    }
+    if (!row || row.video_model == null) return null;
+    var model = decodeModel(row.video_model);
+    return { code: 0, data: (function () { var out = {}; out[String(vid)] = { video_model: model }; return out; }()) };
+  }
+
+  function optionsFromVideoModel(vid, model, signal, stage, recordDiagnostic) {
+    var label = stage === 'video_tab' ? 'video_tab' : 'multi_video_model';
+    model = decodeModel(model);
+    if (!model || typeof model !== 'object') throw fail(label + ' 未返回所选分集的视频数据', 502, 'VIDEO_MODEL_MISSING', label);
+    var rows = modelRows(model.video_list);
+    var resolvedModel = Promise.resolve(model);
+    if (!rows.length) {
+      var fallback = fallbackAPI(model.fallback_api);
+      if (!fallback) throw fail(label + ' 未返回本集片源地址', 502, 'VIDEO_MODEL_MISSING', label);
+      resolvedModel = fallbackModel(fallback, signal, 0).catch(function (error) {
+        if (typeof recordDiagnostic === 'function') recordDiagnostic({ stage: 'fallback_api', code: error && error.code || 'FALLBACK_API_ERROR' });
+        throw error;
+      });
+    }
+    return resolvedModel.then(function (optionModel) {
+      var options = [];
+      modelRows(optionModel.video_list).forEach(function (row) {
+        var meta = row && row.video_meta || {};
+        var encryption = row && row.encrypt_info || {};
+        if (String(row && row.codec_type || meta.codec_type || '').toLowerCase() === 'bytevc2') return;
+        var backup = row && row.backup_url_list;
+        var raw = modelString(row && (row.main_url || row.backup_url || (Array.isArray(backup) && backup[0])));
+        var mediaURL = raw;
+        if (!/^https?:\/\//i.test(mediaURL)) {
+          try { mediaURL = Buffer.from(raw, 'base64').toString(); } catch (ignored) {}
+        }
+        if (!/^https:\/\//i.test(mediaURL)) return;
+        var key = null;
+        if (modelString(encryption.spade_a)) {
+          try { key = decodeSpade(modelString(encryption.spade_a)); } catch (ignoredKey) { return; }
+        }
+        var height = number(row && (row.vheight || row.height) || meta.vheight || meta.height);
+        var definition = modelString(row && (row.quality_desc || row.definition) || meta.definition).match(/(\d{3,4})/);
+        if (definition) height = Number(definition[1]);
+        options.push({ url: mediaURL, key: key, height: height, quality: height > 0 ? String(height) + 'P' : '', duration: number(optionModel.video_duration) });
+      });
+      if (!options.length) throw fail(label + ' 没有可播放清晰度', 502, 'VIDEO_MODEL_NO_QUALITY', label);
+      if (typeof recordDiagnostic === 'function') recordDiagnostic({
+        code: stage === 'video_tab' ? 'VIDEO_TAB_OK' : 'VIDEO_MODEL_OK',
+        quality_count: options.length,
+        qualities: options.map(function (option) { return option.quality; }).filter(Boolean)
+      });
+      return options;
+    });
+  }
+
+  function optionsFromEnvelope(vid, envelope, signal, stage, recordDiagnostic) {
+    var code = businessCode(envelope);
+    if (code && code !== '0') throw fail(stage + ' 拒绝了播放请求（' + code + '）', 502, 'VIDEO_MODEL_REJECTED', stage);
+    var data = asMap(envelope && envelope.data);
+    var entry = data && data[String(vid)];
+    var model = decodeModel(entry && entry.video_model);
+    if (!model || typeof model !== 'object') model = decodeModel(data && data.video_model);
+    return optionsFromVideoModel(vid, model, signal, stage, recordDiagnostic);
+  }
+
+  function videoTabOptions(vid, signal, retry) {
+    retry = retry || {};
+    var attempt = Number(retry.attemptOffset) || 0;
+    var startedAt = Number(retry.startedAt) || Date.now();
+    var diagnostic;
+    function recordDiagnostic(value) {
+      diagnostic = Object.assign({}, value, { video_id: String(vid), attempt: attempt, elapsed_ms: Math.max(0, Date.now() - startedAt) });
+      lastVideoModelDiagnostic = Object.assign({}, diagnostic);
+      if (typeof retry.onDiagnostic === 'function') {
+        var safe = Object.assign({}, diagnostic); delete safe.video_id;
+        retry.onDiagnostic(safe);
+      }
+    }
+    function failWithDiagnostic(error) {
+      if (signal && signal.aborted || error && error.name === 'AbortError') throw preparationCancelled();
+      var stage = error && error.stage || 'video_tab';
+      recordDiagnostic(Object.assign({}, diagnostic || {}, {
+        stage: stage,
+        code: error && error.code || 'VIDEO_TAB_NETWORK'
+      }));
+      error.stage = stage;
+      error.videoModel = Object.assign({}, diagnostic || {});
+      if (error.videoModel.video_id) delete error.videoModel.video_id;
+      if (diagnostic && diagnostic.http_status) error.upstreamStatus = diagnostic.http_status;
+      throw error;
+    }
+    recordDiagnostic({ stage: 'device_register', code: 'VIDEO_TAB_REQUEST' });
+    return playbackIdentity.get(signal).then(function (device) {
+      if (signal && signal.aborted) throw preparationCancelled();
+      var stamp = Date.now();
+      var params = videoTabQuery(device, stamp, vid);
+      var headers = {
+        'User-Agent': PLAYBACK_UA,
+        Accept: 'application/json; charset=utf-8',
+        'Accept-Encoding': 'identity'
+      };
+      var cookie = playbackCookieHeader(device.cookies);
+      if (cookie) headers.Cookie = cookie;
+      recordDiagnostic({ stage: 'video_tab', code: 'VIDEO_TAB_REQUEST' });
+      return requestBuffer(VIDEO_TAB_BASE + VIDEO_TAB_PATH + '?' + sortedQuery(params), 'GET', headers, null, MAX_JSON, signal);
+    }).then(function (response) {
+      recordDiagnostic({ stage: 'video_tab', http_status: response.status, response_bytes: response.body.length, code: 'VIDEO_TAB_RESPONSE' });
+      if (response.status < 200 || response.status >= 300) throw fail('video_tab HTTP ' + response.status, response.status, 'VIDEO_TAB_HTTP', 'video_tab');
+      var responseText = response.body.toString('utf8');
+      if (!trim(responseText)) throw fail('video_tab 返回空响应', 502, 'VIDEO_TAB_EMPTY', 'video_tab');
+      var root;
+      try { root = parseExactJSON(responseText); } catch (error) { throw fail('video_tab 响应不是有效 JSON', 502, 'VIDEO_TAB_INVALID_JSON', 'video_tab'); }
+      recordDiagnostic({ stage: 'video_tab', http_status: response.status, response_bytes: response.body.length, code: 'VIDEO_TAB_JSON' });
+      if (businessCode(root) && businessCode(root) !== '0') throw fail('video_tab 拒绝了播放请求（' + businessCode(root) + '）', 502, 'VIDEO_TAB_REJECTED', 'video_tab');
+      var envelope = videoTabEnvelope(vid, root);
+      if (!envelope) throw fail('video_tab 未返回所选分集的视频数据', 502, 'VIDEO_MODEL_MISSING', 'video_tab');
+      return optionsFromEnvelope(vid, envelope, signal, 'video_tab', recordDiagnostic);
+    }).catch(failWithDiagnostic);
   }
 
   function fallbackAPI(value) {
@@ -478,50 +640,7 @@
         }
         var envelope;
         try { envelope = parseExactJSON(responseText); } catch (error) { throw fail('multi_video_model 响应不是有效 JSON', 502, 'VIDEO_MODEL_INVALID_JSON', 'multi_video_model'); }
-        var responseCode = modelString(envelope && (envelope.code == null ? envelope.Code : envelope.code));
-        if (responseCode && responseCode !== '0') { throw fail('multi_video_model 拒绝了播放请求（' + responseCode + '）', 502, 'VIDEO_MODEL_REJECTED', 'multi_video_model'); }
-        var data = envelope && envelope.data;
-        var entry = data && data[String(vid)];
-        var model = decodeModel(entry && entry.video_model);
-        if (!model || typeof model !== 'object') model = decodeModel(data && data.video_model);
-        if (!model || typeof model !== 'object') { throw fail('multi_video_model 未返回所选分集的视频数据', 502, 'VIDEO_MODEL_MISSING', 'multi_video_model'); }
-        var rows = modelRows(model.video_list);
-        var resolvedModel = Promise.resolve(model);
-        if (!rows.length) {
-          var fallback = fallbackAPI(model.fallback_api);
-          if (!fallback) { throw fail('multi_video_model 未返回本集片源地址', 502, 'VIDEO_MODEL_MISSING', 'multi_video_model'); }
-          resolvedModel = fallbackModel(fallback, signal, 0).catch(function (error) {
-            recordDiagnostic({ stage: 'fallback_api', code: error && error.code || 'FALLBACK_API_ERROR' });
-            throw error;
-          });
-        }
-        return resolvedModel.then(function (optionModel) {
-          var options = [];
-          modelRows(optionModel.video_list).forEach(function (row) {
-            var meta = row && row.video_meta || {};
-            var encryption = row && row.encrypt_info || {};
-            if (String(row && row.codec_type || meta.codec_type || '').toLowerCase() === 'bytevc2') return;
-            var backup = row && row.backup_url_list;
-            var raw = modelString(row && (row.main_url || row.backup_url || (Array.isArray(backup) && backup[0])));
-            var mediaURL = raw;
-            if (!/^https?:\/\//i.test(mediaURL)) {
-              try { mediaURL = Buffer.from(raw, 'base64').toString(); } catch (ignored) {}
-            }
-            if (!/^https:\/\//i.test(mediaURL)) return;
-            var key = null;
-            if (modelString(encryption.spade_a)) {
-              try { key = decodeSpade(modelString(encryption.spade_a)); } catch (ignoredKey) { return; }
-            }
-            var height = number(row && (row.vheight || row.height) || meta.vheight || meta.height);
-            var definition = modelString(row && (row.quality_desc || row.definition) || meta.definition).match(/(\d{3,4})/);
-            if (definition) height = Number(definition[1]);
-            options.push({ url: mediaURL, key: key, height: height, quality: height > 0 ? String(height) + 'P' : '', duration: number(optionModel.video_duration) });
-          });
-        if (!options.length) { throw fail('multi_video_model 没有可播放清晰度', 502, 'VIDEO_MODEL_NO_QUALITY', 'multi_video_model'); }
-        recordDiagnostic(Object.assign({}, diagnostic, { code: 'VIDEO_MODEL_OK', quality_count: options.length,
-          qualities: options.map(function (option) { return option.quality; }).filter(Boolean) }));
-        return options;
-        });
+        return optionsFromEnvelope(vid, envelope, signal, 'multi_video_model', recordDiagnostic);
       }).catch(function (error) {
         if (signal && signal.aborted || error && error.name === 'AbortError') throw preparationCancelled();
         var stage = error && error.stage || (error && error.code === 'ACCOUNT_DEVICE' ? 'device_register' : 'multi_video_model_transport');
@@ -564,7 +683,15 @@
         throw error;
       });
     }
-    return next();
+    // The current official client resolves playback through video_tab first.
+    // Keep the signed multi_video_model path below as a bounded compatibility
+    // fallback for older servers and devices that do not expose this route.
+    return videoTabOptions(vid, signal, retry).catch(function (error) {
+      if (signal && signal.aborted || error && error.name === 'AbortError') throw preparationCancelled();
+      if (error && error.code === 'ACCOUNT_DEVICE') throw error;
+      if (typeof retry.onVideoTabFallback === 'function') retry.onVideoTabFallback(error);
+      return next();
+    });
   }
 
   function choose(options, quality, fallback) {

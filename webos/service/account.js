@@ -585,7 +585,10 @@
   createAccount.registerPlaybackDevice = function (sendRequest) {
     var s = { device_id: '', install_id: '', device: device(), cookies: {} };
     return register(s, sendRequest || requestBuffer).then(function () {
-      return { deviceID: s.device_id, installID: s.install_id, cdid: s.device.cdid };
+      // The official video_tab endpoint accepts only the anonymous registration
+      // cookies. Return a copy so the playback identity can reuse them without
+      // exposing account/session cookies to the media provider.
+      return { deviceID: s.device_id, installID: s.install_id, cdid: s.device.cdid, cookies: Object.assign({}, s.cookies || {}) };
     });
   };
   module.exports = createAccount;

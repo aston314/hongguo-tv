@@ -24,6 +24,8 @@ var calendarRequest = null;
 var engagementRequests = [];
 var videoModelRequests = 0;
 var playbackRequests = [];
+var videoTabRequests = [];
+var videoTabEnabled = false;
 var deviceRegisterRequests = 0;
 var deviceRegisterFailures = 0;
 var deviceRegistration = null;
@@ -69,11 +71,26 @@ https.request = function (options) {
   req.end = function () {
     var body = html;
     var responseStatus = 200;
+    var responseHeaders = {};
     if (options.path.indexOf('/service/2/device_register/') >= 0) {
       deviceRegisterRequests++;
       deviceRegistration = { options: options, query: Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams), body: Buffer.concat(requestChunks) };
       body = JSON.stringify({ device_id_str: '1234567890123456789', install_id_str: '2234567890123456789' });
+      responseHeaders['set-cookie'] = ['ttreq=fixture-ttreq; Path=/', 'store-region=cn-tj; Path=/', 'sessionid=private-account-cookie; Path=/'];
       if (deviceRegisterFailures > 0) { deviceRegisterFailures--; responseStatus = 503; }
+    }
+    if (options.path.indexOf('/reading/bookapi/video_tab/multi_video_model/v1/') >= 0) {
+      var tabQuery = Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams);
+      videoTabRequests.push({ options: options, query: tabQuery });
+      if (videoTabEnabled) {
+        var tabVideoID = tabQuery.video_id;
+        var tabEntry = {};
+        tabEntry[tabVideoID] = { video_model: { video_list: [{ main_url: 'https://media.example.test/video-tab.mp4', video_meta: { vwidth: 1280, vheight: 720, definition: '720P', codec_type: 'h264' }, encrypt_info: {} }], video_duration: 73 } };
+        body = JSON.stringify({ code: 0, data: { video_model_data: tabEntry } });
+      } else {
+        body = '';
+        responseStatus = 404;
+      }
     }
     if (options.path.indexOf('/novel/player/multi_video_model/v1/') >= 0) {
       videoModelRequests++;
@@ -111,6 +128,7 @@ https.request = function (options) {
     process.nextTick(function () {
       var response = new PassThrough();
       response.statusCode = options.path.indexOf('/novel/player/multi_video_model/v1/') >= 0 ? videoModelStatus : responseStatus;
+      response.headers = responseHeaders;
       if (fallbackLocation && options.path.indexOf('/playback/fallback') >= 0) response.headers = { location: fallbackLocation };
       req.emit('response', response);
       response.end(body);
@@ -405,6 +423,27 @@ async function run() {
     assert.strictEqual(unliked.entries.length, 0);
     var dramaLike = provider.changeLibrary({ action: 'like', drama: drama, value: true });
     assert(dramaLike.entries[0].liked_at > 0, 'guest series-like behavior is retained');
+
+    // The official route is the primary source. It uses a registered
+    // anonymous identity, forwards only the allowed registration cookies, and
+    // does not send the legacy POST signature or body.
+    videoTabEnabled = true;
+    var beforeVideoTab = videoTabRequests.length;
+    var videoTabProbe = await provider.inspectVideoModel('1234567890123456787');
+    assert.strictEqual(videoTabProbe.ok, true, 'official video_tab source resolves');
+    assert.strictEqual(videoTabRequests.length - beforeVideoTab, 1);
+    var videoTabCall = videoTabRequests[videoTabRequests.length - 1];
+    assert.strictEqual(videoTabCall.options.method, 'GET');
+    assert.strictEqual(videoTabCall.options.path.split('?')[0], '/reading/bookapi/video_tab/multi_video_model/v1/');
+    assert.strictEqual(videoTabCall.query.video_id, '1234567890123456787');
+    assert.strictEqual(videoTabCall.query.video_id_type, '0');
+    assert.strictEqual(videoTabCall.query.device_level, '1');
+    assert.strictEqual(videoTabCall.query.need_all_video_definition, '1');
+    assert(videoTabCall.query.device_id && videoTabCall.query.iid && videoTabCall.query.cdid, 'video_tab uses the registered identity');
+    assert.strictEqual(videoTabCall.options.headers['X-Medusa'], undefined, 'video_tab does not use the legacy POST signature');
+    assert.strictEqual(videoTabCall.options.headers['X-Gorgon'], undefined, 'video_tab does not use the legacy Gorgon header');
+    assert.strictEqual(videoTabCall.options.headers.Cookie, 'install_id=2234567890123456789; store-region=cn-tj; ttreq=fixture-ttreq', 'video_tab forwards only anonymous registration cookies');
+    videoTabEnabled = false;
 
     var beforeRetry = videoModelRequests, beforePlaybackRequests = playbackRequests.length;
     videoModelEmptyResponses = 2;
