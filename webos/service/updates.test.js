@@ -13,6 +13,13 @@ function sample(version) {
     release_notes: '更新说明', artifact_name: 'hongguo-webos-' + version + '-test.26.ipk', artifact_size: 123,
     artifact_sha256: 'a'.repeat(64) };
 }
+function sampleChannel(version, suffix) {
+  return Object.assign(sample(version), {
+    release_tag: 'webos-v' + version + '-' + suffix,
+    release_url: 'https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v' + version + '-' + suffix,
+    artifact_name: 'hongguo-webos-' + version + '-' + suffix + '.ipk'
+  });
+}
 function fixture() {
   var stored = {}, time = 1000000000, calls = 0, value = sample(), error = false;
   function bridge() { return createBridge({ version: '0.2.117', storage: { getItem: function (k) { return stored[k]; }, setItem: function (k,v) { stored[k] = v; } },
@@ -26,6 +33,9 @@ async function run() {
   assert.throws(function () { catalog.validate(Object.assign(sample(), { platform: 'android' })); });
   assert.throws(function () { catalog.validate(Object.assign(sample(), { release_url: 'javascript:alert(1)' })); });
   assert.throws(function () { catalog.validate(Object.assign(sample(), { version_name: '0.02.118' })); });
+  assert.strictEqual(catalog.validate(sampleChannel('0.2.118', 'test.27')).release_tag, 'webos-v0.2.118-test.27');
+  assert.throws(function () { catalog.validate(sampleChannel('0.2.118', 'test.28')); });
+  assert.throws(function () { catalog.validate(Object.assign(sampleChannel('0.2.118', 'test.27'), { artifact_name: 'hongguo-webos-0.2.118-test.26.ipk' })); });
   var routes = [];
   var checker = createChecker({ requestJSON: function (target) {
     routes.push(target);

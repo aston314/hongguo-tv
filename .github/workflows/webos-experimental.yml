@@ -2,6 +2,12 @@ name: webOS experimental package
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_update:
+        description: Publish the webOS update notice after the IPK release
+        required: false
+        default: false
+        type: boolean
   push:
     branches:
       - codex/webos-experimental
@@ -43,10 +49,10 @@ jobs:
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then
             test "$GITHUB_REF_NAME" = "v$version"
           fi
-          tag="webos-v${version}-test.26"
+          tag="webos-v${version}-test.27"
           ipk=$(find dist/webos -maxdepth 1 -type f -name '*.ipk' -print -quit)
           test -n "$ipk"
-          asset="dist/webos/hongguo-webos-${version}-test.26.ipk"
+          asset="dist/webos/hongguo-webos-${version}-test.27.ipk"
           mv "$ipk" "$asset"
           (cd dist/webos && sha256sum "$(basename "$asset")" > SHA256SUMS.txt)
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -67,8 +73,12 @@ jobs:
               --prerelease \
               --notes-file docs/webos-release.md
           fi
-          python3 scripts/publish_webos_update.py \
-            --ipk "${{ steps.release.outputs.asset }}" \
-            --version "${{ steps.release.outputs.version }}" \
-            --notes docs/webos-release.md \
-            --out "$RUNNER_TEMP/webos-update.json" --publish
+          if [[ "$GITHUB_EVENT_NAME" == push || "${{ inputs.publish_update }}" == true ]]; then
+            python3 scripts/publish_webos_update.py \
+              --ipk "${{ steps.release.outputs.asset }}" \
+              --version "${{ steps.release.outputs.version }}" \
+              --notes docs/webos-release.md \
+              --out "$RUNNER_TEMP/webos-update.json" --publish
+          else
+            echo "Manual test package: leaving webOS update notice unchanged"
+          fi
