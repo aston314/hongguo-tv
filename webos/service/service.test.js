@@ -192,6 +192,10 @@ async function run() {
   assert(goRoutes.length >= 25, 'Go core route inventory should not unexpectedly shrink');
   for (var goIndex = 0; goIndex < goRoutes.length; goIndex++) {
     var goRoute = goRoutes[goIndex];
+    // playback/custom-device is a Go-core-only setting for Android and
+    // desktop. webOS uses its independent JS provider and intentionally does
+    // not expose that setting or persist a second device identity.
+    if (goRoute === '/api/v1/playback/custom-device') continue;
     var probePath = goRoute;
     if (goRoute === '/api/v1/lists/') probePath = '/api/v1/lists/new';
     if (goRoute === '/api/v1/account/') probePath = '/api/v1/account';

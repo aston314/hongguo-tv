@@ -189,6 +189,11 @@
   var autoCinemaSettingCard = document.getElementById('auto-cinema-settings');
   var autoCinemaToggle = document.getElementById('auto-cinema-toggle');
   var episodePrefetchSettingCard = document.getElementById('episode-prefetch-settings');
+  var playbackCustomDeviceSettingCard = document.getElementById('playback-custom-device-settings');
+  // The custom playback device fallback is implemented by the Go core for
+  // Android and desktop. webOS has its own JS provider and must not expose a
+  // setting whose endpoint it cannot persist or use.
+  if (webosShell && playbackCustomDeviceSettingCard) playbackCustomDeviceSettingCard.classList.add('is-hidden');
   var playbackMenuHintSeen = false;
   var playbackMenuHintCandidate = false;
   var playbackMenuHintTimer = 0;
@@ -8696,6 +8701,7 @@
     document.getElementById('playback-custom-device-state').textContent = message || (value.did ? uiText('settings.customPlaybackDeviceConfigured', '已配置，仅在默认播放地址失败时使用') : uiText('settings.customPlaybackDeviceEmpty', '未配置，使用默认播放地址'));
   }
   function loadPlaybackCustomDevice() {
+    if (webosShell) return;
     fetch('/api/v1/playback/custom-device').then(function (response) { return response.json(); }).then(function (payload) {
       if (!payload || !payload.ok) throw new Error(payload && payload.error || '读取失败');
       renderPlaybackCustomDevice(payload.data);
@@ -8715,7 +8721,7 @@
   }
   document.getElementById('playback-custom-device-save').addEventListener('click', function () { savePlaybackCustomDevice(false); });
   document.getElementById('playback-custom-device-clear').addEventListener('click', function () { savePlaybackCustomDevice(true); });
-  loadPlaybackCustomDevice();
+  if (!webosShell) loadPlaybackCustomDevice();
   autoCinemaPreferences = window.HongguoAutoCinema.create({
     platform: autoCinemaPlatform,
     bridge: window.HongguoTVPreferences,
