@@ -1,6 +1,6 @@
 {
   "name": "com.aston314.hongguo.webos.service",
-  "version": "0.2.147",
+  "version": "0.2.148",
   "main": "service-entry.js",
   "private": true,
   "description": "Local HTTP and Luna boundary for the experimental webOS app"
