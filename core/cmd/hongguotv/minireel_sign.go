@@ -5,7 +5,9 @@ import (
 	"encoding/binary"
 	"net/http"
 	"net/url"
+	"sort"
 	"strconv"
+	"strings"
 )
 
 // Use the existing three-request budget: signed primary, signed alternate,
@@ -27,7 +29,7 @@ func miniReelPlaybackAttemptPolicy(endpoint string, attempt int) (string, bool) 
 // signer's default profile and its fixed vectors must remain unchanged.
 func miniReelSignPlaybackRequest(params url.Values, body []byte, stamp int64, deviceID string) (string, http.Header, error) {
 	params.Set("ts", strconv.FormatInt(stamp/1000, 10))
-	query, headers, err := signPassportRequestVersion(params, body, stamp, deviceID, params.Get("version_name"))
+	query, headers, err := signPassportRequestVersionWithEncoder(params, body, stamp, deviceID, params.Get("version_name"), miniReelPlaybackQueryEncode)
 	if err != nil {
 		return "", nil, err
 	}
@@ -44,4 +46,46 @@ func miniReelSignPlaybackRequest(params url.Values, body []byte, stamp int64, de
 	headers.Set("X-Tt-Store-Region", "cn")
 	headers.Set("X-Tt-Store-Region-Src", "did")
 	return query, headers, nil
+}
+
+// The app signer preserves the device profile's insertion order and applies
+// Python/urllib-style quoting. Query byte order is part of the signature input.
+func miniReelPlaybackQueryEncode(values url.Values) string {
+	ordered := []string{
+		"ac", "channel", "aid", "app_name", "version_code", "version_name", "device_platform", "os", "ssmix",
+		"device_type", "device_brand", "language", "os_api", "os_version", "manifest_version_code", "resolution", "dpi",
+		"update_version_code", "host_abi", "dragon_device_type", "pv_player", "compliance_status", "need_personal_recommend",
+		"player_so_load", "is_android_pad_screen", "iid", "device_id", "cdid", "ts", "_rticket",
+	}
+	seen := make(map[string]bool, len(ordered))
+	parts := make([]string, 0, len(values))
+	add := func(key string) {
+		if seen[key] {
+			return
+		}
+		seen[key] = true
+		for _, value := range values[key] {
+			parts = append(parts, miniReelQuote(key)+"="+miniReelQuote(value))
+		}
+	}
+	for _, key := range ordered {
+		add(key)
+	}
+	// Preserve future optional fields without making the signed request drop
+	// them; url.Values ordering is deterministic for these uncommon additions.
+	remaining := make([]string, 0, len(values))
+	for key := range values {
+		if !seen[key] {
+			remaining = append(remaining, key)
+		}
+	}
+	sort.Strings(remaining)
+	for _, key := range remaining {
+		add(key)
+	}
+	return strings.Join(parts, "&")
+}
+
+func miniReelQuote(value string) string {
+	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
 }

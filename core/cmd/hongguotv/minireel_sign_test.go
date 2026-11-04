@@ -133,6 +133,18 @@ func TestMiniReelPlaybackAttemptHostsAreBounded(t *testing.T) {
 	}
 }
 
+func TestMiniReelProductionPlaybackUsesValidatedReferenceEndpoint(t *testing.T) {
+	if got, want := miniReelAPIBase, "https://api5-normal-sinfonlineb.fqnovel.com"; got != want {
+		t.Fatalf("production playback host = %q, want validated reference host %q", got, want)
+	}
+	if endpoint := miniReelAPIBase + miniReelAPIPath; !miniReelIsProductionPlaybackEndpoint(endpoint) {
+		t.Fatalf("validated production endpoint was not recognized: %q", endpoint)
+	}
+	if endpoint := "https://api5-normal-hl.fqnovel.com" + miniReelAPIPath; miniReelIsProductionPlaybackEndpoint(endpoint) {
+		t.Fatalf("alternate host must remain an attempt within the same identity, not a production entrypoint: %q", endpoint)
+	}
+}
+
 func TestMiniReelPlaybackProfileDoesNotChangeAccountSignature(t *testing.T) {
 	query := "device_id=7000000000000000001&version_name=7.1.3.32"
 	ts := uint32(1800000000)

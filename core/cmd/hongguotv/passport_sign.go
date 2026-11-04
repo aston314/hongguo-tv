@@ -112,9 +112,13 @@ func passportBranch(query string, body []byte, ts uint32) (uint32, [32]byte, [16
 // Choose a supported F13 branch by varying only the millisecond ticket.
 // The desktop TuneBranch does the same to avoid the large branch-one table.
 func passportTuneQuery(q url.Values, body []byte, stamp int64) (string, uint32, [32]byte, [16]byte, error) {
+	return passportTuneQueryWithEncoder(q, body, stamp, func(values url.Values) string { return values.Encode() })
+}
+
+func passportTuneQueryWithEncoder(q url.Values, body []byte, stamp int64, encode func(url.Values) string) (string, uint32, [32]byte, [16]byte, error) {
 	for i := int64(0); i < 256; i++ {
 		q.Set("_rticket", strconv.FormatInt(stamp+i, 10))
-		raw := q.Encode()
+		raw := encode(q)
 		iv, hash, m := passportBranch(raw, body, uint32(stamp/1000))
 		if (iv&15)%3 == 2 {
 			return raw, iv, hash, m, nil
@@ -503,7 +507,11 @@ func signPassportRequest(q url.Values, body []byte, stamp int64, deviceID string
 }
 
 func signPassportRequestVersion(q url.Values, body []byte, stamp int64, deviceID, version string) (string, http.Header, error) {
-	raw, iv, hash, m, err := passportTuneQuery(q, body, stamp)
+	return signPassportRequestVersionWithEncoder(q, body, stamp, deviceID, version, func(values url.Values) string { return values.Encode() })
+}
+
+func signPassportRequestVersionWithEncoder(q url.Values, body []byte, stamp int64, deviceID, version string, encode func(url.Values) string) (string, http.Header, error) {
+	raw, iv, hash, m, err := passportTuneQueryWithEncoder(q, body, stamp, encode)
 	if err != nil {
 		return "", nil, err
 	}

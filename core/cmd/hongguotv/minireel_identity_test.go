@@ -1,8 +1,6 @@
 package main
 
 import (
-	"bytes"
-	"compress/gzip"
 	"context"
 	"encoding/json"
 	"errors"
@@ -23,19 +21,7 @@ func decodeMiniReelRequestBody(t *testing.T, r *http.Request) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if r.Header.Get("Content-Encoding") != "gzip" {
-		return body
-	}
-	reader, err := gzip.NewReader(bytes.NewReader(body))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer reader.Close()
-	decoded, err := io.ReadAll(reader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return decoded
+	return body
 }
 
 type miniReelTestRoundTripper func(*http.Request) (*http.Response, error)
@@ -160,7 +146,7 @@ func TestMiniReelMultiVideoModelUsesRegisteredIdentityAndDirectModel(t *testing.
 		if r.Method != http.MethodPost || r.Header.Get("User-Agent") != miniReelPlaybackUA {
 			t.Errorf("unexpected playback request method/UA: %s %q", r.Method, r.Header.Get("User-Agent"))
 		}
-		if r.Header.Get("Content-Encoding") != "gzip" || r.Header.Get("Content-Type") != "application/json; charset=utf-8" {
+		if r.Header.Get("Content-Encoding") != "" || r.Header.Get("Content-Type") != "application/json; charset=UTF-8" {
 			t.Errorf("playback body encoding = %q/%q", r.Header.Get("Content-Encoding"), r.Header.Get("Content-Type"))
 		}
 		if got := r.URL.Query().Get("device_id"); got != device.deviceID {

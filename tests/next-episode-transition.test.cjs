@@ -105,6 +105,29 @@ test('completed full-file handoffs quiet manual next-episode switches across the
   }
 });
 
+test('a retained previous-episode source cannot hide a failed next-episode resolve',async()=>{
+  const error=Object.assign(new Error('VIDEO_MODEL_EMPTY'),{code:'VIDEO_MODEL_EMPTY',status:502});
+  const f=fixture({engine:'range',sourceReplies:[error]});f.gate.resolve();f.video.src='/media/previous-episode.mp4';
+  f.c.playFeedItem(0,2,0);await settlePlayback(f,30);
+  assert.equal(f.c.activePlayback.vid,'222');
+  assert.equal(f.video.src,'/media/previous-episode.mp4','the range path intentionally retains the old source during preparation');
+  assert(f.calls.includes('status:暂时无法播放这集'),'stale ready media must not suppress the new episode error');
+  assert.equal(f.hero.classList.contains('is-preparing-video'),true);
+});
+
+test('a late speculative failure is ignored only after the requested source is actually attached',async()=>{
+  const sourceGate=deferred(),error=Object.assign(new Error('VIDEO_MODEL_EMPTY'),{code:'VIDEO_MODEL_EMPTY',status:502});
+  const f=fixture({engine:'range',sourceGate,sourceReplies:[error]});f.gate.resolve();
+  f.c.playFeedItem(0,2,0);await settlePlayback(f,8);
+  const playback=f.c.activePlayback;
+  assert.equal(playback.vid,'222');
+  f.c.bindPlaybackPresentation(playback,'/media/next.mp4');
+  f.video.src='/media/next.mp4';f.video.classList.add('has-source');f.video.readyState=4;
+  sourceGate.resolve();await settlePlayback(f,12);
+  assert(!f.calls.includes('status:暂时无法播放这集'),'a live target source wins over its stale speculative error');
+  assert(f.calls.includes('status:'),'only the stale preparation hint is cleared');
+});
+
 test('natural continuation hides its early detail-loading hint and carries the same deadline into playback',async()=>{
   const detailGate=deferred(),f=fixture({engine:'mpv',native:true,detailGate});
   await readyFullEpisode(f);f.c.activePlayback.completed=true;
