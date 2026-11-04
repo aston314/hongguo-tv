@@ -179,6 +179,10 @@ func TestMiniReelMultiVideoModelUsesRegisteredIdentityAndDirectModel(t *testing.
 		if err := json.Unmarshal(decodeMiniReelRequestBody(t, r), &body); err != nil {
 			t.Fatal(err)
 		}
+		bizParam, ok := body["biz_param"].(map[string]any)
+		if !ok || miniReelIntFromAny(bizParam["device_level"]) != 1 {
+			t.Fatalf("legacy fallback device_level = %#v, want 1", body["biz_param"])
+		}
 		videoIDs := nestedMiniReelValue(body, "mixed_video_id_map", "1004").([]any)
 		if len(videoIDs) != 1 || videoIDs[0] != "123" {
 			t.Errorf("mixed_video_id_map = %#v", videoIDs)

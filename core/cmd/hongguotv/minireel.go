@@ -40,6 +40,8 @@ const (
 	miniReelMaxJSONBytes       = 5 * 1024 * 1024
 	miniReelAPIBase            = "https://api5-normal-lq.fqnovel.com"
 	miniReelAPIPath            = "/novel/player/multi_video_model/v1/"
+	miniReelVideoTabBase       = "https://api5-normal-sinfonlineb.fqnovel.com"
+	miniReelVideoTabPath       = "/reading/bookapi/video_tab/multi_video_model/v1/"
 	miniReelAppUA              = "com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)"
 	miniReelPlaybackUA         = "com.phoenix.read/71532 (Linux; U; Android 9; SM-N9860; Build/PQ3A.190705.10241111;tt-ok/3.12.13.20)"
 	miniReelFallbackUA         = "com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)"
@@ -142,6 +144,7 @@ type miniReelDevice struct {
 	deviceID  string
 	installID string
 	cdid      string
+	cookie    string
 }
 
 type miniReelPlaybackDeviceCache struct {
@@ -916,7 +919,23 @@ func miniReelNativeOptionsEndpointModeForContentType(ctx context.Context, vid, e
 	}
 	var options []miniReelOption
 	if miniReelIsProductionPlaybackEndpoint(endpoint) {
-		options, err = miniReelNativeOptionsWithRouteRaceForContentType(ctx, vid, codecMode, contentType)
+		// The current official client uses video_tab GET as its primary model
+		// source. Keep the old multi_video_model route race below as a bounded
+		// compatibility fallback for servers or devices that do not expose it.
+		routes := miniReelProductionPlaybackRoutes()
+		if len(routes) > 2 {
+			device, tabErr := routes[2].identity.get(ctx)
+			if tabErr == nil {
+				options, tabErr = miniReelVideoTabOptions(ctx, vid, miniReelVideoTabBase+miniReelVideoTabPath, device, codecMode)
+				if tabErr == nil && len(options) > 0 {
+					return options, nil
+				}
+				if ctx.Err() != nil {
+					return nil, ctx.Err()
+				}
+			}
+		}
+		options, err = miniReelNativeOptionsWithRouteTargetsForContentType(ctx, vid, codecMode, contentType, routes)
 	} else {
 		options, err = miniReelNativeOptionsWithIdentityRaceForContentType(ctx, vid, endpoint, codecMode, contentType, miniReelPlaybackIdentity, miniReelPlaybackSpareIdentity)
 	}
@@ -1286,7 +1305,38 @@ func registerMiniReelPlaybackDeviceAt(deviceBase string) (miniReelDevice, error)
 	if err := client.registerDevice(ctx); err != nil {
 		return miniReelDevice{}, err
 	}
-	return miniReelDevice{deviceID: client.session.DeviceID, installID: client.session.InstallID, cdid: device.CDID}, nil
+	return miniReelDevice{
+		deviceID:  client.session.DeviceID,
+		installID: client.session.InstallID,
+		cdid:      device.CDID,
+		cookie:    miniReelPlaybackCookieHeader(client.session.Cookies),
+	}, nil
+}
+
+// The video_tab request uses the small set of cookies returned by anonymous
+// device registration. Account cookies and tokens never enter this path.
+func miniReelPlaybackCookieHeader(values map[string]string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	allowed := map[string]bool{
+		"install_id":       true,
+		"ttreq":            true,
+		"store-region":     true,
+		"store-region-src": true,
+	}
+	keys := make([]string, 0, len(values))
+	for key, value := range values {
+		if allowed[key] && strings.TrimSpace(value) != "" {
+			keys = append(keys, key)
+		}
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, key := range keys {
+		parts = append(parts, key+"="+values[key])
+	}
+	return strings.Join(parts, "; ")
 }
 
 func miniReelNativeOptionsEndpointWithDevice(ctx context.Context, vid, endpoint string, device miniReelDevice) ([]miniReelOption, error) {
@@ -1372,7 +1422,10 @@ func miniReelNativeOptionsAttemptPolicyForContentType(ctx context.Context, vid, 
 		"version_name": {"7.1.3.32"}, "compliance_status": {"0"},
 	}
 	rawBody, _ := json.Marshal(map[string]any{
-		"biz_param":          map[string]any{"detail_page_version": 0, "device_level": 3, "disable_digg_stat": false, "need_all_video_definition": true, "need_mp4_align": false, "use_os_player": false, "use_server_dns": false, "video_platform": 1024},
+		// Keep the legacy fallback at the same conservative device level as the
+		// official video_tab request. Higher levels can replace otherwise
+		// playable low tiers with bytevc2 on TV-sized sources.
+		"biz_param":          map[string]any{"detail_page_version": 0, "device_level": 1, "disable_digg_stat": false, "need_all_video_definition": true, "need_mp4_align": false, "use_os_player": false, "use_server_dns": false, "video_platform": 1024},
 		"mixed_video_id_map": map[string][]string{contentType: {vid}},
 	})
 	var compressedBody bytes.Buffer
@@ -1452,6 +1505,13 @@ func miniReelNativeOptionsAttemptPolicyForContentType(ctx context.Context, vid, 
 	if err := decoder.Decode(&envelope); err != nil || envelope == nil {
 		return nil, errors.New("MiniReel multi_video_model response is invalid JSON")
 	}
+	return miniReelOptionsFromEnvelope(ctx, vid, envelope, client, codecMode, &diagnostic)
+}
+
+// Decode the common video model shape returned by both the legacy POST and the
+// current video_tab GET endpoint. Keeping this parser shared prevents a new
+// transport path from drifting in codec, encryption, or fallback handling.
+func miniReelOptionsFromEnvelope(ctx context.Context, vid string, envelope map[string]any, client *http.Client, codecMode string, diagnostic *playbackPreparationDiagnostic) (options []miniReelOption, err error) {
 	if code := miniReelBusinessCodeFromEnvelope(envelope); code != "" && code != "0" {
 		diagnostic.Code = "VIDEO_MODEL_BUSINESS"
 		diagnostic.BusinessCode = safePlaybackBusinessCode(code)
@@ -1571,6 +1631,152 @@ func miniReelNativeOptionsAttemptPolicyForContentType(ctx context.Context, vid, 
 		options = append(options, miniReelOption{URL: mediaURL, Key: key, Codec: codec, Width: width, Height: height, Quality: quality, Duration: miniReelIntFromAny(optionModel["video_duration"])})
 	}
 	return options, nil
+}
+
+// The official video_tab API returns the model under data.video_model_data.
+// Normalize it to the legacy envelope so the shared parser remains the sole
+// owner of codec and fallback behavior.
+func miniReelVideoTabEnvelope(vid string, root map[string]any) (map[string]any, bool) {
+	data, ok := asMap(root["data"])
+	if !ok {
+		return nil, false
+	}
+	rows, ok := asMap(data["video_model_data"])
+	if !ok {
+		rows = data
+	}
+	row, ok := asMap(rows[vid])
+	if !ok {
+		for _, value := range rows {
+			if candidate, candidateOK := asMap(value); candidateOK {
+				if _, hasModel := candidate["video_model"]; hasModel {
+					row = candidate
+					ok = true
+					break
+				}
+			}
+		}
+	}
+	if !ok {
+		return nil, false
+	}
+	model := row["video_model"]
+	if text := miniReelToString(model); strings.HasPrefix(strings.TrimSpace(text), "{") {
+		var decoded any
+		if err := json.Unmarshal([]byte(text), &decoded); err == nil {
+			model = decoded
+		}
+	}
+	return map[string]any{
+		"code": 0,
+		"data": map[string]any{
+			vid: map[string]any{"video_model": model},
+		},
+	}, true
+}
+
+// Fetch the current official playback model. It is intentionally a single
+// bounded GET; old multi_video_model recovery remains the fallback path.
+func miniReelVideoTabOptions(ctx context.Context, vid, endpoint string, device miniReelDevice, codecMode string) (options []miniReelOption, err error) {
+	started := time.Now()
+	diagnostic := playbackPreparationDiagnostic{Code: "VIDEO_TAB_TRANSPORT", Stage: "video_tab", Attempt: 1}
+	defer func() { err = finishPlaybackPreparation(err, diagnostic, started) }()
+	codecMode, err = normalizeMiniReelCodecMode(codecMode)
+	if err != nil {
+		return nil, err
+	}
+	stamp := time.Now().UnixMilli()
+	params := url.Values{
+		"_rticket":                  {strconv.FormatInt(stamp, 10)},
+		"ac":                        {"wifi"},
+		"aid":                       {"8662"},
+		"app_name":                  {"novelread"},
+		"channel":                   {"update_64"},
+		"cdid":                      {device.cdid},
+		"device_brand":              {"Redmi"},
+		"device_id":                 {device.deviceID},
+		"device_platform":           {"android"},
+		"device_type":               {"25053RT47C"},
+		"dpi":                       {"520"},
+		"dragon_device_type":        {"phone"},
+		"host_abi":                  {"arm64-v8a"},
+		"iid":                       {device.installID},
+		"is_android_pad_screen":     {"0"},
+		"language":                  {"zh"},
+		"manifest_version_code":     {"71332"},
+		"need_personal_recommend":   {"1"},
+		"os":                        {"android"},
+		"os_api":                    {"36"},
+		"os_version":                {"16"},
+		"resolution":                {"1280*2772"},
+		"player_so_load":            {"1"},
+		"pv_player":                 {"71332"},
+		"ssmix":                     {"a"},
+		"update_version_code":       {"71332"},
+		"version_code":              {"71332"},
+		"version_name":              {"7.1.3.32"},
+		"compliance_status":         {"0"},
+		"video_id":                  {vid},
+		"video_id_type":             {"0"},
+		"device_level":              {"1"},
+		"need_all_video_definition": {"1"},
+		"need_mp4_align":            {"0"},
+		"use_os_player":             {"0"},
+		"video_platform":            {"1024"},
+		"source":                    {"0"},
+		"from_video_id":             {""},
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+params.Encode(), nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", miniReelPlaybackUA)
+	req.Header.Set("Accept", "application/json; charset=utf-8")
+	if device.cookie != "" {
+		req.Header.Set("Cookie", device.cookie)
+	}
+	diagnostic.Code = "VIDEO_TAB_TRANSPORT"
+	resp, err := miniReelNoRedirectClient(nil, 35*time.Second).Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	diagnostic.HTTPStatus = &resp.StatusCode
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("MiniReel video_tab API HTTP %d", resp.StatusCode)
+	}
+	diagnostic.Code = "VIDEO_TAB_READ"
+	data, err := miniReelReadLimited(resp.Body, miniReelMaxJSONBytes)
+	if err != nil {
+		return nil, err
+	}
+	responseBytes := len(data)
+	diagnostic.ResponseBytes = &responseBytes
+	if len(bytes.TrimSpace(data)) == 0 {
+		diagnostic.Code = "VIDEO_TAB_EMPTY"
+		return nil, &miniReelStreamMissError{cause: errMiniReelVideoModelEmpty}
+	}
+	diagnostic.Code = "VIDEO_TAB_JSON"
+	var root map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&root); err != nil || root == nil {
+		return nil, errors.New("MiniReel video_tab response is invalid JSON")
+	}
+	if code := miniReelBusinessCodeFromEnvelope(root); code != "" && code != "0" {
+		diagnostic.Code = "VIDEO_TAB_BUSINESS"
+		diagnostic.BusinessCode = safePlaybackBusinessCode(code)
+		return nil, &miniReelStreamMissError{
+			cause:        fmt.Errorf("MiniReel video_tab rejected request (code %s)", code),
+			businessCode: code,
+		}
+	}
+	envelope, ok := miniReelVideoTabEnvelope(vid, root)
+	if !ok {
+		diagnostic.Code = "VIDEO_TAB_MODEL_MISSING"
+		return nil, &miniReelStreamMissError{cause: errMiniReelVideoModelMissing}
+	}
+	return miniReelOptionsFromEnvelope(ctx, vid, envelope, nil, codecMode, &diagnostic)
 }
 
 func miniReelNoCompatibleOptionsError(codecMode string) error {
