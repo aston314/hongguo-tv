@@ -5037,13 +5037,6 @@
     }
     return actual === expected;
   }
-  function currentPreparedPlaybackSource(playback, preparedVid, video, presentation) {
-    return !!(playback && activePlayback === playback && playback.generation === feedGeneration &&
-      playback.owner === accountEpoch && (!preparedVid || playback.vid === preparedVid) &&
-      presentation && playback.presentation === presentation && presentation.source &&
-      video.classList.contains('has-source') &&
-      samePlaybackPresentationSource(video.getAttribute('src'), presentation.source) && video.readyState >= 2);
-  }
   function currentPlaybackPresentation(playback, presentation, video) {
     return !!(playback && presentation && activePlayback === playback && playback.presentation === presentation &&
       playback.generation === feedGeneration && playback.owner === accountEpoch && isPlaybackPage() &&
@@ -5356,7 +5349,6 @@
     var hero = document.getElementById('hero');
     var video = document.getElementById('hero-video');
     var placeholder = document.getElementById('hero-placeholder');
-    var preparedVid = '';
     var mpvTransition = sameSeries && nativeAtSwitch && playbackEngineName() === 'mpv' && mpvInPlaceReplaceAvailable();
     var keepRangeFrame = sameSeries && playbackMode === 'range' && !!video.getAttribute('src') &&
       (!nativeAtSwitch || playbackEngineName() === 'mpv');
@@ -5434,7 +5426,6 @@
         if (generation !== feedGeneration || request.signal.aborted) return null;
         var vid = episode === 1 ? firstVid(detail) : detail.vid_list && detail.vid_list[episode - 1];
         if (!vid) throw new Error(uiText('content.episodeNoVideo', '第{episode}集暂无视频数据', { episode: episode }));
-        preparedVid = vid;
         // The detail response is authoritative. An early preview based on
         // stale list metadata must not remain over a different target VID.
         var pendingCover = document.getElementById('hero-episode-cover').__episodeTarget;
@@ -5516,7 +5507,6 @@
           activePlayback.rangeFallback = data.range_fallback || '';
           activePlayback.videoWidth = Number(data.video_width) || 0;
           activePlayback.videoHeight = Number(data.video_height) || 0;
-          delete activePlayback.preparationError;
           bindPlaybackPresentation(activePlayback, data.path);
           video.src = data.path;
           stageNativePlaybackStartPosition(activePlayback.position);
@@ -5545,17 +5535,6 @@
       .catch(function (error) {
         if (generation !== feedGeneration || (pageMode() !== 'recommend' && pageMode() !== 'player')) return;
         playbackInfoRequest = null; playbackPrefetchHandoff = null;
-        // Speculative prefetch is deliberately allowed to fail. A late
-        // rejection must not overwrite a source that the foreground handoff
-        // or a concurrent resolver has already attached for this generation.
-        // In that case keep the real video state and clear only the stale
-        // preparation message.
-        var attachedPresentation = activePlayback && activePlayback.presentation;
-        if (currentPreparedPlaybackSource(activePlayback, preparedVid, video, attachedPresentation)) {
-          delete activePlayback.preparationError;
-          setPlayerStatus('');
-          return;
-        }
         if (recoverPlaybackPreparation(activePlayback, error, generation)) return;
         if (error.name !== 'AbortError') {
           clearRangeTransitionHint();

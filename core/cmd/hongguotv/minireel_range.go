@@ -67,13 +67,7 @@ func resolveMiniReelMediaRangeQualityMode(ctx context.Context, seriesID, vid, qu
 		return nil, err
 	}
 	token := miniReelCacheTokenWithCodecAndContentType(seriesID, vid, quality, fallback, "range", codecMode, contentType)
-	videoModelAttempts := miniReelVideoModelAttempts
-	if !allowStandardFallback {
-		// hongguo-player v1.2.21 gives speculative prefetch one model request.
-		// Foreground preparation keeps the full three-request compatibility chain.
-		videoModelAttempts = 1
-	}
-	result, err := resolveMiniReelMediaWithTokenModeAttempts(ctx, token, seriesID, vid, quality, fallback, codecMode, videoModelAttempts, prepareMiniReelRangeMedia, contentType)
+	result, err := resolveMiniReelMediaWithTokenMode(ctx, token, seriesID, vid, quality, fallback, codecMode, prepareMiniReelRangeMedia, contentType)
 	if err == nil {
 		return result, nil
 	}
@@ -93,7 +87,7 @@ func resolveMiniReelMediaRangeQualityMode(ctx context.Context, seriesID, vid, qu
 
 func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token, seriesID, vid, quality string, fallback bool) {
 	resolveStarted := time.Now()
-	options, err := miniReelNativeOptionsForContentType(withMiniReelVideoModelAttempts(ctx, job.VideoModelAttempts), vid, job.ContentType, job.CodecMode)
+	options, err := miniReelNativeOptionsForContentType(ctx, vid, job.ContentType, job.CodecMode)
 	job.ResolveMS = time.Since(resolveStarted).Milliseconds()
 	if err != nil {
 		job.Err = err

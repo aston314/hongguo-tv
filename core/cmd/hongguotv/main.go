@@ -396,17 +396,11 @@ func (s *server) playInfo(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
-	ctx := r.Context()
-	if r.URL.Query().Get("prefetch") == "1" {
-		// Match hongguo-player v1.2.21: speculative preparation gets one
-		// video-model request and never rotates identity on its own.
-		ctx = withMiniReelVideoModelAttempts(ctx, 1)
-	}
 	var result PlayInfo
 	if r.URL.Query().Get("mode") == "range" {
-		result, err = s.hongguo.PlayInfoRangeQualityMode(ctx, r.URL.Query().Get("series_id"), r.URL.Query().Get("vid"), quality, r.URL.Query().Get("fallback") == "1", r.URL.Query().Get("prefetch") != "1", codecMode, contentType)
+		result, err = s.hongguo.PlayInfoRangeQualityMode(r.Context(), r.URL.Query().Get("series_id"), r.URL.Query().Get("vid"), quality, r.URL.Query().Get("fallback") == "1", r.URL.Query().Get("prefetch") != "1", codecMode, contentType)
 	} else {
-		result, err = s.hongguo.PlayInfoQualityMode(ctx, r.URL.Query().Get("series_id"), r.URL.Query().Get("vid"), quality, r.URL.Query().Get("fallback") == "1", codecMode, contentType)
+		result, err = s.hongguo.PlayInfoQualityMode(r.Context(), r.URL.Query().Get("series_id"), r.URL.Query().Get("vid"), quality, r.URL.Query().Get("fallback") == "1", codecMode, contentType)
 	}
 	if err != nil {
 		writePlaybackPreparationError(w, err)
