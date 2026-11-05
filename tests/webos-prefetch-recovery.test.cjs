@@ -31,11 +31,11 @@ async function until(predicate) {
   for (let i = 0; i < 600; i++) { if (predicate()) return; await pause(5); }
   throw Error('Expected preparation event did not occur');
 }
-function fixture(replies, warmHead, registrationReplies = []) {
+function fixture(replies, warmHead, registrationReplies = [], tabReply = { code: 100103 }) {
   const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'hongguo-prefetch-recovery-'));
   const before = process.env.HONGGUO_WEBOS_CACHE_DIR;
   process.env.HONGGUO_WEBOS_CACHE_DIR = cache;
-  const requests = [], registrationRequests = [];
+  const requests = [], registrationRequests = [], tabRequests = [];
   let registrations = 0;
   let rangeOpens = 0, downloads = 0, headWarms = 0;
   const transport = { request(options) {
@@ -55,9 +55,18 @@ function fixture(replies, warmHead, registrationReplies = []) {
       req.end = () => { if (!reply.hold) process.nextTick(registration.respond); };
       return req;
     }
+    if (options.path.startsWith('/reading/bookapi/video_tab/multi_video_model/v1/')) {
+      tabRequests.push(options);
+      req.write = () => {}; req.destroy = () => {};
+      req.end = () => process.nextTick(() => {
+        const res = new PassThrough(); res.statusCode = 200; res.headers = {};
+        req.emit('response', res); res.end(JSON.stringify(tabReply));
+      });
+      return req;
+    }
     assert(options.path.startsWith('/novel/player/multi_video_model/v1/'));
     const index = requests.length, reply = replies[index] || {};
-    const item = { destroyed: false, body: [], respond: null, at: Date.now(), device: new URL('https://fixture.test'+options.path).searchParams.get('device_id') };
+    const item = { options, destroyed: false, body: [], respond: null, at: Date.now(), device: new URL('https://fixture.test'+options.path).searchParams.get('device_id') };
     requests.push(item);
     req.write = data => item.body.push(Buffer.from(data));
     req.destroy = error => { item.destroyed = true; if (error) process.nextTick(() => req.emit('error', error)); };
@@ -87,7 +96,7 @@ function fixture(replies, warmHead, registrationReplies = []) {
   provider.prepare = function (...args) {
     consumers.push({ prefetch: args[5], signal: args[6] }); return prepare.apply(provider, args);
   };
-  return { provider, requests, registrationRequests, consumers, get registrations() { return registrations; }, get rangeOpens() { return rangeOpens; }, get downloads() { return downloads; },
+  return { provider, requests, registrationRequests, tabRequests, consumers, get registrations() { return registrations; }, get rangeOpens() { return rangeOpens; }, get downloads() { return downloads; },
     get headWarms() { return headWarms; },
     prepare(prefetch, signal) { return provider.prepare('123', '456', '', true, 'range', prefetch, signal); },
     close() { provider.closeCache(); if (before === undefined) delete process.env.HONGGUO_WEBOS_CACHE_DIR; else process.env.HONGGUO_WEBOS_CACHE_DIR = before; fs.rmSync(cache, { recursive: true }); }
@@ -101,7 +110,7 @@ test('source preparation is available to foreground while network-only head warm
     const speculative = f.prepare(true); await until(() => f.headWarms === 1);
     const current = await f.prepare(false);
     assert.equal(current.mode, 'range'); assert.equal(current.preparation_cached, true);
-    assert.equal(f.requests.length, 1); assert.equal(f.registrations, 1); assert.equal(f.rangeOpens, 1);
+    assert.equal(f.requests.length, 1); assert.equal(f.registrations, 2); assert.equal(f.rangeOpens, 1);
     finish(128); assert.equal((await speculative).path, current.path);
     assert.equal(f.downloads, 0);
   } finally { f.close(); }
@@ -141,7 +150,7 @@ test('successful sharing still resolves only once', async () => {
   } finally { f.close(); }
 });
 
-test('speculative errors stay single-shot while direct foreground errors retry twice at most', async () => {
+test('speculative errors stay single-shot while direct foreground errors keep the four-request budget', async () => {
   const speculative = fixture([{ status: 502 }]);
   try {
     const result = await observe(speculative.prepare(true));
@@ -154,15 +163,15 @@ test('speculative errors stay single-shot while direct foreground errors retry t
   try {
     const result = await observe(recovered.prepare(false));
     assert(!result.error, 'a direct foreground transient error should recover once');
-    assert.equal(recovered.requests.length, 2); assert.equal(recovered.registrations, 1);
+    assert.equal(recovered.requests.length, 2); assert.equal(recovered.registrations, 2);
     assert.equal(result.value.preparation_timing.media_resolve_retries, 1);
   } finally { recovered.close(); }
 
-  const exhausted = fixture([{ status: 502 }, { status: 503 }, { status: 504 }, {}]);
+  const exhausted = fixture([{ status: 502 }, { status: 503 }, { status: 504 }, { status: 502 }, {}]);
   try {
     const result = await observe(exhausted.prepare(false));
     assert.equal(result.error.code, 'VIDEO_MODEL_HTTP');
-    assert.equal(exhausted.requests.length, 3, 'foreground retry budget is bounded to two retries');
+    assert.equal(exhausted.requests.length, 4, 'foreground retry budget is bounded to two identities and two hosts');
   } finally { exhausted.close(); }
 });
 
@@ -178,11 +187,11 @@ test('concurrent foreground consumers share the one recovery, including a late j
   } finally { f.close(); }
 });
 
-test('a second failure is returned normally and an explicit retry starts fresh', async () => {
-  const f = fixture([{ status: 502, hold: true }, { status: 503 }, {}]);
+test('an exhausted lookup fails normally and an explicit retry gets a fresh identity', async () => {
+  const f = fixture([{ status: 502, hold: true }, { status: 503 }, { status: 502 }, { status: 503 }, {}]);
   try { const b = observe(f.prepare(true)); await tick(); const p = observe(f.prepare(false)); f.requests[0].respond();
-    assert.equal((await p).error.status, 503); assert((await b).error); assert.equal(f.requests.length, 2);
-    assert.equal((await f.prepare(false)).mode, 'range'); assert.equal(f.requests.length, 3);
+    assert.equal((await p).error.status, 503); assert((await b).error); assert.equal(f.requests.length, 4);
+    assert.equal((await f.prepare(false)).mode, 'range'); assert.equal(f.requests.length, 5);
   } finally { f.close(); }
 });
 
@@ -211,15 +220,15 @@ test('temporary transport errors and empty responses recover within the shared b
   }
 });
 
-test('shared empty responses use one replacement and stop at six requests with current-job diagnostics', async () => {
-  const f = fixture([{ hold: true, empty: true }, ...Array.from({ length: 5 }, () => ({ empty: true }))]);
+test('shared empty responses use one replacement and stop at four requests with current-job diagnostics', async () => {
+  const f = fixture([{ hold: true, empty: true }, ...Array.from({ length: 3 }, () => ({ empty: true }))]);
   try {
     const b = observe(f.prepare(true)); await tick(); const p = observe(f.prepare(false)); f.requests[0].respond();
     const { error } = await p;
-    assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); await b; assert.equal(f.requests.length, 6); assert.equal(f.registrations,2); assert.equal(f.rangeOpens, 0);
+    assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); await b; assert.equal(f.requests.length, 4); assert.equal(f.registrations,3); assert.equal(f.rangeOpens, 0);
     assert.equal(error.recoveryComplete, true);
     assert.equal(error.upstreamStatus, 200, 'HTTP 200 upstream is distinct from the local 502 failure response');
-    assert.equal(error.videoModel.attempt, 6);
+    assert.equal(error.videoModel.attempt, 4);
     assert.equal(error.videoModel.http_status, 200);
     assert.equal(error.videoModel.response_bytes, 0);
     assert.equal(error.videoModel.stage, 'multi_video_model');
@@ -228,7 +237,7 @@ test('shared empty responses use one replacement and stop at six requests with c
     const report = f.provider.mediaDiagnostics('');
     assert.equal(report.media_preparation_error_stage, 'multi_video_model');
     assert.equal(report.media_preparation_error_code, 'VIDEO_MODEL_EMPTY');
-    assert.equal(report.media_video_model.attempt, 6);
+    assert.equal(report.media_video_model.attempt, 4);
     assert(!/video_id|media\.example|cookie|token/i.test(JSON.stringify(error.videoModel)));
   } finally { f.close(); }
 });
@@ -237,7 +246,7 @@ test('direct empty responses back off twice, while speculative empty responses s
   const f = fixture([{ empty: true }, { empty: true }, {}]);
   try {
     const current = await f.prepare(false);
-    assert.equal(f.requests.length, 3); assert.equal(f.registrations, 1);
+    assert.equal(f.requests.length, 3); assert.equal(f.registrations, 3);
     assert(f.requests[1].at - f.requests[0].at >= 230);
     assert(f.requests[2].at - f.requests[1].at >= 980);
     assert.equal(current.preparation_timing.media_video_model.code, 'VIDEO_MODEL_OK');
@@ -250,17 +259,17 @@ test('direct empty responses back off twice, while speculative empty responses s
     const { error } = await observe(speculative.prepare(true));
     assert.equal(error.code, 'VIDEO_MODEL_EMPTY');
     assert.equal(speculative.requests.length, 1);
-    assert.equal(speculative.registrations, 1);
+    assert.equal(speculative.registrations, 2);
   } finally { speculative.close(); }
 });
 
-test('mixed empty and HTTP failures share the same three-request maximum', async () => {
-  const f = fixture([{ empty: true }, { status: 502 }, { empty: true }, {}]);
+test('mixed empty and HTTP failures share the same four-request maximum', async () => {
+  const f = fixture([{ empty: true }, { status: 502 }, { empty: true }, { empty: true }, {}]);
   try {
     const { error } = await observe(f.prepare(false));
     assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); assert.equal(error.recoveryComplete, true);
-    assert.equal(f.requests.length, 3); assert.equal(error.videoModel.attempt, 3);
-    assert.equal(f.registrations, 1, 'mixed failures must not refresh identity');
+    assert.equal(f.requests.length, 4); assert.equal(error.videoModel.attempt, 4);
+    assert.equal(f.registrations, 3, 'mixed failures still use only two fresh legacy identities');
     assert.equal(f.rangeOpens, 0); assert.equal(f.downloads, 0);
   } finally { f.close(); }
 });
@@ -304,7 +313,7 @@ test('leaving during direct backoff does not issue a delayed request for a remai
 });
 
 test('a later prefetch success never overwrites the foreground empty-response diagnostic', async () => {
-  const f = fixture([...Array.from({length:6},()=>({empty:true})),{}]);
+  const f = fixture([...Array.from({length:4},()=>({empty:true})),{}]);
   try {
     const { error } = await observe(f.prepare(false));
     await f.provider.prepare('123', '789', '', true, 'range', true);
@@ -317,14 +326,14 @@ test('a later prefetch success never overwrites the foreground empty-response di
 });
 
 test('a late older foreground result cannot overwrite the newest foreground failure', async () => {
-  const f=fixture([{hold:true},...Array.from({length:6},()=>({empty:true}))]);
+  const f=fixture([{hold:true},...Array.from({length:4},()=>({empty:true}))]);
   try {
     const old=observe(f.prepare(false));await tick();
     const current=await observe(f.provider.prepare('123','789','',true,'range',false));
     assert.equal(current.error.code,'VIDEO_MODEL_EMPTY');
     f.requests[0].respond();assert(!(await old).error);
     assert.equal(f.provider.foregroundVideoModelDiagnostics().code,'VIDEO_MODEL_EMPTY');
-    assert.equal(f.provider.foregroundVideoModelDiagnostics().attempt,6);
+    assert.equal(f.provider.foregroundVideoModelDiagnostics().attempt,4);
     assert.equal(f.provider.mediaDiagnostics('').media_preparation_error_code,'VIDEO_MODEL_EMPTY');
   } finally { f.close(); }
 });
@@ -389,7 +398,7 @@ function request(s, prefetch) {
 }
 
 test('HTTP playback failures carry their own sanitized diagnostic after unrelated prefetch completes', async () => {
-  const f = fixture([...Array.from({length:6},()=>({empty:true})),{}]);
+  const f = fixture([...Array.from({length:4},()=>({empty:true})),{}]);
   const prepare = f.provider.prepare;
   f.provider.prepare = (...args) => prepare(...args).catch(async error => {
     await prepare('123', '789', '', true, 'range', true); throw error;
@@ -400,20 +409,20 @@ test('HTTP playback failures carry their own sanitized diagnostic after unrelate
     assert.equal(result.status, 502); assert.equal(result.data.upstream_status, 200);
     assert.equal(result.data.error, 'VIDEO_MODEL_EMPTY'); assert.equal(result.data.recovery_complete, true);
     assert.equal(result.data.video_model.code, 'VIDEO_MODEL_EMPTY');
-    assert.equal(result.data.video_model.response_bytes, 0); assert.equal(result.data.video_model.attempt, 6);
+    assert.equal(result.data.video_model.response_bytes, 0); assert.equal(result.data.video_model.attempt, 4);
     assert.equal(result.data.stage, 'multi_video_model');
     assert.equal(result.data.video_model.video_id, undefined);
   } finally { await s.shutdown(); f.close(); }
 });
 
 test('a transport failure with no HTTP response does not invent an upstream HTTP 502', async () => {
-  const f=fixture([{network:'ECONNRESET'},{network:'ECONNRESET'},{network:'ECONNRESET'}]),s=await service(f);
+  const f=fixture(Array.from({length:4},()=>({network:'ECONNRESET'}))),s=await service(f);
   try {
     const result=await request(s,false).promise;
     assert.equal(result.status,502);assert.equal(result.data.error,'ECONNRESET');
     assert.equal(result.data.upstream_status,undefined);assert.equal(result.data.video_model.http_status,undefined);
     assert.equal(result.data.video_model.stage,'multi_video_model_transport');
-    assert.equal(result.data.video_model.attempt,3);assert.equal(result.data.recovery_complete,true);
+    assert.equal(result.data.video_model.attempt,4);assert.equal(result.data.recovery_complete,true);
   } finally { await s.shutdown();f.close(); }
 });
 
@@ -445,86 +454,111 @@ test('disconnecting the actual foreground HTTP client prevents a speculative fai
   } finally { await s.shutdown(); f.close(); }
 });
 
-test('confirmed empty responses replace once, recover on request four and reuse the new identity', async () => {
+test('new rounds and subsequent episodes use fresh legacy identities while video_tab keeps its identity', async () => {
   const f=fixture([{empty:true},{empty:true},{empty:true},{},{}]);
   try {
     const value=await f.prepare(false);
-    assert.equal(f.requests.length,4);assert.equal(f.registrations,2);assert.equal(value.mode,'range');assert.equal(f.downloads,0);
-    assert.deepEqual(f.requests.map(r=>r.device),['1234567890123456781','1234567890123456781','1234567890123456781','1234567890123456782']);
+    assert.equal(f.requests.length,4);assert.equal(f.registrations,3);assert.equal(value.mode,'range');assert.equal(f.downloads,0);
+    assert.deepEqual(f.requests.map(r=>r.device),['1234567890123456782','1234567890123456782','1234567890123456783','1234567890123456783']);
+    assert.deepEqual(f.requests.map(r=>r.options.hostname),['api5-normal-sinfonlineb.fqnovel.com','api5-normal-hl.fqnovel.com','api5-normal-sinfonlineb.fqnovel.com','api5-normal-hl.fqnovel.com']);
+    assert(f.requests.every(r=>r.options.headers['X-Medusa'] && r.options.headers['X-Argus']));
     assert.equal(value.preparation_timing.media_video_model.attempt,4);
     await f.provider.prepare('123','789','',true,'range',false);
-    assert.equal(f.requests[4].device,'1234567890123456782');assert.equal(f.registrations,2);
+    assert.equal(f.requests[4].device,'1234567890123456784');assert.equal(f.registrations,4);
+    assert.equal(f.tabRequests.length,2);
+    assert.equal(f.tabRequests[0].path.split('device_id=')[1].split('&')[0],f.tabRequests[1].path.split('device_id=')[1].split('&')[0]);
   } finally {f.close();}
 });
 
-test('an adopted prefetch carries its empty-response count and request limit through identity recovery', async () => {
+test('an adopted prefetch shares its host position, fresh identity and four-request limit with all consumers', async () => {
   const f=fixture([{empty:true,hold:true},{empty:true},{empty:true},{}]);
   try {
     const speculative=observe(f.prepare(true));await tick();const foreground=f.prepare(false),another=f.prepare(false);f.requests[0].respond();
-    const [a,b,c]=await Promise.all([speculative,foreground,another]);assert.equal(a.value.path,b.path);assert.equal(c.path,b.path);
-    assert.equal(f.requests.length,4);assert.equal(f.registrations,2);assert.equal(f.rangeOpens,1);assert.equal(f.downloads,0);
+    const [a,b,c]=await Promise.all([speculative,foreground,another]);
+    assert.equal(a.value.path,b.path);assert.equal(b.path,c.path);
+    assert.equal(f.requests.length,4);assert.equal(f.registrations,3);assert.equal(f.tabRequests.length,1);assert.equal(f.rangeOpens,1);assert.equal(f.downloads,0);
     assert.equal(b.preparation_timing.media_video_model.attempt,4);assert.equal(b.preparation_timing.media_resolve_retries,3);
   } finally {f.close();}
 });
 
-test('different episodes share one registration refresh and new requests wait for it', async () => {
-  const f=fixture([{empty:true,hold:true},{empty:true,hold:true},{empty:true},{empty:true},{empty:true,hold:true},{empty:true,hold:true},{},{},{}],null,[{}, {hold:true}]);
+test('different episodes never share their single-use legacy registration', async () => {
+  const f=fixture([{hold:true},{hold:true}]);
   try {
-    const first=f.prepare(false),second=f.provider.prepare('123','789','',true,'range',false);
-    await until(()=>f.requests.length===2);f.requests[0].respond();f.requests[1].respond();
-    await until(()=>f.requests.length===6);f.requests[4].respond();await until(()=>f.registrations===2);f.requests[5].respond();
-    const newcomer=f.provider.inspectVideoModel('999');await tick();assert.equal(f.requests.length,6,'new caller must wait instead of using the old identity');
-    f.registrationRequests[1].respond();assert.equal((await newcomer).ok,true);await Promise.all([first,second]);
-    assert.equal(f.registrations,2);assert.equal(f.requests.length,9);assert(f.requests.slice(6).every(r=>r.device==='1234567890123456782'));
+    const first=observe(f.prepare(false));await until(()=>f.requests.length===1);
+    const second=observe(f.provider.prepare('123','789','',true,'range',false));await until(()=>f.requests.length===2);
+    assert.notEqual(f.requests[0].device,f.requests[1].device);assert.equal(f.registrations,3);
+    f.requests[1].respond();f.requests[0].respond();
+    assert(!(await first).error);assert(!(await second).error);
   } finally {f.close();}
 });
 
-test('a late old-identity failure uses the replacement without invalidating it', async () => {
-  const f=fixture([{empty:true},{empty:true,hold:true},{empty:true},{empty:true},{},{}]);
+test('a late failure from an earlier episode cannot replace another episode legacy identity', async () => {
+  const f=fixture([{hold:true,empty:true},{},{}]);
   try {
-    const first=f.prepare(false);await until(()=>f.requests.length===1);
-    const older=f.provider.prepare('123','789','',true,'range',false);await until(()=>f.requests.length===2);
-    await first;assert.equal(f.registrations,2);f.requests[1].respond();await older;
-    assert.equal(f.registrations,2);assert.equal(f.requests.at(-1).device,'1234567890123456782');
+    const first=observe(f.prepare(false));await until(()=>f.requests.length===1);
+    const second=await f.provider.prepare('123','789','',true,'range',false);
+    assert.equal(second.mode,'range');f.requests[0].respond();assert(!(await first).error);
+    assert.equal(f.registrations,3);assert.equal(f.requests[2].device,f.requests[0].device);
+    assert.notEqual(f.requests[2].device,f.requests[1].device);
   } finally {f.close();}
 });
 
-test('registration failure preserves the old identity and cannot bypass the refresh cooldown', async () => {
-  const f=fixture([{empty:true},{empty:true},{empty:true},{},{empty:true},{empty:true},{empty:true}],null,[{}, {status:503}]);
+test('failed legacy registration does not poison video_tab or the next episode registration', async () => {
+  const f=fixture([{}],null,[{}, {status:503}, {}]);
   try {
-    const first=await observe(f.prepare(false));assert.equal(first.error.code,'VIDEO_MODEL_EMPTY');assert.equal(first.error.upstreamStatus,200);assert.equal(f.requests.length,3);assert.equal(f.registrations,2);
-    await f.provider.prepare('123','789','',true,'range',false);assert.equal(f.requests[3].device,'1234567890123456781');assert.equal(f.registrations,2);
-    const again=await observe(f.provider.prepare('123','999','',true,'range',false));assert.equal(again.error.code,'VIDEO_MODEL_EMPTY');assert.equal(f.requests.length,7);assert.equal(f.registrations,2);
+    const first=await observe(f.prepare(false));assert.equal(first.error.code,'ACCOUNT_DEVICE');assert.equal(f.requests.length,0);
+    const next=await f.provider.prepare('123','789','',true,'range',false);
+    assert.equal(next.mode,'range');assert.equal(f.registrations,3);assert.equal(f.requests.length,1);
+    assert.equal(f.requests[0].device,'1234567890123456783');assert.equal(f.tabRequests.length,2);
   } finally {f.close();}
 });
 
-test('foreground cancellation during refresh stops the old job but preserves the shared registration', async () => {
-  const f=fixture([{empty:true},{empty:true},{empty:true},{}],null,[{}, {hold:true}]),c=cancel.create();
+test('foreground cancellation during second-round registration aborts that job without affecting other episodes', async () => {
+  const f=fixture([{empty:true},{empty:true},{}],null,[{}, {}, {hold:true}, {}]),c=cancel.create();
   try {
     const foreground=observe(f.prepare(false,c.signal));await tick();const speculative=observe(f.prepare(true));
-    await until(()=>f.registrations===2);c.abort();assert.equal((await foreground).error.name,'AbortError');assert.equal((await speculative).error.name,'AbortError');
-    assert.equal(f.registrationRequests[1].destroyed,false,'a single cancelled job must not kill a shared registration');
-    const next=f.provider.prepare('123','789','',true,'range',false);await tick();assert.equal(f.requests.length,3);
-    f.registrationRequests[1].respond();await next;assert.equal(f.requests.length,4);assert.equal(f.requests[3].device,'1234567890123456782');
+    await until(()=>f.registrations===3);c.abort();assert.equal((await foreground).error.name,'AbortError');assert.equal((await speculative).error.name,'AbortError');
+    await tick();assert.equal(f.registrationRequests[2].destroyed,true,'single-use registration must be cancelled with its job');
+    const next=await f.provider.prepare('123','789','',true,'range',false);
+    assert.equal(next.mode,'range');assert.equal(f.registrations,4);assert.equal(f.requests.length,3);assert.equal(f.requests[2].device,'1234567890123456784');
   } finally {f.close();}
 });
 
-test('only HTTP 200 empty or whitespace bodies qualify; other responses never refresh identity', async () => {
-  for(const reply of [{status:204,empty:true},{status:502,empty:true},{network:'ECONNRESET'},{body:'invalid JSON'},{body:'{"code":101000}'},{body:'{}'}]) {
-    const f=fixture([reply,reply,reply]);
-    try {assert((await observe(f.prepare(false))).error);assert.equal(f.registrations,1);assert(f.requests.length<=3);}
+test('business, malformed and non-200 empty responses do not spend a second identity', async () => {
+  for(const reply of [{status:204,empty:true},{body:'invalid JSON'},{body:'{"code":101000}'},{body:'{}'}]) {
+    const f=fixture([reply]);
+    try {assert((await observe(f.prepare(false))).error);assert.equal(f.registrations,2);assert.equal(f.requests.length,1);}
     finally {f.close();}
   }
   const whitespace=fixture([{body:' \n\t '},{body:' '},{body:'\r\n'},{}]);
-  try {await whitespace.prepare(false);assert.equal(whitespace.requests.length,4);assert.equal(whitespace.registrations,2);}
+  try {await whitespace.prepare(false);assert.equal(whitespace.requests.length,4);assert.equal(whitespace.registrations,3);}
   finally {whitespace.close();}
 });
 
-test('shutdown and wake of the same Service recreate the identity cache and discard old registration', async () => {
-  const f=fixture([{}],null,[{hold:true},{}]),s=await service(f);
+test('video_tab success returns immediately without legacy requests or fresh registrations', async () => {
+  const model={data:{video_model_data:{'456':{video_model:{video_list:[{main_url:'https://media.example.test/tab.mp4',video_meta:{vheight:720},encrypt_info:{spade_a:spade()}}]}}}}};
+  const f=fixture([],null,[],model);
+  try {
+    assert.equal((await f.prepare(false)).mode,'range');
+    assert.equal(f.tabRequests.length,1);assert.equal(f.registrations,1);assert.equal(f.requests.length,0);
+  } finally {f.close();}
+});
+
+test('an adopted prefetch does not retry a non-200 empty response in the outer recovery path', async () => {
+  const f=fixture([{status:204,empty:true,hold:true},{}]);
+  try {
+    const speculative=observe(f.prepare(true));await until(()=>f.requests.length===1);
+    const foreground=observe(f.prepare(false));f.requests[0].respond();
+    assert.equal((await foreground).error.code,'VIDEO_MODEL_EMPTY');assert((await speculative).error);
+    assert.equal(f.requests.length,1);assert.equal(f.registrations,2);
+  } finally {f.close();}
+});
+
+test('shutdown and wake recreate the reusable video_tab identity and use a fresh legacy identity', async () => {
+  const f=fixture([{}],null,[{hold:true},{},{}]),s=await service(f);
   try {
     const old=observe(f.prepare(false));await until(()=>f.registrations===1);
     await s.shutdown();assert.equal((await old).error.name,'AbortError');assert.equal(f.registrationRequests[0].destroyed,true);
-    await s.ensureReady();const next=await f.prepare(false);assert.equal(next.mode,'range');assert.equal(f.registrations,2);assert.equal(f.requests.length,1);assert.equal(f.requests[0].device,'1234567890123456782');
+    await s.ensureReady();const next=await f.prepare(false);assert.equal(next.mode,'range');assert.equal(f.registrations,3);assert.equal(f.requests.length,1);assert.equal(f.requests[0].device,'1234567890123456783');
   } finally {await s.shutdown();f.close();}
 });

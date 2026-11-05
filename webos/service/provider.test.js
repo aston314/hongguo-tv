@@ -445,24 +445,28 @@ async function run() {
     assert.strictEqual(videoTabCall.options.headers.Cookie, 'install_id=2234567890123456789; store-region=cn-tj; ttreq=fixture-ttreq', 'video_tab forwards only anonymous registration cookies');
     videoTabEnabled = false;
 
-    var beforeRetry = videoModelRequests, beforePlaybackRequests = playbackRequests.length;
+    var beforeRetry = videoModelRequests, beforePlaybackRequests = playbackRequests.length, beforeRegistration = deviceRegisterRequests;
     videoModelEmptyResponses = 2;
     var playbackProbe = await provider.inspectVideoModel('1334567890123456789');
     assert.strictEqual(playbackProbe.ok, true, 'registered playback request resolves after bounded empty-response retries');
-    assert.strictEqual(videoModelRequests - beforeRetry, 3, 'empty playback responses retry with the same registered identity');
-    assert.strictEqual(deviceRegisterRequests, 2, 'failed registration is retried once on the next playback request');
+    assert.strictEqual(videoModelRequests - beforeRetry, 3, 'legacy fallback uses two hosts before registering a second identity');
+    assert.strictEqual(deviceRegisterRequests - beforeRegistration, 2, 'two rounds use two fresh registrations');
     assert(deviceRegistration, 'anonymous playback identity was registered before the playback request');
     assert.strictEqual(deviceRegistration.options.headers.Cookie || '', '', 'anonymous playback registration has no account cookies');
     assert.strictEqual(deviceRegistration.options.headers['X-Tt-Token'] || '', '', 'anonymous playback registration has no account token');
     assert.strictEqual(deviceRegistration.query.device_id || '', '', 'registration does not send a fabricated device id');
     assert.strictEqual(deviceRegistration.query.iid || '', '', 'registration does not send a fabricated install id');
-    var playbackIdentity = playbackRequests[0].query;
+    var playbackIdentity = playbackRequests[beforePlaybackRequests].query;
     assert(playbackIdentity.device_id && playbackIdentity.iid && playbackIdentity.cdid, 'playback uses the registered identity');
     playbackRequests.slice(beforePlaybackRequests).forEach(function (call, index) {
       assert.strictEqual(call.options.path.split('?')[0], '/novel/player/multi_video_model/v1/');
-      assert.strictEqual(call.query.device_id, playbackIdentity.device_id, 'playback identity stays stable across source attempts');
-      assert.strictEqual(call.query.iid, playbackIdentity.iid, 'install identity stays stable across source attempts');
       if (index < 2) {
+        assert.strictEqual(call.query.device_id, playbackIdentity.device_id, 'the two hosts share this round identity');
+        assert.strictEqual(call.query.iid, playbackIdentity.iid);
+      } else {
+        assert.notStrictEqual(call.query.cdid, playbackIdentity.cdid, 'the second round registers a new identity');
+      }
+      {
         assert(call.options.headers['X-Medusa'], 'playback request includes its own signature');
         assert.strictEqual(call.query.ts, call.options.headers['X-Khronos']);
         assert.strictEqual(call.query._rticket, call.options.headers['X-SS-Req-Ticket']);
@@ -471,12 +475,9 @@ async function run() {
         // Parse the transmitted bytes rather than rebuilding its signed query.
         var rawQuery = call.options.path.split('?')[1];
         assert.strictEqual(call.options.headers['X-Gorgon'], require('./passport-sign').gorgon(rawQuery, rawBody, stamp, gorgon.readUInt16LE(2)));
-        assert.strictEqual(call.options.hostname, index === 1 ? 'api5-normal-hl.fqnovel.com' : 'api5-normal-sinfonlineb.fqnovel.com');
-      } else {
-        assert.strictEqual(call.options.headers['X-Medusa'], undefined, 'third attempt preserves unsigned compatibility');
-        assert.strictEqual(call.options.hostname, 'api5-normal-sinfonlineb.fqnovel.com');
+        assert.strictEqual(call.options.hostname, index % 2 === 1 ? 'api5-normal-hl.fqnovel.com' : 'api5-normal-sinfonlineb.fqnovel.com');
       }
-      if (index > 0) {
+      if (index % 2 === 1) {
         assert.strictEqual(call.options.headers.Connection, 'close');
         assert.strictEqual(call.options.agent, false, 'empty-response retry does not reuse the failed connection');
       }

@@ -62,6 +62,10 @@
     return ['VIDEO_MODEL_EMPTY', 'UPSTREAM_TIMEOUT', 'ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET',
       'ECONNREFUSED', 'EPIPE', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN'].indexOf(error.code) >= 0;
   }
+  function freshPlaybackRetryable(error) {
+    if (error && error.code === 'VIDEO_MODEL_EMPTY') return !!error.videoModel && error.videoModel.http_status === 200;
+    return transientVideoModelError(error);
+  }
   function recoveryDelay(signal, delay) {
     return new Promise(function (resolve, reject) {
       var timer;
@@ -578,116 +582,96 @@
 
   function videoOptions(vid, signal, retry) {
     retry = retry || {};
-    var transientRetries = 0;
-    var identityState = retry.identityState || { attempts: 0, emptyCount: 0, device: null, replaced: false };
-    var usedDevice;
-    var maxTransientRetries = Math.max(0, Number(retry.maxTransientRetries) || 0);
-    var maximum = Math.max(1, Math.min(3, Number(retry.maxAttempts) || 3));
-    var offset = Number(retry.attemptOffset) || 0;
-    var attempt = 0;
-    var startedAt = Number(retry.startedAt) || Date.now();
-    var diagnostic;
+    // This state belongs to one media job, including a prefetch adopted by the
+    // foreground. video_tab is attempted once; the legacy budget never resets.
+    var state = retry.identityState || {};
+    var maximum = Math.max(1, Math.min(4, Number(retry.maxAttempts) || 4));
+    var attempt = 0, startedAt = Number(retry.startedAt) || Date.now(), diagnostic;
+    var hosts = [API_BASE, 'https://api5-normal-hl.fqnovel.com'];
+    state.attempts = Number(state.attempts) || 0;
+    state.rounds = Number(state.rounds) || 0;
+    state.host = Number(state.host) || 0;
+    function allowed() { return !retry.allowRetry || retry.allowRetry(); }
+    function check() { if (playbackIdentityClosed || signal && signal.aborted) throw preparationCancelled(); }
     function recordDiagnostic(value) {
-      diagnostic = Object.assign({}, value, { video_id: String(vid), attempt: offset + attempt, elapsed_ms: Math.max(0, Date.now() - startedAt) });
+      diagnostic = Object.assign({}, value, { video_id: String(vid), attempt: state.attempts, elapsed_ms: Math.max(0, Date.now() - startedAt) });
       lastVideoModelDiagnostic = Object.assign({}, diagnostic);
       if (typeof retry.onDiagnostic === 'function') {
         var safe = Object.assign({}, diagnostic); delete safe.video_id;
         retry.onDiagnostic(safe);
       }
     }
+    function identity() {
+      check();
+      if (state.legacyDevice && state.host < 2) return Promise.resolve(state.legacyDevice);
+      if (state.rounds >= 2) return Promise.reject(state.lastError || fail('播放取源尝试次数已达上限', 502, 'VIDEO_MODEL_EMPTY', 'multi_video_model'));
+      state.rounds++; state.host = 0; state.legacyDevice = null;
+      if (state.rounds > 1 && typeof retry.onIdentityRefresh === 'function') retry.onIdentityRefresh();
+      // A fresh bounded registration for this round. It is never installed in
+      // video_tab's reusable cache, and cancellation closes its transport.
+      var fresh = newPlaybackIdentity();
+      return fresh.get(signal).then(function (device) {
+        fresh.close(); check(); state.legacyDevice = device; return device;
+      }, function (error) { fresh.close(); throw error; });
+    }
     function next() {
-      if (signal && signal.aborted) return Promise.reject(preparationCancelled());
-      attempt++; identityState.attempts++;
+      try { check(); } catch (error) { return Promise.reject(error); }
+      if (state.attempts >= 4) return Promise.reject(state.lastError);
       recordDiagnostic({ stage: 'device_register', code: 'VIDEO_MODEL_REQUEST' });
-      return playbackIdentity.get(signal).then(function (device) {
-        usedDevice = device;
-        if (identityState.device !== device) identityState.emptyCount = 0;
-        identityState.device = device;
-        if (signal && signal.aborted) throw preparationCancelled();
-        var stamp = Date.now();
-        var params = playbackQuery(device, stamp);
-        var body = JSON.stringify({
+      return identity().then(function (device) {
+        check();
+        var stamp = Date.now(), params = playbackQuery(device, stamp);
+        var body = Buffer.from(JSON.stringify({
           biz_param: { detail_page_version: 0, device_level: 3, disable_digg_stat: false, need_all_video_definition: true, need_mp4_align: false, use_os_player: false, use_server_dns: false, video_platform: 1024 },
           mixed_video_id_map: { '1004': [String(vid)] }
+        }));
+        var signed;
+        try { signed = passportSign.signPlayback(params, body, stamp, device.deviceID); }
+        catch (error) { throw fail('播放请求签名失败', 502, 'VIDEO_MODEL_SIGN', 'multi_video_model'); }
+        var headers = Object.assign({}, signed.headers, {
+          'User-Agent': PLAYBACK_UA, Accept: 'application/json; charset=utf-8,application/x-protobuf',
+          'Content-Type': 'application/json; charset=UTF-8', 'Passport-Sdk-Version': '50561',
+          'X-Tt-Request-Tag': 't=0;n=0', 'X-Vc-Bdturing-Sdk-Version': '3.7.2.cn'
         });
-        var headers = {
-          'User-Agent': PLAYBACK_UA,
-          Accept: 'application/json; charset=utf-8,application/x-protobuf',
-          'Content-Type': 'application/json; charset=UTF-8'
-        };
-        var query = sortedQuery(params), endpoint = API_BASE;
-        // Keep the shared prefetch/foreground budget. A third consecutive
-        // empty response still gets the original unsigned compatibility path.
-        if (identityState.emptyCount < 2) {
-          var signed;
-          try { signed = passportSign.signPlayback(params, Buffer.from(body), stamp, device.deviceID); }
-          catch (error) { throw fail('播放请求签名失败', 502, 'VIDEO_MODEL_SIGN', 'multi_video_model'); }
-          query = signed.query;
-          Object.assign(headers, signed.headers);
-          if (identityState.emptyCount === 1) endpoint = 'https://api5-normal-hl.fqnovel.com';
-        }
-        if (identityState.emptyCount > 0) headers.Connection = 'close';
+        var endpoint = hosts[state.host++];
+        if (state.host > 1) headers.Connection = 'close';
+        attempt++; state.attempts++;
         recordDiagnostic({ stage: 'multi_video_model', code: 'VIDEO_MODEL_REQUEST' });
-        return requestBuffer(endpoint + API_PATH + '?' + query, 'POST', headers, Buffer.from(body), MAX_JSON, signal);
+        return requestBuffer(endpoint + API_PATH + '?' + signed.query, 'POST', headers, body, MAX_JSON, signal, 8000);
       }).then(function (response) {
         recordDiagnostic({ stage: 'multi_video_model', http_status: response.status, response_bytes: response.body.length, code: 'VIDEO_MODEL_RESPONSE' });
-        if (response.status < 200 || response.status >= 300) {
-          throw fail('multi_video_model HTTP ' + response.status, response.status, 'VIDEO_MODEL_HTTP', 'multi_video_model');
-        }
+        if (response.status < 200 || response.status >= 300) throw fail('multi_video_model HTTP ' + response.status, response.status, 'VIDEO_MODEL_HTTP', 'multi_video_model');
         var responseText = response.body.toString('utf8');
-        if (!trim(responseText)) {
-          throw fail('multi_video_model 返回空响应', 502, 'VIDEO_MODEL_EMPTY', 'multi_video_model');
-        }
+        if (!trim(responseText)) throw fail('multi_video_model 返回空响应', 502, 'VIDEO_MODEL_EMPTY', 'multi_video_model');
         var envelope;
         try { envelope = parseExactJSON(responseText); } catch (error) { throw fail('multi_video_model 响应不是有效 JSON', 502, 'VIDEO_MODEL_INVALID_JSON', 'multi_video_model'); }
         return optionsFromEnvelope(vid, envelope, signal, 'multi_video_model', recordDiagnostic);
       }).catch(function (error) {
-        if (signal && signal.aborted || error && error.name === 'AbortError') throw preparationCancelled();
+        check();
+        if (error && error.name === 'AbortError') throw preparationCancelled();
         var stage = error && error.stage || (error && error.code === 'ACCOUNT_DEVICE' ? 'device_register' : 'multi_video_model_transport');
-        recordDiagnostic(Object.assign({}, diagnostic, { stage: stage,
-          code: error && error.code === 'ACCOUNT_DEVICE' ? 'DEVICE_REGISTRATION_FAILED' : error && error.code || 'VIDEO_MODEL_NETWORK' }));
-        var confirmedEmpty = error.code === 'VIDEO_MODEL_EMPTY' && diagnostic.http_status === 200;
-        identityState.emptyCount = confirmedEmpty ? identityState.emptyCount + 1 : 0;
+        // Registration failures must not inherit the previous host's HTTP 200.
+        recordDiagnostic(Object.assign({}, stage === 'device_register' ? {} : diagnostic, {
+          stage: stage, code: error && error.code === 'ACCOUNT_DEVICE' ? 'DEVICE_REGISTRATION_FAILED' : error && error.code || 'VIDEO_MODEL_NETWORK'
+        }));
         error.stage = stage;
         error.videoModel = Object.assign({}, diagnostic); delete error.videoModel.video_id;
         if (diagnostic.http_status) error.upstreamStatus = diagnostic.http_status;
-        if (identityState.emptyCount >= 3 && !identityState.replaced && (!retry.allowRetry || retry.allowRetry())) {
-          identityState.replaced = true;
-          if (typeof retry.onIdentityRefresh === 'function') retry.onIdentityRefresh();
-          return playbackIdentity.refreshAfterEmpty(usedDevice, signal).then(function () {
-            if (signal && signal.aborted) throw preparationCancelled();
-            if (retry.allowRetry && !retry.allowRetry()) throw error;
-            // Keep the existing phase budget (including an adopted prefetch),
-            // then allow at most three requests with the replacement identity.
-            maximum += 3;
-            identityState.emptyCount = 0;
-            if (typeof retry.onRetry === 'function') retry.onRetry(error, 0, offset + attempt);
-            return next();
-          }, function (refreshError) {
-            if (signal && signal.aborted || refreshError && refreshError.name === 'AbortError') throw preparationCancelled();
-            // Preserve the original empty-body diagnostic, including real HTTP
-            // 200, even when registration fails or is cooling down.
-            throw error;
-          });
-        }
-        if (identityState.attempts < 6 && attempt < maximum && (!retry.allowRetry || retry.allowRetry()) && (error.code === 'VIDEO_MODEL_EMPTY' ||
-            maxTransientRetries > transientRetries && transientVideoModelError(error))) {
-          var delay = offset + attempt === 1 ? 250 : 1000;
-          if (error.code !== 'VIDEO_MODEL_EMPTY') transientRetries++;
-          if (typeof retry.onRetry === 'function') retry.onRetry(error, delay, offset + attempt);
-          return recoveryDelay(signal, delay).then(function () {
-            if (retry.allowRetry && !retry.allowRetry()) throw error;
-            return next();
-          });
+        state.lastError = error;
+        var retryable = freshPlaybackRetryable(error);
+        if (state.attempts < 4 && attempt < maximum && allowed() && retryable && (state.host < 2 || state.rounds < 2)) {
+          var delay = state.attempts <= 1 ? 250 : 1000;
+          if (typeof retry.onRetry === 'function') retry.onRetry(error, delay, state.attempts);
+          return recoveryDelay(signal, delay).then(function () { check(); if (!allowed()) throw error; return next(); });
         }
         throw error;
       });
     }
-    // The current official client resolves playback through video_tab first.
-    // Keep the signed multi_video_model path below as a bounded compatibility
-    // fallback for older servers and devices that do not expose this route.
+    if (state.tabTried) return next();
+    state.tabTried = true;
     return videoTabOptions(vid, signal, retry).catch(function (error) {
-      if (signal && signal.aborted || error && error.name === 'AbortError') throw preparationCancelled();
+      check();
+      if (error && error.name === 'AbortError') throw preparationCancelled();
       if (error && error.code === 'ACCOUNT_DEVICE') throw error;
       if (typeof retry.onVideoTabFallback === 'function') retry.onVideoTabFallback(error);
       return next();
@@ -927,7 +911,7 @@
       return Promise.resolve(resultWithReport({ path: '/minireel-proxy/media/' + token + '.mp4', quality: quality || '', qualities: [], vid: vid, mode: 'full' }, preparationReports[token] || { media_mode: 'full', media_preparation_stage: 'ready' }, false, true));
     }
     var record = { users: 0, foregroundUsers: 0, speculative: !!prefetch, settled: false, resolveCancel: audioCancel.create(),
-      identityState: { attempts: 0, emptyCount: 0, device: null, replaced: false },
+      identityState: {},
       report: { media_mode: wantsRange ? 'range' : 'full', media_preparation_stage: 'resolve' } };
     rememberPreparation(token, record.report);
     var resolveStartedAt = Date.now();
@@ -941,11 +925,10 @@
     function identityRefreshing() { record.recoveryCancel = record.resolveCancel; }
     var job = measurePreparation(record.report, 'resolve', 'media_resolve_ms', function () {
       return videoOptions(vid, record.resolveCancel.signal, {
-        identityState: record.identityState, maxAttempts: prefetch ? 1 : 3,
-        maxTransientRetries: prefetch ? 0 : 2,
+        identityState: record.identityState, maxAttempts: prefetch ? 1 : 4,
         startedAt: resolveStartedAt, onRetry: retried, onDiagnostic: diagnostic, onIdentityRefresh: identityRefreshing, allowRetry: foregroundWaiting
       }).catch(function (error) {
-        if (!record.speculative || !record.foregroundUsers || !transientVideoModelError(error)) throw error;
+        if (!record.speculative || !record.foregroundUsers || record.identityState.attempts >= 4 || !freshPlaybackRetryable(error)) throw error;
         record.recoveryCancel = record.resolveCancel;
         // Keep this same job registered during backoff and recovery, so all
         // foreground callers share the remaining budget. No page retry loop.
@@ -953,7 +936,7 @@
         return recoveryDelay(record.recoveryCancel.signal).then(function () {
           if (!record.foregroundUsers || record.recoveryCancel.signal.aborted) throw preparationCancelled();
           return videoOptions(vid, record.recoveryCancel.signal, {
-            identityState: record.identityState, maxAttempts: error.code === 'VIDEO_MODEL_EMPTY' ? 2 : 1, attemptOffset: 1,
+            identityState: record.identityState, maxAttempts: 4 - record.identityState.attempts,
             startedAt: resolveStartedAt, onRetry: retried, onDiagnostic: diagnostic, onIdentityRefresh: identityRefreshing, allowRetry: foregroundWaiting
           });
         });
