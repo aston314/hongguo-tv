@@ -207,25 +207,26 @@
           <div class="follow-heading-main">
             <div class="follow-title-line">
               <h1 data-i18n="nav.follow">追更</h1>
-              <div class="follow-tabs" id="follow-tabs" data-focus-zone="followTabs" role="tablist" aria-label="追更与预约" data-i18n-aria-label="follow.sections">
-                <button type="button" class="follow-tab is-active" data-follow-view="follow" data-focus="follow-tab-follow" role="tab" aria-selected="true" data-i18n="nav.follow">追更</button>
-                <button type="button" class="follow-tab" data-follow-view="reservations" data-focus="follow-tab-reservations" role="tab" aria-selected="false" data-i18n="nav.reservations">预约</button>
+              <div class="follow-tabs" id="follow-tabs" data-focus-zone="followTabs" role="tablist" aria-label="更新提醒、追更与预约" data-i18n-aria-label="follow.sections">
+                <button type="button" class="follow-tab" id="follow-tab-notifications" data-follow-view="notifications" data-focus="follow-tab-notifications" role="tab" aria-selected="false" aria-controls="follow-notification-view"><span data-i18n="follow.notifications">更新提醒</span><span class="follow-notification-badge is-hidden" id="follow-notifications-badge"></span></button>
+                <button type="button" class="follow-tab is-active" id="follow-tab-follow" data-follow-view="follow" data-focus="follow-tab-follow" role="tab" aria-selected="true" aria-controls="follow-list-view" data-i18n="nav.follow">追更</button>
+                <button type="button" class="follow-tab" id="follow-tab-reservations" data-follow-view="reservations" data-focus="follow-tab-reservations" role="tab" aria-selected="false" aria-controls="reservations-view" data-i18n="nav.reservations">预约</button>
               </div>
             </div>
             <p data-i18n="follow.description">关注正在更新的短剧，看到新集会继续出现在这里。</p>
           </div>
-          <div class="follow-actions" data-focus-zone="followActions"><button class="library-toolbar-button follow-action" id="follow-notifications-open" data-focus="follow-notifications-open" data-i18n="follow.notifications">更新提醒<span class="follow-notification-badge is-hidden" id="follow-notifications-badge"></span></button><button class="library-toolbar-button follow-action" id="follow-refresh" data-focus="follow-refresh" data-i18n="common.refresh">刷新</button></div>
+          <div class="follow-actions" data-focus-zone="followActions"><button class="library-toolbar-button follow-action" id="follow-refresh" data-focus="follow-refresh" data-i18n="common.refresh">刷新</button></div>
         </div>
-        <div id="follow-list-view">
+        <div id="follow-list-view" role="tabpanel" aria-hidden="false" aria-labelledby="follow-tab-follow">
           <div class="follow-grid" id="follow-grid" data-focus-zone="followItems" aria-live="polite"></div>
           <div id="follow-pagination" class="list-status" role="status"></div>
         </div>
-        <div class="follow-notification-view is-hidden" id="follow-notification-view" aria-label="更新提醒" data-i18n-aria-label="follow.notifications">
-          <div class="follow-notification-heading"><button class="library-toolbar-button follow-notification-action" id="follow-notifications-back" data-focus="follow-notifications-back" data-i18n="follow.back">返回追更</button><div><strong data-i18n="follow.notifications">更新提醒</strong><button class="library-toolbar-button follow-notification-action" id="follow-notifications-read-all" data-focus="follow-notifications-read-all" data-i18n="follow.markAllRead">全部标为已读</button></div></div>
+        <div class="follow-notification-view is-hidden" id="follow-notification-view" role="tabpanel" aria-hidden="true" aria-label="更新提醒" data-i18n-aria-label="follow.notifications" aria-labelledby="follow-tab-notifications">
+          <div class="follow-notification-heading"><strong data-i18n="follow.notifications">更新提醒</strong><button class="library-toolbar-button follow-notification-action" id="follow-notifications-read-all" data-focus="follow-notifications-read-all" data-i18n="follow.markAllRead">全部标为已读</button></div>
           <p class="follow-notification-copy" data-i18n="follow.notificationCopy">追更更新和预约上线会保留在这里，关闭右下角提示也不会丢失。</p>
           <div class="follow-notification-list" id="follow-notification-list" data-focus-zone="followNotifications" aria-live="polite"></div>
         </div>
-        <div class="reservations-view is-hidden" id="reservations-view">
+        <div class="reservations-view is-hidden" id="reservations-view" role="tabpanel" aria-hidden="true" aria-labelledby="follow-tab-reservations">
           <div class="reservation-tabs" data-focus-zone="reservationTabs" role="tablist" aria-label="预约状态" data-i18n-aria-label="reservation.status">
             <button type="button" class="reservation-tab is-active" data-reservation-mode="online" data-focus="reservation-online" role="tab" aria-selected="true" data-i18n="common.online">已上线</button>
             <button type="button" class="reservation-tab" data-reservation-mode="upcoming" data-focus="reservation-upcoming" role="tab" aria-selected="false" data-i18n="common.upcoming">待上线</button>

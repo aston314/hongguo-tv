@@ -157,7 +157,6 @@
 .legacy-flex-gap .discussion-compose-actions > * + * { margin-left: 12px; }
 .legacy-flex-gap .detail-series-list > * + * { margin-top: 12px; }
 .legacy-flex-gap .follow-notification-heading > * + * { margin-left: 16px; }
-.legacy-flex-gap .follow-notification-heading > div > * + * { margin-left: 14px; }
 .legacy-flex-gap .follow-notification-list > * + * { margin-top: 10px; }
 .legacy-flex-gap .follow-notification-row > * + * { margin-left: 18px; }
 .legacy-grid .follow-notification-play-content > * + * { margin-left: 18px; }
