@@ -44,6 +44,13 @@ if (servicePackage.version !== app.version) fail('service package version must m
 if (!fs.existsSync(path.join(root, 'webos', 'service', servicePackage.main))) fail('service entry point is missing');
 var index = read(path.join(root, 'core', 'cmd', 'hongguotv', 'ui', 'index.html'));
 ['core-connection-modal', 'core-connection-scroll', 'core-connection-retry', 'core-connection-close'].forEach(function (id) { if (index.indexOf('id="' + id + '"') < 0) fail('shared UI missing connection diagnostic element ' + id); });
+if (index.indexOf('id="sidebar-follows"') < 0 || index.indexOf('id="follow-sidebar-badge"') < 0) fail('shared UI missing the follow unread marker in the sidebar');
+var sharedApp = read(path.join(root, 'core', 'cmd', 'hongguotv', 'ui', 'app.js'));
+if (sharedApp.indexOf("getElementById('follow-sidebar-badge')") < 0 || sharedApp.indexOf("getElementById('sidebar-follows')") < 0) fail('shared UI does not update the follow unread marker');
+var sharedCss = read(path.join(root, 'core', 'cmd', 'hongguotv', 'ui', 'app.css'));
+var compatCss = read(path.join(root, 'core', 'cmd', 'hongguotv', 'ui', 'compat.css'));
+if (sharedCss.indexOf('.side-notification-dot') < 0 || sharedCss.indexOf('.app-shell.sidebar-icons .side-item > .side-notification-dot') < 0) fail('shared UI is missing the follow unread marker styles');
+if (compatCss.indexOf('.legacy-flex-gap .side-item > .side-notification-dot') < 0) fail('shared UI is missing the legacy flex fallback for the follow unread marker');
 var scripts = [];
 index.replace(/(?:src|href)=["']([^"']+)["']/g, function (_, value) { if (/\.(?:js|css)$/.test(value)) scripts.push(value.replace(/^\//, '')); return value; });
 if (scripts.length < 10) fail('shared UI asset list unexpectedly small');
