@@ -998,6 +998,7 @@
   "ui.newDramaEmpty": "暫時沒有新劇內容。",
   "ui.followEmpty": "還沒有追更的短劇。開啟劇集詳情並選擇「追更」後，會顯示在這裡。",
   "ui.followLogin": "登入紅果帳號後查看追更。",
+  "ui.followHasUnread": "追更，有未讀更新提醒",
   "ui.followCaughtUp": "已追平",
   "ui.reservationListUnconfirmed": "紅果預約列表暫未確認這條記錄，請稍後重新整理核對",
   "ui.loginAccountFirst": "請先登入紅果帳號",

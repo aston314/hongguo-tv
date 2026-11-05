@@ -26,7 +26,7 @@ button:focus { outline: none; }
 .brand-mark svg { width: 18px; height: 18px; fill: currentColor; }
 .side-nav { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 5px; overflow-y: auto; margin-top: 20px; padding: 10px 8px; scrollbar-width: none; }
 .side-nav::-webkit-scrollbar { display: none; }
-.side-item { display: flex; align-items: center; gap: 15px; width: 100%; min-height: 54px; padding: 0 16px; font-size: 20px; text-align: left; color: #c5c5ce; background: transparent; border-radius: 13px; transition: none; }
+.side-item { position: relative; display: flex; align-items: center; gap: 15px; width: 100%; min-height: 54px; padding: 0 16px; font-size: 20px; text-align: left; color: #c5c5ce; background: transparent; border-radius: 13px; transition: none; }
 .side-item.is-active { color: #f35d7b; background: rgba(243,93,123,.22); font-weight: 700; }
 /* Leave room for the transformed focus ring inside the independently scrolling nav. */
 .side-item.is-focused, .side-item:focus:not(.pointer-focus-muted) { color: #fff; background: rgba(255,255,255,.17); box-shadow: 0 0 0 2px #fff; transform: scale(1.018); }
@@ -35,12 +35,14 @@ button:focus { outline: none; }
 .sidebar-bottom .side-item { flex-shrink: 0; }
 .sidebar-bottom .side-item + .side-item { margin-top: 5px; }
 .side-item-secondary { color: #c5c5ce; }
+.side-notification-dot { display: block; flex: 0 0 9px; width: 9px; height: 9px; margin-left: auto; border-radius: 50%; background: #f35d7b; box-shadow: 0 0 0 2px #15151c; }
 
 /* Both rail widths are fixed preferences; focus never changes the layout. */
 .app-shell.sidebar-icons .sidebar { flex-basis: 104px; }
 .app-shell.sidebar-icons .brand { flex-shrink: 0; justify-content: center; padding: 0; }
 .app-shell.sidebar-icons .brand > span:last-child,
 .app-shell.sidebar-icons .side-item > span { display: none; }
+.app-shell.sidebar-icons .side-item > .side-notification-dot { display: block; position: absolute; top: 6px; left: calc(50% + 12px); margin: 0; }
 .app-shell.sidebar-icons .brand-mark { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 13px; }
 .app-shell.sidebar-icons .brand-mark svg { width: 26px; height: 26px; }
 .app-shell.sidebar-icons .side-item { display: block; flex-shrink: 0; padding: 9px 0; text-align: center; }

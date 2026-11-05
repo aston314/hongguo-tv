@@ -70,6 +70,7 @@
 .legacy-flex-gap .brand > * + * { margin-left: 11px; }
 .legacy-flex-gap .side-item + .side-item { margin-top: 5px; }
 .legacy-flex-gap .side-item > * + * { margin-left: 15px; }
+.legacy-flex-gap .side-item > .side-notification-dot { margin-left: auto; }
 .legacy-flex-gap .app-shell.sidebar-icons .brand-mark,
 .legacy-flex-gap .app-shell.sidebar-icons .brand > * + *,
 .legacy-flex-gap .app-shell.sidebar-icons .side-item > * + * { margin-left: 0; }

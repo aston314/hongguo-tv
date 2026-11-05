@@ -1001,6 +1001,7 @@
     'ui.newDramaEmpty': '暂时没有新剧内容。',
     'ui.followEmpty': '还没有追更的短剧。打开剧集详情并选择“追更”后，会显示在这里。',
     'ui.followLogin': '登录红果账号后查看追更。',
+    'ui.followHasUnread': '追更，有未读更新提醒',
     'ui.followCaughtUp': '已追平',
     'ui.reservationListUnconfirmed': '红果预约列表暂未确认这条记录，请稍后刷新核对',
     'ui.loginAccountFirst': '请先登录红果账号',

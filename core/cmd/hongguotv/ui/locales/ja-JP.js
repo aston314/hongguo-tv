@@ -998,6 +998,7 @@
   "ui.newDramaEmpty": "新作の内容はありません。",
   "ui.followEmpty": "フォロー中のドラマはありません。作品詳細で「フォロー」を選ぶとここに表示されます。",
   "ui.followLogin": "Hongguoアカウントにログインするとフォローを確認できます。",
+  "ui.followHasUnread": "フォローに未読の更新通知があります",
   "ui.followCaughtUp": "追いつき済み",
   "ui.reservationListUnconfirmed": "Hongguo予約1覧まだ確認できませんこの項目記録，しばらくお待ちください更新核対",
   "ui.loginAccountFirst": "先にHongguoアカウントへログインしてください",

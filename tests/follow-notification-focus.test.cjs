@@ -5,6 +5,8 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'), 'utf8');
 const html = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/index.html'), 'utf8');
+const appCss = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.css'), 'utf8');
+const compatCss = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/compat.css'), 'utf8');
 function slice(from, to) {
   return source.slice(source.indexOf('  function ' + from + '('), source.indexOf('  function ' + to + '('));
 }
@@ -70,7 +72,8 @@ function fixture(count = 3, options = {}) {
   const notificationList = node('follow-notification-list', '', view);
   const reservationsView = node('reservations-view', 'reservations-view is-hidden', root);
   const reservation = node('reservation-online', 'reservation-tab is-active', reservationsView, 300, 120, 'button');
-  const sidebar = node('sidebar', 'side-item', null, 0, 60, 'button');
+  const sidebar = node('sidebar-follows', 'side-item', null, 0, 60, 'button');
+  const sidebarBadge = node('follow-sidebar-badge', 'side-notification-dot is-hidden', sidebar, 45, 52, 'span');
   const plays = [], details = [];
   for (let i = 0; i < count; i++) {
     const row = node('row-' + i, 'follow-notification-row', notificationList, 300, 200 + i * 190);
@@ -106,17 +109,18 @@ function fixture(count = 3, options = {}) {
       followItems: '.follow-card', reservationTabs: '.reservation-tab'
     },
     activeSidebar: () => sidebar,
-    renderNotificationBadge() {}, renderReservations() {}, queueTailCheck() {},
+    renderReservations() {}, queueTailCheck() {},
     notificationCheck() {}, renderMessage() {}, uiText: (key, fallback) => fallback,
     goFocus(n) { if (n && !n.disabled) context.document.activeElement = n; },
     listBoundary: () => null
   });
   vm.runInContext(slice('zoneOf', 'goFocus') + slice('moveWithinZone', 'accountKeypadOpen') +
+    slice('renderNotificationBadge', 'updateFollowNotificationAccess') +
     slice('renderFollowNotifications', 'acceptNotificationData') + slice('firstFollowViewFocus', 'submitSearch'), context);
-  return { c: context, root, notificationsTab, follow, reservations, refresh, actions, list, grid, view, readAll, notificationList, reservationsView, reservation, card, plays, details, sidebar, node, visible };
+  return { c: context, root, notificationsTab, follow, reservations, refresh, actions, list, grid, view, readAll, notificationList, reservationsView, reservation, card, plays, details, sidebar, sidebarBadge, node, visible };
 }
 
-test('follow page exposes three sibling tabs with matching panels and no nested return action', () => {
+test('follow page exposes three sibling tabs and a sidebar notification indicator', () => {
   for (const [id, panel] of [['follow-tab-notifications', 'follow-notification-view'], ['follow-tab-follow', 'follow-list-view'], ['follow-tab-reservations', 'reservations-view']]) {
     const tag = html.match(new RegExp('<button[^>]*\\bid="' + id + '"[^>]*>'))?.[0];
     assert.ok(tag, `${id} has a stable DOM id`);
@@ -124,6 +128,28 @@ test('follow page exposes three sibling tabs with matching panels and no nested 
     assert.match(html, new RegExp('aria-labelledby="' + id + '"'));
   }
   assert.doesNotMatch(html, /follow-notifications-(?:open|back)/);
+  assert.match(html, /id="sidebar-follows"[^>]*>[\s\S]*?id="follow-sidebar-badge"/);
+  assert.match(html, /id="sidebar-follows"[^>]*aria-label="追更"(?![^>]*data-i18n-aria-label)/);
+  assert.match(appCss, /\.side-notification-dot\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(appCss, /\.app-shell\.sidebar-icons \.side-item > \.side-notification-dot\s*\{[^}]*position:\s*absolute/);
+  assert.match(compatCss, /\.legacy-flex-gap \.side-item > \.side-notification-dot\s*\{[^}]*margin-left:\s*auto/);
+  assert.match(source, /var label = item\.querySelector\('\[data-i18n\]'\);/);
+});
+
+test('the sidebar dot mirrors unread reminders, clears only when unread reaches zero, and stays hidden when logged out', () => {
+  const f = fixture(3, { unread: 1 });
+  f.c.renderNotificationBadge();
+  assert.equal(f.sidebarBadge.classList.contains('is-hidden'), false);
+  assert.equal(f.sidebar.attributes['aria-label'], '追更，有未读更新提醒');
+
+  vm.runInContext(slice('acceptNotificationData', 'notificationCheck'), f.c);
+  f.c.acceptNotificationData({ items: [], unread_count: 0 }, false);
+  assert.equal(f.sidebarBadge.classList.contains('is-hidden'), true);
+  assert.equal(f.sidebar.attributes['aria-label'], '追更');
+
+  const loggedOut = fixture(0, { loggedIn: false, unread: 2 });
+  loggedOut.c.renderNotificationBadge();
+  assert.equal(loggedOut.sidebarBadge.classList.contains('is-hidden'), true);
 });
 
 test('all three follow tabs switch sibling panels and keep the selected tab synchronized', () => {

@@ -2359,11 +2359,18 @@
     } catch (ignored) {}
   }
   function renderNotificationBadge() {
+    var unread = notificationAccountKey() ? followNotificationUnread : 0;
     var badge = document.getElementById('follow-notifications-badge');
-    if (!badge) return;
-    badge.textContent = followNotificationUnread > 99 ? '99+' : String(followNotificationUnread);
-    badge.classList.toggle('is-hidden', followNotificationUnread < 1);
+    if (badge) {
+      badge.textContent = unread > 99 ? '99+' : String(unread);
+      badge.classList.toggle('is-hidden', unread < 1);
+    }
+    var sidebarBadge = document.getElementById('follow-sidebar-badge');
+    if (sidebarBadge) sidebarBadge.classList.toggle('is-hidden', unread < 1);
+    var sidebarItem = document.getElementById('sidebar-follows');
+    if (sidebarItem) sidebarItem.setAttribute('aria-label', unread > 0 ? uiText('ui.followHasUnread', '追更，有未读更新提醒') : uiText('nav.follow', '追更'));
   }
+  if (window.HongguoI18n && typeof window.HongguoI18n.onChange === 'function') window.HongguoI18n.onChange(renderNotificationBadge);
   function updateFollowNotificationAccess() {
     var button = document.getElementById('follow-notifications-read-all');
     if (button) button.disabled = !notificationAccountKey() || followNotificationUnread < 1;
@@ -7715,7 +7722,7 @@
     document.getElementById('hero-video').pause();
     resetPlayerUI();
     document.querySelectorAll('.side-item').forEach(function (node) { node.classList.toggle('is-active', node === item); });
-    var label = item.querySelector('span:last-child');
+    var label = item.querySelector('[data-i18n]');
     shell.dataset.mode = item.dataset.page || 'recommend';
     if (typeof syncNativePlaybackPageState === 'function') syncNativePlaybackPageState();
     document.getElementById('page-context').textContent = label ? label.textContent : uiText('ui.page', '页面');
