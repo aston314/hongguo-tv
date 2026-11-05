@@ -20,7 +20,7 @@ Release APK workflow 用四项 ANDROID_KEYSTORE/KEY Secrets 恢复临时密钥�
 
 0.2.2 的 Android 子进程使用 `-port 0 -instance-id <随机实例> -parent-pid <Android宿主PID>`。Go 完成绑定后在自身 stdout 输出 `HONGGUO_TV_READY <端口> <实例>`。壳只解析自己启动的子进程输出，随后核对 `/api/v1/status` 的服务名、实例和精确构建版本，核对通过才加载 WebView。壳和 Go 的版本均来自同一个 HONGGUO_CORE_VERSION（版本号+commit）。错误实例、旧版本和不完整响应不会进入页面。
 
-Android 宿主结束后，Go 检查实际父进程变化并退出，减少新的孤儿核心。不会终止其它应用或此前未知的旧进程。桌面预览未指定 parent-pid 时保留原行为。
+Android 核心只由前台 Activity 启动，`CoreService` 使用 `START_NOT_STICKY`，不会在开机、应用更新或系统回收后自行重建。用户确认退出或移除应用任务时，Activity 停止该服务，服务再销毁 Go 核心。Go 仍检查实际父进程变化并退出，作为异常终止时的孤儿核心保护；它不会终止其它应用或此前未知的旧进程。桌面端在窗口关闭时主动停止核心，并继续使用 `parent-pid` 作为异常退出保护。Android MPV 是嵌入式 `libmpv`，没有需要 `--exit-with-parent` 的独立 mpv 进程。
 
 账号、历史与收藏仍存 files/hongguo-tv，媒体仍存 cache/minireel。动态端口会改变浏览器 origin，APK 的倍速、清晰度、弹幕设置因此改存 Android SharedPreferences；桌面预览仍用 localStorage。版本显示在原生启动页，网页连接状态的 title 显示实际核心版本。
 

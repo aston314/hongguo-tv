@@ -44,7 +44,19 @@ public class CoreService extends Service {
         startForegroundCompat();
         startProcess();
         startRequested = false;
-        return START_STICKY;
+        // The core is owned by the foreground app session. Android must not
+        // recreate it after the user exits the app or the process is killed.
+        // MainActivity explicitly stops this service on confirmed exit, while
+        // -parent-pid remains the last-resort orphan guard for the Go child.
+        return START_NOT_STICKY;
+    }
+
+    @Override
+    public void onTaskRemoved(Intent rootIntent) {
+        // Removing the app task is an explicit user-level close on TV launchers.
+        // Stop the service so the Go core cannot remain as a background process.
+        stopSelf();
+        super.onTaskRemoved(rootIntent);
     }
 
     @Override

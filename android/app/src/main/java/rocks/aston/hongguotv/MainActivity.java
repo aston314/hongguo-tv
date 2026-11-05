@@ -733,7 +733,10 @@ public class MainActivity extends Activity {
         exitDialog = new AlertDialog.Builder(this)
                 .setTitle("退出红果短剧？")
                 .setNegativeButton("取消", (dialog, which) -> dialog.dismiss())
-                .setPositiveButton("退出", (dialog, which) -> finish())
+                .setPositiveButton("退出", (dialog, which) -> {
+                    stopCoreService();
+                    finish();
+                })
                 .create();
         exitDialog.setOnShowListener(dialog -> exitDialog.getButton(AlertDialog.BUTTON_NEGATIVE).requestFocus());
         exitDialog.setOnDismissListener(dialog -> scheduleFullscreen());
@@ -811,6 +814,11 @@ public class MainActivity extends Activity {
             webView.destroy();
             webView = null;
         }
+        if (isFinishing()) stopCoreService();
         super.onDestroy();
+    }
+
+    private void stopCoreService() {
+        stopService(new Intent(this, CoreService.class));
     }
 }
