@@ -647,7 +647,7 @@ final class AppUpdater {
         try {
             JSONObject value = new JSONObject();
             value.put("supported", !BuildConfig.DEBUG); value.put("current_version", BuildConfig.VERSION_NAME);
-            value.put("variant", BuildConfig.VARIANT_ID); value.put("edition", "mpv".equals(BuildConfig.VARIANT_ID) ? "MPV 版" : "标准版");
+            value.put("variant", BuildConfig.VARIANT_ID); value.put("edition", UpdatePolicy.edition(BuildConfig.VARIANT_ID));
             value.put("current_code", BuildConfig.VERSION_CODE); value.put("state", state); value.put("message", message);
             value.put("downloaded", downloaded);
             value.put("latest_version", latest == null ? "" : latest.name);

@@ -1,0 +1,63 @@
+name: Build and verify Android 5 compatibility APK
+description: Isolated API21 native build, APK checks, and real-core emulator smoke
+inputs:
+  build-type:
+    description: release with the existing signing environment, or debug
+    default: release
+outputs:
+  apk:
+    description: Verified APK path
+    value: ${{ steps.build.outputs.apk }}
+runs:
+  using: composite
+  steps:
+    - name: Build API21 native cores in an isolated directory
+      shell: bash
+      env:
+        ANDROID_API: '21'
+        VERSION: ${{ env.HONGGUO_CORE_VERSION }}
+      run: bash scripts/build_android_binaries.sh
+    - name: Build, test and lint Android 5 compatibility APK
+      id: build
+      shell: bash
+      env:
+        BUILD_TYPE: ${{ inputs.build-type }}
+      run: |
+        case "$BUILD_TYPE" in
+          release) tasks='testStandardReleaseUnitTest assembleStandardRelease lintStandardRelease'; verify_flags='' ;;
+          debug) tasks='testStandardDebugUnitTest assembleStandardDebug lintStandardDebug'; verify_flags='--debug' ;;
+          *) echo 'Unsupported build type' >&2; exit 1 ;;
+        esac
+        gradle --no-daemon --max-workers=1 --stacktrace -p android -Pandroid5Compat=true $tasks
+        mkdir -p "$RUNNER_TEMP/android5-verification"
+        apk="$GITHUB_WORKSPACE/android/app/build/android5/outputs/apk/standard/$BUILD_TYPE/app-standard-$BUILD_TYPE.apk"
+        python3 scripts/verify_android5_apk.py --apk "$apk" --version "$APP_VERSION" --code "$ANDROID5_VERSION_CODE" --core-version "$HONGGUO_CORE_VERSION" $verify_flags | tee "$RUNNER_TEMP/android5-verification/apk-verification.json"
+        cat "$RUNNER_TEMP/android5-verification/apk-verification.json" >> "$GITHUB_STEP_SUMMARY"
+        echo "apk=$apk" >> "$GITHUB_OUTPUT"
+    - name: Fetch the original signed API21 test package for covering install
+      if: inputs.build-type == 'release'
+      shell: bash
+      run: |
+        curl --fail --location --retry 3 --output "$RUNNER_TEMP/android5-verification/previous.apk" 'https://github.com/aston314/hongguo-tv-releases/releases/download/android5-compat-0.2.136-test.1/hongguo-tv-android5-test.1.apk'
+        echo "5b8a97677d150a5150debd230c7db7359aeefa5c9e80668d195f6a0d19ed2e03  $RUNNER_TEMP/android5-verification/previous.apk" | sha256sum --check
+    - name: Enable emulator acceleration
+      shell: bash
+      run: |
+        echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+        sudo udevadm control --reload-rules
+        sudo udevadm trigger --name-match=kvm
+    - name: Verify install, native core, WebView, updater and relaunch on API21
+      uses: reactivecircus/android-emulator-runner@v2
+      env:
+        COMPAT_APK: ${{ steps.build.outputs.apk }}
+        COMPAT_BUILD_TYPE: ${{ inputs.build-type }}
+      with:
+        api-level: 21
+        arch: x86_64
+        target: default
+        disable-animations: true
+        emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+        script: python3 scripts/smoke_android5.py --apk "$COMPAT_APK" --output "$RUNNER_TEMP/android5-verification" --core-version "$HONGGUO_CORE_VERSION" $(if [ "$COMPAT_BUILD_TYPE" = release ]; then echo "--previous $RUNNER_TEMP/android5-verification/previous.apk"; else echo --debug; fi)
+    - name: Record emulator results
+      shell: bash
+      run: cat "$RUNNER_TEMP/android5-verification/android5-emulator-verification.json" >> "$GITHUB_STEP_SUMMARY"

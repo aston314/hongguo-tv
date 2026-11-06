@@ -28,6 +28,7 @@
 - [GitHub Actions 构建方案](docs/build-plan.md)
 - [双版本播放与更新](docs/player-editions.md)
 - [MPV 库源码、构建和替换](docs/mpv-library-source.md)
+- [Android 5 兼容包与独立在线更新](docs/android5-compat.md)
 
 ## 当前实现
 

@@ -6,6 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 import subprocess
+import shutil
 import re
 import zipfile
 from urllib.parse import quote
@@ -89,18 +90,18 @@ def parse_sums(text):
 
 def verify_bundle(directory):
     manifests, binaries = {}, []
-    for channel, variant in [('update.json','standard'), ('update-mpv.json','mpv')]:
+    for channel, variant in [('update.json','standard'), ('update-mpv.json','mpv'), ('update-android5.json','android5')]:
         path = directory / channel
         if not path.exists():
             if variant == 'standard': raise ValueError('Missing standard update manifest')
             continue
         manifest = json.loads(path.read_text()); version = manifest['version_name']
         if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version): raise ValueError('Invalid version')
-        if manifest.get('variant', 'standard') != variant or manifest['package_name'] != 'rocks.aston.hongguotv' + ('.mpv' if variant == 'mpv' else ''):
+        if manifest.get('variant', 'standard') != variant or manifest['package_name'] != 'rocks.aston.hongguotv' + {'mpv': '.mpv', 'android5': '.android5test'}.get(variant, ''):
             raise ValueError('Cross-edition update manifest')
-        if type(manifest['version_code']) != int or manifest['version_code'] <= 0 or manifest['min_sdk'] < 23:
+        if type(manifest['version_code']) != int or manifest['version_code'] <= 0 or (manifest['min_sdk'] != 21 if variant == 'android5' else manifest['min_sdk'] < 23):
             raise ValueError('Invalid update version/SDK')
-        apk = directory / f'hongguo-tv-{"mpv-" if variant == "mpv" else ""}{version}.apk'
+        apk = directory / f'hongguo-tv-{"" if variant == "standard" else variant + "-"}{version}.apk'
         if digest(apk) != manifest['sha256'] or apk.stat().st_size != manifest['size']:
             raise ValueError('APK differs from update manifest')
         base = f'https://github.com/{REPOSITORY}/releases/download/v{version}/'
@@ -132,6 +133,22 @@ def read_channel(channel):
     if '404' not in result.stderr: raise RuntimeError(result.stderr.strip() or 'Cannot read previous update channel')
     return None, None
 
+def stage_public_bundle(source, destination):
+    """Copy exact signed APK bytes; retain only public manifests and checksums."""
+    manifests, _ = verify_bundle(source)
+    destination.mkdir(parents=True, exist_ok=True)
+    binaries = []
+    for channel, original in manifests.items():
+        manifest = dict(original)
+        manifest.pop('library_source', None)
+        filename = manifest['download_url'].rsplit('/', 1)[-1]
+        target = destination / filename
+        shutil.copyfile(source / filename, target)
+        binaries.append(target)
+        (destination / channel).write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+    (destination / 'SHA256SUMS.txt').write_text(''.join(digest(p) + '  ' + p.name + '\n' for p in binaries))
+    verify_bundle(destination)
+
 def may_update(previous, manifest):
     if previous is None: return True
     if previous['version_code'] > manifest['version_code']: return False
@@ -145,7 +162,7 @@ def publish(directory, notes):
     if repo['private'] or repo['default_branch'] != 'main':
         raise ValueError('Download repository must be public with a main branch')
     version = manifests['update.json']['version_name']; tag = f'v{version}'
-    # Read BOTH channels and reject conflicting bytes before any mutation.
+    # Check every included channel for conflicting bytes before any mutation.
     for channel, manifest in manifests.items(): may_update(read_channel(channel)[1], manifest)
     release = release_by_tag(tag)
     if release is not None:

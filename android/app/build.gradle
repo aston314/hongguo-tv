@@ -3,14 +3,19 @@ plugins {
 }
 
 def appVersion = "0.2.149"
+def android5Compat = providers.gradleProperty("android5Compat").orNull == "true"
 def mpvVersionCode = 100
 def coreVersion = System.getenv("HONGGUO_CORE_VERSION") ?: "${appVersion}-dev"
 def signingVariables = ["ANDROID_KEYSTORE_FILE", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"]
 def releaseSigningReady = signingVariables.every { System.getenv(it) }
+// Isolate Gradle outputs as well as native input directories.
+if (android5Compat) layout.buildDirectory = file("build/android5")
 
 android {
     namespace "rocks.aston.hongguotv"
     compileSdk 36
+    // Keep API21 outputs and native binaries out of the normal editions' caches.
+    sourceSets.main.jniLibs.srcDirs = [android5Compat ? "src/android5/jniLibs" : "src/main/jniLibs"]
 
     flavorDimensions "player"
 
@@ -21,6 +26,8 @@ android {
         versionCode 148
         versionName appVersion
         buildConfigField "String", "CORE_VERSION", "\"${coreVersion}\""
+        buildConfigField "boolean", "ANDROID5_COMPAT", android5Compat.toString()
+        manifestPlaceholders = [deepLinkScheme: android5Compat ? "hongguo-android5-test" : "hongguo"]
         ndk {
             abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"
         }
@@ -29,8 +36,13 @@ android {
     productFlavors {
         standard {
             dimension "player"
-            resValue "string", "app_name", "红果短剧"
-            buildConfigField "String", "VARIANT_ID", '"standard"'
+            if (android5Compat) {
+                // Preserve the API21 test package so its users can upgrade in place.
+                applicationIdSuffix ".android5test"
+                minSdk 21
+            }
+            resValue "string", "app_name", android5Compat ? "红果短剧 · Android 5 兼容版" : "红果短剧"
+            buildConfigField "String", "VARIANT_ID", android5Compat ? '"android5"' : '"standard"'
             buildConfigField "String", "PLAYER_ENGINE", '"webview_media3"'
         }
         mpv {
@@ -61,7 +73,7 @@ android {
         debug {
             applicationIdSuffix ".debug"
             versionNameSuffix "-debug"
-            resValue "string", "app_name", "红果短剧"
+            resValue "string", "app_name", android5Compat ? "红果短剧 · Android 5 兼容版" : "红果短剧"
         }
         release {
             minifyEnabled false
@@ -78,6 +90,9 @@ android {
 
 // Never upload an unsigned APK when release credentials are missing.
 gradle.taskGraph.whenReady { graph ->
+    if (android5Compat && graph.allTasks.any { it.name.toLowerCase().contains("mpv") }) {
+        throw new GradleException("Android 5 compatibility packaging supports the standard player only")
+    }
     if (graph.allTasks.any { it.name.startsWith("validateSigning") && it.name.endsWith("Release") } && !releaseSigningReady) {
         throw new GradleException("Release signing requires all four Android signing environment variables")
     }

@@ -24,6 +24,8 @@
 
 两个 APK 支持同一组 Android ABI。MPV 版与标准版是独立应用，可以同时安装，但账号、历史和设置分别保存。
 
+提供 Android 5 兼容包的版本会额外附带 `hongguo-tv-android5-<版本号>.apk`，适用 Android 5.0/5.1，沿用标准版播放方式。已安装旧 Android 5 测试包的用户首次需手动覆盖安装，此后可使用独立在线更新；不承诺适配所有老电视固件与解码器。
+
 ## 桌面版
 
 [桌面版 0.2.149](https://github.com/aston314/hongguo-tv-releases/releases/tag/desktop-v0.2.149) 提供 macOS 通用 ZIP 和 Windows x64 ZIP。macOS 需要 11 或更高版本；Windows 需要 Microsoft Edge WebView2 Runtime，播放 HEVC 还需要系统 HEVC Video Extensions。
@@ -38,6 +40,6 @@
 
 ## 更新与反馈
 
-Android 标准版使用 `update.json`，MPV 版使用 `update-mpv.json`。普通用户只需下载 APK；更新清单和校验文件用于应用内更新或核对文件完整性。
+Android 标准版使用 `update.json`，MPV 版使用 `update-mpv.json`，Android 5 兼容版使用 `update-android5.json`。普通用户只需下载 APK；更新清单和校验文件用于应用内更新或核对文件完整性。
 
 播放异常请附设备型号、Android/webOS/桌面系统版本、使用的安装包，以及应用内“播放诊断”截图。Windows 播放 HEVC 时请同时确认系统已安装 HEVC Video Extensions。

@@ -4,6 +4,31 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class UpdatePolicyTest {
+    @Test public void android5HasAnIsolatedChannelAndCanUpgradeTheOldTestPackage() {
+        assertTrue(UpdatePolicy.manifestUrl("android5").endsWith("/update-android5.json"));
+        assertEquals("Android 5 兼容版", UpdatePolicy.edition("android5"));
+        String pkg = "rocks.aston.hongguotv.android5test";
+        String sha = new String(new char[64]).replace('\0', 'a');
+        String url = "https://github.com/aston314/hongguo-tv-releases/releases/download/v0.2.150/hongguo-tv-android5-0.2.150.apk";
+        UpdatePolicy.validateVariant("android5", "android5", pkg, 21);
+        UpdatePolicy.validate(pkg, 149, "0.2.150", 21, 100, sha, url, pkg, 1, "0.2.136-android5-test.1");
+        assertTrue(UpdatePolicy.matchingArchive(pkg, 1, pkg, 149, "0.2.150", 149, "0.2.150", new String[]{"original"}, new String[]{"original"}));
+        assertFalse(UpdatePolicy.matchingArchive(pkg, 1, pkg, 149, "0.2.150", 149, "0.2.150", new String[]{"original"}, new String[]{"other"}));
+        for (String[] values : new String[][]{{"android5", "standard", pkg},
+                {"android5", "android5", "rocks.aston.hongguotv"},
+                {"standard", "android5", pkg}, {"mpv", "android5", pkg}}) {
+            try { UpdatePolicy.validateVariant(values[0], values[1], values[2], 21); fail("cross-edition accepted"); }
+            catch (IllegalArgumentException expected) { /* expected */ }
+        }
+        for (int sdk : new int[]{20, 22, 23}) {
+            try { UpdatePolicy.validateVariant("android5", "android5", pkg, sdk); fail("incompatible SDK accepted"); }
+            catch (IllegalArgumentException expected) { /* expected */ }
+        }
+        for (String bad : new String[]{url.replace("android5-", ""), url.replace("android5-", "mpv-")}) {
+            try { UpdatePolicy.validate(pkg, 149, "0.2.150", 21, 100, sha, bad, pkg, 1, "0.2.136-android5-test.1"); fail("foreign URL accepted"); }
+            catch (IllegalArgumentException expected) { /* expected */ }
+        }
+    }
     @Test public void editionsUseIndependentChannelsAndCannotCrossInstall() {
         assertTrue(UpdatePolicy.manifestUrl("standard").endsWith("/update.json"));
         assertTrue(UpdatePolicy.manifestUrl("mpv").endsWith("/update-mpv.json"));

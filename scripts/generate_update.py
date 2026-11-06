@@ -11,11 +11,12 @@ import zipfile
 PUBLIC_REPOSITORY = 'aston314/hongguo-tv-releases'
 
 def generate(apk, version, code, min_sdk, notes, variant='standard', library_source=None):
-    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version) or code <= 0 or min_sdk < 23:
+    if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version) or code <= 0:
         raise ValueError('Invalid Android release version')
-    if variant not in ('standard', 'mpv') or min_sdk < 23:
+    if variant not in ('standard', 'mpv', 'android5') or (min_sdk != 21 if variant == 'android5' else min_sdk < 23):
         raise ValueError('Invalid release variant or minimum SDK')
-    if apk.name != f'hongguo-tv-{"mpv-" if variant == "mpv" else ""}{version}.apk':
+    prefix = '' if variant == 'standard' else variant + '-'
+    if apk.name != f'hongguo-tv-{prefix}{version}.apk':
         raise ValueError('APK filename and version disagree')
     size = apk.stat().st_size
     if not 0 < size <= 100 * 1024 * 1024:
@@ -27,7 +28,7 @@ def generate(apk, version, code, min_sdk, notes, variant='standard', library_sou
     if len(text) > 16000:
         raise ValueError('Release notes too long')
     result = {'schema': 1, 'variant': variant,
-            'package_name': 'rocks.aston.hongguotv' + ('.mpv' if variant == 'mpv' else ''), 'version_code': code,
+            'package_name': 'rocks.aston.hongguotv' + ({'mpv': '.mpv', 'android5': '.android5test'}.get(variant, '')), 'version_code': code,
             'version_name': version, 'min_sdk': min_sdk, 'size': size,
             'sha256': hashlib.sha256(apk.read_bytes()).hexdigest(),
             'download_url': f'https://github.com/{PUBLIC_REPOSITORY}/releases/download/v{version}/{apk.name}',
@@ -48,7 +49,7 @@ if __name__ == '__main__':
     parser.add_argument('--min-sdk', type=int, required=True)
     parser.add_argument('--notes', type=Path, required=True)
     parser.add_argument('--out', type=Path, required=True)
-    parser.add_argument('--variant', choices=['standard', 'mpv'], default='standard')
+    parser.add_argument('--variant', choices=['standard', 'mpv', 'android5'], default='standard')
     parser.add_argument('--library-source', type=Path)
     args = parser.parse_args()
     result = generate(args.apk, args.version, args.code, args.min_sdk, args.notes, args.variant, args.library_source)

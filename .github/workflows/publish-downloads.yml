@@ -39,6 +39,8 @@ jobs:
           allowed = [f'hongguo-tv-{version}.apk', 'SHA256SUMS.txt', 'update.json']
           if 'update-mpv.json' in names:
               allowed += [f'hongguo-tv-mpv-{version}.apk', f'hongguo-tv-mpv-library-source-{version}.zip', 'update-mpv.json']
+          if 'update-android5.json' in names:
+              allowed += [f'hongguo-tv-android5-{version}.apk', 'update-android5.json']
           if not set(allowed).issubset(names): raise ValueError('Missing signed release files')
           command = ['gh', 'release', 'download', tag, '--repo', os.environ['GITHUB_REPOSITORY'], '--dir', os.environ['RUNNER_TEMP'] + '/signed-download']
           for name in allowed: command += ['--pattern', name]
@@ -48,27 +50,15 @@ jobs:
           import os, sys
           from pathlib import Path
           sys.path.insert(0, 'scripts')
-          from publish_public_release import verify_bundle
+          from publish_public_release import verify_bundle, stage_public_bundle
           folder = Path(os.environ['RUNNER_TEMP']) / 'signed-download'
           manifests, files = verify_bundle(folder)
           metadata = manifests['update.json']
           assert 'v' + metadata['version_name'] == os.environ['RELEASE_TAG']
           (folder / 'release-notes.md').write_text(metadata['release_notes'])
+          stage_public_bundle(folder, Path(os.environ['RUNNER_TEMP']) / 'public-download')
           print('Verified exact signed release files:', ', '.join(p.name for p in files))
           PY
-          mkdir -p "$RUNNER_TEMP/public-download"
-          cp "$RUNNER_TEMP/signed-download/hongguo-tv-$version.apk" "$RUNNER_TEMP/public-download/"
-          cp "$RUNNER_TEMP/signed-download/hongguo-tv-mpv-$version.apk" "$RUNNER_TEMP/public-download/"
-          cp "$RUNNER_TEMP/signed-download/update.json" "$RUNNER_TEMP/public-download/"
-          python3 - <<'PY'
-          import json, os, subprocess
-          from pathlib import Path
-          folder = Path(os.environ['RUNNER_TEMP']) / 'public-download'
-          private = json.loads((Path(os.environ['RUNNER_TEMP']) / 'signed-download' / 'update-mpv.json').read_text())
-          private.pop('library_source', None)
-          (folder / 'update-mpv.json').write_text(json.dumps(private, ensure_ascii=False, indent=2) + '\n')
-          PY
-          (cd "$RUNNER_TEMP/public-download" && sha256sum "hongguo-tv-$version.apk" "hongguo-tv-mpv-$version.apk" > SHA256SUMS.txt)
           cp "$RUNNER_TEMP/signed-download/release-notes.md" "$RUNNER_TEMP/public-download/release-notes.md"
       - name: Publish only the verified download files
         env:

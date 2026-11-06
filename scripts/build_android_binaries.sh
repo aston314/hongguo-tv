@@ -2,9 +2,13 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT_DIR="$ROOT_DIR/android/app/src/main/jniLibs"
 VERSION="${VERSION:-dev}"
 ANDROID_API="${ANDROID_API:-23}"
+if [[ "$ANDROID_API" = 21 ]]; then
+  OUT_DIR="$ROOT_DIR/android/app/src/android5/jniLibs"
+else
+  OUT_DIR="$ROOT_DIR/android/app/src/main/jniLibs"
+fi
 TOOLCHAIN_DIR="${ANDROID_NDK_TOOLCHAIN_DIR:-}"
 
 rm -rf "$OUT_DIR"

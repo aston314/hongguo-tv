@@ -26,4 +26,5 @@ if __name__ == '__main__':
     with args.github_env.open('a') as output:
         output.write(f'APP_VERSION={version}\nAPP_VERSION_CODE={code}\nAPP_MIN_SDK={sdk}\nHONGGUO_CORE_VERSION={version}-{sha}\n')
         output.write(f'MPV_VERSION_CODE={mpv_code}\nMPV_MIN_SDK=23\n')
+        output.write(f'ANDROID5_VERSION_CODE={code}\nANDROID5_MIN_SDK=21\n')
     print(f'Build version {version}, code {code}, minimum SDK {sdk}')

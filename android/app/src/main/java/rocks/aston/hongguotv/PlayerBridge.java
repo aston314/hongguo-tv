@@ -115,7 +115,7 @@ final class PlayerBridge implements NativePlayerAdapter {
         });
         web.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->applyBounds());
     }
-    static boolean nativePlaybackAvailable(int sdk) { return sdk >= 23; }
+    static boolean nativePlaybackAvailable(int sdk) { return sdk >= (BuildConfig.ANDROID5_COMPAT ? 21 : 23); }
 
     /** Media3 is available as a fallback on every supported Android release. */
     @JavascriptInterface public boolean isAvailable() { return nativePlaybackAvailable(Build.VERSION.SDK_INT); }

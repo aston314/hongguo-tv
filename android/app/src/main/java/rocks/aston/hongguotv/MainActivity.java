@@ -167,6 +167,17 @@ public class MainActivity extends Activity {
             }
 
             @Override
+            @SuppressWarnings("deprecation")
+            public void onReceivedError(WebView view, int code, String description, String failingUrl) {
+                if (destroyed || rendererGone || view != webView) return;
+                super.onReceivedError(view, code, description, failingUrl);
+                if (Build.VERSION.SDK_INT < 23 && failingUrl != null && failingUrl.equals(view.getUrl())) {
+                    pageLoadFailed = true;
+                    showStartupFailure();
+                }
+            }
+
+            @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 if (destroyed || rendererGone || view != webView) return;
                 super.onReceivedError(view, request, error);
@@ -183,6 +194,10 @@ public class MainActivity extends Activity {
                     pageReady = true;
                     grantWebViewFocus(false);
                     appUpdater.start();
+                    if (BuildConfig.ANDROID5_COMPAT) {
+                        view.evaluateJavascript("!!(window.HongguoTV && typeof window.HongguoTV.remoteKey === 'function' && JSON.parse(window.HongguoTVDiagnostics.readDevice()).sdk >= 21 && document.activeElement && document.activeElement.getAttribute('data-focus') && JSON.parse(window.HongguoTVUpdates.getStatus()).variant === 'android5')",
+                                result -> android.util.Log.i("HongguoAndroid5", "ui_ready=" + result));
+                    }
                     homeChannelManager.ensureDefaultChannel(true);
                 }
                 view.evaluateJavascript("window.HongguoTV && window.HongguoTV." +
