@@ -315,11 +315,10 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             option(active, "scale", "bilinear"); option(active, "dscale", "bilinear");
             option(active, "dither", "no"); option(active, "correct-downscaling", "no");
             option(active, "linear-downscaling", "no"); option(active, "sigmoid-upscaling", "no");
-            // Shared MPV output policy, verified on the Android 6 HDMI path.
-            // Resample before Android output and delay audio by 100 ms.
+            // Keep 48 kHz output without applying a device-specific timing offset globally.
             option(active, "ao", "audiotrack,opensles"); option(active, "audiotrack-pcm-float", "no");
             option(active, "audio-samplerate", "48000");
-            option(active, "audio-delay", "0.10");
+            option(active, "audio-delay", "0");
             option(active, "keep-open", "yes"); option(active, "idle", "yes");
             option(active, "force-window", "no"); option(active, "osd-level", "0");
             option(active, "input-default-bindings", "no"); option(active, "input-vo-keyboard", "no");
