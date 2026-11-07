@@ -228,6 +228,7 @@
     'new.female': '女频',
     'reservation.title': '我的预约',
     'reservation.status': '预约状态',
+    'reservation.description': '查看已上线和待上线的预约。',
     'follow.description': '在详情页点“追更”，即可添加。',
     'follow.sections': '更新提醒、追更与预约',
     'follow.notifications': '更新提醒',

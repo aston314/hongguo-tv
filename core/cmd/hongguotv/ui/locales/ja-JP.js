@@ -225,6 +225,7 @@
   "new.female": "女性向け",
   "reservation.title": "予約",
   "reservation.status": "予約状態",
+  "reservation.description": "予約作品の公開状況を確認。",
   "follow.description": "作品詳細の「フォロー」で追加。",
   "follow.sections": "更新通知、フォロー、予約",
   "follow.notifications": "更新通知",

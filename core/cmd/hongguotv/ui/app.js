@@ -7129,6 +7129,9 @@
       tab.classList.toggle('is-active', selected);
       tab.setAttribute('aria-selected', String(selected));
     });
+    document.querySelectorAll('.follow-description').forEach(function (description) {
+      description.classList.toggle('is-hidden', description.dataset.followView !== followView);
+    });
     followPage.classList.toggle('has-notifications', showNotifications);
     followListView.classList.toggle('is-hidden', reservations || showNotifications);
     followNotificationView.classList.toggle('is-hidden', !showNotifications);

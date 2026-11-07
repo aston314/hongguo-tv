@@ -225,6 +225,7 @@
   "new.female": "女頻",
   "reservation.title": "我的預約",
   "reservation.status": "預約狀態",
+  "reservation.description": "查看已上線與待上線的預約。",
   "follow.description": "在詳情頁點「追更」，即可加入。",
   "follow.sections": "更新提醒、追更與預約",
   "follow.notifications": "更新提醒",
