@@ -399,16 +399,33 @@ final class AppUpdater {
 
     private void launchInstaller(Manifest target) {
         if (!apk.isFile() || apk.length() != target.bytes || verifiedApkCode != target.code || destroyed) return;
-        if (Build.VERSION.SDK_INT >= 26 && !activity.getPackageManager().canRequestPackageInstalls()) {
-            showInstallPermission(target, "请允许红果短剧安装更新。授权返回后会自动继续安装。");
-            return;
-        }
-        try {
-            rememberInstallHandoff(target, "view");
-            launchViewInstaller();
-            state = "installing"; message = "已打开系统安装器，请完成系统确认"; publish();
-        } catch (Exception viewFailure) {
-            launchSessionInstaller(target, "普通安装入口失败：" + friendly(viewFailure));
+        boolean canRequestInstalls = Build.VERSION.SDK_INT < 26 || activity.getPackageManager().canRequestPackageInstalls();
+        String failure = "";
+        for (String route : UpdateInstallPolicy.routes(
+                UpdateInstallPolicy.canUsePackageInstallerSession(Build.VERSION.SDK_INT, canRequestInstalls))) {
+            if (UpdateInstallPolicy.VIEW.equals(route)) {
+                try {
+                    launchViewInstaller(target);
+                    return;
+                } catch (Exception viewFailure) {
+                    failure = "普通安装入口失败：" + friendly(viewFailure);
+                    clearInstallerAttempt();
+                }
+            } else if (UpdateInstallPolicy.INSTALL_PACKAGE.equals(route)) {
+                try {
+                    launchPackageInstaller(target);
+                    return;
+                } catch (Exception packageFailure) {
+                    failure += "\n备用安装入口失败：" + friendly(packageFailure);
+                    clearInstallerAttempt();
+                }
+            } else if (UpdateInstallPolicy.SESSION.equals(route)) {
+                launchSessionInstaller(target, failure);
+                return;
+            } else if (UpdateInstallPolicy.SETTINGS.equals(route)) {
+                showInstallPermission(target, "系统安装器无法启动。" + failure + "\n请允许红果短剧安装更新后重试。");
+                return;
+            }
         }
     }
 
@@ -540,10 +557,16 @@ final class AppUpdater {
         preferences.edit().putBoolean("waiting_installer", false).remove("install_status").remove("install_message").apply();
         state = "ready"; message = "安装未完成，已保留验证过的安装包"; publish();
         if (!host.foreground() || destroyed || dialog != null) return;
+        String attemptedRoute = preferences.getString("install_mode", "");
+        boolean retryAlternative = UpdateInstallPolicy.INSTALL_PACKAGE.equals(
+                UpdateInstallPolicy.retryRoute(attemptedRoute));
         AlertDialog.Builder retry = new AlertDialog.Builder(activity).setTitle("继续安装 " + target.name)
                 .setMessage(explanation + "\n\n已校验的安装包仍保留，可以重试安装。")
                 .setNegativeButton("稍后", null)
-                .setPositiveButton("继续安装", (d, which) -> launchInstaller(target));
+                .setPositiveButton(retryAlternative ? "尝试备用安装器" : "继续安装", (d, which) -> {
+                    if (retryAlternative) launchAlternativeInstaller(target, explanation);
+                    else launchInstaller(target);
+                });
         if (Build.VERSION.SDK_INT >= 26 && !activity.getPackageManager().canRequestPackageInstalls()) {
             retry.setNeutralButton("去设置", (d, which) -> openInstallPermissionSettings(target));
         } else {
@@ -559,19 +582,50 @@ final class AppUpdater {
                 .putBoolean("waiting_permission", false).putBoolean("waiting_installer", true).apply();
     }
 
+    private void clearInstallerAttempt() {
+        preferences.edit().remove("install_target_code").putBoolean("waiting_installer", false)
+                .remove("install_status").remove("install_message").remove("install_mode").apply();
+    }
+
     private void clearInstallHandoff() {
         preferences.edit().remove("install_target_code").remove("install_mode")
                 .remove("install_status").remove("install_message")
                 .putBoolean("waiting_permission", false).putBoolean("waiting_installer", false).apply();
     }
 
-    private void launchViewInstaller() throws Exception {
-        Intent install = new Intent(Intent.ACTION_VIEW);
+    private void launchViewInstaller(Manifest target) throws Exception {
+        launchInstallerIntent(target, UpdateInstallPolicy.VIEW, Intent.ACTION_VIEW);
+    }
+
+    private void launchPackageInstaller(Manifest target) throws Exception {
+        launchInstallerIntent(target, UpdateInstallPolicy.INSTALL_PACKAGE, Intent.ACTION_INSTALL_PACKAGE);
+    }
+
+    private void launchInstallerIntent(Manifest target, String mode, String action) throws Exception {
+        rememberInstallHandoff(target, mode);
+        Intent install = new Intent(action);
         Uri uri = Uri.parse("content://" + activity.getPackageName() + ".updates/apk");
         install.setDataAndType(uri, "application/vnd.android.package-archive");
         install.setClipData(ClipData.newUri(activity.getContentResolver(), "update", uri));
         install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         activity.startActivity(install);
+        state = "installing"; message = "已打开系统安装器，请完成系统确认"; publish();
+    }
+
+    private void launchAlternativeInstaller(Manifest target, String reason) {
+        if (!apk.isFile() || apk.length() != target.bytes || verifiedApkCode != target.code || destroyed) return;
+        try {
+            launchPackageInstaller(target);
+        } catch (Exception packageFailure) {
+            String combined = reason + "\n备用安装入口失败：" + friendly(packageFailure);
+            clearInstallerAttempt();
+            if (UpdateInstallPolicy.canUsePackageInstallerSession(Build.VERSION.SDK_INT,
+                    Build.VERSION.SDK_INT < 26 || activity.getPackageManager().canRequestPackageInstalls())) {
+                launchSessionInstaller(target, combined);
+            } else {
+                showInstallPermission(target, "系统安装器无法启动。" + combined + "\n请允许红果短剧安装更新后重试。");
+            }
+        }
     }
 
     private void installWithPackageInstaller(Manifest target) throws Exception {

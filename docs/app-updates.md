@@ -9,9 +9,9 @@ Android 6/API 23 起支持。首次安装带更新功能的版本（0.2.7 或更
 - 每次启动，若距离上次自动检查不足 24 小时则复用缓存。失败也计入自动检查次数，手动检查始终可用。播放页和其他弹窗期间不弹更新提示；待回到普通页面再提示。对同一版本选择“稍后”后不再自动重复提示，手动检查仍可查看。
 - 原生壳负责网络和安装；UI 只调用受本机页面限制的桥接接口。更新器固定依次尝试 `https://gh-proxy.com/`、`https://v4.gh-proxy.org/`、`https://gh-proxy.org/`、`https://ghfast.top/`，全部失败后再尝试 GitHub 直连；用户不需要也不能配置代理。检查入口固定为公开仓库 main/update.json，带检查时间参数并请求禁缓存；APK 固定版本路径，不能用可变的 latest APK 路径。
 - JSON 包含 schema、package_name、version_code、version_name、min_sdk、size、sha256、download_url、release_notes、published_at。按整数 versionCode 判断升级；下载地址仅允许公开发行仓库的对应版本 APK。
-- 下载必须在用户确认后进行。最多 100 MiB，通过 size、SHA256、实际 APK 包名/版本及当前安装应用的完整签名集合核验；降级、外来包、截断或代理 HTML 被拒绝。Android 8 及以上另需允许该应用安装更新，Android 6 使用系统的安装来源设置。
-- 安装交接使用带只读授权的 APK `content://` URI 调起系统安装器。若 Android 8+ 需要未知来源权限，授权设置页返回后由 `onResume` 重新检查并自动继续，不依赖 WebView 页面状态；应用进程重建时也会校验缓存 APK 后恢复续装。
-- 若常规安装 Intent 无法启动，改用 `PackageInstaller` 安装会话写入已校验 APK。会话状态由显式、非导出的 receiver 接收；`STATUS_PENDING_USER_ACTION` 必须启动系统返回的确认 Intent。失败或用户取消时保留 APK，显示“继续安装”入口；安装页回来也能从设置重新触发。
+- 下载必须在用户确认后进行。最多 100 MiB，通过 size、SHA256、实际 APK 包名/版本及当前安装应用的完整签名集合核验；降级、外来包、截断或代理 HTML 被拒绝。
+- 安装交接首先用带只读授权与 `ClipData` 的 APK `content://` URI 尝试 `ACTION_VIEW`，启动失败再尝试 `ACTION_INSTALL_PACKAGE`。不会用 `canRequestPackageInstalls()` 的单次返回值提前拦截这两个系统安装器入口，兼容错误报告无授权但能正常拉起安装器的设备。两个入口均无法启动时，Android 8+ 才引导用户打开逐应用未知来源授权；获得授权后可继续重试或使用 `PackageInstaller` 安装会话。Android 6 使用系统安装器；若系统阻止安装，仍需按系统提示处理未知来源设置。
+- 若系统安装器已打开但用户返回时更新尚未完成，保留已验证 APK，并提供另一安装入口或授权设置供用户选择；不自动反复弹安装器。PackageInstaller 会话状态由显式、非导出的 receiver 接收；`STATUS_PENDING_USER_ACTION` 必须启动系统返回的确认 Intent。安装结果以已安装 `versionCode` 和会话结果为准，不把 `startActivity()` 成功当作安装成功。
 - app-updates 缓存最多保存一个完整 APK 和一个当前半成品，下载前替换旧包，失败/取消清理半成品。升级后启动删除已安装版本的完整包，未安装文件最迟在超过 24 小时后的下一次启动清理。与视频缓存、账号文件分离；缓存不足失败可重试，不清账号数据。
 - 断网、错误 HTML、大小不符、校验值不符和签名不符均不会交给系统安装；每条更新线路失败后切换下一条并重新完整下载，不复用坏的前缀文件。取消安装或拒绝安装权限时保留验证过的包供重试，绝不把下载成功当作升级成功。更新器不卸载应用、不写账号或剧库，不自动静默降级；安装后的新版本若启动失败，保留原生启动错误与重试入口。
 - 更新源返回比当前已安装版本更旧的 versionCode，或相同 code 却不同版本名时，按陈旧/不一致元数据处理并尝试备用源；两个来源都无有效信息时显示检查失败，不误报“已是最新版本”。
