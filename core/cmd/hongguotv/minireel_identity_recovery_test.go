@@ -185,7 +185,7 @@ func TestMiniReelIdentityRecoveryDoesNotRotateForCodecFiltering(t *testing.T) {
 		return miniReelRecoveryDevice("1"), nil
 	})
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, strings.ReplaceAll(miniReelRecoveryModel, "h264", "bytevc1"))
+		_, _ = io.WriteString(w, strings.ReplaceAll(miniReelRecoveryModel, "h264", "bytevc2"))
 	}))
 	defer server.Close()
 	options, err := miniReelNativeOptionsWithIdentityCache(context.Background(), "123", server.URL, "software", cache)

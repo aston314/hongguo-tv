@@ -36,6 +36,50 @@ func TestMiniReelFreshFallbackVideoTabSuccessReturnsWithoutLegacyRegistration(t 
 	}
 }
 
+func TestMiniReelFreshFallbackSoftwareHEVCUsesPrimaryOrRegisteredFallback(t *testing.T) {
+	for _, fallback := range []bool{false, true} {
+		t.Run(fmt.Sprintf("legacy=%t", fallback), func(t *testing.T) {
+			var registrations, tabCalls, legacyCalls int
+			// A HEVC-only episode must reach MPV software decoding. Keep the
+			// unsafe bytevc2 candidate out of both transport paths.
+			model := `{"code":0,"data":{"123":{"video_model":{"video_list":[` +
+				`{"main_url":"https://media.example/hevc.mp4","codec_type":"bytevc1","vwidth":1080,"vheight":1920},` +
+				`{"main_url":"https://media.example/bytevc2.mp4","codec_type":"bytevc2","vwidth":1080,"vheight":1920}]}}}}`
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodGet {
+					tabCalls++
+					if fallback {
+						return
+					}
+					io.WriteString(w, strings.Replace(model, `"data":`, `"data":{"video_model_data":`, 1)+"}")
+					return
+				}
+				legacyCalls++
+				assertMiniReelPlaybackSignature(t, r)
+				io.WriteString(w, model)
+			}))
+			defer server.Close()
+			sources := miniReelPlaybackSources{tabEndpoint: server.URL,
+				tabIdentity:     newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) { return miniReelRecoveryDevice("tab"), nil }),
+				legacyEndpoints: []string{server.URL}, register: func(context.Context) (miniReelDevice, error) {
+					registrations++
+					return miniReelRecoveryDevice("legacy"), nil
+				}}
+			options, err := miniReelNativeOptionsWithSources(context.Background(), "123", "software", "1004", sources)
+			if err != nil || len(options) != 1 || options[0].Codec != "bytevc1" || options[0].Width != 1080 || options[0].Height != 1920 {
+				t.Fatalf("software HEVC options=%#v error=%v", options, err)
+			}
+			wantLegacy := 0
+			if fallback {
+				wantLegacy = 1
+			}
+			if tabCalls != 1 || legacyCalls != wantLegacy || registrations != wantLegacy {
+				t.Fatalf("tab=%d legacy=%d registrations=%d", tabCalls, legacyCalls, registrations)
+			}
+		})
+	}
+}
+
 func TestMiniReelFreshFallbackHostOrderNewIdentityAndBound(t *testing.T) {
 	for _, succeedsAt := range []int{1, 2, 3, 4, 0} {
 		t.Run(fmt.Sprint(succeedsAt), func(t *testing.T) {

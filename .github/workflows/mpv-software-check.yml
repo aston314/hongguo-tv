@@ -1,0 +1,77 @@
+name: MPV software HEVC
+
+on:
+  push:
+    paths:
+      - core/cmd/hongguotv/minireel.go
+      - scripts/prepare_mpv.py
+      - scripts/check_mpv_software.c
+      - .github/workflows/mpv-software-check.yml
+  pull_request:
+    paths:
+      - core/cmd/hongguotv/minireel.go
+      - scripts/prepare_mpv.py
+      - scripts/check_mpv_software.c
+      - .github/workflows/mpv-software-check.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  hevc:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install NDK and fixture encoder
+        run: |
+          sdkmanager 'ndk;27.2.12479018'
+          sudo apt-get update -qq
+          sudo apt-get install -y ffmpeg
+      - name: Fetch exactly the MPV library packaged by the app
+        run: |
+          python3 - <<'PY'
+          import sys, zipfile
+          from pathlib import Path
+          sys.path.insert(0, 'scripts')
+          import prepare_mpv as mpv
+          root = Path('tmp/mpv-software-check')
+          header = mpv.fetch(mpv.HEADER_URL, mpv.HEADER_SHA, root / 'include/mpv/client.h')
+          jar = mpv.fetch(mpv.BASE + 'default-x86_64.jar', mpv.LIBRARIES['x86_64'], root / 'default-x86_64.jar')
+          with zipfile.ZipFile(jar) as archive:
+              (root / 'libmpv.so').write_bytes(archive.read('lib/x86_64/libmpv.so'))
+          PY
+          root="$GITHUB_WORKSPACE/tmp/mpv-software-check"
+          "$ANDROID_HOME/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android23-clang" \
+            -Wall -Wextra -Werror -O2 -I"$root/include" scripts/check_mpv_software.c \
+            -L"$root" -lmpv -Wl,-rpath,'$ORIGIN' -o "$root/check-mpv"
+      - name: Generate clear HEVC Main fixtures matching reported dimensions
+        run: |
+          for size in 1080x1920 1924x1080; do
+            ffmpeg -hide_banner -loglevel error -f lavfi -i "testsrc2=size=$size:rate=10" \
+              -t 1 -an -c:v libx265 -preset ultrafast -pix_fmt yuv420p -tag:v hvc1 \
+              -x265-params 'pools=2:log-level=error' "tmp/mpv-software-check/$size.mp4"
+          done
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Decode with bundled libmpv and hardware disabled on Android 6
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 23
+          arch: x86_64
+          target: default
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: |
+            adb shell mkdir -p /data/local/tmp/hongguo-mpv-check
+            adb push tmp/mpv-software-check/libmpv.so tmp/mpv-software-check/check-mpv tmp/mpv-software-check/1080x1920.mp4 tmp/mpv-software-check/1924x1080.mp4 /data/local/tmp/hongguo-mpv-check/
+            adb shell chmod 755 /data/local/tmp/hongguo-mpv-check/check-mpv
+            adb shell 'cd /data/local/tmp/hongguo-mpv-check && LD_LIBRARY_PATH=. ./check-mpv 1080x1920.mp4' | python3 -c 'import json,sys; r=json.load(sys.stdin); print(r); assert r["passed"]'
+            adb shell 'cd /data/local/tmp/hongguo-mpv-check && LD_LIBRARY_PATH=. ./check-mpv 1924x1080.mp4' | python3 -c 'import json,sys; r=json.load(sys.stdin); print(r); assert r["passed"]'

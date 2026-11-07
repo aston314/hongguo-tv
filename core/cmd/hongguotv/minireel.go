@@ -1580,11 +1580,10 @@ func miniReelOptionsFromEnvelope(ctx context.Context, vid string, envelope map[s
 		meta, _ := row["video_meta"].(map[string]any)
 		encryption, _ := row["encrypt_info"].(map[string]any)
 		codec := firstNonEmpty(miniReelToString(row["codec_type"]), miniReelToString(meta["codec_type"]))
-		// auto-safe chooses a decoder; it does not establish bytevc2 support.
-		// Preserve the legacy exclusion for every path. Some bytevc2 files use
-		// an hvc1 sample entry with bv2C data, which can stall vendor HEVC decoders.
-		if strings.EqualFold(codec, "bytevc2") ||
-			(codecMode == "software" && strings.EqualFold(codec, "bytevc1")) {
+		// bytevc1 is ordinary HEVC and can use MPV's hwdec=no software decoder.
+		// Keep bytevc2 excluded in every mode: an hvc1 entry with bv2C data is
+		// not evidence of HEVC compatibility and has stalled vendor decoders.
+		if strings.EqualFold(codec, "bytevc2") {
 			continue
 		}
 		rawURL := firstNonEmpty(miniReelToString(row["main_url"]), miniReelToString(row["backup_url"]))

@@ -310,8 +310,13 @@ func TestMiniReelCodecModeFiltersOnlyIncompatibleSources(t *testing.T) {
 		t.Fatalf("default candidates = %#v, %v; want h264 and bytevc1, with legacy bytevc2 filtering", legacy, err)
 	}
 	software, err := parse("software")
-	if err != nil || len(software) != 1 || software[0].Codec != "h264" {
-		t.Fatalf("software candidates = %#v, %v; want h264 only", software, err)
+	if err != nil || len(software) != 2 {
+		t.Fatalf("software candidates = %#v, %v; want h264 and bytevc1", software, err)
+	}
+	for _, option := range software {
+		if option.Codec != "h264" && option.Codec != "bytevc1" {
+			t.Fatalf("software decoding admitted an unsupported codec: %#v", option)
+		}
 	}
 	auto, err := parse("auto")
 	if err != nil || len(auto) != 2 {

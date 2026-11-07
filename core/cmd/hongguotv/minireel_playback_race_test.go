@@ -85,7 +85,7 @@ func TestMiniReelRouteRaceUsesAnotherProductionLineAfterEmptyResponse(t *testing
 func TestMiniReelPlaybackRaceDoesNotRotateForNoCompatibleSource(t *testing.T) {
 	var primaryRegistrations, spareRegistrations atomic.Int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		_, _ = io.WriteString(w, `{"code":0,"data":{"123":{"video_model":{"video_list":{"bytevc1":{"main_url":"https://media.example/video.mp4","codec_type":"bytevc1"}}}}}}`)
+		_, _ = io.WriteString(w, `{"code":0,"data":{"123":{"video_model":{"video_list":{"bytevc2":{"main_url":"https://media.example/video.mp4","codec_type":"bytevc2"}}}}}}`)
 	}))
 	defer server.Close()
 	primary := newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
@@ -189,7 +189,7 @@ func TestMiniReelCustomDeviceFallbackDoesNotRunForCodecMismatch(t *testing.T) {
 		if r.URL.Query().Get("device_id") == "987654" {
 			customRequests.Add(1)
 		}
-		_, _ = io.WriteString(w, `{"code":0,"data":{"123":{"video_model":{"video_list":{"bytevc1":{"main_url":"https://media.example/video.mp4","codec_type":"bytevc1"}}}}}}`)
+		_, _ = io.WriteString(w, `{"code":0,"data":{"123":{"video_model":{"video_list":{"bytevc2":{"main_url":"https://media.example/video.mp4","codec_type":"bytevc2"}}}}}}`)
 	}))
 	defer server.Close()
 	oldPrimary, oldSpare := miniReelPlaybackIdentity, miniReelPlaybackSpareIdentity
