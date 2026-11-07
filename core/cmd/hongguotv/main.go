@@ -26,14 +26,15 @@ var uiFiles embed.FS
 var version = "0.2.9-dev"
 
 type server struct {
-	instanceID         string
-	startedAt          time.Time
-	hongguo            *hongguoClient
-	radar              *radarService
-	libraryStore       *libraryStore
-	accounts           *accountManager
-	numberInputs       *numberInputManager
-	searchHistoryStore *searchHistoryStore
+	instanceID           string
+	startedAt            time.Time
+	hongguo              *hongguoClient
+	radar                *radarService
+	libraryStore         *libraryStore
+	accounts             *accountManager
+	numberInputs         *numberInputManager
+	searchHistoryStore   *searchHistoryStore
+	searchDiscoveryCache searchDiscoveryCache
 }
 
 type statusResponse struct {
@@ -102,6 +103,7 @@ func main() {
 	mux.HandleFunc("/api/v1/series/seasons", s.seriesSeasons)
 	mux.HandleFunc("/api/v1/search", s.search)
 	mux.HandleFunc("/api/v1/search/suggestions", s.searchSuggestions)
+	mux.HandleFunc("/api/v1/search/discovery", s.searchDiscovery)
 	mux.HandleFunc("/api/v1/actors/works", s.actorWorks)
 	mux.HandleFunc("/api/v1/lists/", s.lists)
 	mux.HandleFunc("/api/v1/follow", s.follow)

@@ -27,13 +27,38 @@ func TestSearchBrowserFixture(t *testing.T) {
 	defer s.numberInputs.close()
 	mux := http.NewServeMux()
 	var failSearch atomic.Bool
+	var failDiscovery, slowDiscovery atomic.Bool
 	failSearch.Store(true)
 	mux.HandleFunc("/fixture/control", func(w http.ResponseWriter, r *http.Request) {
 		failSearch.Store(r.URL.Query().Get("fail") == "1")
+		failDiscovery.Store(r.URL.Query().Get("discovery_fail") == "1")
+		slowDiscovery.Store(r.URL.Query().Get("discovery_slow") == "1")
 		writeJSON(w, 200, map[string]any{"ok": true})
 	})
 	mux.HandleFunc("/api/v1/number-input", s.numberInput)
 	mux.HandleFunc("/api/v1/search-history", s.searchHistory)
+	mux.HandleFunc("/api/v1/search/discovery", func(w http.ResponseWriter, r *http.Request) {
+		if slowDiscovery.Load() {
+			time.Sleep(2 * time.Second)
+		}
+		if failDiscovery.Load() {
+			writeError(w, 503, "测试热搜失败")
+			return
+		}
+		data := searchDiscoveryResult{Guesses: []searchHotItem{{Drama: Drama{Title: "都市逆袭"}, Query: "都市逆袭"}}, Boards: []searchHotBoard{}}
+		for _, id := range []string{"short", "comic"} {
+			board := searchHotBoard{ID: id, Items: []searchHotItem{}}
+			for i := 1; i <= 6; i++ {
+				kind, title, base := "1", "短剧热搜", 900000
+				if id == "comic" {
+					kind, title, base = "1004", "漫剧热搜", 910000
+				}
+				board.Items = append(board.Items, searchHotItem{Drama: Drama{SeriesID: strconv.Itoa(base + i), Title: fmt.Sprint(title, i), ContentType: kind}, Position: i, SearchScore: "120万热搜值"})
+			}
+			data.Boards = append(data.Boards, board)
+		}
+		writeJSON(w, 200, map[string]any{"ok": true, "data": data})
+	})
 	mux.HandleFunc("/api/v1/search/suggestions", func(w http.ResponseWriter, r *http.Request) {
 		query := strings.TrimSpace(r.URL.Query().Get("q"))
 		items := []SearchSuggestion{}

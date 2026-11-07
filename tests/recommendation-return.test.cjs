@@ -61,7 +61,7 @@ function fixture({ failSave = false, writeGate = null, sourceGate = null } = {})
     var playbackRecovery={reset:function(){},next:function(){return 'stop'},attempts:function(){return 0}};
     var libraryData={owner_id:'account',entries:[]},libraryReady=Promise.resolve(),libraryQueue=Promise.resolve(),libraryLoaded=true,libraryError='',libraryEditing=false;
     var playerReturnPage=null,playerReturnFocus=null;
-    var searchPager={loaded:true,cancel:function(){}},searchKind='browse',activeSearchQuery='',searchHistory={load:function(){}};
+    var searchPager={loaded:true,cancel:function(){}},searchKind='browse',searchDiscovery=null,activeSearchQuery='',searchHistory={load:function(){}};
     var episodePrefetch={keepFor:function(){},consume:function(){return null},cancel:function(){}};
     function pageMode(){return shell.dataset.mode}function isPlaybackPage(){return pageMode()==='recommend'||pageMode()==='player'}function isLibraryPage(){return false}
     function playbackEngineName(){return ''}function nativePlaybackActive(){return false}

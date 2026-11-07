@@ -67,7 +67,7 @@
         implementation: 'experimental-js-service',
         platform: 'webos',
         port: port,
-        capabilities: ['web-ui', 'luna-service', 'html5-video', 'real-video-model-signing', 'cenc-aes-ctr', 'local-media-cache', 'range-media-proxy', 'category', 'rank', 'search', 'search-suggestions', 'series-detail', 'series-seasons', 'actor-works', 'player-stats', 'radar', 'local-library', 'search-history', 'number-input', 'account-login', 'account-mfa', 'follow', 'reservations', 'notifications', 'player-actions', 'cloud-library'],
+        capabilities: ['web-ui', 'luna-service', 'html5-video', 'real-video-model-signing', 'cenc-aes-ctr', 'local-media-cache', 'range-media-proxy', 'category', 'rank', 'search', 'search-suggestions', 'search-discovery', 'series-detail', 'series-seasons', 'actor-works', 'player-stats', 'radar', 'local-library', 'search-history', 'number-input', 'account-login', 'account-mfa', 'follow', 'reservations', 'notifications', 'player-actions', 'cloud-library'],
         experimental: true,
         playback_verified: false,
         protocol_verified: true,
@@ -232,6 +232,10 @@
       if (pathName === '/api/v1/series/next-season') {
         if (typeof provider.nextSeason !== 'function') return failure(req, res, new Error('系列剧季关系服务未接入'));
         return provider.nextSeason(String(q.series_id || '')).then(function (result) { data(req, res, result); }, function (error) { failure(req, res, error); });
+      }
+      if (pathName === '/api/v1/search/discovery') {
+        if (req.method !== 'GET') return json(res, 405, { ok: false, message: 'method not allowed' }, req);
+        return Promise.resolve().then(function () { return provider.searchDiscovery(); }).then(function (result) { data(req, res, result); }, function (error) { failure(req, res, error); });
       }
       if (pathName === '/api/v1/search/suggestions') {
         return provider.suggestions(String(q.q || '')).then(function (result) { data(req, res, result); }, function (error) { failure(req, res, error); });

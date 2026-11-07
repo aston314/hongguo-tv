@@ -2,6 +2,12 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['ja-JP'] = {
+    "search.discovery": "人気の検索",
+    "search.guesses": "おすすめの検索",
+    "search.hotBoards": "検索ランキング",
+    "search.hotShort": "人気のショートドラマ",
+    "search.hotComic": "人気のアニメドラマ",
+
     "diagnostic.guide.judgment": "現在の診断",
     "diagnostic.guide.suggestions": "対処方法",
     "diagnostic.guide.evidence": "診断の根拠",

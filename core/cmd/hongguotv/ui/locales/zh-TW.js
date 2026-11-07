@@ -2,6 +2,12 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-TW'] = {
+    "search.discovery": "熱門搜尋",
+    "search.guesses": "猜你想搜",
+    "search.hotBoards": "熱搜榜單",
+    "search.hotShort": "短劇熱搜",
+    "search.hotComic": "漫劇熱搜",
+
     "diagnostic.guide.judgment": "目前判斷",
     "diagnostic.guide.suggestions": "建議操作",
     "diagnostic.guide.evidence": "判斷依據",

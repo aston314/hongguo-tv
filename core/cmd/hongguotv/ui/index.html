@@ -104,6 +104,13 @@
           <strong data-i18n="search.recent">最近搜索</strong><div id="search-history-items" class="search-history-items"></div>
           <button class="search-history-action search-history-clear" data-action="search-history-clear" data-focus="search-history-clear" data-i18n="common.clear">清空</button>
         </div>
+        <section id="search-discovery" class="search-discovery is-hidden" aria-label="热门搜索" data-i18n-aria-label="search.discovery">
+          <div id="search-guesses" class="search-guesses is-hidden"><strong data-i18n="search.guesses">猜你想搜</strong><div id="search-guess-items" class="search-guess-items"></div></div>
+          <div id="search-hot" class="search-hot is-hidden">
+            <div class="search-hot-heading"><strong data-i18n="search.discovery">热门搜索</strong><div id="search-hot-tabs" class="search-hot-tabs" aria-label="热搜榜单" data-i18n-aria-label="search.hotBoards"></div></div>
+            <div id="search-hot-items" class="search-hot-items"></div>
+          </div>
+        </section>
         <div class="filter-panel is-collapsed" id="filter-panel" data-focus-zone="searchFilters">
           <div class="filter-panel-heading"><div class="filter-panel-summary"><span data-i18n="search.filter">筛选：</span><strong id="filter-state" data-i18n="search.allDrama">全部短剧</strong></div><button class="filter-toggle" id="filter-toggle" data-action="toggle-search-filters" data-focus="filter-toggle" aria-expanded="false" data-i18n="search.expandFilter">展开筛选</button></div>
           <div id="filter-rows"><div class="filter-status" data-i18n="search.loadingDrama">正在读取筛选条件…</div></div>
@@ -560,6 +567,7 @@
   <script src="/phone-countries.js"></script>
   <section id="search-scan-modal" class="search-scan-modal is-hidden" aria-hidden="true"><div class="search-scan-dialog" role="dialog" aria-modal="true" aria-labelledby="search-scan-title"><h2 id="search-scan-title" data-i18n="ui.scanSearchTitle">手机扫码搜索</h2><p id="search-scan-copy" data-i18n="ui.scanSearchCopy">手机输入或粘贴剧名，发送后在电视上搜索</p><div class="search-scan-qr-box"><img id="search-scan-qr" class="is-hidden" width="240" height="240" alt="扫码输入剧名" data-i18n-alt="ui.searchQrAlt"></div><p id="search-scan-status" role="status" aria-live="polite"></p><p id="search-scan-hint" class="search-scan-hint" data-i18n="ui.scanHint">手机和电视需在同一局域网<br>二维码5分钟有效，关闭后失效</p><div class="search-scan-actions"><button id="search-scan-refresh" class="search-scan-action" data-focus="search-scan-refresh" data-i18n="ui.scanRefresh">刷新二维码</button><button id="search-scan-close" class="search-scan-action" data-focus="search-scan-close" data-i18n="ui.scanBackSearch">返回搜索</button></div></div></section>
   <script src="/search-history.js"></script>
+  <script src="/search-discovery.js"></script>
   <script src="/numeric-keypad.js"></script>
   <script src="/number-input.js"></script>
   <script src="/playback-diagnostics.js"></script>

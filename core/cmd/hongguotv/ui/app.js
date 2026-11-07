@@ -17,6 +17,9 @@
     searchSuggestions: '.search-suggestion',
     searchActions: '.search-action',
     searchHistory: '.search-history-action',
+    searchGuesses: '.search-guess',
+    searchHotTabs: '.search-hot-tab',
+    searchHotItems: '.search-hot-item',
     searchScan: '.search-scan-action',
     searchFilters: '.search-filter, .filter-toggle',
     searchResults: '.search-result-card',
@@ -215,6 +218,9 @@
   var searchScanReturnFocus = null;
   var danmakuScanReturnFocus = null;
   var searchHistory;
+  var searchDiscovery;
+  var searchDiscoveryData = { guesses: [], boards: [] };
+  var searchHotBoard = '';
   var searchHistoryEpoch = 0;
   var accountKeypadReturnFocus = null;
   var accountKeypadPhase = '';
@@ -1146,6 +1152,9 @@
     if (element.classList.contains('end-recommendation-card') || element.id === 'end-recommendations-close') return 'endRecommendations';
     if (element.classList.contains('search-scan-action')) return 'searchScan';
     if (element.classList.contains('search-history-action')) return 'searchHistory';
+    if (element.classList.contains('search-guess')) return 'searchGuesses';
+    if (element.classList.contains('search-hot-tab')) return 'searchHotTabs';
+    if (element.classList.contains('search-hot-item')) return 'searchHotItems';
     if (element.classList.contains('search-suggestion')) return 'searchSuggestions';
     if (element.classList.contains('account-keypad-key')) return 'accountKeypad';
     if (element.classList.contains('account-country-button')) return 'accountCountry';
@@ -1320,6 +1329,18 @@
     return firstVisible('.search-submit') || firstVisible('#search-scan');
   }
 
+  function firstSearchDiscovery() {
+    return firstVisible('.search-guess') || firstVisible('.search-hot-tab.is-active') || firstVisible('.search-hot-item');
+  }
+
+  function lastSearchDiscovery() {
+    var rows = focusables('.search-hot-item');
+    return rows[rows.length - 1] || firstVisible('.search-hot-tab.is-active') || firstVisible('.search-guess');
+  }
+
+  function aboveSearchDiscovery() { return firstVisible('.search-history-action') || firstSearchAction() || searchInput; }
+  function belowSearchDiscovery() { return firstSearchFilter() || firstSearchResult() || firstVisible('#search-pagination .list-retry') || firstSearchAction(); }
+
   function firstSearchResult() {
     return firstVisible('.search-result-card');
   }
@@ -1352,7 +1373,7 @@
 
   function moveSearchFilter(current, direction) {
     if (current && current.id === 'filter-toggle') {
-      if (direction === 'up') return firstSearchAction() || searchInput;
+      if (direction === 'up') return lastSearchDiscovery() || aboveSearchDiscovery();
       if (direction === 'down') return document.getElementById('filter-panel').classList.contains('is-collapsed') ? firstSearchResult() || firstVisible('#search-pagination .list-retry') : firstVisible('.search-filter');
       if (direction === 'left') return activeSidebar();
       return null;
@@ -1610,13 +1631,33 @@
     if (zone === 'searchActions') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? searchInput : null);
       if (direction === 'up') return searchInput;
-      if (direction === 'down') return firstVisible('.search-history-action') || firstSearchFilter() || firstSearchResult() || firstVisible('#search-pagination .list-retry');
+      if (direction === 'down') return firstVisible('.search-history-action') || firstSearchDiscovery() || firstSearchFilter() || firstSearchResult() || firstVisible('#search-pagination .list-retry');
       return null;
     }
     if (zone === 'searchHistory') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstSearchAction() || searchInput;
-      if (direction === 'down') return firstSearchFilter() || firstSearchResult() || firstVisible('#search-page .list-retry') || firstSearchAction();
+      if (direction === 'down') return firstSearchDiscovery() || firstSearchFilter() || firstSearchResult() || firstVisible('#search-page .list-retry') || firstSearchAction();
+      return null;
+    }
+    if (zone === 'searchGuesses') {
+      if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
+      if (direction === 'up') return aboveSearchDiscovery();
+      if (direction === 'down') return firstVisible('.search-hot-tab.is-active') || firstVisible('.search-hot-item') || belowSearchDiscovery();
+      return null;
+    }
+    if (zone === 'searchHotTabs') {
+      if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
+      if (direction === 'up') return firstVisible('.search-guess') || aboveSearchDiscovery();
+      if (direction === 'down') return firstVisible('.search-hot-item') || belowSearchDiscovery();
+      return null;
+    }
+    if (zone === 'searchHotItems') {
+      var hotTarget = moveGrid('.search-hot-item', current, direction);
+      if (hotTarget) return hotTarget;
+      if (direction === 'up') return firstVisible('.search-hot-tab.is-active') || aboveSearchDiscovery();
+      if (direction === 'down') return belowSearchDiscovery();
+      if (direction === 'left') return activeSidebar();
       return null;
     }
     if (zone === 'searchFilters') {
@@ -1627,7 +1668,7 @@
         var resultTarget = moveGrid('.search-result-card', current, direction);
         return resultTarget || (direction === 'left' ? activeSidebar() : null);
       }
-      if (direction === 'up') return moveGrid('.search-result-card', current, direction) || lastSearchFilter() || firstVisible('.search-history-action') || searchInput;
+      if (direction === 'up') return moveGrid('.search-result-card', current, direction) || lastSearchFilter() || lastSearchDiscovery() || firstVisible('.search-history-action') || searchInput;
       if (direction === 'down') return moveGrid('.search-result-card', current, direction) || listBoundary(searchPager, current, direction);
       return null;
     }
@@ -5625,7 +5666,7 @@
 
   function isAutoCinemaCardLaunch(target) {
     if (!target || typeof target.closest !== 'function') return false;
-    return !!target.closest('.catalog-card, .search-result-card, .library-card, .rank-row, .radar-official-row, .radar-growth-row, .new-card, .calendar-row, .reservation-row, .follow-card, .actor-work-card');
+    return !!target.closest('.catalog-card, .search-result-card, .search-hot-item, .search-guess, .library-card, .rank-row, .radar-official-row, .radar-growth-row, .new-card, .calendar-row, .reservation-row, .follow-card, .actor-work-card');
   }
 
   function shouldAutoCinemaForLaunch(currentPage, returnFocus, startOptions) {
@@ -5653,6 +5694,7 @@
     mainSurface.classList.remove('has-search', 'has-placeholder', 'has-workspace');
     hideWorkspacePages();
     searchPage.classList.add('is-hidden');
+    if (searchDiscovery) searchDiscovery.hide(true);
     pagePlaceholder.classList.add('is-hidden');
     document.getElementById('page-context').textContent = uiText('ui.back', '← 返回');
     document.getElementById('hero').classList.add('is-feed');
@@ -6167,6 +6209,7 @@
     var params = Object.assign({ path: path }, searchFilters);
     if (searchPanelPending) params.selectors = '1';
     searchKind = 'browse';
+    if (searchDiscovery && pageMode() === 'search') searchDiscovery.show();
     document.getElementById('filter-panel').classList.remove('is-hidden');
     document.getElementById('search-browse').classList.add('is-hidden');
     document.getElementById('search-result-title').textContent = filterSummary();
@@ -7118,6 +7161,7 @@
     if (androidShell && window.HongguoTVInput && typeof window.HongguoTVInput.finishSearchEditing === 'function') window.HongguoTVInput.finishSearchEditing();
     searchInput.value = query;
     activeSearchQuery = query; searchKind = 'keyword';
+    if (searchDiscovery) searchDiscovery.hide();
     document.getElementById('filter-panel').classList.add('is-hidden'); document.getElementById('search-browse').classList.remove('is-hidden');
     document.getElementById('search-result-title').textContent = uiText('ui.loadedSearchPrefix', '搜索：{query}', { query: query });
     var result = searchPager.reset({ q: query });
@@ -7135,6 +7179,61 @@
       if (!searchPager.loaded) return;
       if (document.activeElement === returnTarget) goFocus(firstSearchResult() || firstSearchAction());
     });
+  }
+
+  function renderSearchDiscovery(data, force) {
+    // Keep cached nodes alive across player/page returns so the existing
+    // return-focus reference remains usable.
+    if (!force && data === searchDiscoveryData) return;
+    searchDiscoveryData = data;
+    var root = document.getElementById('search-discovery');
+    var focused = document.activeElement;
+    var focusKey = focused && root.contains(focused) ? focused.dataset.focus : '';
+    var guesses = document.getElementById('search-guess-items');
+    var tabs = document.getElementById('search-hot-tabs');
+    var rows = document.getElementById('search-hot-items');
+    guesses.textContent = ''; tabs.textContent = ''; rows.textContent = '';
+    function bind(button, item) {
+      button.addEventListener('click', function () {
+        if (item.series_id) startPlayer(item, button);
+        else { searchInput.value = item.query || item.title; goFocus(searchInput); submitSearch(); }
+      });
+      button.addEventListener('focus', function () {
+        try { button.scrollIntoView({ block: 'nearest', inline: 'nearest' }); } catch (ignored) { button.scrollIntoView(false); }
+      });
+    }
+    data.guesses.forEach(function (item, index) {
+      var button = document.createElement('button');
+      button.className = 'search-guess'; button.dataset.focus = 'search-guess-' + index;
+      button.textContent = item.title; bind(button, item); guesses.appendChild(button);
+    });
+    var selected = null;
+    data.boards.forEach(function (board) { if (board.id === searchHotBoard) selected = board; });
+    if (!selected) selected = data.boards[0];
+    searchHotBoard = selected ? selected.id : '';
+    data.boards.forEach(function (board) {
+      var button = document.createElement('button');
+      button.className = 'search-hot-tab' + (board.id === searchHotBoard ? ' is-active' : '');
+      button.dataset.focus = 'search-hot-tab-' + board.id;
+      button.setAttribute('aria-pressed', String(board.id === searchHotBoard));
+      button.textContent = board.id === 'comic' ? uiText('search.hotComic', '漫剧热搜') : uiText('search.hotShort', '短剧热搜');
+      button.addEventListener('click', function () { searchHotBoard = board.id; renderSearchDiscovery(searchDiscoveryData, true); });
+      tabs.appendChild(button);
+    });
+    (selected ? selected.items : []).forEach(function (item, index) {
+      var button = document.createElement('button'); button.className = 'search-hot-item';
+      button.dataset.focus = 'search-hot-' + searchHotBoard + '-' + item.series_id;
+      var copy = document.createElement('span'); copy.className = 'search-hot-copy';
+      var position = document.createElement('span'); position.className = 'search-hot-position'; position.textContent = item.position || index + 1;
+      var title = document.createElement('span'); title.className = 'search-hot-title'; title.textContent = item.title;
+      var score = document.createElement('span'); score.className = 'search-hot-score'; score.textContent = item.search_score || '';
+      copy.appendChild(position); copy.appendChild(title); copy.appendChild(score); button.appendChild(copy);
+      bind(button, item); rows.appendChild(button);
+    });
+    document.getElementById('search-guesses').classList.toggle('is-hidden', !data.guesses.length);
+    document.getElementById('search-hot').classList.toggle('is-hidden', !selected);
+    root.classList.toggle('is-hidden', !data.guesses.length && !selected);
+    if (focusKey) goFocus(root.querySelector('[data-focus="' + focusKey + '"]') || belowSearchDiscovery());
   }
 
   function renderSearchHistory(items) {
@@ -7770,6 +7869,7 @@
     shell.classList.remove('is-player');
     mainSurface.classList.remove('has-search', 'has-workspace', 'has-placeholder');
     searchPage.classList.add('is-hidden');
+    if (searchDiscovery) searchDiscovery.hide(true);
     pagePlaceholder.classList.add('is-hidden');
     hideWorkspacePages();
     if (item.dataset.page === 'recommend') {
@@ -7785,6 +7885,7 @@
       mainSurface.classList.add('has-search');
       searchPage.classList.remove('is-hidden');
       searchHistory.load();
+      if (searchKind === 'browse' && searchDiscovery) searchDiscovery.show();
       if (!searchPager.loaded) { if (searchKind === 'keyword' && activeSearchQuery) submitSearch(); else loadBrowse(false, !filterRows.length); } else queueTailCheck();
     } else if (item.dataset.page === 'rank') {
       mainSurface.classList.add('has-workspace');
@@ -8562,6 +8663,13 @@
       if (method === 'POST') { options.headers = { 'Content-Type': 'application/json' }; options.body = JSON.stringify({ kind: kind, country_code: meta && meta.country_code || '' }); }
       return fetchData('/api/v1/number-input' + (session ? '?session=' + encodeURIComponent(session) : ''), options);
   }
+  searchDiscovery = window.HongguoSearchDiscovery.create({
+    request: function () { return fetchData('/api/v1/search/discovery'); },
+    render: renderSearchDiscovery
+  });
+  if (window.HongguoI18n && typeof window.HongguoI18n.onChange === 'function') window.HongguoI18n.onChange(function () {
+    renderSearchDiscovery(searchDiscoveryData, true);
+  });
   searchHistory = window.HongguoSearchHistory.create({
     request: function (method, query) {
       var options = { method: method };

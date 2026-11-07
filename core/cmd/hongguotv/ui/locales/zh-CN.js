@@ -5,6 +5,12 @@
   // without changing the UI or the focus model.
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-CN'] = {
+    "search.discovery": "热门搜索",
+    "search.guesses": "猜你想搜",
+    "search.hotBoards": "热搜榜单",
+    "search.hotShort": "短剧热搜",
+    "search.hotComic": "漫剧热搜",
+
     "diagnostic.guide.judgment": "当前判断",
     "diagnostic.guide.suggestions": "建议操作",
     "diagnostic.guide.evidence": "判断依据",

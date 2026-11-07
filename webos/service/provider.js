@@ -185,8 +185,9 @@
   // service has no account manager, but public catalogue/metadata APIs still
   // use the same Passport envelope as video_model.  Keep the device identity
   // one-shot for every request, matching the upstream anti-replay behavior.
-  function signedJSON(pathName, method, values, body) {
+  function signedJSON(pathName, method, values, body, policy) {
     var raw = body == null ? Buffer.alloc(0) : Buffer.from(JSON.stringify(body), 'utf8');
+    var maxAttempts = policy && policy.attempts || 3;
     var attempt = 0;
     function next() {
       attempt++;
@@ -206,16 +207,16 @@
       }
       headers['X-XS-From-Web'] = '0'; headers['Sdk-Version'] = '2'; headers['X-SS-DP'] = '8662';
       headers['X-Tt-Store-Region'] = 'cn'; headers['X-Tt-Store-Region-Src'] = 'did';
-      return requestBuffer(API_BASE + pathName + '?' + signed.query, method || 'GET', headers, raw.length ? raw : null, MAX_JSON).then(function (response) {
+      return requestBuffer(API_BASE + pathName + '?' + signed.query, method || 'GET', headers, raw.length ? raw : null, MAX_JSON, null, policy && policy.timeout).then(function (response) {
         if (response.status < 200 || response.status >= 300) throw fail('红果接口 HTTP ' + response.status);
         var text = response.body.toString('utf8');
         if (!trim(text)) {
-          if (attempt < 3) return next();
+          if (attempt < maxAttempts) return next();
           throw fail('红果接口返回空响应');
         }
         try { return parseExactJSON(text); } catch (error) { throw fail('红果接口响应不是有效 JSON'); }
       }).catch(function (error) {
-        if (attempt < 3 && /返回空响应/.test(String(error && error.message || error))) return next();
+        if (attempt < maxAttempts && /返回空响应/.test(String(error && error.message || error))) return next();
         throw error;
       });
     }
@@ -1638,6 +1639,11 @@
     });
   }
 
+  var searchDiscovery = require('./search-discovery').create({
+    request: function (values) { return signedJSON('/reading/bookapi/plan/v1/', 'GET', values, null, { attempts: 1, timeout: 6000 }); },
+    normalize: normalize, decode: parseExactJSON
+  });
+
   function suggestions(query) {
     query = trim(query);
     if (!query) return Promise.resolve({ items: [] });
@@ -1873,7 +1879,7 @@
     prepare: prepare, prepareAudio: prepareAudio, serveMedia: serveMedia, category: category,
     recommend: recommend, newSeries: newSeries, calendar: calendar,
     rank: rank, search: search, detail: detail, seasons: seriesSeasons, nextSeason: nextSeason,
-    suggestions: suggestions, actorWorks: actorWorks, engagement: engagement, discussion: discussion, replies: replies,
+    suggestions: suggestions, searchDiscovery: searchDiscovery, actorWorks: actorWorks, engagement: engagement, discussion: discussion, replies: replies,
     radar: radar, library: library, changeLibrary: changeLibrary,
     dataDirectory: dataDirectory,
     startCache: function () {

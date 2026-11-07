@@ -481,6 +481,31 @@ html.desktop-shell .hero-media { -webkit-user-select: none; user-select: none; }
 .search-box .search-action { flex: 0 0 auto; height: 48px; }
 .search-scan svg { width: 22px; height: 22px; margin-right: 8px; vertical-align: middle; }
 .search-scan span { display: inline-block; vertical-align: middle; }
+/* Text-only discovery stays cheap on old TV WebViews. Margin spacing also
+   works without flex-gap; focus paints the complete row without motion. */
+.search-discovery { margin: 0 0 16px; }
+.search-guesses { display: flex; align-items: center; margin-bottom: 12px; }
+.search-guesses > strong, .search-hot-heading > strong { flex: 0 0 auto; margin-right: 16px; color: #b7b8c5; font-size: 14px; }
+.search-guess-items { display: flex; flex-wrap: wrap; min-width: 0; margin: -3px; }
+.search-guess, .search-hot-tab { min-height: 34px; padding: 5px 12px; color: #d6d7df; border: 1px solid #383a47; border-radius: 8px; background: #20212b; font: inherit; font-size: 14px; }
+.search-guess { max-width: 100%; overflow: hidden; margin: 3px; text-overflow: ellipsis; white-space: nowrap; }
+.search-hot-heading { display: flex; align-items: center; margin-bottom: 8px; }
+.search-hot-tabs { display: flex; }
+.search-hot-tab + .search-hot-tab { margin-left: 8px; }
+.search-hot-tab.is-active { color: #ffb1c2; border-color: #915165; background: #35202b; }
+.search-hot-items { display: flex; flex-wrap: wrap; margin: -4px; }
+.search-hot-item { display: block; width: calc(50% - 8px); min-width: 0; min-height: 42px; margin: 4px; padding: 8px 12px; border: 1px solid #30313d; border-radius: 8px; color: #eeeff5; background: #1b1c25; text-align: left; font: inherit; }
+.search-hot-copy { display: flex; align-items: center; min-width: 0; }
+.search-hot-position { flex: 0 0 24px; color: #a6a7b7; font-size: 16px; font-weight: 700; }
+.search-hot-item:nth-child(-n+3) .search-hot-position { color: #ff91ac; }
+.search-hot-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 15px; }
+.search-hot-score { flex: 0 0 auto; max-width: 42%; margin-left: 10px; overflow: hidden; color: #9597a8; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.search-guess.is-focused, .search-guess:focus:not(.pointer-focus-muted), .search-hot-tab.is-focused, .search-hot-tab:focus:not(.pointer-focus-muted), .search-hot-item.is-focused, .search-hot-item:focus:not(.pointer-focus-muted) { outline: none; color: #fff; background: #44303c; box-shadow: 0 0 0 2px #fff; }
+@media (max-width: 600px) {
+  .search-guesses { display: block; }
+  .search-guesses > strong { display: block; margin-bottom: 8px; }
+  .search-hot-item { width: calc(100% - 8px); }
+}
 .search-history { display: flex; align-items: center; margin: 0 0 18px; }
 .search-history > strong { flex: 0 0 auto; margin-right: 12px; color: #b7b8c5; font-size: 14px; }
 .search-history-items { display: flex; flex: 1 1 auto; min-width: 0; overflow-x: auto; padding: 6px; }
