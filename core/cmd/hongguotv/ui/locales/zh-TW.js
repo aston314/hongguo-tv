@@ -225,7 +225,7 @@
   "new.female": "女頻",
   "reservation.title": "我的預約",
   "reservation.status": "預約狀態",
-  "follow.description": "這裡顯示你主動追更的連載短劇；在劇集詳情頁選擇「追更」後會顯示在這裡。",
+  "follow.description": "在詳情頁點「追更」，即可加入。",
   "follow.sections": "更新提醒、追更與預約",
   "follow.notifications": "更新提醒",
   "follow.notificationLogin": "登入紅果帳號後查看更新提醒。",

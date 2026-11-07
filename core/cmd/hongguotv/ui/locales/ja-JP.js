@@ -225,7 +225,7 @@
   "new.female": "女性向け",
   "reservation.title": "予約",
   "reservation.status": "予約状態",
-  "follow.description": "ここには自分でフォローした連載中のドラマが表示されます。作品詳細で「フォロー」を選ぶと追加されます。",
+  "follow.description": "作品詳細の「フォロー」で追加。",
   "follow.sections": "更新通知、フォロー、予約",
   "follow.notifications": "更新通知",
   "follow.notificationLogin": "紅果アカウントにログインすると更新通知を確認できます。",

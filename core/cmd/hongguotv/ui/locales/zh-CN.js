@@ -228,7 +228,7 @@
     'new.female': '女频',
     'reservation.title': '我的预约',
     'reservation.status': '预约状态',
-    'follow.description': '这里显示你主动追更的连载短剧；在剧集详情页选择“追更”后会出现在这里。',
+    'follow.description': '在详情页点“追更”，即可添加。',
     'follow.sections': '更新提醒、追更与预约',
     'follow.notifications': '更新提醒',
     'follow.notificationLogin': '登录红果账号后查看更新提醒。',
