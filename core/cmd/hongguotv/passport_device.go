@@ -194,6 +194,7 @@ func (c *passportClient) registerDevice(ctx context.Context) (err error) {
 	// No account cookies/token are sent to the registration host.
 	resp, err := c.http.Do(r)
 	if err != nil {
+		diagnostic.NetworkReason = playbackNetworkReason(err)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -208,6 +209,7 @@ func (c *passportClient) registerDevice(ctx context.Context) (err error) {
 	diagnostic.Code = "DEVICE_REGISTER_READ"
 	b, err := io.ReadAll(io.LimitReader(resp.Body, (4<<20)+1))
 	if err != nil || len(b) > 4<<20 {
+		diagnostic.NetworkReason = playbackNetworkReason(err)
 		return errors.New("设备注册响应读取失败")
 	}
 	responseBytes := len(b)

@@ -38,7 +38,7 @@ module.exports = function (register, options) {
       }
       function aborted() {
         var error = cancelled();
-        if (!closed) { error.name = 'Error'; error.code = 'ACCOUNT_DEVICE'; error.status = 504; error.message = '匿名播放身份注册超时'; }
+        if (!closed) { error.name = 'Error'; error.code = 'ACCOUNT_DEVICE'; error.status = 504; error.message = '匿名播放身份注册超时'; error.network_reason = 'timeout'; }
         finish(error);
       }
       task.cancel.signal.addEventListener('abort', aborted);

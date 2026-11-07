@@ -15,6 +15,7 @@
   var createAccount = require('./account');
   var passportSign = require('./passport-sign');
   var createPlaybackIdentity = require('./playback-identity');
+  var networkDiagnostic = require('./network-diagnostic');
   var rangeMedia = require('./range-media');
   var createMediaCache = require('./media-cache');
   var audioMedia = require('./audio-media');
@@ -482,10 +483,10 @@
     }
     function failWithDiagnostic(error) {
       if (signal && signal.aborted || error && error.name === 'AbortError') throw preparationCancelled();
-      var stage = error && error.stage || 'video_tab';
+      var stage = error && error.stage || diagnostic && diagnostic.stage || 'video_tab';
       recordDiagnostic(Object.assign({}, diagnostic || {}, {
         stage: stage,
-        code: error && error.code || 'VIDEO_TAB_NETWORK'
+        code: error && error.code || 'VIDEO_TAB_NETWORK', network_reason: networkDiagnostic(error)
       }));
       error.stage = stage;
       error.videoModel = Object.assign({}, diagnostic || {});
@@ -649,10 +650,11 @@
       }).catch(function (error) {
         check();
         if (error && error.name === 'AbortError') throw preparationCancelled();
-        var stage = error && error.stage || (error && error.code === 'ACCOUNT_DEVICE' ? 'device_register' : 'multi_video_model_transport');
+        var stage = error && error.stage || (diagnostic && diagnostic.stage === 'device_register' ? 'device_register' : 'multi_video_model_transport');
         // Registration failures must not inherit the previous host's HTTP 200.
         recordDiagnostic(Object.assign({}, stage === 'device_register' ? {} : diagnostic, {
-          stage: stage, code: error && error.code === 'ACCOUNT_DEVICE' ? 'DEVICE_REGISTRATION_FAILED' : error && error.code || 'VIDEO_MODEL_NETWORK'
+          stage: stage, code: error && error.code === 'ACCOUNT_DEVICE' ? 'DEVICE_REGISTRATION_FAILED' : error && error.code || 'VIDEO_MODEL_NETWORK',
+          network_reason: networkDiagnostic(error)
         }));
         error.stage = stage;
         error.videoModel = Object.assign({}, diagnostic); delete error.videoModel.video_id;

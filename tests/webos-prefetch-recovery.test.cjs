@@ -48,6 +48,7 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
       req.destroy = error => { registration.destroyed = true; if (error) process.nextTick(() => req.emit('error', error)); };
       registration.respond = () => {
         if (registration.destroyed) return;
+        if (reply.network) { const error = new Error('private registration endpoint'); error.code = reply.network; req.emit('error', error); return; }
         const res = new PassThrough(); res.statusCode = reply.status || 200; res.headers = {};
         req.emit('response', res);
         res.end(JSON.stringify({ device_id_str: '123456789012345678' + index, install_id_str: '223456789012345678' + index }));
@@ -102,6 +103,21 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
     close() { provider.closeCache(); if (before === undefined) delete process.env.HONGGUO_WEBOS_CACHE_DIR; else process.env.HONGGUO_WEBOS_CACHE_DIR = before; fs.rmSync(cache, { recursive: true }); }
   };
 }
+
+test('registration transport diagnostics identify the actual phase without changing recovery budgets', async () => {
+  const recovery = require('../core/cmd/hongguotv/ui/playback-recovery');
+  const f = fixture([], null, [{network:'ENOTFOUND'}, {network:'ENOTFOUND'}]);
+  try {
+    const result = await observe(f.prepare(false));
+    assert.equal(result.error.videoModel.stage, 'device_register');
+    assert.equal(result.error.videoModel.network_reason, 'dns');
+    const safe = recovery.preparationFailure(result.error);
+    assert.equal(safe.stage, 'device_register'); assert.equal(safe.network_reason, 'dns');
+    assert.equal(safe.http_status, undefined);
+    assert.equal(f.registrations, 2); assert.equal(f.requests.length, 0); assert.equal(f.tabRequests.length, 0);
+    assert.doesNotMatch(JSON.stringify(safe), /private|endpoint/);
+  } finally { f.close(); }
+});
 
 test('source preparation is available to foreground while network-only head warming is still pending', async () => {
   let finish;

@@ -2,11 +2,14 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"net"
 	"net/http"
 	"os"
 	"regexp"
+	"syscall"
 	"time"
 )
 
@@ -20,6 +23,7 @@ type playbackPreparationDiagnostic struct {
 	Attempt       int                            `json:"attempt,omitempty"`
 	ElapsedMS     *int64                         `json:"elapsed_ms,omitempty"`
 	BusinessCode  string                         `json:"business_code,omitempty"`
+	NetworkReason string                         `json:"network_reason,omitempty"`
 	RangeFailure  *playbackPreparationDiagnostic `json:"range_failure,omitempty"`
 }
 
@@ -39,6 +43,39 @@ func playbackPreparationDetails(err error) playbackPreparationDiagnostic {
 	return playbackPreparationDiagnostic{Code: "PLAYBACK_PREPARE_FAILED", Stage: "playback_prepare"}
 }
 
+// Classify types only: error text may contain signed URLs, proxy credentials
+// or private hostnames. This is diagnostic metadata, never a retry policy.
+func playbackNetworkReason(err error) string {
+	if errors.Is(err, context.Canceled) {
+		return "cancelled"
+	}
+	var dns *net.DNSError
+	if errors.As(err, &dns) {
+		return "dns"
+	}
+	var certificate *tls.CertificateVerificationError
+	var authority x509.UnknownAuthorityError
+	var hostname x509.HostnameError
+	var invalid x509.CertificateInvalidError
+	if errors.As(err, &certificate) || errors.As(err, &authority) || errors.As(err, &hostname) || errors.As(err, &invalid) {
+		return "tls"
+	}
+	var timeout net.Error
+	if errors.Is(err, context.DeadlineExceeded) || errors.As(err, &timeout) && timeout.Timeout() {
+		return "timeout"
+	}
+	if errors.Is(err, syscall.ECONNREFUSED) {
+		return "refused"
+	}
+	if errors.Is(err, syscall.ECONNRESET) || errors.Is(err, syscall.EPIPE) {
+		return "reset"
+	}
+	if errors.Is(err, syscall.ENETUNREACH) || errors.Is(err, syscall.EHOSTUNREACH) {
+		return "unreachable"
+	}
+	return ""
+}
+
 func wrapPlaybackPreparation(err error, stage, code string) error {
 	if err == nil {
 		return nil
@@ -55,7 +92,7 @@ func wrapPlaybackPreparation(err error, stage, code string) error {
 			code += "_TIMEOUT"
 		}
 	}
-	return &playbackPreparationError{diagnostic: playbackPreparationDiagnostic{Code: code, Stage: stage}, cause: err}
+	return &playbackPreparationError{diagnostic: playbackPreparationDiagnostic{Code: code, Stage: stage, NetworkReason: playbackNetworkReason(err)}, cause: err}
 }
 
 func finishPlaybackPreparation(err error, diagnostic playbackPreparationDiagnostic, started time.Time) error {
@@ -71,6 +108,9 @@ func finishPlaybackPreparation(err error, diagnostic playbackPreparationDiagnost
 	// This also classifies deadlines without examining potentially sensitive text.
 	classified := wrapPlaybackPreparation(err, diagnostic.Stage, diagnostic.Code).(*playbackPreparationError)
 	diagnostic.Code = classified.diagnostic.Code
+	if diagnostic.NetworkReason == "" {
+		diagnostic.NetworkReason = classified.diagnostic.NetworkReason
+	}
 	return &playbackPreparationError{diagnostic: diagnostic, cause: err}
 }
 

@@ -18,6 +18,7 @@ node_bin=${NODE:-node}
 "$node_bin" --check "$repo_dir/webos/service/audio-multipart.js"
 "$node_bin" --check "$repo_dir/webos/service/audio-cancel.js"
 "$node_bin" --check "$repo_dir/webos/service/playback-identity.js"
+"$node_bin" --check "$repo_dir/webos/service/network-diagnostic.js"
 
 "$node_bin" - "$repo_dir" <<'NODE'
 var fs = require('fs');

@@ -2,7 +2,7 @@
   'use strict';
 
   function safePreparation(code, stage, details) {
-    if (['multi_video_model', 'multi_video_model_transport', 'device_register', 'fallback_api',
+    if (['video_tab', 'multi_video_model', 'multi_video_model_transport', 'device_register', 'fallback_api',
         'source_select', 'range_init', 'media_download', 'media_decrypt', 'cache_write', 'playback_prepare'].indexOf(stage) < 0 ||
         typeof code !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/.test(code)) return null;
     var result = { code: code, stage: stage };
@@ -11,6 +11,7 @@
       if (typeof details[key] === 'number' && isFinite(details[key]) && details[key] >= 0 &&
           (key !== 'http_status' || details[key] >= 100 && details[key] <= 599)) result[key] = Math.floor(details[key]);
     });
+    if (['dns', 'tls', 'timeout', 'refused', 'reset', 'unreachable', 'cancelled'].indexOf(details.network_reason) >= 0) result.network_reason = details.network_reason;
     if (typeof details.business_code === 'string' && /^[0-9]{1,16}$/.test(details.business_code)) result.business_code = details.business_code;
     return result;
   }

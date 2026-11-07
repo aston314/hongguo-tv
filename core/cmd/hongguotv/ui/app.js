@@ -2809,7 +2809,20 @@
     } catch (error) {
       report = diagnosticFallbackReport(snapshot, error);
     }
-    document.getElementById('player-diagnostics-summary').textContent = report.summary;
+    var guide = report.guidance || { title: report.summary, state: 'unknown',
+      suggestions: [uiText('diagnostic.guide.refreshAction')], evidence: [uiText('diagnostic.guide.unknownEvidence')] };
+    var guideState = ['attention', 'unknown', 'pending', 'ok'].indexOf(guide.state) >= 0 ? guide.state : 'unknown';
+    document.getElementById('player-diagnostics-guidance').className = 'diagnostic-guidance is-' + guideState;
+    document.getElementById('player-diagnostics-state').textContent = uiText('diagnostic.guide.' + guideState);
+    document.getElementById('player-diagnostics-summary').textContent = guide.title;
+    var suggestions = document.getElementById('player-diagnostics-suggestions'); suggestions.innerHTML = '';
+    guide.suggestions.forEach(function (suggestion) {
+      var item = document.createElement('li'); item.textContent = suggestion; suggestions.appendChild(item);
+    });
+    var evidence = document.getElementById('player-diagnostics-evidence'); evidence.innerHTML = '';
+    guide.evidence.forEach(function (value) {
+      var line = document.createElement('p'); line.textContent = value; evidence.appendChild(line);
+    });
     var rows = document.getElementById('player-diagnostics-rows'); rows.innerHTML = '';
     report.rows.forEach(function (item) {
       var row = document.createElement('div'); row.className = 'diagnostic-row' + (item.wide ? ' diagnostic-row-wide' : '');

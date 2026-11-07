@@ -82,7 +82,8 @@ test('both immediate and asynchronous diagnostic reports preserve scroll when ro
   const scroll = { scrollTop: 180 };
   const rows = { set innerHTML(v) { scroll.scrollTop = 0; }, appendChild() {} };
   const nodes = { 'player-diagnostics-scroll': scroll, 'player-diagnostics-rows': rows,
-    'player-diagnostics-summary': {}, 'player-diagnostics-time': {} };
+    'player-diagnostics-summary': {}, 'player-diagnostics-time': {}, 'player-diagnostics-guidance': {},
+    'player-diagnostics-state': {}, 'player-diagnostics-suggestions': { appendChild() {} }, 'player-diagnostics-evidence': { appendChild() {} } };
   const c = vm.createContext({ window: { HongguoPlaybackDiagnostics: { report: s => s } },
     document: { getElementById: id => nodes[id], createElement: () => ({ appendChild() {} }) } });
   vm.runInContext(slice('renderPlaybackDiagnostics', 'refreshPlaybackDiagnostics'), c);

@@ -40,6 +40,72 @@
     } catch (ignoredFrames) {}
     return result;
   }
+  // Advice is a read-only interpretation of the current request. Never use
+  // prefetch/core "last error" fields or parse raw messages to infer a cause.
+  function guidance(snapshot, native) {
+    var flags = snapshot.flags || {}, video = snapshot.video || {}, core = snapshot.core || {};
+    var failure = flags.failed && snapshot.preparationError;
+    var code = diagnosticCode(failure && failure.code), stage = failure && failure.stage;
+    var sourceStages = ['video_tab', 'multi_video_model', 'multi_video_model_transport', 'fallback_api', 'source_select'];
+    function advice(category, state, actions, evidence) {
+      if (['dns', 'tls', 'timeout', 'connection'].indexOf(category) >= 0)
+        evidence = evidence.concat([tr('diagnostic.guide.networkEvidence', { reason: tr('diagnostic.guide.' + category) })]);
+      return { category: category, state: state, title: tr('diagnostic.guide.' + category),
+        suggestions: actions.map(function (key) { return tr('diagnostic.guide.' + key); }), evidence: evidence };
+    }
+    var reportAction = 'reportAction';
+    var stageKey = stage === 'device_register' ? 'stageRegistration' : sourceStages.indexOf(stage) >= 0 ? 'stageSource' :
+      stage === 'cache_write' ? 'stageStorage' : stage === 'media_decrypt' ? 'stageDecrypt' :
+      stage === 'media_download' || stage === 'range_init' ? 'stageMedia' : 'stagePreparation';
+    if (code) {
+      var evidence = [tr('diagnostic.guide.failureStage', { stage: tr('diagnostic.guide.' + stageKey) }),
+        failure.http_status >= 100 && failure.http_status <= 599 ? 'HTTP ' + failure.http_status +
+          (typeof failure.response_bytes === 'number' && failure.response_bytes >= 0 ? ' · ' + tr('diagnostic.guide.responseBytes', { bytes: Math.floor(failure.response_bytes) }) : '') : tr('diagnostic.guide.noHTTP')];
+      var reason = failure.network_reason;
+      // webOS can retain Node's structured transport code; never inspect its message.
+      if (!reason) {
+        if (['ENOTFOUND', 'EAI_AGAIN', 'EAI_FAIL'].indexOf(code) >= 0) reason = 'dns';
+        else if (['CERT_HAS_EXPIRED', 'CERT_NOT_YET_VALID', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'SELF_SIGNED_CERT_IN_CHAIN', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY', 'ERR_TLS_CERT_ALTNAME_INVALID'].indexOf(code) >= 0) reason = 'tls';
+        else if (/_TIMEOUT$/.test(code) || code === 'ETIMEDOUT' || code === 'ESOCKETTIMEDOUT') reason = 'timeout';
+        else if (['ECONNREFUSED', 'ECONNRESET', 'ENETUNREACH', 'EHOSTUNREACH', 'EPIPE'].indexOf(code) >= 0) reason = 'connection';
+      }
+      if (reason === 'cancelled') return advice('interrupted', 'unknown', ['retryAction', reportAction], evidence);
+      if (reason === 'dns') return advice('dns', 'attention', ['dnsAction', 'hotspotAction'], evidence);
+      if (reason === 'tls') return advice('tls', 'attention', ['clockAction', 'filterAction'], evidence);
+      if (reason === 'timeout') return advice('timeout', 'attention', ['hotspotAction', 'filterAction'], evidence);
+      if (['refused', 'reset', 'unreachable', 'connection'].indexOf(reason) >= 0) return advice('connection', 'attention', ['hotspotAction', 'filterAction'], evidence);
+      if (failure.http_status === 429) return advice('rateLimited', 'attention', ['waitAction', reportAction], evidence);
+      if (failure.http_status === 403) return advice('rejected', 'attention', ['waitAction', 'hotspotAction'], evidence);
+      if (failure.http_status >= 500) return advice('server', 'attention', ['waitAction', reportAction], evidence);
+      if (stage === 'cache_write') return advice('storage', 'attention', ['storageAction', reportAction], evidence);
+      if (stage === 'media_decrypt') return advice('decrypt', 'attention', ['retryAction', reportAction], evidence);
+      if (/^(VIDEO_MODEL|VIDEO_TAB)_EMPTY$/.test(code)) return advice('empty', 'attention', ['retryAction', reportAction], evidence);
+      if (stage === 'source_select' || /NO_QUALITY|NO_COMPATIBLE/.test(code)) return advice('noQuality', 'attention', ['qualityAction', reportAction], evidence);
+      if (stage === 'device_register') return advice('registration', 'attention', ['hotspotAction', reportAction], evidence);
+      return advice(sourceStages.indexOf(stage) >= 0 ? 'source' : 'preparation', 'attention', ['retryAction', reportAction], evidence);
+    }
+    // A held previous frame/error during an episode switch is not this source's failure.
+    if (!flags.failed && (flags.preparing || flags.resolving)) return advice('preparing', 'pending', ['waitPreparingAction'], [tr('diagnostic.guide.preparingEvidence')]);
+    var mediaError = flags.source ? video.error : 0;
+    var networkError = native.error_kind === 'network' || mediaError === 2;
+    if (flags.source && core.media_http_status >= 400 && (flags.failed || networkError))
+      return advice('localMedia', 'attention', ['retryAction', reportAction], [tr('diagnostic.guide.localEvidence', { status: core.media_http_status })]);
+    if (native.error_kind === 'decoder' || mediaError === 3 || mediaError === 4 ||
+        (native.track_support && native.track_support.indexOf('FORMAT_UNSUPPORTED') === 0 || native.track_support === 'FORMAT_EXCEEDS_CAPABILITIES') &&
+        !(native.state === 'playing' && (native.first_frame || native.output_ready))) {
+      var actions = ['qualityAction', reportAction];
+      if (native.engine === 'mpv' && native.mode !== 'mpv_software' && native.mode !== 'software' && native.hwdec_current !== 'no') actions = ['softwareAction', reportAction];
+      return advice('decode', 'attention', actions, [tr('diagnostic.guide.decodeEvidence')]);
+    }
+    if (networkError) return advice('mediaNetwork', 'attention', ['hotspotAction', 'qualityAction'], [tr('diagnostic.guide.mediaEvidence')]);
+    if (flags.failed || native.error_kind || mediaError) return advice('unknownFailure', 'unknown', ['retryAction', reportAction], [tr('diagnostic.guide.unknownEvidence')]);
+    if (flags.background || video.seeking) return advice('pendingPlayback', 'pending', ['resumeAction'], [tr(flags.background ? 'diagnostic.guide.backgroundEvidence' : 'diagnostic.guide.seekingEvidence')]);
+    if (flags.waiting) return advice('buffering', 'pending', ['bufferAction', 'qualityAction'], [tr('diagnostic.guide.bufferEvidence', { seconds: Math.floor(num(video.buffered)) })]);
+    if (flags.source && (native.output_ready || native.first_frame || video.ready >= 2 && video.width > 0 && video.height > 0))
+      return advice('ready', 'ok', ['healthyAction'], [tr('diagnostic.guide.healthyEvidence')]);
+    if (core.unavailable) return advice('incomplete', 'unknown', ['refreshAction', reportAction], [tr('diagnostic.guide.incompleteEvidence')]);
+    return advice(flags.source ? 'preparing' : 'idle', 'pending', [flags.source ? 'waitPreparingAction' : 'startAction'], [tr('diagnostic.guide.' + (flags.source ? 'preparingEvidence' : 'idleEvidence'))]);
+  }
   function report(snapshot) {
     snapshot = snapshot || {};
     var device = snapshot.device || {}, core = snapshot.core || {}, video = snapshot.video || { position: 0, duration: 0, width: 0, height: 0, ready: 0, network: 0, paused: true, ended: false, seeking: false, muted: true, volume: 0, buffered: 0, error: 0, decoded: null }, native = snapshot.native || {}, flags = snapshot.flags || {};
@@ -188,7 +254,7 @@
       }
     }
     add(tr('diagnostic.recentError'), preparationCode || (native.error_kind ? playerName + ' ' + text(native.error_kind, 24) + (errorCode(native.error_code) ? '（' + errorCode(native.error_code) + '）' : '') : video.error ? (errorNames[video.error] ? tr(errorNames[video.error]) : tr('diagnostic.unknownMediaError')) + '（' + video.error + '）' : flags.failed ? tr('diagnostic.retryVisible') : flags.source && core.media_http_status >= 400 ? tr('diagnostic.localHttp', { status: num(core.media_http_status) }) : tr('diagnostic.noPlaybackError')));
-    return { summary: summary, rows: rows, capturedAt: snapshot.capturedAt };
+    return { summary: summary, guidance: guidance(snapshot, native), rows: rows, capturedAt: snapshot.capturedAt };
   }
   var api = { readVideo: readVideo, report: report };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

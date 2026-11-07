@@ -312,7 +312,36 @@ html.desktop-shell .hero-media { -webkit-user-select: none; user-select: none; }
 .diagnostic-scroll { max-height: calc(100vh - 180px); padding: 8px 10px; box-sizing: border-box; overflow-y: auto; border: 2px solid transparent; border-radius: 8px; }
 .diagnostic-scroll:focus:not(.pointer-focus-muted), .diagnostic-scroll.is-focused { outline: none; border-color: #fff; }
 @media (min-height: 700px) { .diagnostic-scroll { max-height: 520px; } }
-#player-diagnostics-summary { margin: 0 0 12px; color: #f4c4ce; font-size: 15px; line-height: 1.4; }
+/* Static, compact cards: no animation/filter work on older TV WebViews. */
+.diagnostic-guidance { margin-bottom: 18px; }
+.diagnostic-guidance h3 { margin: 0; font-size: 14px; line-height: 1.4; color: #d9dbe6; font-weight: 600; }
+.diagnostic-assessment { padding: 14px 16px; background: #303340; border: 1px solid #494e60; border-left: 4px solid #aeb6cd; border-radius: 8px; }
+.diagnostic-assessment-heading { display: flex; align-items: center; justify-content: space-between; }
+.diagnostic-state { flex: 0 0 auto; margin-left: 12px; padding: 3px 9px; border-radius: 4px; background: #44495b; color: #e8eaf2; font-size: 12px; line-height: 1.4; }
+#player-diagnostics-summary { margin: 7px 0 0; color: #fff; font-size: 20px; line-height: 1.4; font-weight: 600; word-wrap: break-word; }
+.diagnostic-guidance.is-attention .diagnostic-assessment { background: #372f29; border-color: #6b5137; border-left-color: #efb66d; }
+.diagnostic-guidance.is-attention .diagnostic-state { background: #59442d; color: #ffdcad; }
+.diagnostic-guidance.is-ok .diagnostic-assessment { background: #263832; border-color: #3e6253; border-left-color: #8bd5b0; }
+.diagnostic-guidance.is-ok .diagnostic-state { background: #365447; color: #bcecd3; }
+.diagnostic-guidance.is-pending .diagnostic-assessment { background: #2a3343; border-color: #435573; border-left-color: #a2c0f0; }
+.diagnostic-guidance-body { display: flex; margin-top: 10px; }
+.diagnostic-suggestions, .diagnostic-evidence { padding: 12px 14px; background: #292b36; border: 1px solid #3b3e4c; border-radius: 8px; box-sizing: border-box; min-width: 0; }
+.diagnostic-suggestions { flex: 1.4 1 0; }
+.diagnostic-evidence { flex: 1 1 0; margin-left: 10px; }
+.diagnostic-suggestions ol { margin: 8px 0 0; padding-left: 22px; color: #f4f4f8; font-size: 15px; line-height: 1.55; }
+.diagnostic-suggestions li + li { margin-top: 7px; }
+.diagnostic-evidence p { margin: 8px 0 0; color: #c2c6d5; font-size: 14px; line-height: 1.5; word-wrap: break-word; }
+.diagnostic-details-title { margin: 0 0 8px; font-size: 14px; line-height: 1.4; color: #aeb0bf; font-weight: 500; }
+@media (max-width: 650px) {
+  .diagnostic-guidance-body { display: block; }
+  .diagnostic-evidence { margin: 10px 0 0; }
+  .player-options.is-diagnostics .diagnostic-row { flex-basis: 100%; width: 100%; }
+}
+@media (max-height: 600px) {
+  .diagnostic-assessment { padding: 10px 12px; }
+  #player-diagnostics-summary { font-size: 18px; }
+  .diagnostic-suggestions, .diagnostic-evidence { padding: 10px 12px; }
+}
 .diagnostic-rows { display: flex; flex-wrap: wrap; margin: 0 -10px; }
 .diagnostic-row { display: flex; align-items: flex-start; flex: 0 0 50%; width: 50%; min-height: 39px; padding: 7px 10px; box-sizing: border-box; border-bottom: 1px solid #353642; font-size: 15px; line-height: 1.4; }
 .diagnostic-label { display: block; flex: 0 0 88px; width: 88px; color: #aeb0bf; }
