@@ -5114,6 +5114,21 @@
       });
     });
   }
+  function prefetchedEpisodeResetCover(generation) {
+    var hint = prefetchedEpisodeHint;
+    var current = activePlayback || playbackRequest;
+    if (webosShell || !hint || !current || hint.generation !== generation || hint.owner !== accountEpoch ||
+        hint.series_id !== (current.item ? current.item.series_id : current.series_id) || hint.episode !== current.episode ||
+        applicationInBackground || applicationHidden()) return null;
+    var hero = document.getElementById('hero');
+    var cover = document.getElementById('hero-episode-cover');
+    var target = cover && cover.__episodeTarget;
+    if (!target || target.generation !== generation || target.owner !== accountEpoch ||
+        !episodeCoverTargetCurrent(target, generation) || !cover.__coverSource || !cover.classList.contains('is-ready') ||
+        !hero.classList.contains('is-preparing-video') || !hero.classList.contains('is-episode-cover') ||
+        hero.classList.contains('is-native-frame-revealing')) return null;
+    return target;
+  }
   function finishPlaybackPreparation(playback) {
     var hero = document.getElementById('hero');
     var video = document.getElementById('hero-video');
@@ -5419,8 +5434,15 @@
     // Keep the cover painted during native source reset. CSS visibility alone
     // did not prevent a grey hardware-video flash on the user's Android 6 TV.
     if (!keepRangeFrame) video.classList.remove('has-source');
+    // A decoded target preview can cover both pause and source replacement in
+    // the same paint. Other transitions still paint the reset cover separately.
+    var sourceResetCover = keepRangeFrame ? prefetchedEpisodeResetCover(generation) : null;
+    var paintedSourceResetCover = null;
+    var prefetchedSourceReset = false;
+    if (sourceResetCover) hero.classList.add('is-range-source-reset');
     var coveredReset = waitForPlaybackPaint(generation, request.signal).then(function (painted) {
       if (!painted) return false;
+      if (sourceResetCover && prefetchedEpisodeResetCover(generation) === sourceResetCover) paintedSourceResetCover = sourceResetCover;
       video.pause();
       if (keepRangeFrame) {
         updatePlaybackControls();
@@ -5494,6 +5516,8 @@
             setPlayerStatus(episodeLoadingText(episode));
           }
           if (prepared && prepared.path) {
+            prefetchedSourceReset = !!(handoff && handoff.prefetchMode === 'full' && prepared.mode !== 'range' &&
+              activePlayback.timing.prepared_before_switch);
             playbackPrefetchHandoff = null;
             activePlayback.timing.handoff_wait_ms = Math.max(0, Date.now() - activePlayback.timing.handoff_started_at);
             return prepared;
@@ -5548,6 +5572,9 @@
         // Cover the source replacement before it reaches Android's video
         // compositor, and keep the cover until a frame from this source is ready.
         hero.classList.add('is-range-source-reset');
+        if (prefetchedSourceReset && paintedSourceResetCover && prefetchedEpisodeResetCover(generation) === paintedSourceResetCover) {
+          attachPreparedSource(); return;
+        }
         return waitForPlaybackPaint(generation, request.signal).then(function (painted) {
           if (!painted || generation !== feedGeneration || request.signal.aborted) return;
           attachPreparedSource();

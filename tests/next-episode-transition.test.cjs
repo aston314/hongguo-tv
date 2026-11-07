@@ -90,6 +90,99 @@ async function readyFullEpisode(f, {pending=false}={}) {
   await tick();f.c.episodePrefetch=prefetch;
   return {prefetch,gate};
 }
+function readyPreview(f) {
+  f.c.prewarmedEpisodeCover={key:'2:9001:222',source:'https://img.example/next.jpg',ready:true,failed:false,
+    image:{src:'https://img.example/next.jpg'},waiters:[],series_id:'9001',vid:'222',episode:2,generation:1};
+}
+
+test('a fully prefetched target and decoded preview share one pre-source paint boundary without releasing the cover or audio',async()=>{
+  for(const [engine,native,inPlace] of [['range',false,true],['mpv',true,true],['mpv',true,false]])for(const automatic of [false,true]) {
+    const f=fixture({engine,native,inPlace});f.gate.resolve();await readyFullEpisode(f);readyPreview(f);
+    f.video.src='/media/old.mp4';
+    const old=f.c.activePlayback;old.completed=automatic;
+    f.c.playFeedItem(0,2,0,automatic?old:null);
+    assert.equal(f.hero.classList.contains('is-range-source-reset'),true);
+    assert.equal(f.hero.classList.contains('is-episode-cover'),true);
+    f.paint();await tick();
+    assert.equal(f.video.src,'/media/old.mp4','source cannot change before the preview reaches paint');
+    assert.equal(f.calls.includes('load'),false);
+    f.paint();await tick();
+    assert.equal(f.video.src,'/media/complete.mp4',engine+': '+automatic);
+    assert.equal(f.calls.filter(x=>x==='load').length,1);
+    assert.equal(f.frames.size,0,'no duplicate pre-source paint wait');
+    assert.equal(f.c.activePlayback.timing.automatic_next,automatic);
+    assert.equal(f.hero.classList.contains('is-preparing-video'),true);
+    assert.equal(f.c.activePlayback.presentation.rendered,false,'file readiness does not imply a first frame');
+    assert.equal(f.video.muted,true);
+    assert.equal(f.calls.includes('source'),false,'completed prefetch is handed off without foreground resolution');
+  }
+});
+
+test('missing or late previews, incomplete downloads and webOS retain the separate source-reset paint',async()=>{
+  for(const kind of ['missing','late','pending','webos']) {
+    const f=fixture({engine:'mpv',native:true,webos:kind==='webos'});f.gate.resolve();
+    const prep=await readyFullEpisode(f,{pending:kind==='pending'});
+    if(kind!=='missing')readyPreview(f);
+    if(kind==='late')f.c.prewarmedEpisodeCover.ready=false;
+    f.video.src='/media/old.mp4';f.c.playFeedItem(0,2,0);
+    f.paint();f.paint();await tick();
+    if(kind==='pending'){prep.gate.resolve({path:'/media/complete.mp4',mode:'full'});await tick();}
+    if(kind==='late')f.c.prewarmedEpisodeCover.waiters.forEach(fn=>fn(true));
+    assert.equal(f.video.src,'/media/old.mp4',kind);
+    f.paint();await tick();assert.equal(f.video.src,'/media/old.mp4',kind);
+    f.paint();await tick();assert.equal(f.video.src,'/media/complete.mp4',kind);
+  }
+});
+
+test('a changed preview or invalid full-file handoff cannot reuse the earlier cover paint',async()=>{
+  for(const kind of ['removed','replaced','owner','generation','detail','cache','range','late-file']) {
+    const detail=deferred(),f=fixture({engine:'mpv',native:true,detailGate:detail});
+    f.gate.resolve();await readyFullEpisode(f);readyPreview(f);
+    if(kind==='cache')f.c.waitForPlaybackPrefetch=()=>Promise.resolve(null);
+    if(kind==='range')f.c.waitForPlaybackPrefetch=()=>Promise.resolve({path:'/media/range',mode:'range'});
+    f.video.src='/media/old.mp4';f.c.playFeedItem(0,2,0);
+    f.paint();f.paint();await tick();
+    const cover=f.document.getElementById('hero-episode-cover');
+    if(kind==='removed')f.c.clearEpisodeCover();
+    if(kind==='replaced')cover.__episodeTarget={...cover.__episodeTarget};
+    if(kind==='owner')cover.__episodeTarget.owner--;
+    if(kind==='generation')cover.__episodeTarget.generation--;
+    if(kind==='detail')f.c.feedItems[0].vid_list[1]='different';
+    if(kind==='late-file')f.c.waitForPlaybackPrefetch=handoff=>{
+      handoff.timing.ready_at=Date.now()+10000;return handoff.promise;
+    };
+    detail.resolve();await tick();
+    assert.equal(f.video.src,'/media/old.mp4',kind);
+    f.paint();await tick();assert.equal(f.video.src,'/media/old.mp4',kind);
+    f.paint();await tick();assert.notEqual(f.video.src,'/media/old.mp4',kind);
+    assert.equal(f.video.muted,true);
+    assert.equal(f.hero.classList.contains('is-preparing-video'),true);
+  }
+});
+
+test('cancellation, background and a new selection cannot attach a source through the shared paint path',async()=>{
+  for(const kind of ['abort','background','hidden','account','generation','next']) {
+    const details=deferred(),f=fixture({engine:'mpv',native:true,detailGate:details});
+    f.gate.resolve();await readyFullEpisode(f);readyPreview(f);
+    f.video.src='/media/old.mp4';f.c.playFeedItem(0,2,0);
+    f.paint();f.paint();await tick();
+    if(kind==='abort')f.c.playbackInfoRequest.abort();
+    if(kind==='background')f.c.applicationInBackground=true;
+    if(kind==='hidden')f.document.hidden=true;
+    if(kind==='account'){f.c.accountEpoch++;f.c.playbackInfoRequest.abort();}
+    if(kind==='generation')f.c.feedGeneration++;
+    if(kind==='next')f.c.playFeedItem(0,3,0);
+    details.resolve();await tick();
+    assert.equal(f.video.src,'/media/old.mp4',kind);
+    if(kind==='next'){
+      await settlePlayback(f);assert.equal(f.c.activePlayback.episode,3);
+      assert.equal(f.video.src,'/media/next.mp4');
+      assert.equal(f.hero.classList.contains('is-episode-cover'),false);
+    }else{
+      await settlePlayback(f);assert.equal(f.video.src,'/media/old.mp4',kind);
+    }
+  }
+});
 
 test('completed full-file handoffs quiet manual next-episode switches across the HTML5 and native paths',async()=>{
   for(const [engine,native] of [['standard',false],['range',false],['standard',true],['mpv',true]]) {
