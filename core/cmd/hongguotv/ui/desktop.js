@@ -121,6 +121,7 @@
     var help = doc.querySelector('.account-input-help');
     if (help) help.textContent = t('ui.desktopInputHelp', '直接输入或粘贴手机号和验证码；按 Tab 切换，按 Enter 提交。');
     win.HongguoTVUpdates = createUpdateBridge(win, config);
+    if (win.HongguoDesktopMiniPlayer) win.HongguoDesktopMini = win.HongguoDesktopMiniPlayer.create(win, config);
     win.HongguoDesktopWindow = createWindowMonitor(win, config);
     win.HongguoDesktopWindow.refresh();
     win.setInterval(win.HongguoDesktopWindow.refresh, 400);
@@ -133,9 +134,11 @@
       var bridge = win.go && win.go.main && win.go.main.desktopApp;
       if (pending || !bridge || !bridge.GetWindowState) return;
       pending = true;
+      var mini = win.HongguoDesktopMini, miniRevision = mini && mini.revision();
       Promise.resolve(bridge.GetWindowState()).then(function (value) {
         var state = JSON.parse(value), hidden = !!state.hidden, fullscreen = !!state.fullscreen;
         config.background = hidden;
+        if (mini) mini.render(state, miniRevision);
         if (!win.HongguoTV) return;
         if (hidden !== lastHidden) {
           lastHidden = hidden;

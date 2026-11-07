@@ -2,6 +2,14 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-TW'] = {
+    "mini.enter": "小窗播放",
+    "mini.restore": "返回大視窗",
+    "mini.previousEpisode": "上一集",
+    "mini.nextEpisode": "下一集",
+    "mini.previousDrama": "上一部",
+    "mini.nextDrama": "下一部",
+    "mini.failed": "小窗切換失敗，請重試",
+
     "search.discovery": "熱門搜尋",
     "search.guesses": "猜你想搜",
     "search.hotBoards": "熱搜榜單",

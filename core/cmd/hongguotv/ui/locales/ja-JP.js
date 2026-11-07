@@ -2,6 +2,14 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['ja-JP'] = {
+    "mini.enter": "ミニプレーヤー",
+    "mini.restore": "元のウィンドウに戻す",
+    "mini.previousEpisode": "前の話",
+    "mini.nextEpisode": "次の話",
+    "mini.previousDrama": "前の作品",
+    "mini.nextDrama": "次の作品",
+    "mini.failed": "ウィンドウを切り替えられませんでした。再試行してください",
+
     "search.discovery": "人気の検索",
     "search.guesses": "おすすめの検索",
     "search.hotBoards": "検索ランキング",

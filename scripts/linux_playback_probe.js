@@ -130,13 +130,39 @@
           report.events.filter(function (e) { return e.event === 'seeked'; }).length > seekEvents;
       }, 45000);
       await capture('after-seek');
+      // Exercise the real GTK window, shared video and existing episode command.
+      var mini = window.HongguoDesktopMini;
+      var originalWindow = JSON.parse(await window.go.main.desktopApp.GetWindowState());
+      var originalViewport = [innerWidth, innerHeight];
+      var miniSource = video.currentSrc, miniPosition = video.currentTime;
+      if (!mini || !await mini.request(true)) throw new Error('mini player entry failed');
+      await waitFor('compact mini player layout', function () { return innerWidth < 600 && innerHeight < 650; }, 10000);
+      await sleep(1000);
+      var miniWindow = JSON.parse(await window.go.main.desktopApp.GetWindowState());
+      if (!mini.isActive() || miniWindow.fullscreen || video.currentSrc !== miniSource || video.paused || video.currentTime < miniPosition) {
+        throw new Error('mini player changed playback or failed to leave fullscreen');
+      }
+      report.miniPlayer = { entered: true, originalFullscreen: originalWindow.fullscreen,
+        viewport: [innerWidth, innerHeight], retainedVideo: video === document.getElementById('hero-video'),
+        continuedPlaying: video.currentTime > miniPosition };
       var oldSource = video.currentSrc;
-      document.getElementById('hero-feed-focus').focus();
-      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true }));
+      document.getElementById('mini-player-nextEpisode').click();
       await waitFor('episode 2 decoded picture', function () {
         return isEpisodeSource('7696024585514257433') && /第2集/.test(text('#hero-top-episode')) && video.currentSrc !== oldSource &&
           video.videoWidth > 0 && video.currentTime > 2 && video.readyState >= 2 && !video.paused;
       }, 100000);
+      report.miniPlayer.episodeSwitch = mini.isActive();
+      var secondSource = video.currentSrc;
+      if (!await mini.request(false)) throw new Error('mini player restore failed');
+      await waitFor('restored full window layout', function () {
+        return innerWidth === originalViewport[0] && innerHeight === originalViewport[1];
+      }, 10000);
+      await sleep(700);
+      var restoredWindow = JSON.parse(await window.go.main.desktopApp.GetWindowState());
+      report.miniPlayer.restored = !mini.isActive() && restoredWindow.fullscreen === originalWindow.fullscreen && video.currentSrc === secondSource && !video.paused;
+      if (!report.miniPlayer.retainedVideo || !report.miniPlayer.continuedPlaying || !report.miniPlayer.episodeSwitch || !report.miniPlayer.restored) {
+        throw new Error('mini player did not preserve video, switch episode or restore window');
+      }
       var second = await capture('second-a');
       await sleep(3500);
       var secondLater = await capture('second-b');

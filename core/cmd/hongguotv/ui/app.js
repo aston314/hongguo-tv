@@ -13,6 +13,7 @@
     actions: '.round-action',
     controls: '.playback-buttons .control-button, #player-retry, #player-failure-diagnostics',
     timeline: '#control-progress',
+    miniPlayer: '.mini-player-button, .mini-player-overlay input',
     searchInput: '#search-input',
     searchSuggestions: '.search-suggestion',
     searchActions: '.search-action',
@@ -1147,6 +1148,7 @@
 
   function zoneOf(element) {
     if (!element) return '';
+    if (element.closest && element.closest('.mini-player-overlay')) return 'miniPlayer';
     if (element.id === 'core-connection-scroll' || element.classList.contains('core-connection-action')) return 'coreConnection';
     if (element.id === 'core-status') return 'channels';
     if (element.classList.contains('end-recommendation-card') || element.id === 'end-recommendations-close') return 'endRecommendations';
@@ -2128,6 +2130,7 @@
 
   function handleKey(event) {
     var key = normalizedKey(event);
+    if (typeof desktopShell !== 'undefined' && desktopShell && window.HongguoDesktopMini && window.HongguoDesktopMini.handleKey(event, key, goFocus)) return;
     if (searchSuggestionActivation && (key === 'Enter' || key === 'Escape')) {
       if (key === 'Escape') handleBack();
       event.preventDefault(); event.stopPropagation(); return;
@@ -2262,7 +2265,8 @@
 
   function switchPlayerEpisode(step, fromWheel) {
     var playerMode = pageMode() === 'player';
-    var fullscreenRecommendation = pageMode() === 'recommend' && shell.classList.contains('is-cinema');
+    var fullscreenRecommendation = pageMode() === 'recommend' && (shell.classList.contains('is-cinema') ||
+      typeof desktopShell !== 'undefined' && desktopShell && window.HongguoDesktopMini && window.HongguoDesktopMini.isActive());
     if ((!playerMode && !fullscreenRecommendation) || (!fromWheel && zoneOf(document.activeElement) !== 'feed') ||
       detailModalOpen || (typeof actorWorksOpen !== 'undefined' && actorWorksOpen) || playerOptionsOpen || confirmOpen || discussionOpen) return false;
     step = Number(step);
@@ -3194,6 +3198,7 @@
   function desktopFullscreenChanged(enabled) {
     if (!desktopShell) return;
     nativeFullscreen = !!enabled;
+    if (window.HongguoDesktopMini && (window.HongguoDesktopMini.isActive() || window.HongguoDesktopMini.isPending())) return;
     setCinema(enabled);
     if (!enabled && fullscreenExitKeepsHidden) hideControls();
     fullscreenExitKeepsHidden = false;
@@ -3324,6 +3329,52 @@
     startPlayer({ series_id: program.series_id, title: program.title, intro: '', cover: '' }, null, { cardLaunch: !!program.cardLaunch });
   }
   window.HongguoTV = { prepareExit: function () { pauseForBackground(); return libraryQueue.catch(function () {}); }, remoteKey: remoteKey, requestBack: handleBack, mediaCommand: handleMediaCommand, togglePlaybackCommandMenu: togglePlaybackCommandMenu, pauseForBackground: pauseForBackground, resumeFromBackground: resumeFromBackground, desktopFullscreenChanged: desktopFullscreenChanged, canShowAppUpdate: canShowAppUpdate, finishAccountEditing: function () {}, finishSearchEditing: function () { var current = typeof androidShell !== 'undefined' && androidShell ? remoteFocusTarget() || document.activeElement : document.activeElement; if (current === searchInput) goFocus(searchSuggestionOpen ? firstVisible('.search-suggestion') || firstSearchAction() || firstSearchFilter() : firstSearchAction() || firstSearchFilter()); }, openHomeProgram: openHomeProgram };
+
+  function miniPlayerState() {
+    var video = document.getElementById('hero-video');
+    var item = activePlayback && activePlayback.item || feedItems[feedIndex] || featuredItem || {};
+    var episode = Number(activePlayback && activePlayback.episode || playbackRequest && playbackRequest.episode || item.start_episode) || 0;
+    var total = Number(item.episode_count) || 0;
+    var available = isPlaybackPage() && !!item.series_id &&
+      !coreConnectionModalOpen && !detailModalOpen && !playerOptionsOpen && !confirmOpen && !discussionOpen &&
+      !(typeof playbackCommandMenuOpen !== 'undefined' && playbackCommandMenuOpen) &&
+      !(typeof actorWorksOpen !== 'undefined' && actorWorksOpen) && !(endRecommendations && endRecommendations.isOpen());
+    var recommend = available && pageMode() === 'recommend';
+    var width = video.videoWidth || activePlayback && activePlayback.videoWidth || 0;
+    var height = video.videoHeight || activePlayback && activePlayback.videoHeight || 0;
+    return { available: available, title: item.title || '', episode: episode, portrait: height > width,
+      previousEpisode: available && episode > 1, nextEpisode: available && episode > 0 && (!total || episode < total),
+      previousDrama: recommend && feedIndex > 0, nextDrama: recommend && (feedIndex + 1 < feedItems.length || feedPager.hasMore() || !!feedPager.error),
+      canPlay: available && !!video.getAttribute('src'), paused: video.paused || video.ended,
+      position: Number(video.currentTime) || 0, duration: Number.isFinite(video.duration) ? video.duration : 0,
+      volume: (playbackAudioHold ? playbackAudioHold.muted : video.muted) ? 0 : Math.round(video.volume * 100) };
+  }
+  function miniPlayerCommand(action, value) {
+    var state = miniPlayerState();
+    if (!desktopShell || !state.available || applicationInBackground || applicationHidden()) return false;
+    if (action === 'previousEpisode' && state.previousEpisode) return switchPlayerEpisode(-1, true);
+    if (action === 'nextEpisode' && state.nextEpisode) return switchPlayerEpisode(1, true);
+    if (action === 'previousDrama' && state.previousDrama) switchRecommendation(-1);
+    else if (action === 'nextDrama' && state.nextDrama) switchRecommendation(1);
+    else if (action === 'toggle') toggleVideo();
+    else if (action === 'seek') return seekTo(value, false);
+    else if (action === 'volume' && Number.isFinite(value) && value >= 0 && value <= 100) {
+      document.getElementById('hero-video').volume = value / 100;
+      setPlaybackMuted(value === 0); playbackPreferences.volume = value;
+      savePlaybackPreferences(); updatePlaybackControls();
+    } else return false;
+    return true;
+  }
+  if (desktopShell) {
+    window.HongguoTV.miniPlayerState = miniPlayerState;
+    window.HongguoTV.miniPlayerCommand = miniPlayerCommand;
+    window.HongguoTV.miniPlayerFocus = goFocus;
+    window.HongguoTV.miniPlayerNotify = showNotice;
+    window.HongguoTV.miniPlayerChanged = function (enabled, cinema) {
+      if (enabled) { cancelPendingAutoCinema(); closePlaybackMenuHint(); }
+      else if (isPlaybackPage()) { setCinema(!!cinema); revealControls(); }
+    };
+  }
 
   function isLibraryPage() { return ['history', 'favorites', 'likes'].indexOf(pageMode()) >= 0; }
   function libraryEntry(id) { return libraryData.entries.filter(function (entry) { return entry.drama.series_id === id; })[0] || null; }

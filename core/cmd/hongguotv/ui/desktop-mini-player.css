@@ -1,0 +1,46 @@
+/* Desktop-only geometry overrides; TV breakpoints and the shared video stay intact. */
+.mini-player-overlay { display: none; }
+html.desktop-shell.desktop-mini-player .app-shell { min-width: 0; min-height: 0; width: 100vw; height: 100vh; }
+html.desktop-shell.desktop-mini-player .sidebar,
+html.desktop-shell.desktop-mini-player .top-bar { display: none; }
+html.desktop-shell.desktop-mini-player .main-surface { width: 100%; min-width: 0; }
+html.desktop-shell.desktop-mini-player .hero { width: 100%; height: 100%; min-width: 0; }
+html.desktop-shell.desktop-mini-player .hero-top-copy,
+html.desktop-shell.desktop-mini-player .hero-top-right,
+html.desktop-shell.desktop-mini-player .hero-title,
+html.desktop-shell.desktop-mini-player .hero-episode,
+html.desktop-shell.desktop-mini-player .hero-summary,
+html.desktop-shell.desktop-mini-player .hero-gradient,
+html.desktop-shell.desktop-mini-player .right-actions,
+html.desktop-shell.desktop-mini-player .bottom-controls,
+html.desktop-shell.desktop-mini-player .catalog-ribbon { display: none; }
+html.desktop-shell.desktop-mini-player .hero-video { object-fit: contain; }
+html.desktop-shell.desktop-mini-player .mini-player-overlay { display: block; position: absolute; inset: 0; z-index: 7; pointer-events: none; color: #fff; font-size: 12px; opacity: 0; }
+html.desktop-shell.desktop-mini-player .mini-player-overlay.is-visible { opacity: 1; }
+.mini-player-header, .mini-player-footer { position: absolute; left: 0; right: 0; pointer-events: none; padding: 10px 12px; }
+.mini-player-overlay.is-visible .mini-player-header, .mini-player-overlay.is-visible .mini-player-footer { pointer-events: auto; }
+.mini-player-header { top: 0; display: flex; align-items: center; background: linear-gradient(rgba(0,0,0,.76), transparent); --wails-draggable: drag; }
+.mini-player-heading { min-width: 0; flex: 1; line-height: 1.5; }
+.mini-player-heading strong, .mini-player-heading > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mini-player-heading strong { font-size: 14px; }
+.mini-player-heading > span { color: #d1d1da; }
+.mini-player-button { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; min-width: 0; height: 48px; margin: 0 2px; padding: 3px; color: #fff; background: transparent; border: 0; border-radius: 6px; font: inherit; cursor: pointer; --wails-draggable: no-drag; }
+.mini-player-button svg { width: 22px; height: 22px; flex-shrink: 0; }
+.mini-player-button > span { font-size: 11px; white-space: nowrap; margin-top: 3px; }
+.mini-player-button:disabled { opacity: .35; cursor: default; }
+.mini-player-button:hover:not(:disabled) { background: rgba(255,255,255,.16); }
+.mini-player-button:focus:not(.pointer-focus-muted), .mini-player-button.is-focused { outline: 2px solid #fff; outline-offset: -2px; }
+.mini-player-header .mini-player-button { flex: 0 0 40px; height: 40px; margin-left: 6px; }
+.mini-player-header .mini-player-button > span { display: none; }
+.mini-player-footer { bottom: 0; background: linear-gradient(transparent, rgba(0,0,0,.86) 35%); }
+.mini-player-actions { display: flex; align-items: center; justify-content: space-between; }
+#mini-player-pause { background: rgba(255,255,255,.14); }
+.mini-player-footer input[type="range"] { display: block; width: 100%; height: 20px; padding: 0; margin: 0 0 5px; accent-color: #ff845f; cursor: pointer; }
+.mini-player-footer input:disabled { opacity: .4; }
+.mini-player-footer input:focus { outline: 2px solid #fff; outline-offset: 1px; }
+.mini-player-audio { display: flex; align-items: center; justify-content: space-between; margin-top: 5px; color: #d1d1da; font-variant-numeric: tabular-nums; }
+.mini-player-audio input[type="range"] { width: 74px; height: 16px; margin: 0; }
+html.desktop-shell.desktop-mini-player .notice { right: 10px; bottom: 128px; max-width: calc(100% - 20px); font-size: 12px; }
+html.desktop-shell.desktop-mini-player .player-status { max-width: calc(100% - 24px); font-size: 14px; }
+html.desktop-shell.desktop-mini-player .player-status-actions { flex-wrap: wrap; justify-content: center; }
+html.desktop-shell.desktop-mini-player .player-failure-action { min-width: 0; font-size: 13px; }
