@@ -991,6 +991,8 @@
       seasonButton.setAttribute('aria-label', seasonLabel);
       if (!showSeasons && playbackCommandMenuOpen && (document.activeElement === seasonButton || seasonButton.classList.contains('is-focused'))) goFocus(document.getElementById('player-menu-episodes'));
     }
+    var menuSpeed = document.getElementById('player-menu-speed');
+    if (menuSpeed) menuSpeed.classList.toggle('is-hidden', !playbackSpeedAvailable());
     var fullscreenButton = document.getElementById('player-menu-fullscreen');
     if (fullscreenButton) {
       var full = shell.classList.contains('is-cinema');
@@ -1075,32 +1077,44 @@
 
   function scanModalOpen() { return searchScanOpen || danmakuScanOpen; }
 
+  var allZonesQuery = '';
+  // Dialogs in precedence order: the first open layer owns remote focus.
+  // Add new dialogs here instead of extending each focus check.
+  var modalLayers = [
+    ['#core-connection-modal', function () { return coreConnectionModalOpen; }],
+    ['#search-scan-modal', function () { return scanModalOpen(); }],
+    ['#account-country-modal', function () { return accountCountryModalOpen; }],
+    ['#account-keypad-modal', function () { return accountKeypadOpen(); }],
+    ['#support-modal', function () { return supportModalOpen; }],
+    ['#rank-filter-modal', function () { return rankFilterOpen; }],
+    ['#actor-works-modal', function () { return typeof actorWorksOpen !== 'undefined' && actorWorksOpen; }],
+    ['#detail-cast-modal', function () { return detailCastOpen; }],
+    ['#confirm-modal', function () { return confirmOpen; }],
+    ['#playback-command-menu', function () { return typeof playbackCommandMenuOpen !== 'undefined' && playbackCommandMenuOpen; }],
+    ['#player-options', function () { return playerOptionsOpen; }],
+    ['#discussion-panel', function () { return discussionOpen; }],
+    ['#end-recommendations', function () { return !!(endRecommendations && endRecommendations.isOpen()); }]
+  ];
+  function activeModalRoot() {
+    for (var i = 0; i < modalLayers.length; i++) if (modalLayers[i][1]()) return modalLayers[i][0];
+    return '';
+  }
+
   function focusables(selector) {
+    var query = selector || allZonesQuery || (allZonesQuery = Object.keys(zoneSelectors).map(function (zone) { return zoneSelectors[zone]; }).join(','));
+    var frame = focusables.frame;
+    if (frame && frame[query]) return frame[query].slice();
     var result = [];
-    var query = selector || Object.keys(zoneSelectors).map(function (zone) { return zoneSelectors[zone]; }).join(',');
+    var root = activeModalRoot();
     Array.prototype.forEach.call(document.querySelectorAll(query), function (element) {
+      if (root) { if (!element.closest(root)) return; }
+      else if (element.closest('#playback-command-menu, #end-recommendations, #discussion-panel')) return;
+      else if (detailModalOpen !== !!element.closest('#detail-modal')) return;
+      if (element.disabled || !element.getClientRects || !element.getClientRects().length) return;
       var style = window.getComputedStyle(element);
-      var insideModal = element.closest && element.closest('#detail-modal');
-      if (coreConnectionModalOpen) { if (!element.closest('#core-connection-modal')) return; }
-      else if (scanModalOpen()) { if (!element.closest('#search-scan-modal')) return; }
-      else if (accountCountryModalOpen) { if (!element.closest('#account-country-modal')) return; }
-      else if (accountKeypadOpen()) { if (!element.closest('#account-keypad-modal')) return; }
-      else if (supportModalOpen) { if (!element.closest('#support-modal')) return; }
-      else if (rankFilterOpen) { if (!element.closest('#rank-filter-modal')) return; }
-      else if (typeof actorWorksOpen !== 'undefined' && actorWorksOpen) { if (!element.closest('#actor-works-modal')) return; }
-      else if (detailCastOpen) { if (!element.closest('#detail-cast-modal')) return; }
-      else if (confirmOpen) { if (!element.closest('#confirm-modal')) return; }
-      else if (typeof playbackCommandMenuOpen !== 'undefined' && playbackCommandMenuOpen) { if (!element.closest('#playback-command-menu')) return; }
-      else if (playerOptionsOpen) { if (!element.closest('#player-options')) return; }
-      else if (discussionOpen) { if (!element.closest('#discussion-panel')) return; }
-      else if (endRecommendations && endRecommendations.isOpen()) { if (!element.closest('#end-recommendations')) return; }
-      else if (element.closest('#playback-command-menu')) return;
-      else if (element.closest('#end-recommendations')) return;
-      else if (element.closest('#discussion-panel')) return;
-      else if (detailModalOpen ? !insideModal : insideModal) return;
-      if (!element.getClientRects || !element.getClientRects().length) return;
-      if (!element.disabled && style.display !== 'none' && style.visibility !== 'hidden') result.push(element);
+      if (style.display !== 'none' && style.visibility !== 'hidden') result.push(element);
     });
+    if (frame) frame[query] = result.slice();
     return result;
   }
 
@@ -1123,8 +1137,13 @@
     return null;
   }
 
+  var paintedFocus = null;
   function paintFocus(element) {
-    document.querySelectorAll('.is-focused').forEach(function (node) { node.classList.remove('is-focused'); });
+    // Only this function paints focus, so the previous node is known; fall
+    // back to a full scan when it was replaced or never recorded.
+    if (paintedFocus && paintedFocus !== element && document.contains(paintedFocus)) paintedFocus.classList.remove('is-focused');
+    else if (!paintedFocus || !document.contains(paintedFocus)) document.querySelectorAll('.is-focused').forEach(function (node) { if (node !== element) node.classList.remove('is-focused'); });
+    paintedFocus = element || null;
     if (element) element.classList.add('is-focused');
   }
 
@@ -2126,6 +2145,18 @@
     return key;
   }
 
+  // One remote key press can query the same selectors many times while the
+  // DOM is unchanged; moveFrom reads them through this per-press cache.
+  function withFocusFrame(work) {
+    if (focusables.frame) return work();
+    focusables.frame = {};
+    try { return work(); } finally { focusables.frame = null; }
+  }
+
+  function overlayOpen() {
+    return detailModalOpen || playerOptionsOpen || confirmOpen || discussionOpen;
+  }
+
   function handleKey(event) {
     var key = normalizedKey(event);
     if (searchSuggestionActivation && (key === 'Enter' || key === 'Escape')) {
@@ -2214,27 +2245,27 @@
       return;
     }
     if (!direction) return;
-    if (!detailModalOpen && !playerOptionsOpen && !confirmOpen && !discussionOpen && current && current.id === 'control-progress') {
+    if (!overlayOpen() && current && current.id === 'control-progress') {
       if (direction === 'left' || direction === 'right') seekBy(direction === 'left' ? -10 : 10);
       else goFocus(direction === 'up' ? document.getElementById('hero-feed-focus') : lastPlaybackControl || firstVisible('.playback-buttons .control-button'));
       event.preventDefault(); event.stopPropagation(); return;
     }
-    if (!detailModalOpen && !playerOptionsOpen && !confirmOpen && !discussionOpen && pageMode() === 'recommend' && zoneOf(current) === 'feed' &&
+    if (!overlayOpen() && pageMode() === 'recommend' && zoneOf(current) === 'feed' &&
       shell.classList.contains('is-cinema') && (direction === 'up' || direction === 'down')) {
       if (!event.repeat) switchPlayerEpisode(direction === 'up' ? -1 : 1);
       event.preventDefault(); event.stopPropagation(); return;
     }
-    if (!detailModalOpen && !playerOptionsOpen && !confirmOpen && !discussionOpen && pageMode() === 'recommend' && zoneOf(current) === 'feed' && (direction === 'up' || direction === 'down')) {
+    if (!overlayOpen() && pageMode() === 'recommend' && zoneOf(current) === 'feed' && (direction === 'up' || direction === 'down')) {
       if (!event.repeat) switchRecommendation(direction === 'up' ? -1 : 1);
       event.preventDefault();
       event.stopPropagation();
       return;
     }
-    if (!detailModalOpen && !playerOptionsOpen && !confirmOpen && !discussionOpen && zoneOf(current) === 'feed' && pageMode() === 'player' && (direction === 'up' || direction === 'down')) {
+    if (!overlayOpen() && zoneOf(current) === 'feed' && pageMode() === 'player' && (direction === 'up' || direction === 'down')) {
       if (!event.repeat) switchPlayerEpisode(direction === 'up' ? -1 : 1);
       event.preventDefault(); event.stopPropagation(); return;
     }
-    if (!detailModalOpen && !playerOptionsOpen && !confirmOpen && !discussionOpen &&
+    if (!overlayOpen() &&
       (pageMode() === 'player' || pageMode() === 'recommend' && shell.classList.contains('is-cinema')) &&
       zoneOf(current) === 'feed' && (direction === 'left' || direction === 'right') &&
       (shell.classList.contains('is-cinema') || shell.classList.contains('is-controls-hidden'))) {
@@ -2242,8 +2273,8 @@
       if (!seeked) showNotice(uiText('ui.videoReadySeek', '视频准备好后才能快进或后退'));
       event.preventDefault(); event.stopPropagation(); return;
     }
-    if (isPlaybackPage() && !detailModalOpen && !playerOptionsOpen && !confirmOpen && !discussionOpen && (direction !== 'left' || shell.classList.contains('is-cinema') || zoneOf(current) !== 'feed')) revealControls();
-    var target = moveFrom(current, direction);
+    if (isPlaybackPage() && !overlayOpen() && (direction !== 'left' || shell.classList.contains('is-cinema') || zoneOf(current) !== 'feed')) revealControls();
+    var target = withFocusFrame(function () { return moveFrom(current, direction); });
     if (target) {
       goFocus(target);
     }
@@ -8046,6 +8077,14 @@
         playbackCommandMenuReturnFocus = menuReturn;
         openDetail(featuredItem, item.dataset.action === 'player-menu-seasons' ? 'series' : undefined, menuReturn);
       }
+      else if (item.dataset.action === 'more') {
+        if (!openPlaybackCommandMenu()) showNotice(uiText('player.moreAfterPlay', '开始播放后可使用更多选项'));
+      }
+      else if (item.dataset.action === 'player-menu-speed' || item.dataset.action === 'player-menu-diagnostics') {
+        var optionsReturn = playbackCommandMenuReturnFocus || document.getElementById('hero-feed-focus');
+        closePlaybackCommandMenu(false);
+        openPlayerOptions(item.dataset.action === 'player-menu-speed' ? 'speed' : 'diagnostics', optionsReturn);
+      }
       else if (item.dataset.action === 'player-menu-fullscreen') {
         closePlaybackCommandMenu(true);
         toggleCinema();
@@ -8236,10 +8275,7 @@
     window.HongguoPlaybackPointer.attach(document.getElementById('hero'), {
       isEnabled: function () {
         return isPlaybackPage() && !!activePlayback && !applicationInBackground && !applicationHidden() &&
-          !detailModalOpen && !playerOptionsOpen && !confirmOpen && !discussionOpen &&
-          !scanModalOpen() && !supportModalOpen && !accountCountryModalOpen && !accountKeypadOpen() &&
-          !rankFilterOpen && !detailCastOpen && !actorWorksOpen && !playbackCommandMenuOpen &&
-          !(endRecommendations && endRecommendations.isOpen());
+          !detailModalOpen && !activeModalRoot();
       },
       onTogglePlayback: toggleVideo,
       onSeek: function (delta) { seekBy(delta, false); },

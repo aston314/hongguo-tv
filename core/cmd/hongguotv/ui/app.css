@@ -1149,3 +1149,40 @@ html.native-playback .hero-video { display: none !important; }
 .account-login-qr-box img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .account-qr-status { min-height: 1.6em; font-size: 1.15rem; text-align: center; }
 #account-login-qr-expiry { text-align: center; }
+
+/* Unified remote focus: one ring weight and one motion curve for every
+   focusable control. Literal values keep Chromium 44 WebViews supported. */
+.side-item, .channel-tab, .catalog-card, .round-action, .control-button, .primary-action,
+.search-filter, .filter-toggle, .rank-filter-toggle, .rank-panel, .rank-row, .publication-row,
+.publication-action, .list-retry, .search-submit, .search-browse, .search-suggestion,
+.search-history-action, .search-scan-action, .player-option, .discussion-item, .discussion-action,
+.playback-command-action, .core-connection-action, .diagnostic-action, .end-recommendations-close {
+  transition: transform .14s ease-out, box-shadow .14s ease-out, background-color .14s ease-out, color .14s ease-out, border-color .14s ease-out;
+}
+.side-item.is-focused, .side-item:focus:not(.pointer-focus-muted),
+.search-filter.is-focused, .search-filter:focus:not(.pointer-focus-muted),
+.rank-filter-toggle.is-focused, .rank-filter-toggle:focus:not(.pointer-focus-muted),
+.rank-panel.is-focused, .rank-panel:focus:not(.pointer-focus-muted),
+.search-suggestion.is-focused, .search-suggestion:focus:not(.pointer-focus-muted) { box-shadow: 0 0 0 3px #fff; }
+/* Distinguish "current page" from "current focus" when both apply. */
+.side-item.is-active.is-focused, .side-item.is-active:focus:not(.pointer-focus-muted) { color: #fff; background: rgba(243,93,123,.38); }
+
+/* 10-foot readability: lift the smallest labels and lift focused posters. */
+.round-action small { font-size: 14px; }
+.search-result-card.is-focused > .drama-poster, .new-card.is-focused > .drama-poster,
+.library-card.is-focused > .drama-poster, .end-recommendation-card.is-focused > .drama-poster {
+  transform: scale(1.04); box-shadow: 0 12px 30px rgba(0,0,0,.5); transition: transform .14s ease-out, box-shadow .14s ease-out;
+}
+.search-result-card > .drama-poster, .new-card > .drama-poster,
+.library-card > .drama-poster, .end-recommendation-card > .drama-poster { transition: transform .14s ease-out, box-shadow .14s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  .side-item, .channel-tab, .catalog-card, .round-action, .control-button, .primary-action,
+  .search-filter, .filter-toggle, .rank-filter-toggle, .rank-panel, .rank-row, .publication-row,
+  .publication-action, .list-retry, .search-submit, .search-browse, .search-suggestion,
+  .search-history-action, .search-scan-action, .player-option, .discussion-item, .discussion-action,
+  .playback-command-action, .core-connection-action, .diagnostic-action, .end-recommendations-close,
+  .drama-poster { transition: none; }
+  .side-item.is-focused, .catalog-card.is-focused, .round-action.is-focused, .primary-action.is-focused,
+  .search-submit.is-focused, .drama-poster { transform: none; }
+}
