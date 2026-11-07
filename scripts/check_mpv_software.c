@@ -22,13 +22,14 @@ int main(int argc, char **argv) {
     const char *options[][2] = {
         {"config", "no"}, {"terminal", "no"}, {"hwdec", "no"},
         {"vo", "null"}, {"ao", "null"}, {"audio", "no"}, {"sid", "no"},
-        {"pause", "no"}, {"untimed", "yes"}, {"keep-open", "yes"}, {"frames", "8"}
+        {"pause", "no"}, {"untimed", "no"}, {"keep-open", "yes"},
+        {"log-file", "mpv-check.log"}
     };
     int result = 1;
     for (size_t i = 0; i < sizeof(options) / sizeof(options[0]); i++)
         if (option(player, options[i][0], options[i][1]) < 0) goto done;
     if (mpv_initialize(player) < 0) goto done;
-    mpv_request_log_messages(player, "warn");
+    mpv_request_log_messages(player, "info");
     const char *command[] = {"loadfile", argv[1], "replace", NULL};
     if (mpv_command(player, command) < 0) goto done;
     time_t deadline = time(NULL) + 60;
