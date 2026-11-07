@@ -46,15 +46,17 @@ int main(int argc, char **argv) {
             }
         }
         double position = 0;
-        if (mpv_get_property(player, "time-pos", MPV_FORMAT_DOUBLE, &position) < 0 || position < 0.5) continue;
+        if (mpv_get_property(player, "time-pos", MPV_FORMAT_DOUBLE, &position) < 0 || position < 0.6) continue;
         int64_t frame = 0;
-        char *codec = mpv_get_property_string(player, "video-codec");
+        // video-codec is a descriptive decoder label; video-format is the
+        // stable codec identifier ("hevc") used by the demuxed track.
+        char *codec = mpv_get_property_string(player, "video-format");
         char *hardware = mpv_get_property_string(player, "hwdec-current");
         char *format = mpv_get_property_string(player, "video-dec-params/pixelformat");
         mpv_get_property(player, "estimated-frame-number", MPV_FORMAT_INT64, &frame);
         int software = hardware && strcmp(hardware, "no") == 0;
         result = !(codec && strcmp(codec, "hevc") == 0 && software &&
-                   format && strcmp(format, "yuv420p") == 0 && position >= 0.5 && frame >= 6);
+                   format && strcmp(format, "yuv420p") == 0 && position >= 0.6 && frame >= 6);
         fprintf(report, "{\"codec\":\"%s\",\"hwdec_current\":\"%s\",\"pixel_format\":\"%s\","
                "\"position_seconds\":%.3f,\"estimated_frame_number\":%lld,\"passed\":%s}\n",
                codec ? codec : "", hardware ? hardware : "", format ? format : "",
