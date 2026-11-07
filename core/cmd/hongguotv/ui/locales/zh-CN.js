@@ -5,6 +5,14 @@
   // without changing the UI or the focus model.
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-CN'] = {
+    "mini.enter": "小窗播放",
+    "mini.restore": "返回大窗",
+    "mini.previousEpisode": "上一集",
+    "mini.nextEpisode": "下一集",
+    "mini.previousDrama": "上一部",
+    "mini.nextDrama": "下一部",
+    "mini.failed": "小窗切换失败，请重试",
+
     "search.discovery": "热门搜索",
     "search.guesses": "猜你想搜",
     "search.hotBoards": "热搜榜单",
