@@ -17,10 +17,11 @@ type miniReelPlaybackSources struct {
 	singleEndpoint  string
 	registerSingle  func(context.Context) (miniReelDevice, error)
 	client          *http.Client
+	memory          *miniReelSourceMemoryStore
 }
 
 func miniReelNativeOptionsWithSources(ctx context.Context, vid, codecMode, contentType string, sources miniReelPlaybackSources) ([]miniReelOption, error) {
-	sequence := miniReelSourceSequence{sources: sources, vid: vid, codecMode: codecMode, contentType: contentType}
+	sequence := newMiniReelSourceSequence(sources, vid, codecMode, contentType, "")
 	return sequence.next(ctx)
 }
 

@@ -61,7 +61,8 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
       req.write = () => {}; req.destroy = () => {};
       req.end = () => process.nextTick(() => {
         const res = new PassThrough(); res.statusCode = 200; res.headers = {};
-        req.emit('response', res); res.end(JSON.stringify(tabReply));
+        const vid = new URL('https://fixture.test' + options.path).searchParams.get('video_id');
+        req.emit('response', res); res.end(JSON.stringify(typeof tabReply === 'function' ? tabReply(vid) : tabReply));
       });
       return req;
     }
@@ -496,6 +497,8 @@ test('new rounds and subsequent episodes use fresh legacy identities while video
     assert.equal(value.preparation_timing.media_video_model.attempt,4);
     await f.provider.prepare('123','789','',true,'range',false);
     assert.equal(f.requests[4].device,'1234567890123456784');assert.equal(f.registrations,4);
+    assert.equal(f.tabRequests.length,1,'same series remembers the prepared legacy route');
+    await f.provider.prepare('124','790','',true,'range',false);
     assert.equal(f.tabRequests.length,2);
     assert.equal(f.tabRequests[0].path.split('device_id=')[1].split('&')[0],f.tabRequests[1].path.split('device_id=')[1].split('&')[0]);
   } finally {f.close();}
@@ -664,4 +667,71 @@ test('leaving during source recovery from the full fallback aborts the new model
     const pending=observe(f.prepare(false,c.signal));await until(()=>f.singleRequests.length===1);c.abort();
     assert.equal((await pending).error.name,'AbortError');await tick();assert.equal(f.singleRequests[0].destroyed,true);assert.equal(f.singleRequests.length,1);
   }finally{f.close();}
+});
+
+function incompatibleLegacy(vid) {
+  return {body:JSON.stringify({data:{[vid]:{video_model:{video_list:[{main_url:'https://media.example.test/unsafe.mp4',codec_type:'bytevc2'}]}}}})};
+}
+
+test('same-series success prefers the single provider; other series and quality keep default order', async () => {
+  const f=fixture([incompatibleLegacy('456'),{},{}],null,[],{code:100103},[{},{}]);
+  try {
+    await f.prepare(false);
+    await f.provider.prepare('123','457','',true,'range',false);
+    assert.equal(f.singleRequests.length,2);assert.equal(f.tabRequests.length,1);assert.equal(f.requests.length,1);
+    await f.provider.prepare('124','458','',true,'range',false);
+    assert.equal(f.tabRequests.length,2);assert.equal(f.requests.length,2);assert.equal(f.singleRequests.length,2);
+    await f.provider.prepare('123','459','720P',true,'range',false);
+    assert.equal(f.tabRequests.length,3);assert.equal(f.requests.length,3);assert.equal(f.singleRequests.length,2);
+  } finally {f.close();}
+});
+
+test('a remembered single route failure falls back once and remembers the new successful legacy route', async () => {
+  for (const kind of ['model','media']) {
+    const f=fixture([incompatibleLegacy('456'),{}],null,[],{code:100103},[{}, {empty:kind==='model'}, {empty:kind==='model'}],{
+      open(count) {
+        if(kind==='media' && count===2)return Promise.reject(Object.assign(Error('Range unsupported'),{code:'RANGE_UNAVAILABLE'}));
+        return Promise.resolve({prefix:Buffer.alloc(16),samples:[],key:Buffer.alloc(16),length:128,etag:'"fixture"'});
+      },
+      download() {return Promise.reject(Object.assign(Error('media failed'),{code:'ECONNRESET'}));}
+    });
+    try {
+      await f.prepare(false);
+      await f.provider.prepare('123','457','',true,'range',false);
+      assert.equal(f.tabRequests.length,2);assert.equal(f.requests.length,2);
+      assert.equal(f.singleRequests.length,kind==='model'?3:2);
+      await f.provider.prepare('123','458','',true,'range',false);
+      assert.equal(f.tabRequests.length,2,'remembered legacy must not repeat video_tab');
+      assert.equal(f.requests.length,3);assert.equal(f.singleRequests.length,kind==='model'?3:2);
+    } finally {f.close();}
+  }
+});
+
+test('cancelling a remembered route keeps its previous success and shared foreground adoption resolves once', async () => {
+  const f=fixture([incompatibleLegacy('456')],null,[],{code:100103},[{}, {hold:true},{hold:true},{}]),c=cancel.create();
+  try {
+    await f.prepare(false);
+    const abandoned=observe(f.provider.prepare('123','457','',true,'range',false,c.signal));
+    await until(()=>f.singleRequests.length===2);c.abort();assert.equal((await abandoned).error.name,'AbortError');
+    const background=observe(f.provider.prepare('123','458','',true,'range',true));
+    await until(()=>f.singleRequests.length===3);
+    const foreground=observe(f.provider.prepare('123','458','',true,'range',false));
+    f.singleRequests[2].respond();
+    assert.equal((await foreground).value.mode,'range');assert.equal((await background).value.mode,'range');
+    assert.equal(f.singleRequests.length,3);assert.equal(f.tabRequests.length,1);assert.equal(f.requests.length,1);
+    await f.provider.prepare('123','459','',true,'range',false);
+    assert.equal(f.singleRequests.length,4);assert.equal(f.tabRequests.length,1);
+  } finally {f.close();}
+});
+
+test('an unprepared model must not become a same-series preference after disk failure', async () => {
+  const f=fixture([incompatibleLegacy('456'),{}],null,[],{code:100103},[{}],{
+    open() {return Promise.reject(Error('Range unavailable'));},
+    download() {return Promise.reject(Object.assign(Error('disk full'),{code:'ENOSPC'}));}
+  });
+  try {
+    assert((await observe(f.prepare(false))).error);
+    assert((await observe(f.provider.prepare('123','457','',true,'range',false))).error);
+    assert.equal(f.tabRequests.length,2);assert.equal(f.requests.length,2);assert.equal(f.singleRequests.length,1);
+  } finally {f.close();}
 });

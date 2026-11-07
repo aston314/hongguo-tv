@@ -128,7 +128,7 @@ func TestMiniReelFreshFallbackMediaMustBeUsable(t *testing.T) {
 			if failure == "quality" {
 				quality = "1080P"
 			}
-			prepareMiniReelWithSources(ctx, job, "123", quality, false, sources, func(miniReelOption) error {
+			prepareMiniReelWithSources(ctx, job, "999", "123", quality, false, sources, func(miniReelOption) error {
 				prepared++
 				if prepared >= 3 || failure == "success" {
 					return nil

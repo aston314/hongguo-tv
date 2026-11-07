@@ -515,7 +515,7 @@ func prepareMiniReelMedia(ctx context.Context, job *miniReelMediaJob, token, ser
 		return
 	}
 	path := filepath.Join(directory, token+".mp4")
-	prepareMiniReelWithSources(ctx, job, vid, quality, fallback, miniReelProductionSources(), func(option miniReelOption) error {
+	prepareMiniReelWithSources(ctx, job, seriesID, vid, quality, fallback, miniReelProductionSources(), func(option miniReelOption) error {
 		downloadStarted := time.Now()
 		err := downloadMiniReelMedia(ctx, option.URL, path)
 		job.DownloadMS += time.Since(downloadStarted).Milliseconds()
@@ -543,7 +543,6 @@ func prepareMiniReelMedia(ctx context.Context, job *miniReelMediaJob, token, ser
 		job.Path = path
 		return nil
 	})
-	_ = seriesID // kept in the job key so the same vid cannot cross series contexts.
 }
 
 func ensureMiniReelRoot() error {

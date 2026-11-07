@@ -16,6 +16,7 @@
   var passportSign = require('./passport-sign');
   var createPlaybackIdentity = require('./playback-identity');
   var singleProfile = require('./single-playback-profile');
+  var sourceMemory = require('./playback-source-memory')();
   var networkDiagnostic = require('./network-diagnostic');
   var rangeMedia = require('./range-media');
   var createMediaCache = require('./media-cache');
@@ -583,10 +584,10 @@
     });
   }
 
-  function primaryVideoOptions(vid, signal, retry) {
+  function legacyVideoOptions(vid, signal, retry) {
     retry = retry || {};
     // This state belongs to one media job, including a prefetch adopted by the
-    // foreground. video_tab is attempted once; the legacy budget never resets.
+    // foreground. Provider order never resets the legacy request budget.
     var state = retry.identityState || {};
     var maximum = Math.max(1, Math.min(4, Number(retry.maxAttempts) || 4));
     var attempt = 0, startedAt = Number(retry.startedAt) || Date.now(), diagnostic;
@@ -671,15 +672,7 @@
         throw error;
       });
     }
-    if (state.tabTried) return next();
-    state.tabTried = true;
-    return videoTabOptions(vid, signal, retry).then(function (options) { state.source = 'video_tab'; return options; }).catch(function (error) {
-      check();
-      if (error && error.name === 'AbortError') throw preparationCancelled();
-      if (error && error.code === 'ACCOUNT_DEVICE') throw error;
-      if (typeof retry.onVideoTabFallback === 'function') retry.onVideoTabFallback(error);
-      return next();
-    });
+    return next();
   }
 
   function sourceFallbackAllowed(error) {
@@ -728,32 +721,46 @@
     retry = retry || {}; var state = retry.identityState || (retry.identityState = {});
     retry.startedAt = retry.startedAt || Date.now();
     if (signal && signal.aborted || playbackIdentityClosed) return Promise.reject(preparationCancelled());
-    if (state.source === 'video_model') return Promise.reject(state.lastError || fail('片源已尝试完毕',502,'VIDEO_MODEL_NO_QUALITY'));
+    if (!state.plan) state.plan = sourceMemory.plan('');
+    state.cursor = state.cursor || 0;
+    if (state.cursor >= state.plan.order.length) return Promise.reject(state.lastError || fail('片源已尝试完毕',502,'VIDEO_MODEL_NO_QUALITY'));
+    var provider = state.plan.order[state.cursor], single = provider === 'video_model';
     var remaining = 30000 - (state.resolveSpent || 0);
     if (remaining <= 0) return Promise.reject(fail('播放取源超时',504,'UPSTREAM_TIMEOUT'));
+    // Preserve the existing 22-second tab/legacy group and 8-second single
+    // budget, regardless of which provider this series remembers first.
+    var group = single ? 'singleSpent' : 'primarySpent';
+    var limit = Math.min(remaining, (single ? 8000 : 22000) - (state[group] || 0));
+    if (limit <= 0) { state.cursor++; return videoOptions(vid, signal, retry); }
     var current = audioCancel.create(), started = Date.now(), expired = false;
     function aborted() { current.abort(); }
     if (signal) signal.addEventListener('abort',aborted);
-    // Existing tab + legacy have at most 22 seconds, reserving 8 for the new
-    // provider. Media download time does not restart or consume this budget.
-    var timer = setTimeout(function () { expired = true; current.abort(); }, Math.min(remaining,state.singleStarted ? 8000 : 22000));
-    function finish() { clearTimeout(timer); if (signal) signal.removeEventListener('abort',aborted); state.resolveSpent = (state.resolveSpent || 0) + Date.now() - started; }
-    var primary = state.singleStarted || state.source === 'multi_video_model' ? Promise.reject(state.lastError || fail('原片源媒体不可用',502,'VIDEO_MODEL_MISSING')) : primaryVideoOptions(vid,current.signal,retry);
-    return primary.then(function (options) { finish(); return options; }, function (error) {
+    var timer = setTimeout(function () { expired = true; current.abort(); }, limit);
+    function finish() {
+      clearTimeout(timer); if (signal) signal.removeEventListener('abort',aborted);
+      var spent = Date.now() - started;
+      state.resolveSpent = (state.resolveSpent || 0) + spent;
+      state[group] = (state[group] || 0) + spent;
+    }
+    var request = provider === 'video_tab' ? videoTabOptions : single ? singleVideoOptions : legacyVideoOptions;
+    return request(vid,current.signal,retry).then(function (options) {
+      finish(); state.source = provider; state.cursor++; return options;
+    }, function (error) {
       finish();
       if (signal && signal.aborted || playbackIdentityClosed) throw preparationCancelled();
       if (expired) error = fail('播放取源超时',504,'UPSTREAM_TIMEOUT');
-      var exhausted = state.attempts >= 4 || !freshPlaybackRetryable(error) || state.source === 'multi_video_model' || expired;
-      if (!sourceFallbackAllowed(error) || !exhausted) throw error;
-      state.singleStarted = true;
-      var left = Math.min(8000,30000 - (state.resolveSpent || 0));
-      if (left <= 0) throw error;
-      var singleCancel = audioCancel.create(), singleStarted = Date.now();
-      function stop() { singleCancel.abort(); }
-      if (signal) signal.addEventListener('abort',stop);
-      var singleTimer = setTimeout(stop,left);
-      return singleVideoOptions(vid,singleCancel.signal,retry).then(function (options) { cleanup(); return options; },function (failed) { cleanup(); throw failed; });
-      function cleanup() { clearTimeout(singleTimer); if (signal) signal.removeEventListener('abort',stop); state.resolveSpent += Date.now() - singleStarted; }
+      var tab = provider === 'video_tab';
+      var exhausted = single || state.attempts >= 4 || !freshPlaybackRetryable(error) || expired;
+      if (tab ? error.code === 'ACCOUNT_DEVICE' || error.name === 'AbortError' : !sourceFallbackAllowed(error)) throw error;
+      if (error.code !== 'VIDEO_TAB_REJECTED') state.plan.observe(provider,false);
+      state.lastError = error;
+      // A speculative legacy request may be resumed by its foreground users,
+      // retaining its host/identity counters and frozen provider order.
+      if (!tab && !exhausted) throw error;
+      if (tab && typeof retry.onVideoTabFallback === 'function') retry.onVideoTabFallback(error);
+      state.cursor++;
+      if (state.cursor >= state.plan.order.length) throw error;
+      return videoOptions(vid,signal,retry);
     });
   }
   function mediaSourceFallbackAllowed(error) {
@@ -994,7 +1001,7 @@
       return Promise.resolve(resultWithReport({ path: '/minireel-proxy/media/' + token + '.mp4', quality: quality || '', qualities: [], vid: vid, mode: 'full' }, preparationReports[token] || { media_mode: 'full', media_preparation_stage: 'ready' }, false, true));
     }
     var record = { users: 0, foregroundUsers: 0, speculative: !!prefetch, settled: false, resolveCancel: audioCancel.create(),
-      identityState: {},
+      identityState: { plan: sourceMemory.plan([seriesID, 'default', '1004', quality, String(!!fallback)].join('\x00')) },
       report: { media_mode: wantsRange ? 'range' : 'full', media_preparation_stage: 'resolve' } };
     rememberPreparation(token, record.report);
     var resolveStartedAt = Date.now();
@@ -1032,6 +1039,10 @@
     }).then(prepareOptions);
     function prepareOptions(options) {
       if (record.resolveCancel.signal.aborted) throw preparationCancelled();
+      var provider = record.identityState.source;
+      function rememberReady() {
+        if (!playbackIdentityClosed && !record.resolveCancel.signal.aborted) record.identityState.plan.observe(provider,true);
+      }
       var selected = choose(options, quality, fallback);
       var qualities = options.map(function (x) { return x.quality; }).filter(Boolean);
       function prepareFull(rangeError) {
@@ -1061,6 +1072,7 @@
         }).then(function () {
           fs.renameSync(temp, fullFile);
           mediaCache.touch(fullToken, true);
+          rememberReady();
           return { path: '/minireel-proxy/media/' + fullToken + '.mp4', quality: selected.quality, qualities: qualities, vid: vid, mode: 'full' };
         }).catch(function (error) {
           try { fs.unlinkSync(temp); } catch (ignored) {}
@@ -1106,12 +1118,15 @@
         trimRangeSources(token, source);
         rangeSources[token] = source;
         mediaCache.touch(token, true);
+        rememberReady();
         return { path: '/minireel-proxy/media/' + token + '.mp4', quality: selected.quality, qualities: qualities, vid: vid, mode: 'range' };
       });
     }
     function recoverMedia(error) {
       if (record.resolveCancel.signal.aborted) throw preparationCancelled();
-      if (!mediaSourceFallbackAllowed(error) || record.identityState.source === 'video_model') throw error;
+      if (!mediaSourceFallbackAllowed(error)) throw error;
+      record.identityState.plan.observe(record.identityState.source,false);
+      if (record.identityState.cursor >= record.identityState.plan.order.length) throw error;
       record.identityState.lastError = fail('原片源媒体不可用',502,'VIDEO_MODEL_MISSING');
       return videoOptions(vid,record.resolveCancel.signal,{identityState:record.identityState,startedAt:resolveStartedAt,onDiagnostic:diagnostic,allowRetry:foregroundWaiting}).then(prepareOptions);
     }
@@ -1985,6 +2000,7 @@
     },
     closeCache: function () {
       playbackIdentityClosed = true; playbackIdentity.close();
+      sourceMemory.clear();
       Object.keys(jobs).forEach(function (key) { jobs[key].resolveCancel.abort('PLAYBACK_PREPARATION_CANCELLED'); });
       Object.keys(audioJobs).forEach(function (key) { audioJobs[key].cancel.abort(); });
       audioRange.close(); audioCache = [];

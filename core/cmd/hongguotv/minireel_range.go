@@ -86,7 +86,7 @@ func resolveMiniReelMediaRangeQualityMode(ctx context.Context, seriesID, vid, qu
 }
 
 func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token, seriesID, vid, quality string, fallback bool) {
-	prepareMiniReelWithSources(ctx, job, vid, quality, fallback, miniReelProductionSources(), func(option miniReelOption) error {
+	prepareMiniReelWithSources(ctx, job, seriesID, vid, quality, fallback, miniReelProductionSources(), func(option miniReelOption) error {
 		rangeStarted := time.Now()
 		source, err := openMiniReelRangeSource(ctx, option, vid, job.CodecMode, job.ContentType)
 		job.RangeInitMS += time.Since(rangeStarted).Milliseconds()
@@ -99,7 +99,6 @@ func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token
 		return nil
 	})
 	_ = token
-	_ = seriesID
 }
 
 func openMiniReelRangeSource(ctx context.Context, option miniReelOption, vid string, codecModes ...string) (result *miniReelRangeSource, err error) {

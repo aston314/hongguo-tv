@@ -12,6 +12,7 @@ func miniReelProductionSources() miniReelPlaybackSources {
 		legacyEndpoints: []string{"https://api5-normal-sinfonlineb.fqnovel.com" + miniReelAPIPath, "https://api5-normal-hl.fqnovel.com" + miniReelAPIPath},
 		register:        registerMiniReelPlaybackDeviceContext,
 		singleEndpoint:  miniReelSingleEndpoint, registerSingle: registerMiniReelSingleDevice,
+		memory: miniReelSourceMemory,
 	}
 }
 
@@ -25,6 +26,12 @@ type miniReelSourceSequence struct {
 	stage                       int
 	spent                       time.Duration
 	lastErr                     error
+	plan                        miniReelSourcePlan
+	provider                    miniReelProvider
+}
+
+func newMiniReelSourceSequence(sources miniReelPlaybackSources, vid, codecMode, contentType, key string) miniReelSourceSequence {
+	return miniReelSourceSequence{sources: sources, vid: vid, codecMode: codecMode, contentType: contentType, plan: sources.memory.plan(key)}
 }
 
 func miniReelSourceFallbackAllowed(err error) bool {
@@ -61,8 +68,13 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 		}
 		stage := s.stage
 		s.stage++
+		provider := s.plan.order[stage]
+		s.provider = provider
 		// Reserve time for later sources when an earlier upstream stalls.
-		limit := []time.Duration{8 * time.Second, 14 * time.Second, 8 * time.Second}[stage]
+		limit := 8 * time.Second
+		if provider == miniReelLegacyProvider {
+			limit = 14 * time.Second
+		}
 		remaining := miniReelPlaybackRaceTimeout - s.spent
 		if remaining <= 0 {
 			return nil, context.DeadlineExceeded
@@ -74,8 +86,8 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 		started := time.Now()
 		var options []miniReelOption
 		var err error
-		switch stage {
-		case 0:
+		switch provider {
+		case miniReelTabProvider:
 			if s.sources.tabIdentity == nil || s.sources.tabEndpoint == "" {
 				cancel()
 				continue
@@ -85,13 +97,13 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 			if err == nil {
 				options, err = miniReelVideoTabOptionsWithClient(requestCtx, s.vid, s.sources.tabEndpoint, d, s.codecMode, s.sources.client)
 			}
-		case 1:
+		case miniReelLegacyProvider:
 			if s.sources.register == nil || len(s.sources.legacyEndpoints) == 0 {
 				cancel()
 				continue
 			}
 			options, err = miniReelRegisteredFallbackOptions(requestCtx, s.vid, s.codecMode, s.contentType, s.sources)
-		case 2:
+		case miniReelSingleProvider:
 			if s.sources.registerSingle == nil || s.sources.singleEndpoint == "" {
 				cancel()
 				continue
@@ -120,11 +132,13 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 		if err != nil && !timedOut && !miniReelSourceFallbackAllowed(err) {
 			return nil, err
 		}
+		s.plan.observe(provider, false)
 	}
 	// Preserve the explicitly configured phone-device last resort, without
 	// allowing test/custom source lists to escape to production hosts.
 	if s.stage == 3 && s.sources.singleEndpoint == miniReelSingleEndpoint && miniReelPlaybackTargetRetryable(s.lastErr) {
 		s.stage++
+		s.provider = "" // The custom phone identity is never promoted.
 		if custom, ok := getPlaybackCustomDeviceForMiniReel(); ok && ctx.Err() == nil {
 			remaining := miniReelPlaybackRaceTimeout - s.spent
 			if remaining > 0 {
@@ -161,8 +175,9 @@ func miniReelMediaSourceFallbackAllowed(ctx context.Context, err error) bool {
 	return false
 }
 
-func prepareMiniReelWithSources(ctx context.Context, job *miniReelMediaJob, vid, quality string, fallback bool, sources miniReelPlaybackSources, prepare func(miniReelOption) error) {
-	sequence := miniReelSourceSequence{sources: sources, vid: vid, codecMode: job.CodecMode, contentType: job.ContentType}
+func prepareMiniReelWithSources(ctx context.Context, job *miniReelMediaJob, seriesID, vid, quality string, fallback bool, sources miniReelPlaybackSources, prepare func(miniReelOption) error) {
+	key := miniReelSourceMemoryKey(seriesID, job.CodecMode, job.ContentType, quality, fallback)
+	sequence := newMiniReelSourceSequence(sources, vid, job.CodecMode, job.ContentType, key)
 	for {
 		started := time.Now()
 		options, err := sequence.next(ctx)
@@ -181,7 +196,12 @@ func prepareMiniReelWithSources(ctx context.Context, job *miniReelMediaJob, vid,
 			return
 		}
 		err = prepare(option)
+		if ctx.Err() != nil {
+			job.Err = ctx.Err()
+			return
+		}
 		if err == nil {
+			sequence.plan.observe(sequence.provider, true)
 			job.Quality = option.Quality
 			job.Qualities = miniReelQualities(options)
 			job.VideoCodec = option.Codec
@@ -189,7 +209,12 @@ func prepareMiniReelWithSources(ctx context.Context, job *miniReelMediaJob, vid,
 			job.VideoHeight = option.Height
 			return
 		}
-		if !miniReelMediaSourceFallbackAllowed(ctx, err) || sequence.stage >= 3 {
+		if !miniReelMediaSourceFallbackAllowed(ctx, err) {
+			job.Err = err
+			return
+		}
+		sequence.plan.observe(sequence.provider, false)
+		if sequence.stage >= 3 {
 			job.Err = err
 			return
 		}
