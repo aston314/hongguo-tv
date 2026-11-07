@@ -9,10 +9,6 @@ on:
         description: Optional preview core platform (for example darwin-arm64); empty runs full CI
         type: string
         default: ""
-      device_preview:
-        description: Create a temporary private draft with verified standard and MPV test APKs
-        type: boolean
-        default: false
 
 permissions:
   contents: read
@@ -29,8 +25,6 @@ jobs:
   build:
     if: github.event_name != 'workflow_dispatch' || inputs.core_preview == ''
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -109,29 +103,6 @@ jobs:
         run: gradle --no-daemon --max-workers=1 -p android testMpvDebugUnitTest assembleMpvDebug lintMpvDebug
       - name: Verify debug edition isolation
         run: python3 scripts/verify_apks.py --standard android/app/build/outputs/apk/standard/debug/app-standard-debug.apk --mpv android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk --version "$APP_VERSION" --standard-code "$APP_VERSION_CODE" --mpv-code "$MPV_VERSION_CODE" --debug
-      - name: Publish temporary private device preview
-        if: github.event_name == 'workflow_dispatch' && inputs.device_preview
-        env:
-          GH_TOKEN: ${{ github.token }}
-          PREVIEW_TAG: device-preview-${{ github.run_id }}
-        run: |
-          preview_dir="$RUNNER_TEMP/device-preview"
-          mkdir -p "$preview_dir"
-          cp android/app/build/outputs/apk/standard/debug/app-standard-debug.apk "$preview_dir/hongguo-tv-$APP_VERSION-preview-standard.apk"
-          cp android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk "$preview_dir/hongguo-tv-$APP_VERSION-preview-mpv.apk"
-          git rev-parse HEAD > "$preview_dir/COMMIT.txt"
-          (cd "$preview_dir" && sha256sum *.apk > SHA256SUMS.txt)
-          cat > "$RUNNER_TEMP/device-preview-notes.md" <<'NOTES'
-          Private temporary device-test packages built and verified by the full CI job.
-          These debug packages have separate application IDs and do not update production installations.
-          This draft does not publish a stable release or change any update channel.
-          Delete the draft after downloading the verified APKs.
-          NOTES
-          gh release create "$PREVIEW_TAG" "$preview_dir/"* \
-            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --latest=false \
-            --title "Temporary device preview $GITHUB_RUN_ID" \
-            --notes-file "$RUNNER_TEMP/device-preview-notes.md"
-
   core-preview:
     if: github.event_name == 'workflow_dispatch' && inputs.core_preview != ''
     runs-on: ubuntu-latest

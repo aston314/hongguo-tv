@@ -1,0 +1,75 @@
+name: Temporary Android player device preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read APK version
+        run: python3 scripts/release_metadata.py --github-env "$GITHUB_ENV"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: true
+          cache-dependency-path: go.mod
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install Android SDK packages
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+      - name: Build Android native binaries
+        run: bash scripts/build_android_binaries.sh
+        env:
+          VERSION: ${{ env.HONGGUO_CORE_VERSION }}
+      - name: Prepare MPV libraries
+        run: python3 scripts/prepare_mpv.py
+      - name: Verify player dependency isolation
+        run: gradle --no-daemon --max-workers=1 -p android :app:verifyPlayerDependencyIsolation
+      - name: Build and lint standard debug APK
+        run: gradle --no-daemon --max-workers=1 -p android testStandardDebugUnitTest assembleStandardDebug lintStandardDebug
+      - name: Build and lint MPV debug APK
+        run: gradle --no-daemon --max-workers=1 -p android testMpvDebugUnitTest assembleMpvDebug lintMpvDebug
+      - name: Verify debug APK identities
+        run: |
+          python3 scripts/verify_apks.py \
+            --standard android/app/build/outputs/apk/standard/debug/app-standard-debug.apk \
+            --mpv android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk \
+            --version "$APP_VERSION" --standard-code "$APP_VERSION_CODE" \
+            --mpv-code "$MPV_VERSION_CODE" --debug
+      - name: Publish private temporary draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PREVIEW_TAG: device-preview-${{ github.run_id }}
+        run: |
+          preview_dir="$RUNNER_TEMP/device-preview"
+          mkdir -p "$preview_dir"
+          cp android/app/build/outputs/apk/standard/debug/app-standard-debug.apk "$preview_dir/hongguo-tv-$APP_VERSION-preview-standard.apk"
+          cp android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk "$preview_dir/hongguo-tv-$APP_VERSION-preview-mpv.apk"
+          git rev-parse HEAD > "$preview_dir/COMMIT.txt"
+          (cd "$preview_dir" && sha256sum *.apk > SHA256SUMS.txt)
+          cat > "$RUNNER_TEMP/device-preview-notes.md" <<'NOTES'
+          Private temporary device-test packages from an explicitly dispatched non-main ref.
+          Debug package IDs are separate from production apps and do not update stable channels.
+          Delete this draft after downloading the APKs.
+          NOTES
+          gh release create "$PREVIEW_TAG" "$preview_dir/"* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --latest=false \
+            --title "Temporary Android device preview $GITHUB_RUN_ID" \
+            --notes-file "$RUNNER_TEMP/device-preview-notes.md"
