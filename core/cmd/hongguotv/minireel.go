@@ -145,6 +145,7 @@ type miniReelDevice struct {
 	installID string
 	cdid      string
 	cookie    string
+	openUDID  string
 }
 
 type miniReelPlaybackDeviceCache struct {
@@ -503,27 +504,6 @@ func prepareMiniReelMedia(ctx context.Context, job *miniReelMediaJob, token, ser
 			_ = os.RemoveAll(directory)
 		}
 	}()
-	resolveStarted := time.Now()
-	options, err := miniReelNativeOptionsForContentType(ctx, vid, job.ContentType, job.CodecMode)
-	job.ResolveMS = time.Since(resolveStarted).Milliseconds()
-	if err != nil {
-		job.Err = err
-		return
-	}
-	if len(options) == 0 {
-		job.Err = wrapPlaybackPreparation(miniReelNoCompatibleOptionsError(job.CodecMode), "source_select", "VIDEO_MODEL_NO_QUALITY")
-		return
-	}
-	option, err := selectMiniReelQuality(options, quality, fallback)
-	if err != nil {
-		job.Err = wrapPlaybackPreparation(err, "source_select", "VIDEO_MODEL_NO_QUALITY")
-		return
-	}
-	job.Quality = option.Quality
-	job.Qualities = miniReelQualities(options)
-	job.VideoCodec = option.Codec
-	job.VideoWidth = option.Width
-	job.VideoHeight = option.Height
 	job.Mode = "full"
 	if err := ensureMiniReelRoot(); err != nil {
 		job.Err = playbackStorageError(err)
@@ -535,31 +515,34 @@ func prepareMiniReelMedia(ctx context.Context, job *miniReelMediaJob, token, ser
 		return
 	}
 	path := filepath.Join(directory, token+".mp4")
-	downloadStarted := time.Now()
-	if err := downloadMiniReelMedia(ctx, option.URL, path); err != nil {
-		job.DownloadMS = time.Since(downloadStarted).Milliseconds()
-		job.Err = err
-		return
-	}
-	job.DownloadMS = time.Since(downloadStarted).Milliseconds()
-	if err := ctx.Err(); err != nil {
-		job.Err = err
-		return
-	}
-	if len(option.Key) > 0 {
-		decryptStarted := time.Now()
-		if err := decryptMiniReelMP4(path, option.Key); err != nil {
-			job.DecryptMS = time.Since(decryptStarted).Milliseconds()
-			job.Err = wrapPlaybackPreparation(fmt.Errorf("MiniReel CENC decrypt failed: %w", err), "media_decrypt", "MEDIA_DECRYPT_FAILED")
-			return
+	prepareMiniReelWithSources(ctx, job, vid, quality, fallback, miniReelProductionSources(), func(option miniReelOption) error {
+		downloadStarted := time.Now()
+		err := downloadMiniReelMedia(ctx, option.URL, path)
+		job.DownloadMS += time.Since(downloadStarted).Milliseconds()
+		if err != nil {
+			return err
 		}
-		job.DecryptMS = time.Since(decryptStarted).Milliseconds()
-	}
-	if err := ctx.Err(); err != nil {
-		job.Err = err
-		return
-	}
-	job.Path = path
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if len(option.Key) > 0 {
+			decryptStarted := time.Now()
+			err := decryptMiniReelMP4(path, option.Key)
+			job.DecryptMS += time.Since(decryptStarted).Milliseconds()
+			if err != nil {
+				var pathError *os.PathError
+				if errors.As(err, &pathError) {
+					return playbackStorageError(err)
+				}
+				return wrapPlaybackPreparation(fmt.Errorf("MiniReel CENC decrypt failed: %w", err), "media_decrypt", "MEDIA_DECRYPT_FAILED")
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		job.Path = path
+		return nil
+	})
 	_ = seriesID // kept in the job key so the same vid cannot cross series contexts.
 }
 
@@ -922,15 +905,7 @@ func miniReelNativeOptionsEndpointModeForContentType(ctx context.Context, vid, e
 		// The current official client uses video_tab GET as its primary model
 		// source. The legacy POST fallback uses fresh identities and a bounded
 		// primary/alternate host sequence only after the GET fails.
-		options, err = miniReelNativeOptionsWithSources(ctx, vid, codecMode, contentType, miniReelPlaybackSources{
-			tabEndpoint: miniReelVideoTabBase + miniReelVideoTabPath,
-			tabIdentity: miniReelPlaybackRouteIdentities[2],
-			legacyEndpoints: []string{
-				"https://api5-normal-sinfonlineb.fqnovel.com" + miniReelAPIPath,
-				"https://api5-normal-hl.fqnovel.com" + miniReelAPIPath,
-			},
-			register: registerMiniReelPlaybackDeviceContext,
-		})
+		options, err = miniReelNativeOptionsWithSources(ctx, vid, codecMode, contentType, miniReelProductionSources())
 	} else {
 		options, err = miniReelNativeOptionsWithIdentityRaceForContentType(ctx, vid, endpoint, codecMode, contentType, miniReelPlaybackIdentity, miniReelPlaybackSpareIdentity)
 	}
@@ -945,7 +920,7 @@ func miniReelNativeOptionsEndpointModeForContentType(ctx context.Context, vid, e
 	// Codec filtering and caller cancellation must still retain their original
 	// behavior, so only retryable model/transport failures reach this branch.
 	primaryErr := err
-	if err != nil && miniReelPlaybackTargetRetryable(err) {
+	if err != nil && !miniReelIsProductionPlaybackEndpoint(endpoint) && miniReelPlaybackTargetRetryable(err) {
 		if custom, ok := getPlaybackCustomDeviceForMiniReel(); ok {
 			customOptions, customErr := miniReelNativeOptionsWithCustomDeviceForContentType(ctx, vid, endpoint, custom, codecMode, contentType)
 			if customErr == nil && len(customOptions) > 0 {

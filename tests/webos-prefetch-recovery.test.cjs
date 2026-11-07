@@ -31,11 +31,11 @@ async function until(predicate) {
   for (let i = 0; i < 600; i++) { if (predicate()) return; await pause(5); }
   throw Error('Expected preparation event did not occur');
 }
-function fixture(replies, warmHead, registrationReplies = [], tabReply = { code: 100103 }) {
+function fixture(replies, warmHead, registrationReplies = [], tabReply = { code: 100103 }, singleReplies = [], mediaHooks = {}) {
   const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'hongguo-prefetch-recovery-'));
   const before = process.env.HONGGUO_WEBOS_CACHE_DIR;
   process.env.HONGGUO_WEBOS_CACHE_DIR = cache;
-  const requests = [], registrationRequests = [], tabRequests = [];
+  const requests = [], registrationRequests = [], tabRequests = [], singleRequests = [];
   let registrations = 0;
   let rangeOpens = 0, downloads = 0, headWarms = 0;
   const transport = { request(options) {
@@ -65,6 +65,21 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
       });
       return req;
     }
+    if (options.path.startsWith('/novel/player/video_model/v1/')) {
+      const index = singleRequests.length, reply = singleReplies[index] || Object.assign({}, replies[Math.max(0,requests.length - 1)] || {empty:true}, {hold:false});
+      const item = {options,body:[],destroyed:false,respond:null};singleRequests.push(item);
+      req.write = data => item.body.push(Buffer.from(data));
+      req.destroy = error => { item.destroyed = true; if(error) process.nextTick(()=>req.emit('error',error)); };
+      item.respond = () => {
+        if(item.destroyed)return;
+        if(reply.network){const error=Error(reply.network);error.code=reply.network;req.emit('error',error);return;}
+        const res = new PassThrough();res.statusCode=reply.status || 200;res.headers={};req.emit('response',res);
+        res.end(reply.empty ? '' : reply.body !== undefined ? reply.body : JSON.stringify({data:{video_model:{video_list:[{
+          main_url:'https://media.example.test/single.mp4',codec_type:'bytevc1',video_meta:{vheight:720},encrypt_info:{spade_a:spade()}
+        }]}}}));
+      };
+      req.end = () => {if(!reply.hold)process.nextTick(item.respond);};return req;
+    }
     assert(options.path.startsWith('/novel/player/multi_video_model/v1/'));
     const index = requests.length, reply = replies[index] || {};
     const item = { options, destroyed: false, body: [], respond: null, at: Date.now(), device: new URL('https://fixture.test'+options.path).searchParams.get('device_id') };
@@ -87,17 +102,17 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
   const mod = new Module(providerFile, module); mod.filename = providerFile; mod.paths = Module._nodeModulePaths(path.dirname(providerFile));
   const normal = mod.require.bind(mod);
   mod.require = id => id === 'https' ? transport : id === './range-media' ? {
-    open() { rangeOpens++; return Promise.resolve({ prefix: Buffer.alloc(16), samples: [], key: Buffer.alloc(16), length: 128, etag: '"fixture"' }); },
+    open() { rangeOpens++; if(mediaHooks.open)return mediaHooks.open(rangeOpens); return Promise.resolve({ prefix: Buffer.alloc(16), samples: [], key: Buffer.alloc(16), length: 128, etag: '"fixture"' }); },
     prefetchHead(source, signal) { headWarms++; return warmHead ? warmHead(source, signal) : Promise.resolve(0); },
     headDiagnostics() { return { media_head_cache_bytes: 128, media_head_cache_hits: 0 }; },
-    downloadFile() { downloads++; throw Error('Recovery must not download a complete video'); }
+    downloadFile(target,destination) { downloads++; if(mediaHooks.download)return mediaHooks.download(target,destination,downloads); throw Error('Recovery must not download a complete video'); }
   } : normal(id);
   mod._compile(fs.readFileSync(providerFile, 'utf8'), providerFile);
   const provider = mod.exports, consumers = [], prepare = provider.prepare;
   provider.prepare = function (...args) {
     consumers.push({ prefetch: args[5], signal: args[6] }); return prepare.apply(provider, args);
   };
-  return { provider, requests, registrationRequests, tabRequests, consumers, get registrations() { return registrations; }, get rangeOpens() { return rangeOpens; }, get downloads() { return downloads; },
+  return { provider, requests, registrationRequests, tabRequests, singleRequests, consumers, get registrations() { return registrations; }, get rangeOpens() { return rangeOpens; }, get downloads() { return downloads; },
     get headWarms() { return headWarms; },
     prepare(prefetch, signal) { return provider.prepare('123', '456', '', true, 'range', prefetch, signal); },
     close() { provider.closeCache(); if (before === undefined) delete process.env.HONGGUO_WEBOS_CACHE_DIR; else process.env.HONGGUO_WEBOS_CACHE_DIR = before; fs.rmSync(cache, { recursive: true }); }
@@ -241,19 +256,19 @@ test('shared empty responses use one replacement and stop at four requests with 
   try {
     const b = observe(f.prepare(true)); await tick(); const p = observe(f.prepare(false)); f.requests[0].respond();
     const { error } = await p;
-    assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); await b; assert.equal(f.requests.length, 4); assert.equal(f.registrations,3); assert.equal(f.rangeOpens, 0);
+    assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); await b; assert.equal(f.requests.length, 4); assert.equal(f.registrations,5); assert.equal(f.singleRequests.length,2); assert.equal(f.rangeOpens, 0);
     assert.equal(error.recoveryComplete, true);
     assert.equal(error.upstreamStatus, 200, 'HTTP 200 upstream is distinct from the local 502 failure response');
-    assert.equal(error.videoModel.attempt, 4);
+    assert.equal(error.videoModel.attempt, 2);
     assert.equal(error.videoModel.http_status, 200);
     assert.equal(error.videoModel.response_bytes, 0);
-    assert.equal(error.videoModel.stage, 'multi_video_model');
+    assert.equal(error.videoModel.stage, 'video_model');
     assert(f.requests[1].at - f.requests[0].at >= 230);
     assert(f.requests[2].at - f.requests[1].at >= 980);
     const report = f.provider.mediaDiagnostics('');
-    assert.equal(report.media_preparation_error_stage, 'multi_video_model');
+    assert.equal(report.media_preparation_error_stage, 'video_model');
     assert.equal(report.media_preparation_error_code, 'VIDEO_MODEL_EMPTY');
-    assert.equal(report.media_video_model.attempt, 4);
+    assert.equal(report.media_video_model.attempt, 2);
     assert(!/video_id|media\.example|cookie|token/i.test(JSON.stringify(error.videoModel)));
   } finally { f.close(); }
 });
@@ -284,8 +299,8 @@ test('mixed empty and HTTP failures share the same four-request maximum', async 
   try {
     const { error } = await observe(f.prepare(false));
     assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); assert.equal(error.recoveryComplete, true);
-    assert.equal(f.requests.length, 4); assert.equal(error.videoModel.attempt, 4);
-    assert.equal(f.registrations, 3, 'mixed failures still use only two fresh legacy identities');
+    assert.equal(f.requests.length, 4); assert.equal(error.videoModel.attempt, 2);
+    assert.equal(f.registrations, 5, 'two legacy identities plus two single-provider identities and the cached tab identity');
     assert.equal(f.rangeOpens, 0); assert.equal(f.downloads, 0);
   } finally { f.close(); }
 });
@@ -349,7 +364,7 @@ test('a late older foreground result cannot overwrite the newest foreground fail
     assert.equal(current.error.code,'VIDEO_MODEL_EMPTY');
     f.requests[0].respond();assert(!(await old).error);
     assert.equal(f.provider.foregroundVideoModelDiagnostics().code,'VIDEO_MODEL_EMPTY');
-    assert.equal(f.provider.foregroundVideoModelDiagnostics().attempt,4);
+    assert.equal(f.provider.foregroundVideoModelDiagnostics().attempt,2);
     assert.equal(f.provider.mediaDiagnostics('').media_preparation_error_code,'VIDEO_MODEL_EMPTY');
   } finally { f.close(); }
 });
@@ -425,8 +440,8 @@ test('HTTP playback failures carry their own sanitized diagnostic after unrelate
     assert.equal(result.status, 502); assert.equal(result.data.upstream_status, 200);
     assert.equal(result.data.error, 'VIDEO_MODEL_EMPTY'); assert.equal(result.data.recovery_complete, true);
     assert.equal(result.data.video_model.code, 'VIDEO_MODEL_EMPTY');
-    assert.equal(result.data.video_model.response_bytes, 0); assert.equal(result.data.video_model.attempt, 4);
-    assert.equal(result.data.stage, 'multi_video_model');
+    assert.equal(result.data.video_model.response_bytes, 0); assert.equal(result.data.video_model.attempt, 2);
+    assert.equal(result.data.stage, 'video_model');
     assert.equal(result.data.video_model.video_id, undefined);
   } finally { await s.shutdown(); f.close(); }
 });
@@ -437,8 +452,8 @@ test('a transport failure with no HTTP response does not invent an upstream HTTP
     const result=await request(s,false).promise;
     assert.equal(result.status,502);assert.equal(result.data.error,'ECONNRESET');
     assert.equal(result.data.upstream_status,undefined);assert.equal(result.data.video_model.http_status,undefined);
-    assert.equal(result.data.video_model.stage,'multi_video_model_transport');
-    assert.equal(result.data.video_model.attempt,4);assert.equal(result.data.recovery_complete,true);
+    assert.equal(result.data.video_model.stage,'video_model');
+    assert.equal(result.data.video_model.attempt,2);assert.equal(result.data.recovery_complete,true);
   } finally { await s.shutdown();f.close(); }
 });
 
@@ -540,10 +555,10 @@ test('foreground cancellation during second-round registration aborts that job w
   } finally {f.close();}
 });
 
-test('business, malformed and non-200 empty responses do not spend a second identity', async () => {
+test('business and non-200 empty stop; malformed and missing models advance to the separate provider', async () => {
   for(const reply of [{status:204,empty:true},{body:'invalid JSON'},{body:'{"code":101000}'},{body:'{}'}]) {
     const f=fixture([reply]);
-    try {assert((await observe(f.prepare(false))).error);assert.equal(f.registrations,2);assert.equal(f.requests.length,1);}
+    try {assert((await observe(f.prepare(false))).error);assert.equal(f.registrations, reply.body === 'invalid JSON' || reply.body === '{}' ? 3 : 2);assert.equal(f.requests.length,1);}
     finally {f.close();}
   }
   const whitespace=fixture([{body:' \n\t '},{body:' '},{body:'\r\n'},{}]);
@@ -577,4 +592,76 @@ test('shutdown and wake recreate the reusable video_tab identity and use a fresh
     await s.shutdown();assert.equal((await old).error.name,'AbortError');assert.equal(f.registrationRequests[0].destroyed,true);
     await s.ensureReady();const next=await f.prepare(false);assert.equal(next.mode,'range');assert.equal(f.registrations,3);assert.equal(f.requests.length,1);assert.equal(f.requests[0].device,'1234567890123456783');
   } finally {await s.shutdown();f.close();}
+});
+
+
+test('incompatible legacy model advances once to signed single-episode model', async () => {
+  const incompatible = {body:JSON.stringify({data:{'456':{video_model:{video_list:[{main_url:'https://media.example.test/unsafe.mp4',codec_type:'bytevc2'}]}}}})};
+  const f=fixture([incompatible],null,[],{code:100103},[{}]);
+  try {
+    const result=await f.prepare(false);
+    assert.equal(result.mode,'range');assert.equal(f.requests.length,1);assert.equal(f.singleRequests.length,1);
+    assert.equal(f.registrations,3);assert.equal(result.preparation_timing.media_video_model.stage,'video_model');
+    const call=f.singleRequests[0], q=new URL('https://fixture.test'+call.options.path).searchParams;
+    assert.equal(q.get('version_name'),'7.3.9.32');assert.equal(q.get('device_type'),'23127PN0CC');assert(q.get('openudid'));
+    assert.deepEqual(JSON.parse(Buffer.concat(call.body)),{video_id:'456',biz_param:{video_id_type:0,need_all_video_definition:true,video_platform:3}});
+    for(const key of ['X-Argus','X-Gorgon','X-Medusa','X-Khronos','X-Ladon','X-Helios'])assert(call.options.headers[key],key);
+    assert.equal(call.options.headers['Content-Encoding'],undefined);
+    assert.equal(call.options.headers['X-SS-STUB'],require('crypto').createHash('md5').update(Buffer.concat(call.body)).digest('hex').toUpperCase());
+  }finally{f.close();}
+});
+
+test('all incompatible models stop without rotating single-provider identity', async () => {
+  const bad={body:JSON.stringify({data:{video_model:{video_list:[{main_url:'https://media.example.test/unsafe.mp4',codec_type:'bytevc2'}]}}})};
+  const f=fixture([bad],null,[],{code:100103},[bad]);
+  try {const {error}=await observe(f.prepare(false));assert.equal(error.code,'VIDEO_MODEL_NO_QUALITY');assert.equal(f.singleRequests.length,1);assert.equal(f.registrations,3);assert.equal(f.rangeOpens,0);}
+  finally{f.close();}
+});
+
+test('candidate media failure advances providers; disk and quality errors never do', async () => {
+  for(const failure of ['network','decrypt','disk','quality']){
+    const clear={data:{video_model:{video_list:[{main_url:'https://media.example.test/clear.mp4',codec_type:'bytevc1',video_meta:{vheight:720}}]}}};
+    const clearReply={body:JSON.stringify(clear)};
+    const f=fixture(failure==='decrypt'?[{}]:[clearReply],null,[],{code:100103},[clearReply],{
+      download(target,destination,count){
+        if(count===1 && failure!=='decrypt'){const e=Error('media unavailable');e.code=failure==='disk'?'ENOSPC':'ECONNRESET';return Promise.reject(e);}
+        fs.writeFileSync(destination,'deliberately not encrypted MP4');return Promise.resolve();
+      }
+    });
+    try{
+      const outcome=await observe(f.provider.prepare('123','456',failure==='quality'?'1080P':'',false,'full',false));
+      if(failure==='disk'||failure==='quality'){assert(outcome.error);assert.equal(f.singleRequests.length,0);assert.equal(f.downloads,failure==='disk'?1:0);}
+      else{assert(!outcome.error);assert.equal(outcome.value.mode,'full');assert.equal(f.singleRequests.length,1);assert.equal(f.downloads,2);assert.equal(f.requests.length,1);}
+    }finally{f.close();}
+  }
+});
+
+test('cancelling a single-provider request stops it without a replacement registration', async () => {
+  const f=fixture([{body:'{}'}],null,[],{code:100103},[{hold:true}]), c=cancel.create();
+  try{
+    const pending=observe(f.prepare(false,c.signal));await until(()=>f.singleRequests.length===1);c.abort();
+    assert.equal((await pending).error.name,'AbortError');await tick();assert.equal(f.singleRequests[0].destroyed,true);assert.equal(f.registrations,3);
+  }finally{f.close();}
+});
+
+test('foreground consumers share source recovery after the full-file media fallback fails', async () => {
+  const f=fixture([{}],null,[],{code:100103},[{}],{
+    open(count){if(count===1){const e=Error('no strong ETag');e.code='RANGE_UNAVAILABLE';return Promise.reject(e);}return Promise.resolve({prefix:Buffer.alloc(16),samples:[],key:Buffer.alloc(16),length:128,etag:'"new"'});},
+    download(){const e=Error('media HTTP 403');e.code='ECONNRESET';return Promise.reject(e);}
+  });
+  try{
+    const results=await Promise.all([f.prepare(false),f.prepare(false)]);
+    assert.equal(results[0].path,results[1].path);assert.equal(f.requests.length,1);assert.equal(f.singleRequests.length,1);assert.equal(f.downloads,1);
+  }finally{f.close();}
+});
+
+test('leaving during source recovery from the full fallback aborts the new model request', async () => {
+  const f=fixture([{}],null,[],{code:100103},[{hold:true}],{
+    open(){const e=Error('no strong ETag');e.code='RANGE_UNAVAILABLE';return Promise.reject(e);},
+    download(){const e=Error('media failed');e.code='ECONNRESET';return Promise.reject(e);}
+  }),c=cancel.create();
+  try{
+    const pending=observe(f.prepare(false,c.signal));await until(()=>f.singleRequests.length===1);c.abort();
+    assert.equal((await pending).error.name,'AbortError');await tick();assert.equal(f.singleRequests[0].destroyed,true);assert.equal(f.singleRequests.length,1);
+  }finally{f.close();}
 });

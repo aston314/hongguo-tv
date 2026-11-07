@@ -128,10 +128,11 @@
     });
     return cookies;
   }
-  function register(s, sendRequest, save) {
+  function register(s, sendRequest, save, profile) {
     if (s.registered && validID(s.device_id) && validID(s.install_id)) return Promise.resolve(s);
-    var now = Date.now(), ts = Math.floor(now / 1000), seed = crypto.randomBytes(32), body = ttEncrypt(protocolDevicePayload(s.device, now), seed), q = appQuery(s); delete q.device_id; delete q.iid; q.tt_data = 'a'; q.ts = String(ts); q._rticket = String(now); q.package = 'com.phoenix.read'; var query = sortedQuery(q); var nonce = crypto.randomBytes(2).readUInt16LE(0); var headers = { 'User-Agent': UA, 'Content-Type': 'application/octet-stream;tt-data=a', Accept: 'application/json; charset=utf-8,application/x-protobuf', 'Content-Encoding': 'gzip', 'X-Tt-Request-Tag': 't=0;n=1', 'Log-Encode-Type': 'gzip', Lc: '102', 'Sdk-Version': '2', 'Passport-Sdk-Version': '60755', 'Passport-Sdk-Settings': 'device_transfer_s_0,device_transfer_ab_1', 'X-SS-DP': '8662', 'X-Vc-Bdturing-Sdk-Version': '4.0.3.cn', 'X-Tt-Store-Region': 'cn', 'X-Tt-Store-Region-Src': 'did', 'X-Khronos': String(ts), 'X-Argus': le32(ts).toString('base64'), 'X-SS-Req-Ticket': String(now), 'X-SS-STUB': crypto.createHash('md5').update(body).digest('hex'), 'X-Gorgon': sign.gorgon(query, body, ts, nonce) };
-    return sendRequest(DEVICE_BASE + '/service/2/device_register/?' + query, 'POST', headers, body, 4 * 1024 * 1024).then(function (response) { if (response.status < 200 || response.status >= 300) throw fail('设备注册连接失败（HTTP ' + response.status + '）', response.status, 'ACCOUNT_DEVICE'); var bytes = response.body; if (bytes.slice(0, 6).equals(Buffer.from([0x74, 0x63, 5, 0x10, 0, 0]))) bytes = ttDecrypt(bytes); var p; try { p = parseExactJSON(bytes.toString('utf8')); } catch (e) { throw fail('设备注册响应无效', 502, 'ACCOUNT_DEVICE'); } var did = str(p.device_id_str || p.device_id), iid = str(p.install_id_str || p.install_id); if (!validID(did) || !validID(iid) || did === '0' || iid === '0') throw fail('设备注册未返回有效身份', 502, 'ACCOUNT_DEVICE'); s.device_id = did; s.install_id = iid; s.registered = true; s.cookies = updateCookies(s.cookies, response.headers); s.cookies.install_id = iid; if (save) save(); return s; });
+    var now = Date.now(), ts = Math.floor(now / 1000), seed = crypto.randomBytes(32), plain = protocolDevicePayload(s.device, now), body = ttEncrypt(profile ? profile.payload(plain, s.device, now) : plain, seed), q = profile ? profile.query({ cdid: s.device.cdid, openudid: s.device.openudid }) : appQuery(s); delete q.device_id; delete q.iid; q.tt_data = 'a'; q.ts = String(ts); q._rticket = String(now); q.package = 'com.phoenix.read'; var query = sortedQuery(q); var nonce = crypto.randomBytes(2).readUInt16LE(0); var headers = { 'User-Agent': UA, 'Content-Type': 'application/octet-stream;tt-data=a', Accept: 'application/json; charset=utf-8,application/x-protobuf', 'Content-Encoding': 'gzip', 'X-Tt-Request-Tag': 't=0;n=1', 'Log-Encode-Type': 'gzip', Lc: '102', 'Sdk-Version': '2', 'Passport-Sdk-Version': '60755', 'Passport-Sdk-Settings': 'device_transfer_s_0,device_transfer_ab_1', 'X-SS-DP': '8662', 'X-Vc-Bdturing-Sdk-Version': '4.0.3.cn', 'X-Tt-Store-Region': 'cn', 'X-Tt-Store-Region-Src': 'did', 'X-Khronos': String(ts), 'X-Argus': le32(ts).toString('base64'), 'X-SS-Req-Ticket': String(now), 'X-SS-STUB': crypto.createHash('md5').update(body).digest('hex'), 'X-Gorgon': sign.gorgon(query, body, ts, nonce) };
+    if (profile) headers['User-Agent'] = profile.ua;
+    return sendRequest((profile ? profile.deviceBase : DEVICE_BASE) + '/service/2/device_register/?' + query, 'POST', headers, body, 4 * 1024 * 1024).then(function (response) { if (response.status < 200 || response.status >= 300) throw fail('设备注册连接失败（HTTP ' + response.status + '）', response.status, 'ACCOUNT_DEVICE'); var bytes = response.body; if (bytes.slice(0, 6).equals(Buffer.from([0x74, 0x63, 5, 0x10, 0, 0]))) bytes = ttDecrypt(bytes); var p; try { p = parseExactJSON(bytes.toString('utf8')); } catch (e) { throw fail('设备注册响应无效', 502, 'ACCOUNT_DEVICE'); } var did = str(p.device_id_str || p.device_id), iid = str(p.install_id_str || p.install_id); if (!validID(did) || !validID(iid) || did === '0' || iid === '0') throw fail('设备注册未返回有效身份', 502, 'ACCOUNT_DEVICE'); s.device_id = did; s.install_id = iid; s.registered = true; s.cookies = updateCookies(s.cookies, response.headers); s.cookies.install_id = iid; if (save) save(); return s; });
   }
   function wirePhone(phone) {
     var p = splitPhone(str(phone)), country = COUNTRY[p.code], local = p.local, widths = [];
@@ -582,13 +583,13 @@
     return Promise.resolve({ status: this.status(), import_history: { imported: imported, remaining: remaining } });
   };
   function createAccount(options) { return new Account(options); }
-  createAccount.registerPlaybackDevice = function (sendRequest) {
+  createAccount.registerPlaybackDevice = function (sendRequest, profile) {
     var s = { device_id: '', install_id: '', device: device(), cookies: {} };
-    return register(s, sendRequest || requestBuffer).then(function () {
+    return register(s, sendRequest || requestBuffer, null, profile).then(function () {
       // The official video_tab endpoint accepts only the anonymous registration
       // cookies. Return a copy so the playback identity can reuse them without
       // exposing account/session cookies to the media provider.
-      return { deviceID: s.device_id, installID: s.install_id, cdid: s.device.cdid, cookies: Object.assign({}, s.cookies || {}) };
+      return { deviceID: s.device_id, installID: s.install_id, cdid: s.device.cdid, openudid: s.device.openudid, cookies: Object.assign({}, s.cookies || {}) };
     });
   };
   module.exports = createAccount;

@@ -103,6 +103,10 @@ https.request = function (options) {
       if (videoModelEmptyResponses > 0) { videoModelEmptyResponses--; body = ''; }
       else body = JSON.stringify({ code: 0, data: entry });
     }
+    if (options.path.indexOf('/novel/player/video_model/v1/') >= 0) {
+      responseStatus = videoModelStatus;
+      body = '{"code":0,"data":{}}';
+    }
     if (options.path.indexOf('/playback/fallback') >= 0) {
       fallbackRequests.push({ options: options, headers: options.headers, path: options.path });
       responseStatus = fallbackStatus;
@@ -363,7 +367,7 @@ async function run() {
       resolveRange();
       var preparedRange = await Promise.all([rangePrefetch, rangeForeground]);
       assert.strictEqual(rangeOpens, 1, 'handoff shares the pending Range initialization');
-      assert.strictEqual(provider.mediaDiagnostics('').media_preparation_error_stage, 'multi_video_model', 'a late previous source cannot overwrite the latest foreground failure');
+      assert.strictEqual(provider.mediaDiagnostics('').media_preparation_error_stage, 'video_model', 'a late previous source cannot overwrite the latest foreground failure');
       assert.strictEqual(preparedRange[0].mode, 'range');
       assert.strictEqual(preparedRange[1].path, preparedRange[0].path);
       assert.strictEqual(preparedRange[1].preparation_shared, true);
@@ -392,7 +396,7 @@ async function run() {
     try {
       await assert.rejects(provider.prepare(seriesID, '9234567890123456789', '', false, 'range', false));
       var failedReport = provider.mediaDiagnostics('');
-      assert.strictEqual(failedReport.media_preparation_error_stage, 'multi_video_model');
+      assert.strictEqual(failedReport.media_preparation_error_stage, 'video_model');
       assert(Number.isFinite(failedReport.media_resolve_ms));
       assert.strictEqual(failedReport.media_range_init_ms, undefined);
       assert.strictEqual(mediaDownloadRequests, beforeFailedDownload, 'a video-model failure cannot start a full-file fallback');

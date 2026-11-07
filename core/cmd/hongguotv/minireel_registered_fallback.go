@@ -14,31 +14,14 @@ type miniReelPlaybackSources struct {
 	tabIdentity     *miniReelPlaybackDeviceCache
 	legacyEndpoints []string
 	register        func(context.Context) (miniReelDevice, error)
+	singleEndpoint  string
+	registerSingle  func(context.Context) (miniReelDevice, error)
 	client          *http.Client
 }
 
 func miniReelNativeOptionsWithSources(ctx context.Context, vid, codecMode, contentType string, sources miniReelPlaybackSources) ([]miniReelOption, error) {
-	if _, err := normalizeMiniReelCodecMode(codecMode); err != nil {
-		return nil, err
-	}
-	if _, err := normalizeMiniReelContentType(contentType); err != nil {
-		return nil, err
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	device, err := sources.tabIdentity.get(ctx)
-	if err == nil {
-		options, tabErr := miniReelVideoTabOptionsWithClient(ctx, vid, sources.tabEndpoint, device, codecMode, sources.client)
-		if tabErr == nil {
-			// An answered model with no compatible codec is not a failed lookup.
-			return options, nil
-		}
-	}
-	if err := ctx.Err(); err != nil {
-		return nil, err
-	}
-	return miniReelRegisteredFallbackOptions(ctx, vid, codecMode, contentType, sources)
+	sequence := miniReelSourceSequence{sources: sources, vid: vid, codecMode: codecMode, contentType: contentType}
+	return sequence.next(ctx)
 }
 
 func miniReelRegisteredFallbackOptions(ctx context.Context, vid, codecMode, contentType string, sources miniReelPlaybackSources) ([]miniReelOption, error) {

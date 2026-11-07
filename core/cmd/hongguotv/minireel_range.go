@@ -86,37 +86,18 @@ func resolveMiniReelMediaRangeQualityMode(ctx context.Context, seriesID, vid, qu
 }
 
 func prepareMiniReelRangeMedia(ctx context.Context, job *miniReelMediaJob, token, seriesID, vid, quality string, fallback bool) {
-	resolveStarted := time.Now()
-	options, err := miniReelNativeOptionsForContentType(ctx, vid, job.ContentType, job.CodecMode)
-	job.ResolveMS = time.Since(resolveStarted).Milliseconds()
-	if err != nil {
-		job.Err = err
-		return
-	}
-	if len(options) == 0 {
-		job.Err = wrapPlaybackPreparation(miniReelNoCompatibleOptionsError(job.CodecMode), "source_select", "VIDEO_MODEL_NO_QUALITY")
-		return
-	}
-	option, err := selectMiniReelQuality(options, quality, fallback)
-	if err != nil {
-		job.Err = wrapPlaybackPreparation(err, "source_select", "VIDEO_MODEL_NO_QUALITY")
-		return
-	}
-	rangeStarted := time.Now()
-	source, err := openMiniReelRangeSource(ctx, option, vid, job.CodecMode, job.ContentType)
-	job.RangeInitMS = time.Since(rangeStarted).Milliseconds()
-	if err != nil {
-		job.Err = err
-		return
-	}
-	job.Range = source
-	job.Quality = option.Quality
-	job.Qualities = miniReelQualities(options)
-	job.VideoCodec = source.Codec
-	job.VideoWidth = source.Width
-	job.VideoHeight = source.Height
-	job.Mode = "range"
-	job.ContentType = source.ContentType
+	prepareMiniReelWithSources(ctx, job, vid, quality, fallback, miniReelProductionSources(), func(option miniReelOption) error {
+		rangeStarted := time.Now()
+		source, err := openMiniReelRangeSource(ctx, option, vid, job.CodecMode, job.ContentType)
+		job.RangeInitMS += time.Since(rangeStarted).Milliseconds()
+		if err != nil {
+			return err
+		}
+		job.Range = source
+		job.Mode = "range"
+		job.ContentType = source.ContentType
+		return nil
+	})
 	_ = token
 	_ = seriesID
 }

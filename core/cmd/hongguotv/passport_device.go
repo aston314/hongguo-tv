@@ -145,6 +145,10 @@ func (d *passportDevice) payload(stamp int64) []byte {
 }
 
 func (c *passportClient) registerDevice(ctx context.Context) (err error) {
+	return c.registerDeviceProfile(ctx, false)
+}
+
+func (c *passportClient) registerDeviceProfile(ctx context.Context, singlePlayback bool) (err error) {
 	started := time.Now()
 	diagnostic := playbackPreparationDiagnostic{Code: "DEVICE_REGISTER_FAILED", Stage: "device_register"}
 	defer func() { err = finishPlaybackPreparation(err, diagnostic, started) }()
@@ -160,11 +164,18 @@ func (c *passportClient) registerDevice(ctx context.Context) (err error) {
 	if _, err := rand.Read(seed[:]); err != nil {
 		return errors.New("设备加密参数生成失败")
 	}
-	body, err := passportTTEncrypt(c.session.Device.payload(stamp), seed[:])
+	payload := c.session.Device.payload(stamp)
+	if singlePlayback {
+		payload = miniReelSingleDevicePayload(c.session.Device, stamp)
+	}
+	body, err := passportTTEncrypt(payload, seed[:])
 	if err != nil {
 		return errors.New("设备注册请求生成失败")
 	}
 	q := passportQuery(c.session)
+	if singlePlayback {
+		q = miniReelSingleDeviceQuery(miniReelDevice{cdid: c.session.Device.CDID, openUDID: c.session.Device.OpenUDID})
+	}
 	q.Del("device_id")
 	q.Del("iid")
 	q.Set("tt_data", "a")
@@ -183,6 +194,9 @@ func (c *passportClient) registerDevice(ctx context.Context) (err error) {
 		"X-Argus": base64.StdEncoding.EncodeToString(protocolLE(uint32(now.Unix()))), "X-SS-Req-Ticket": q.Get("_rticket"),
 	} {
 		r.Header.Set(k, v)
+	}
+	if singlePlayback {
+		r.Header.Set("User-Agent", miniReelSingleUA)
 	}
 	m := md5.Sum(body)
 	r.Header.Set("X-SS-STUB", hex.EncodeToString(m[:]))
