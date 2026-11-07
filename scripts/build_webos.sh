@@ -76,10 +76,7 @@ cp "$repo_dir/desktop/resources/appicon.png" "$app_stage/largeIcon.png"
 cp -R "$repo_dir/webos/service/." "$service_stage/"
 # Test vectors and local test harnesses stay in the source tree and are
 # exercised by CI; do not ship them in the TV service package.
-rm -f "$service_stage/passport-sign.test.js" "$service_stage/provider.test.js" "$service_stage/account.test.js" "$service_stage/service.test.js" "$service_stage/service-entry.test.js" "$service_stage/number-input.test.js" "$service_stage/range-media.test.js" "$service_stage/search-season.test.js"
-rm -f "$service_stage/media-cache.test.js"
-rm -f "$service_stage/updates.test.js"
-rm -f "$service_stage/account-scan.test.js"
+find "$service_stage" -type f -name '*.test.js' -exec rm -f {} +
 
 # A file:// document cannot resolve the shared UI's root-absolute assets.
 index="$app_stage/index.html"

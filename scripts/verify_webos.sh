@@ -108,6 +108,14 @@ node - "$stage_test" <<'NODE'
 var fs = require('fs');
 var path = require('path');
 var root = process.argv[2];
+function verifyServiceFiles(directory) {
+  fs.readdirSync(directory).forEach(function (name) {
+    var file = path.join(directory, name);
+    if (fs.statSync(file).isDirectory()) verifyServiceFiles(file);
+    else if (/\.test\.js$/.test(name)) throw new Error('test harness leaked into staged service: ' + name);
+  });
+}
+verifyServiceFiles(path.join(root, 'service'));
 var app = JSON.parse(fs.readFileSync(path.join(root, 'app', 'appinfo.json'), 'utf8'));
 var adapter = fs.readFileSync(path.join(root, 'app', 'webos-adapter.js'), 'utf8');
 var service = JSON.parse(fs.readFileSync(path.join(root, 'service', 'services.json'), 'utf8'));
