@@ -691,6 +691,48 @@ test('early canplay and audio-only/no-video data cannot remove the cover or rest
   f.video.videoWidth=720;f.video.videoHeight=1280;f.handlers.loadeddata();await present(f);
   assert.equal(f.hero.classList.contains('is-preparing-video'),false);assert.equal(f.video.muted,false);
 });
+test('MPV can reveal on early real progress while frame-only and idle signals retain the cover',async()=>{
+  const f=await prepared({engine:'mpv',native:true});
+  f.hero.classList.add('is-episode-cover');
+  f.handlers.nativeframe({coreIdle:true});f.handlers.playing();await present(f);
+  assert.equal(f.hero.classList.contains('is-preparing-video'),true);
+  assert.equal(f.video.muted,true);
+  f.video.currentTime=.033;f.handlers.timeupdate();await present(f);
+  assert.equal(f.hero.classList.contains('is-preparing-video'),true,'idle output must remain covered');
+  f.handlers.nativeoutputstate({coreIdle:false});await present(f);
+  // Keep MPV's compositor boundary even when progress arrives before 500ms.
+  assert.equal(f.hero.classList.contains('is-preparing-video'),true);
+  const reveal=f.timers.find(t=>t.delay===32);
+  assert.ok(reveal);
+  reveal.fn();f.paint();await tick();
+  assert.equal(f.hero.classList.contains('is-preparing-video'),false);
+  assert.equal(f.video.muted,false);
+});
+test('early MPV progress still cannot reveal a hidden, failed or superseded target',async()=>{
+  for(const guard of ['background','hidden','source','error','next']) {
+    const f=await prepared({engine:'mpv',native:true});
+    f.handlers.nativeframe({coreIdle:false});f.handlers.playing();
+    if(guard==='background')f.c.applicationInBackground=true;
+    else if(guard==='hidden')f.document.hidden=true;
+    else if(guard==='source')f.video.src='/other.mp4';
+    else if(guard==='error')f.handlers.error();
+    else {f.c.playFeedItem(0,3,0);await settlePlayback(f);}
+    f.video.currentTime=.033;f.handlers.timeupdate();await present(f);
+    assert.equal(f.hero.classList.contains('is-preparing-video'),true,guard);
+    assert.equal(f.video.muted,true,guard);
+  }
+});
+test('a paused MPV target keeps its static-frame path without needing an early progress sample',async()=>{
+  const f=await prepared({engine:'mpv',native:true});
+  f.hero.classList.add('is-episode-cover');f.video.paused=true;
+  f.handlers.nativeframe({coreIdle:false});f.handlers.pause();await present(f);
+  const reveal=f.timers.find(t=>t.delay===32);
+  assert.ok(reveal);reveal.fn();f.paint();await tick();
+  assert.equal(f.hero.classList.contains('is-preparing-video'),false);
+  assert.equal(f.video.currentTime,0);
+  assert.equal(f.video.paused,true);
+  assert.equal(f.c.activePlayback.started,false);
+});
 test('sound is restored only after the cover and loading removal receive a paint',async()=>{
   const f=await prepared();f.handlers.playing();
   assert.equal(f.video.muted,true);f.paint();await tick();assert.equal(f.video.muted,true);

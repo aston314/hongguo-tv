@@ -131,7 +131,7 @@ html.desktop-shell .hero-media { -webkit-user-select: none; user-select: none; }
 /* Keep the full cover in the centre; the darker cover layer fills the sides.
    CSS backgrounds preserve the image ratio on Android 6 without object-fit. */
 .hero-loading-poster { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 1; width: 100%; height: 100%; background-size: contain; background-position: center; background-repeat: no-repeat; opacity: 1; filter: brightness(.7); transition: opacity .2s ease; }
-.hero-episode-cover { position: absolute; z-index: 3; top: 0; right: 0; bottom: 0; left: 0; visibility: hidden; opacity: 1; pointer-events: none; background-color: #000; background-size: contain; background-position: center; background-repeat: no-repeat; transition: opacity .18s ease; }
+.hero-episode-cover { position: absolute; z-index: 3; top: 0; right: 0; bottom: 0; left: 0; visibility: hidden; opacity: 1; pointer-events: none; background-color: #000; background-size: contain; background-position: center; background-repeat: no-repeat; transition: opacity .1s ease; }
 .hero.is-episode-cover .hero-episode-cover { visibility: visible; }
 .hero.is-native-frame-revealing .hero-episode-cover, .hero.is-native-frame-revealing .hero-last-frame { opacity: 0; }
 .hero-last-frame { position: absolute; z-index: 2; top: 50%; left: 50%; transform: translate(-50%, -50%); visibility: hidden; pointer-events: none; }

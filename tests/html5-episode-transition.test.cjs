@@ -88,10 +88,26 @@ test('standard HTML5 fades the next episode cover after the real frame is ready'
   await new Promise((resolve) => setImmediate(resolve));
 
   assert.equal(fixtureState.hero.classList.contains('is-native-frame-revealing'), true);
-  assert.equal(fixtureState.timers[0].delay, 180);
+  assert.equal(fixtureState.timers[0].delay, 100);
   fixtureState.timers[0].fn();
   assert.equal(fixtureState.hero.classList.contains('is-episode-cover'), false);
   assert.equal(fixtureState.hero.classList.contains('is-preparing-video'), false);
+});
+
+test('a shorter HTML5 fade cannot clear a newer selection or an interrupted frame', async () => {
+  for (const change of ['selection', 'not-ready']) {
+    const f = fixture();
+    f.context.setEpisodeCover({ series_id: 'series-1', vid: 'vid-2' }, { episode_cover: 'next.jpg' });
+    f.imageInstances[0].onload();
+    f.context.finishPlaybackPreparation(f.playback);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.equal(f.timers.length, 1);
+    if (change === 'selection') f.playback.presentation = { epoch: 1 };
+    else f.context.playbackVideoReady = () => false;
+    f.timers[0].fn();
+    assert.equal(f.hero.classList.contains('is-preparing-video'), true, change);
+    assert.equal(f.hero.classList.contains('is-episode-cover'), true, change);
+  }
 });
 
 test('webOS keeps its existing cover release path', async () => {

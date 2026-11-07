@@ -5164,7 +5164,7 @@
           hero.classList.contains('is-episode-cover')) {
         presentation.revealing = true;
         hero.classList.add('is-native-frame-revealing');
-        presentation.revealTimer = setTimeout(complete, 180);
+        presentation.revealTimer = setTimeout(complete, 100);
         return;
       }
       if (isNativeMedia3PlaybackActive() && playback.preserveNativeTransition && hasHeldFrame) {

@@ -69,7 +69,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         String decoder = "", pixelFormat = "", fallbackReason = "", state = "preparing";
         String errorKind = "";
         int errorCode;
-        Runnable timeout;
+        Runnable timeout, startupProgress;
         Session(long generation, String id, String source, JSONObject data, MpvDecodeMode mode) {
             this.generation = generation;
             this.id = id; this.source = source; this.data = data;
@@ -196,6 +196,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     }
 
     private void replaceInPlace(Session old, Session target) {
+        cancelStartupProgress(old);
         if (old.timeout != null) handler.removeCallbacks(old.timeout);
         old.terminal = true;
         old.player = null;
@@ -565,12 +566,14 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             // libmpv has no physical first-frame callback; report that honestly.
             event(target, "frame", detail);
             armGreenFrameProbe(target);
+            armStartupProgress(target);
         }
         refreshInPlaceReplaceAvailability();
         if (!background) event(target, target.wantsPlay ? "playing" : "paused", null);
     }
     private void finish(Session target) {
         if (!current(target) || target.completedEof) return;
+        cancelStartupProgress(target);
         greenFrameProbe.cancel();
         reportProgress(target);
         target.completedEof = true;
@@ -690,6 +693,45 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         event(target, "error", detail); target.terminal = true;
         dispose(target); holder.setVisibility(View.VISIBLE); holder.setAlpha(0f);
     }
+    private void cancelStartupProgress(Session target) {
+        if (target == null || target.startupProgress == null) return;
+        handler.removeCallbacks(target.startupProgress);
+        target.startupProgress = null;
+    }
+    private void armStartupProgress(Session target) {
+        cancelStartupProgress(target);
+        final MPVLib active = target.player;
+        final long epoch = target.surfaceEpoch;
+        final MpvStartupProgress probe = new MpvStartupProgress(SystemClock.uptimeMillis(), target.position);
+        target.startupProgress = new Runnable() {
+            @Override public void run() {
+                if (target.startupProgress != this) return;
+                boolean eligible = current(target) && target.player == active && active != null
+                    && target.outputReady && !target.inPlaceReplacement && target.wantsPlay && !background
+                    && target.surfaceEpoch == epoch && surfaceEpoch == epoch && playerSurfaceAttached
+                    && surfaceAvailable();
+                if (!probe.maySample(SystemClock.uptimeMillis(), eligible)) {
+                    cancelStartupProgress(target);
+                    return;
+                }
+                guarded(target, () -> {
+                    // Only read the clock/idle flag in this bounded window;
+                    // keep the full diagnostics and steady progress at 500ms.
+                    Double position = active.getPropertyDouble("time-pos");
+                    boolean running = Boolean.FALSE.equals(active.getPropertyBoolean("core-idle"));
+                    if (probe.advanced(position, running)) {
+                        cancelStartupProgress(target);
+                        target.output.coreIdle = false;
+                        JSONObject detail = new JSONObject();
+                        try { detail.put("core_idle", false); } catch (Exception ignored) {}
+                        send(target.id, "outputstate", detail);
+                        reportProgress(target);
+                    } else handler.postDelayed(this, MpvStartupProgress.RETRY_MS);
+                });
+            }
+        };
+        handler.post(target.startupProgress);
+    }
     private final Runnable progress = new Runnable() {
         @Override public void run() {
             if (destroyed) return;
@@ -796,6 +838,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             if (destroyed || stopFence.isActive()) return;
             Session active = session;
             if (active != null && current(active) && active.player != null) {
+                cancelStartupProgress(active);
                 guarded(active, () -> active.player.setPropertyBoolean("pause", true));
             }
         });
@@ -803,7 +846,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     @JavascriptInterface public void stop() { handler.post(() -> { requestStop(null, null, null); holder.setVisibility(View.VISIBLE); holder.setAlpha(0f); }); }
     @JavascriptInterface public void pause() { handler.post(() -> {
         if (stopFence.isActive()) { transition.setPlayIntent(false); return; }
-        Session s = session; if (s != null) guarded(s, () -> { s.wantsPlay = false; if (s.player != null) s.player.setPropertyBoolean("pause", true); });
+        Session s = session; if (s != null) guarded(s, () -> { cancelStartupProgress(s); s.wantsPlay = false; if (s.player != null) s.player.setPropertyBoolean("pause", true); });
     }); }
     @JavascriptInterface public void resume() { handler.post(() -> {
         if (stopFence.isActive()) { transition.setPlayIntent(true); return; }
@@ -822,6 +865,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     @JavascriptInterface public void seekTo(double seconds) {
         if (!finite(seconds) || seconds < 0) return;
         handler.post(() -> { Session s = session; if (s != null) guarded(s, () -> {
+            cancelStartupProgress(s);
             s.position = Math.round(seconds * 1000);
             s.pendingSeek = !s.output.loaded;
             // User initiated seeks should land on a nearby keyframe first.
@@ -921,6 +965,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         }
     }
     private void dispose(Session target) {
+        cancelStartupProgress(target);
         if (session == target) greenFrameProbe.cancel();
         if (target.timeout != null) handler.removeCallbacks(target.timeout);
         target.inPlaceReplacement = false;
@@ -949,6 +994,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         }
         Session old = session; session = null; generation++;
         if (old != null) {
+            cancelStartupProgress(old);
             old.terminal = true;
             if (old.timeout != null) handler.removeCallbacks(old.timeout);
             old.player = null;
@@ -1023,6 +1069,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
     }
     @Override public void onPause() {
         background = true; inPlaceReplaceAvailable = false; greenFrameProbe.cancel(); Session s = session;
+        cancelStartupProgress(s);
         if (s != null) { if (s.timeout != null) handler.removeCallbacks(s.timeout); guarded(s, () -> { if (s.player != null) s.player.setPropertyBoolean("pause", true); }); }
     }
     @Override public void onResume() {
