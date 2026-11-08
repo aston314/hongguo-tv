@@ -39,6 +39,7 @@ type desktopApp struct {
 
 func (a *desktopApp) startup(ctx context.Context) {
 	a.ctx = ctx
+	desktopObserveWindow()
 	configureDesktopMedia()
 	a.core.start()
 	go a.updater.automatic()
@@ -96,6 +97,7 @@ func (a *desktopApp) OpenUpdateFolder() {
 
 func (a *desktopApp) FinishExit() {
 	if !a.exitConfirmed.Swap(true) {
+		a.mini.save(runtimeMiniWindow{a.ctx})
 		wruntime.Quit(a.ctx)
 	}
 }
@@ -148,6 +150,7 @@ func main() {
 }
 
 func desktopOptions(app *desktopApp, dataDir string) *options.App {
+	app.mini.load(filepath.Join(dataDir, "mini-player-window.json"))
 	// On Linux, queue configuration before the WebView's initial navigation.
 	configureDesktopMedia()
 	return &options.App{

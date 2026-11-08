@@ -37,7 +37,12 @@ func (w runtimeMiniWindow) setMaximised(enabled bool) {
 		wruntime.WindowUnmaximise(w.ctx)
 	}
 }
-func (w runtimeMiniWindow) center() { wruntime.WindowCenter(w.ctx) }
+func (w runtimeMiniWindow) center()             { wruntime.WindowCenter(w.ctx) }
+func (w runtimeMiniWindow) transitioning() bool { return desktopWindowTransitioning() }
+func (w runtimeMiniWindow) fullscreenRestore() (windowGeometry, bool, bool) {
+	return desktopFullscreenRestore()
+}
+func (w runtimeMiniWindow) keepVisible() { desktopKeepMiniWindowVisible() }
 func (w runtimeMiniWindow) display() (string, int, int) {
 	screens, err := wruntime.ScreenGetAll(w.ctx)
 	if err != nil {

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"sync"
 	"testing"
 )
@@ -13,6 +15,10 @@ type testMiniWindow struct {
 	fullChecks                          int
 	exitDelay                           int
 	normal                              windowGeometry
+	transitionChecks                    int
+	zoomedInFullscreen                  bool
+	restoreMax                          bool
+	hasRestore                          bool
 }
 
 func (w *testMiniWindow) geometry() windowGeometry     { return w.g }
@@ -36,17 +42,33 @@ func (w *testMiniWindow) setFullscreen(v bool) {
 	}
 	w.full = v
 	if !v {
-		w.g = w.normal
+		if w.transitionChecks == 0 {
+			w.g = w.normal
+		}
 	}
 }
-func (w *testMiniWindow) maximised() bool { return w.max }
+func (w *testMiniWindow) maximised() bool { return w.max || w.full && w.zoomedInFullscreen }
 func (w *testMiniWindow) setMaximised(v bool) {
 	w.max = v
 	if !v {
 		w.g = w.normal
 	}
 }
-func (w *testMiniWindow) center()                     { w.centers++ }
+func (w *testMiniWindow) center()      { w.centers++ }
+func (w *testMiniWindow) keepVisible() {}
+func (w *testMiniWindow) fullscreenRestore() (windowGeometry, bool, bool) {
+	return w.normal, w.restoreMax, w.hasRestore
+}
+func (w *testMiniWindow) transitioning() bool {
+	if w.transitionChecks > 0 && !w.full {
+		w.transitionChecks--
+		if w.transitionChecks == 0 {
+			w.g = w.normal
+		}
+		return true
+	}
+	return false
+}
 func (w *testMiniWindow) display() (string, int, int) { return w.displayID, 1920, 1080 }
 func newTestMiniWindow() *testMiniWindow {
 	g := windowGeometry{100, 80, 1280, 800}
@@ -134,5 +156,118 @@ func TestMiniPlayerWaitsForNativeFullscreenExitBeforeSavingNormalBounds(t *testi
 	m.set(w, false, false)
 	if w.g != w.normal || !w.full {
 		t.Fatalf("lost fullscreen or normal bounds: %+v", w)
+	}
+}
+
+func TestMiniPlayerFullscreenDoesNotBecomeMaximisedOnRestore(t *testing.T) {
+	w := newTestMiniWindow()
+	w.full, w.zoomedInFullscreen, w.hasRestore = true, true, true
+	w.g = windowGeometry{0, 0, 1920, 1080}
+	var m miniPlayerController
+	if s := m.set(w, true, false); !s.Active || s.Error != "" {
+		t.Fatal(s)
+	}
+	if m.wasMaximised {
+		t.Fatal("fullscreen's isZoomed flag overwrote the pre-fullscreen ordinary state")
+	}
+	m.set(w, false, false)
+	if !w.full || w.max {
+		t.Fatal("returning to fullscreen must not first maximise the ordinary window")
+	}
+	w.setFullscreen(false) // Esc after returning from the mini player.
+	if w.g != w.normal || w.max {
+		t.Fatalf("Esc did not restore ordinary window: %+v", w)
+	}
+}
+
+func TestMiniPlayerWaitsPastStyleMaskChange(t *testing.T) {
+	w := newTestMiniWindow()
+	w.full, w.transitionChecks = true, 3
+	// The fullscreen flag clears first; native DidExit restores the frame later.
+	w.normal = windowGeometry{210, 140, 1100, 700}
+	var m miniPlayerController
+	m.set(w, true, false)
+	if m.normal != w.normal || w.transitionChecks != 0 {
+		t.Fatalf("saved bounds during Space animation: %+v", m.normal)
+	}
+}
+
+func TestMiniPlayerRemembersGeometryAcrossProcesses(t *testing.T) {
+	for _, quitInMini := range []bool{false, true} {
+		t.Run(map[bool]string{false: "return-then-quit", true: "quit-in-mini"}[quitInMini], func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "profile", "mini-player-window.json")
+			w := newTestMiniWindow()
+			var first miniPlayerController
+			first.load(path)
+			first.set(w, true, true)
+			want := windowGeometry{900, 240, 380, 600}
+			w.g = want
+			if quitInMini {
+				first.save(w)
+			} else {
+				first.set(w, false, false)
+				// Quitting in the main window must not overwrite mini geometry.
+				w.g = windowGeometry{0, 0, 1600, 900}
+				first.save(w)
+			}
+			var restarted miniPlayerController
+			restarted.load(path)
+			w = newTestMiniWindow()
+			restarted.set(w, true, false)
+			if w.g != want || w.centers != 0 {
+				t.Fatalf("restart lost user bounds: %+v", w)
+			}
+			// Exercise replacement of an already existing settings file too.
+			w.g.Width = 420
+			restarted.save(w)
+			var again miniPlayerController
+			again.load(path)
+			if again.small.Width != 420 {
+				t.Fatal("could not replace existing saved geometry")
+			}
+		})
+	}
+}
+
+func TestMiniPlayerStoredBoundsFallbacks(t *testing.T) {
+	for _, content := range []string{`{`, `{"geometry":{"Width":-1,"Height":600}}`, `{"geometry":{"X":2147483647,"Width":480,"Height":300}}`} {
+		path := filepath.Join(t.TempDir(), "mini.json")
+		if err := os.WriteFile(path, []byte(content), 0600); err != nil {
+			t.Fatal(err)
+		}
+		var m miniPlayerController
+		m.load(path)
+		w := newTestMiniWindow()
+		m.set(w, true, false)
+		if w.g.Width != 480 || w.g.Height != 300 || w.centers != 1 {
+			t.Fatalf("bad settings did not fall back: %+v", w)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "mini.json")
+	if err := writeMiniPlayerGeometry(path, windowGeometry{2000, 0, 3000, 2000}, "old-screen"); err != nil {
+		t.Fatal(err)
+	}
+	var m miniPlayerController
+	m.load(path)
+	w := newTestMiniWindow()
+	m.set(w, true, true)
+	if w.centers != 1 || w.g.Width != 320 || w.g.Height != 568 {
+		t.Fatalf("changed display reused off-screen geometry: %+v", w)
+	}
+}
+
+func TestMiniPlayerSaveDoesNotPersistFullscreenBounds(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "mini.json")
+	w := newTestMiniWindow()
+	var m miniPlayerController
+	m.load(path)
+	m.set(w, true, false)
+	w.normal = windowGeometry{300, 200, 500, 320}
+	w.g, w.full, w.hasRestore = windowGeometry{0, 0, 1920, 1080}, true, true
+	m.save(w)
+	var restarted miniPlayerController
+	restarted.load(path)
+	if restarted.small != w.normal {
+		t.Fatalf("saved fullscreen frame instead of the small frame: %+v", restarted.small)
 	}
 }
