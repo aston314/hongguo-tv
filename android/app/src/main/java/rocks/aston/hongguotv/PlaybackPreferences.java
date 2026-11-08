@@ -96,6 +96,21 @@ final class PlaybackPreferences {
     }
 
     @JavascriptInterface
+    public String readRecommendationAutoCinema() {
+        return preferences.getString("recommendationAutoCinema", "disabled");
+    }
+
+    @JavascriptInterface
+    public void writeRecommendationAutoCinema(String value) {
+        if (!"enabled".equals(value) && !"disabled".equals(value)) {
+            throw new IllegalArgumentException("invalid recommendation auto cinema preference");
+        }
+        if (!preferences.edit().putString("recommendationAutoCinema", value).commit()) {
+            throw new IllegalStateException("recommendation auto cinema preference was not saved");
+        }
+    }
+
+    @JavascriptInterface
     public String readRecommendationDirection() {
         return preferences.getString("recommendationDirection", "all");
     }

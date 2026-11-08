@@ -354,6 +354,12 @@
           <div class="app-update-actions"><button class="auto-cinema-action account-action" id="auto-cinema-toggle" data-focus="auto-cinema-toggle" aria-pressed="true" data-i18n="settings.autoCinemaEnabled">已开启</button></div>
           <p id="auto-cinema-state" role="status" aria-live="polite"></p>
         </div>
+        <div class="settings-card app-update-card is-hidden" id="recommendation-auto-cinema-settings">
+          <h2 data-i18n="settings.recommendationAutoCinema">推荐页自动全屏</h2>
+          <p data-i18n="settings.recommendationAutoCinemaDescription">开启后，推荐视频清屏时自动进入全屏，按返回键退出。</p>
+          <div class="app-update-actions"><button class="recommendation-auto-cinema-action account-action" id="recommendation-auto-cinema-toggle" data-focus="recommendation-auto-cinema-toggle" aria-pressed="false" data-i18n="settings.autoCinemaDisabled">已关闭</button></div>
+          <p id="recommendation-auto-cinema-state" role="status" aria-live="polite"></p>
+        </div>
         <div class="settings-card app-update-card is-hidden" id="webos-audio-settings">
           <h2 data-i18n="settings.audibleSpeed">有声倍速（实验）</h2>
           <p data-i18n="settings.audibleSpeedDescription">仅用于 webOS，默认关闭。开启后，倍速播放会额外读取音频并占用内存；准备失败或设备处理跟不上时恢复有声 1 倍速。</p>
@@ -584,6 +590,7 @@
   <script src="/playback-settings.js"></script>
   <script src="/episode-prefetch-settings.js"></script>
   <script src="/auto-cinema.js"></script>
+  <script src="/recommendation-auto-cinema.js"></script>
   <script src="/recommendation-direction.js"></script>
   <script src="/sidebar-settings.js"></script>
   <script src="/startup-page.js"></script>

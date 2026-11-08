@@ -73,6 +73,7 @@ jobs:
           node --check core/cmd/hongguotv/ui/sidebar-settings.js
           node --check core/cmd/hongguotv/ui/startup-page.js
           node --check core/cmd/hongguotv/ui/auto-cinema.js
+          node --check core/cmd/hongguotv/ui/recommendation-auto-cinema.js
           node --check core/cmd/hongguotv/ui/compat.js
           node --check core/cmd/hongguotv/ui/episode-prefetch.js
           node --check core/cmd/hongguotv/ui/playback-recovery.js

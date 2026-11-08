@@ -64,6 +64,7 @@
     sidebarDisplay: '.sidebar-display-action',
     startupPage: '.startup-page-action',
     autoCinema: '.auto-cinema-action',
+    recommendationAutoCinema: '.recommendation-auto-cinema-action',
     webosAudio: '.webos-audio-action',
     portraitBackground: '.portrait-background-action',
     danmakuRegion: '.danmaku-region-action',
@@ -192,6 +193,7 @@
   var autoCinemaPreferences = null;
   var autoCinemaSettingCard = document.getElementById('auto-cinema-settings');
   var autoCinemaToggle = document.getElementById('auto-cinema-toggle');
+  var recommendationAutoCinemaPreferences = null;
   var episodePrefetchSettingCard = document.getElementById('episode-prefetch-settings');
   var playbackCustomDeviceSettingCard = document.getElementById('playback-custom-device-settings');
   // The custom playback device fallback is implemented by the Go core for
@@ -1218,6 +1220,7 @@
     if (element.classList.contains('sidebar-display-action')) return 'sidebarDisplay';
     if (element.classList.contains('startup-page-action')) return 'startupPage';
     if (element.classList.contains('auto-cinema-action')) return 'autoCinema';
+    if (element.classList.contains('recommendation-auto-cinema-action')) return 'recommendationAutoCinema';
     if (element.classList.contains('webos-audio-action')) return 'webosAudio';
     if (element.classList.contains('portrait-background-action')) return 'portraitBackground';
     if (element.classList.contains('danmaku-region-action')) return 'danmakuRegion';
@@ -1804,7 +1807,14 @@
     if (zone === 'autoCinema') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'down' && firstVisible('.recommendation-auto-cinema-action')) return firstVisible('.recommendation-auto-cinema-action');
       if (direction === 'down') return firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      return null;
+    }
+    if (zone === 'recommendationAutoCinema') {
+      if (direction === 'left') return activeSidebar();
+      if (direction === 'up') return firstVisible('.auto-cinema-action') || activeSidebar();
+      if (direction === 'down') return firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'webosAudio') {
@@ -1815,12 +1825,14 @@
     }
     if (zone === 'portraitBackground') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
+      if (direction === 'up' && firstVisible('.recommendation-auto-cinema-action')) return firstVisible('.recommendation-auto-cinema-action');
       if (direction === 'up') return firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'danmakuRegion') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
+      if (direction === 'up' && !firstVisible('.portrait-background-action') && firstVisible('.recommendation-auto-cinema-action')) return firstVisible('.recommendation-auto-cinema-action');
       if (direction === 'up') return firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
       return null;
@@ -2576,8 +2588,29 @@
   function hideControls() {
     clearTimeout(controlsTimer);
     if (!isPlaybackPage() || (typeof playbackCommandMenuOpen !== 'undefined' && playbackCommandMenuOpen) || detailModalOpen || (typeof actorWorksOpen !== 'undefined' && actorWorksOpen) || confirmOpen || playerOptionsOpen || discussionOpen || zoneOf(document.activeElement) === 'sidebar') return;
+    var wasHidden = shell.classList.contains('is-controls-hidden');
     shell.classList.add('is-controls-hidden');
     goFocus(document.getElementById('hero-feed-focus'));
+    if (!wasHidden) enterRecommendationCinemaOnClear();
+  }
+  function enterRecommendationCinemaOnClear() {
+    if (!recommendationAutoCinemaPreferences || !recommendationAutoCinemaPreferences.enabled() ||
+        pageMode() !== 'recommend' || shell.classList.contains('is-cinema') ||
+        applicationInBackground || applicationHidden() || coreConnectionModalOpen ||
+        scanModalOpen() || supportModalOpen || accountCountryModalOpen || accountKeypadOpen() ||
+        detailModalOpen || actorWorksOpen || detailCastOpen || rankFilterOpen || confirmOpen ||
+        playerOptionsOpen || playbackCommandMenuOpen || discussionOpen ||
+        endRecommendations && endRecommendations.isOpen()) return;
+    var video = document.getElementById('hero-video');
+    var menuHint = document.getElementById('playback-menu-hint');
+    if (document.activeElement !== document.getElementById('hero-feed-focus') ||
+        !video || video.paused || video.ended || !activePlayback || activePlayback.continuationPending ||
+        !playbackVideoReady(activePlayback, activePlayback.presentation, video) ||
+        document.getElementById('hero').classList.contains('is-preparing-video') ||
+        menuHint && !menuHint.classList.contains('is-hidden')) return;
+    // Reuse the existing fullscreen layout and native bounds synchronization.
+    // Keep the clear-screen state; revealing controls would arm another timer.
+    setCinema(true);
   }
   function clearPrefetchedEpisodeHint() {
     if (prefetchedEpisodeHint) clearTimeout(prefetchedEpisodeHint.timer);
@@ -8986,6 +9019,29 @@
     cancelPendingAutoCinema();
     if (!autoCinemaPreferences.choose(autoCinemaPreferences.enabled() ? 'disabled' : 'enabled')) showNotice(uiText('settings.saveFailed', '设置未能保存，请重试。'));
   });
+  function initRecommendationAutoCinemaSettings() {
+    var card = document.getElementById('recommendation-auto-cinema-settings');
+    var toggle = document.getElementById('recommendation-auto-cinema-toggle');
+    if (!card || !toggle || !window.HongguoRecommendationAutoCinema) return;
+    recommendationAutoCinemaPreferences = window.HongguoRecommendationAutoCinema.create({
+      platform: autoCinemaPlatform,
+      diagnostics: window.HongguoTVDiagnostics,
+      bridge: window.HongguoTVPreferences,
+      render: function (data) {
+        card.classList.toggle('is-hidden', !data.supported);
+        toggle.setAttribute('aria-pressed', data.enabled ? 'true' : 'false');
+        toggle.setAttribute('data-i18n', data.enabled ? 'settings.autoCinemaEnabled' : 'settings.autoCinemaDisabled');
+        toggle.classList.toggle('account-primary', data.enabled);
+        toggle.textContent = uiText(data.enabled ? 'settings.autoCinemaEnabled' : 'settings.autoCinemaDisabled', data.enabled ? '已开启' : '已关闭');
+        var state = document.getElementById('recommendation-auto-cinema-state');
+        state.setAttribute('data-i18n', data.message ? 'settings.saveFailed' : 'settings.recommendationAutoCinemaState');
+        state.textContent = data.message ? uiText('settings.saveFailed', '设置未能保存，请重试。') : uiText('settings.recommendationAutoCinemaState', '仅适用于 Android TV，默认关闭。');
+      }
+    });
+    toggle.addEventListener('click', function () {
+      if (!recommendationAutoCinemaPreferences.choose(recommendationAutoCinemaPreferences.enabled() ? 'disabled' : 'enabled')) showNotice(uiText('settings.saveFailed', '设置未能保存，请重试。'));
+    });
+  }
   var webosAudio = webosShell && window.HongguoWebOSAudio;
   function updateWebOSAudioSettings() {
     var audio = webosShell && window.HongguoWebOSAudio;
@@ -9174,6 +9230,7 @@
   }
   updateWebOSAudioSettings();
   initRecommendationDirectionSettings();
+  initRecommendationAutoCinemaSettings();
   if (webosAudio && webosAudio.supported) {
     document.getElementById('webos-audio-toggle').addEventListener('click', function () {
       if (!webosAudio.choose(!webosAudio.isEnabled())) showNotice(uiText('settings.saveFailed', '设置未能保存，请重试。'));
