@@ -7,7 +7,7 @@
   "title": "红果短剧",
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
-  "resolution": "1920x1080",
+  "resolution": "1280x720",
   "iconColor": "#ff5c45",
   "bgColor": "#101014",
   "disableBackHistoryAPI": true,
