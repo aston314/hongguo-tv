@@ -25,12 +25,14 @@ function fixture(native) {
     querySelector:s=>s==='.app-shell'?shell:group};
   const s={available:true,canPlay:true,paused:false,position:19,duration:100,volume:60,portrait:true,episode:1,nextEpisode:true,nextDrama:true,title:'test'};
   const commands=[],changed=[],notices=[];
-  const win={document:doc,setTimeout:()=>1,clearTimeout(){},HongguoTV:{miniPlayerState:()=>s,
+  const timers=new Map();let nextTimer=0;
+  const win={document:doc,setTimeout:(callback,delay)=>{const id=++nextTimer;timers.set(id,{callback,delay});return id},clearTimeout:id=>timers.delete(id),HongguoTV:{miniPlayerState:()=>s,
     miniPlayerFocus:n=>{doc.activeElement=n},miniPlayerCommand:(...a)=>commands.push(a),miniPlayerChanged:(...a)=>changed.push(a),miniPlayerNotify:m=>notices.push(m)}};
   if(native)win.go={main:{desktopApp:{SetMiniPlayer:native}}};
   const mini=create(win,{platform:native?'darwin':'preview'});
   const nodes=()=>hero.children[0].querySelectorAll('button,input');
-  return {win,doc,s,video,hero,group,shell,mini,commands,changed,notices,nodes,find:id=>nodes().find(n=>n.id===id)};
+  return {win,doc,s,video,hero,group,shell,mini,commands,changed,notices,timers,nodes,find:id=>nodes().find(n=>n.id===id),
+    fireTimer(delay){const timer=[...timers].find(([,value])=>value.delay===delay);if(!timer)return false;timers.delete(timer[0]);timer[1].callback();return true}};
 }
 
 test('enter/restore keeps video source, position, pause, mute, volume and speed untouched',async()=>{
@@ -66,6 +68,26 @@ test('mini controls use shared commands and respect episode/recommendation bound
   assert.equal(f.find('mini-player-nextDrama').disabled,true);assert.equal(f.find('mini-player-nextEpisode').disabled,true);
   const ranges=f.nodes().filter(n=>n.tagName==='INPUT');ranges[0].value='42';ranges[0].dispatch('input');ranges[1].value='0';ranges[1].dispatch('input');
   assert.deepEqual(f.commands.slice(-2),[['seek',42],['volume',0]]);
+});
+
+test('controls auto-hide again after next episode playback resumes',async()=>{
+  const f=fixture();await f.mini.request(true);const overlay=f.hero.children[0];
+  assert.equal(f.fireTimer(2500),true);assert.equal(overlay.classList.contains('is-visible'),false);
+  f.s.paused=true;f.video.paused=true;f.video.listeners.pause.forEach(callback=>callback());
+  assert.equal(overlay.classList.contains('is-visible'),true);
+  f.s.episode=2;f.s.paused=false;f.video.paused=false;
+  f.video.listeners.playing.forEach(callback=>callback());
+  assert.equal(overlay.classList.contains('is-visible'),true);
+  assert.equal(f.fireTimer(2500),true);assert.equal(overlay.classList.contains('is-visible'),false);
+});
+
+test('keyboard interaction still keeps mini controls visible after playback resumes',async()=>{
+  const f=fixture();await f.mini.request(true);const overlay=f.hero.children[0];
+  f.mini.handleKey({preventDefault(){},stopPropagation(){}},'ArrowRight',node=>{f.doc.activeElement=node});
+  f.s.paused=false;f.video.paused=false;
+  f.video.listeners.playing.forEach(callback=>callback());
+  assert.equal(overlay.classList.contains('is-visible'),true);
+  assert.equal([...f.timers.values()].some(timer=>timer.delay===2500),false);
 });
 
 test('keyboard navigation skips disabled controls; sliders keep native arrows and Escape restores',async()=>{

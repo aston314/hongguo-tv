@@ -164,6 +164,7 @@
       overlay.addEventListener('focusin', reveal); overlay.addEventListener('focusout', function () { win.setTimeout(reveal, 0); });
       var video = doc.getElementById('hero-video');
       ['timeupdate', 'loadedmetadata', 'play', 'pause', 'volumechange', 'emptied', 'ended'].forEach(function (name) { video.addEventListener(name, function () { render(); }); });
+      video.addEventListener('playing', function () { render(); reveal(); });
       if (win.HongguoI18n) win.HongguoI18n.onChange(function () { copy(); render(); });
       copy(); render();
     }
