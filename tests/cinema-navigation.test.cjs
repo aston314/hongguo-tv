@@ -38,7 +38,7 @@ test('card auto cinema keeps playback controls visible until the normal clear ti
 });
 
 test('Back exits sidebar-free playback, reveals controls and focuses the active sidebar item', () => {
-  for (const initiallyHidden of [false, true]) {
+  for (const mode of ['player', 'recommend']) for (const initiallyHidden of [false, true]) {
     const sidebar = { id: 'current-sidebar-item' };
     const calls = [];
     const state = { cinema: true, hidden: initiallyHidden, focused: null };
@@ -65,7 +65,7 @@ test('Back exits sidebar-free playback, reveals controls and focuses the active 
       accountData: null,
       document: { activeElement: { id: 'player-control' } },
       shell: { classList: { contains: name => name === 'is-cinema' ? state.cinema : name === 'is-controls-hidden' ? state.hidden : false } },
-      pageMode: () => 'player',
+      pageMode: () => mode,
       isPlaybackPage: () => true,
       zoneOf: () => 'controls',
       activeSidebar: () => sidebar,
