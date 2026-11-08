@@ -36,7 +36,9 @@ extern "C" JNIEXPORT jlong JNICALL JNI_METHOD(nativeCreate)(JNIEnv *env, jclass)
     // structured MediaCodec fields needed by diagnostics.
     int status = mpv_set_option_string(handle, "msg-level", "all=warn,ffmpeg/video=debug");
     if (status < 0) { mpv_terminate_destroy(handle); check(env, status); return 0; }
-    status = mpv_request_log_messages(handle, "debug");
+    // An explicit "debug" subscription overrides msg-level for every module.
+    // Follow msg-level instead so stream/demux debug logs stay disabled.
+    status = mpv_request_log_messages(handle, "terminal-default");
     if (status < 0) { mpv_terminate_destroy(handle); check(env, status); return 0; }
     return static_cast<jlong>(reinterpret_cast<intptr_t>(new Client{handle}));
 }

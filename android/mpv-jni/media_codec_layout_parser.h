@@ -42,6 +42,21 @@ struct MediaCodecLayout {
 
     void parse(const char *prefix, const char *text) {
         if (!prefix || std::strcmp(prefix, "ffmpeg/video") != 0 || !text) return;
+        // common/av_log.c prefixes FFmpeg messages with AVClass.item_name.
+        // Accept only known MediaCodec codec names at the start of the line;
+        // never search arbitrary log bodies for diagnostic-looking fragments.
+        static const char *const codecPrefixes[] = {
+            "hevc_mediacodec: ", "h264_mediacodec: ", "av1_mediacodec: ",
+            "vp9_mediacodec: ", "vp8_mediacodec: ", "mpeg2_mediacodec: ",
+            "mpeg4_mediacodec: ", "vc1_mediacodec: "
+        };
+        for (const char *codecPrefix : codecPrefixes) {
+            const size_t length = std::strlen(codecPrefix);
+            if (std::strncmp(text, codecPrefix, length) == 0) {
+                text += length;
+                break;
+            }
+        }
         static const char decoderPrefix[] = "Found decoder ";
         static const char formatPrefix[] = "Output MediaFormat changed to ";
         static const char cropPrefix[] = "Output crop parameters ";
