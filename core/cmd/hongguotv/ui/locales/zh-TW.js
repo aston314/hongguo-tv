@@ -2,6 +2,11 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-TW'] = {
+    "mini.titlebarSetting": "小窗隱藏系統標題列",
+    "mini.titlebarSettingDescription": "隱藏標題列，透過小窗頂部拖曳視窗。可隨時恢復系統標題列。",
+    "mini.titlebarSettingState": "預設關閉，僅用於桌面小窗。",
+    "mini.restoreTitlebar": "恢復系統標題列",
+    "mini.titlebarFallback": "已保留系統標題列，可繼續使用小窗。",
     "mini.enter": "小窗播放",
     "mini.restore": "返回大視窗",
     "mini.previousEpisode": "上一集",

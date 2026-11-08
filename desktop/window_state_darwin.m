@@ -45,6 +45,53 @@ static void hongguoOnMain(void (^action)(void)) {
 
 static HongguoWindowObserver *hongguoWindowObserver;
 
+// Keep the titled/resizable window class. Extending content into the titlebar
+// and hiding its controls avoids replacing the window or its WKWebView.
+static BOOL hongguoMiniTitlebarSaved;
+static NSWindowStyleMask hongguoMiniStyle;
+static NSWindowTitleVisibility hongguoMiniTitleVisibility;
+static BOOL hongguoMiniTransparent;
+static BOOL hongguoMiniButtonsHidden[3];
+
+int hongguoSetMiniTitlebarHidden(int hidden) {
+    __block int ok = 0;
+    hongguoOnMain(^{
+        NSWindow *window = hongguoMainWindow();
+        if (!window || hongguoWindowObserver.transitioning ||
+            (window.styleMask & NSWindowStyleMaskFullScreen)) return;
+        NSRect frame = window.frame;
+        @try {
+            if (hidden) {
+                if (!hongguoMiniTitlebarSaved) {
+                    hongguoMiniStyle = window.styleMask;
+                    hongguoMiniTitleVisibility = window.titleVisibility;
+                    hongguoMiniTransparent = window.titlebarAppearsTransparent;
+                    for (int i = 0; i < 3; i++)
+                        hongguoMiniButtonsHidden[i] = [window standardWindowButton:(NSWindowButton)i].hidden;
+                    hongguoMiniTitlebarSaved = YES;
+                }
+                window.styleMask |= NSWindowStyleMaskFullSizeContentView;
+                window.titleVisibility = NSWindowTitleHidden;
+                window.titlebarAppearsTransparent = YES;
+                for (int i = 0; i < 3; i++) [window standardWindowButton:(NSWindowButton)i].hidden = YES;
+            } else if (hongguoMiniTitlebarSaved) {
+                window.styleMask = hongguoMiniStyle;
+                window.titleVisibility = hongguoMiniTitleVisibility;
+                window.titlebarAppearsTransparent = hongguoMiniTransparent;
+                for (int i = 0; i < 3; i++)
+                    [window standardWindowButton:(NSWindowButton)i].hidden = hongguoMiniButtonsHidden[i];
+                hongguoMiniTitlebarSaved = NO;
+            }
+            [window setFrame:frame display:YES animate:NO];
+            ok = 1;
+        } @catch (NSException *exception) {
+            // Retain the snapshot so the caller can restore the old style.
+            ok = 0;
+        }
+    });
+    return ok;
+}
+
 void hongguoObserveWindow(void) {
     hongguoOnMain(^{
         NSWindow *window = hongguoMainWindow();

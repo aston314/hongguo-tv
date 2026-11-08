@@ -14,6 +14,7 @@
     controls: '.playback-buttons .control-button, #player-retry, #player-failure-diagnostics',
     timeline: '#control-progress',
     miniPlayer: '.mini-player-button, .mini-player-overlay input',
+    miniPlayerSettings: '.desktop-mini-titlebar-action',
     searchInput: '#search-input',
     searchSuggestions: '.search-suggestion',
     searchActions: '.search-action',
@@ -1214,6 +1215,7 @@
     if (element.classList.contains('playback-custom-device-input') || element.classList.contains('playback-custom-device-action')) return 'playbackCustomDevice';
     if (element.classList.contains('account-input')) return 'accountInputs';
     if (element.classList.contains('app-update-action')) return 'appUpdates';
+    if (element.classList.contains('desktop-mini-titlebar-action')) return 'miniPlayerSettings';
     if (element.classList.contains('webos-update-notes')) return 'webosUpdateNotes';
     if (element.classList.contains('locale-action')) return 'localeActions';
     if (element.classList.contains('recommendation-direction-action')) return 'recommendationDirection';
@@ -1795,8 +1797,14 @@
     }
     if (zone === 'appUpdates') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
-      if (direction === 'up') return firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'up') return firstVisible('.desktop-mini-titlebar-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.webos-update-notes');
+      return null;
+    }
+    if (zone === 'miniPlayerSettings') {
+      if (direction === 'left') return activeSidebar();
+      if (direction === 'up') return firstVisible('.playback-custom-device-action') || firstVisible('.playback-mode-action') || activeSidebar();
+      if (direction === 'down') return firstVisible('#app-check-update');
       return null;
     }
     if (zone === 'webosUpdateNotes') {
@@ -1852,7 +1860,7 @@
     if (zone === 'playbackCustomDevice') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action');
-      if (direction === 'down') return firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'accountInputs' || zone === 'accountActions') {

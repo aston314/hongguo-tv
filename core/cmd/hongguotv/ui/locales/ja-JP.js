@@ -2,6 +2,11 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['ja-JP'] = {
+    "mini.titlebarSetting": "ミニプレーヤーのタイトルバーを隠す",
+    "mini.titlebarSettingDescription": "タイトルバーを隠し、上部をドラッグして移動します。システムのタイトルバーはいつでも復元できます。",
+    "mini.titlebarSettingState": "初期設定はオフです。デスクトップのミニプレーヤーにのみ適用されます。",
+    "mini.restoreTitlebar": "システムのタイトルバーを復元",
+    "mini.titlebarFallback": "システムのタイトルバーを維持しました。ミニプレーヤーは引き続き使用できます。",
     "mini.enter": "ミニプレーヤー",
     "mini.restore": "元のウィンドウに戻す",
     "mini.previousEpisode": "前の話",

@@ -40,6 +40,23 @@ int main(int argc, const char **argv) {
         hongguoObserveWindow();
         NSNotificationCenter *center = NSNotificationCenter.defaultCenter;
         NSRect ordinary = window.frame;
+        NSView *originalContent = window.contentView;
+        NSWindowStyleMask originalStyle = window.styleMask;
+        for (int i = 0; i < 3; i++) {
+            require(hongguoSetMiniTitlebarHidden(YES), @"could not hide native titlebar");
+            require(window.titleVisibility == NSWindowTitleHidden && window.titlebarAppearsTransparent,
+                @"titlebar was not hidden");
+            require((window.styleMask & NSWindowStyleMaskResizable) != 0 && window.contentView == originalContent,
+                @"hiding titlebar lost resize support or replaced content view");
+            require(NSEqualRects(window.frame, ordinary), @"hiding titlebar moved or resized the window");
+            require(NSHeight(window.contentView.bounds) == NSHeight(window.frame), @"hidden titlebar still reserves content height");
+            for (int button = 0; button < 3; button++)
+                require([window standardWindowButton:(NSWindowButton)button].hidden, @"native window button still visible");
+            require(hongguoSetMiniTitlebarHidden(NO), @"could not restore native titlebar");
+            require(window.styleMask == originalStyle && window.titleVisibility == NSWindowTitleVisible && !window.titlebarAppearsTransparent,
+                @"original titlebar style was not restored");
+            require(window.contentView == originalContent && NSEqualRects(window.frame, ordinary), @"restoration changed content or frame");
+        }
 
         // Exercise the actual observer and real NSWindow frame restoration,
         // including the interval after the style flag changes but before DidExit.
@@ -73,6 +90,8 @@ int main(int argc, const char **argv) {
                 waitForFullscreen(window, NO);
                 require(NSEqualRects(window.frame, original), @"leaving fullscreen for mini mode lost original frame");
                 [window setFrame:NSMakeRect(NSMinX(visible)+100, NSMinY(visible)+100, 480, 300) display:YES];
+                require(hongguoSetMiniTitlebarHidden(YES), @"fullscreen exit -> mini titlebar failed");
+                require(hongguoSetMiniTitlebarHidden(NO), @"mini -> fullscreen titlebar restoration failed");
                 // Return from mini mode, retaining the original fullscreen mode.
                 [window setFrame:original display:YES];
                 [window toggleFullScreen:nil];

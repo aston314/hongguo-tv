@@ -20,6 +20,8 @@ html.desktop-shell.desktop-mini-player .mini-player-overlay.is-visible { opacity
 .mini-player-header, .mini-player-footer { position: absolute; left: 0; right: 0; pointer-events: none; padding: 10px 12px; }
 .mini-player-overlay.is-visible .mini-player-header, .mini-player-overlay.is-visible .mini-player-footer { pointer-events: auto; }
 .mini-player-header { top: 0; display: flex; align-items: center; background: linear-gradient(rgba(0,0,0,.76), transparent); --wails-draggable: drag; }
+.mini-player-heading, .mini-player-heading strong, .mini-player-heading > span { --wails-draggable: drag; }
+html.desktop-mini-titlebar-hidden .mini-player-heading { cursor: move; }
 .mini-player-heading { min-width: 0; flex: 1; line-height: 1.5; }
 .mini-player-heading strong, .mini-player-heading > span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mini-player-heading strong { font-size: 14px; }

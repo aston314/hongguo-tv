@@ -5,6 +5,11 @@
   // without changing the UI or the focus model.
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-CN'] = {
+    "mini.titlebarSetting": "小窗隐藏系统标题栏",
+    "mini.titlebarSettingDescription": "隐藏标题栏，通过小窗顶部拖动窗口。可随时恢复系统标题栏。",
+    "mini.titlebarSettingState": "默认关闭，仅用于桌面小窗。",
+    "mini.restoreTitlebar": "恢复系统标题栏",
+    "mini.titlebarFallback": "已保留系统标题栏，可继续使用小窗。",
     "mini.enter": "小窗播放",
     "mini.restore": "返回大窗",
     "mini.previousEpisode": "上一集",

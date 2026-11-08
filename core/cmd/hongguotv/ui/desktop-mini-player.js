@@ -8,11 +8,65 @@
   function create(win, config) {
     var doc = win.document, active = false, pending = false, savedCinema = false, revision = 0, keyboardFocus = false;
     var timer = null, overlay, entry, title, episode, progress, volume, time, buttons = {};
+    var hideTitlebar = false, titlebarHidden = false, settingCard, settingToggle, settingState;
+    var titlebarKey = 'hongguo.desktop.mini-titlebar-hidden';
+    try { hideTitlebar = win.localStorage.getItem(titlebarKey) === 'true'; } catch (_) {}
     function app() { return win.HongguoTV; }
     function bridge() { return win.go && win.go.main && win.go.main.desktopApp; }
     function state() { return app() && app().miniPlayerState ? app().miniPlayerState() : {}; }
     function text(key, fallback, params) { return win.HongguoI18n ? win.HongguoI18n.t(key, params, fallback) : fallback; }
     function supported() { return /^(darwin|windows|linux|preview)$/.test(config.platform) && (config.platform === 'preview' || bridge() && bridge().SetMiniPlayer); }
+    function titlebarSupported() { return supported() && (config.platform === 'preview' || bridge() && bridge().SetMiniPlayerTitlebarHidden); }
+    function saveTitlebar(value) {
+      try { win.localStorage.setItem(titlebarKey, value ? 'true' : 'false'); hideTitlebar = value; return true; } catch (_) { return false; }
+    }
+    function renderSetting(message) {
+      if (!settingCard) return;
+      settingCard.classList.toggle('is-hidden', !titlebarSupported());
+      settingToggle.disabled = pending;
+      settingToggle.setAttribute('aria-pressed', hideTitlebar ? 'true' : 'false');
+      settingToggle.classList.toggle('account-primary', hideTitlebar);
+      settingToggle.textContent = text(hideTitlebar ? 'settings.autoCinemaEnabled' : 'settings.autoCinemaDisabled', hideTitlebar ? '已开启' : '已关闭');
+      settingState.textContent = message || text('mini.titlebarSettingState', '默认关闭，仅用于桌面小窗。');
+    }
+    function applyTitlebar(result) {
+      titlebarHidden = active && !!result.titlebar_hidden;
+      doc.documentElement.classList.toggle('desktop-mini-titlebar-hidden', titlebarHidden);
+      // GTK no longer has native resize borders when decorations are hidden.
+      // Wails already provides the edge-resize handler; enable it only here.
+      if (config.platform === 'linux' && win.wails && win.wails.flags) win.wails.flags.enableResize = titlebarHidden;
+      if (buttons.titlebar) buttons.titlebar.classList.toggle('is-hidden', !titlebarHidden);
+      if (result.titlebar_fallback) {
+        saveTitlebar(false);
+        if (app() && app().miniPlayerNotify) app().miniPlayerNotify(text('mini.titlebarFallback', '已保留系统标题栏，可继续使用小窗。'));
+      }
+      renderSetting();
+    }
+    function chooseTitlebar(value) {
+      if (pending || !titlebarSupported()) return Promise.resolve(false);
+      if (!active) {
+        var saved = saveTitlebar(value);
+        renderSetting(saved ? '' : text('settings.saveFailed', '设置未能保存，请重试。'));
+        return Promise.resolve(saved);
+      }
+      // The small window always retains a visible recovery action on hover.
+      // A failed native restoration keeps this action and Escape available.
+      pending = true; revision++; render();
+      return Promise.resolve().then(function () {
+        return config.platform === 'preview' ? { active: true, titlebar_hidden: value } : bridge().SetMiniPlayerTitlebarHidden(value);
+      }).then(function (result) {
+        if (typeof result === 'string') result = JSON.parse(result);
+        if (!result || typeof result.active !== 'boolean') throw new Error('Invalid titlebar response');
+        applyTitlebar(result);
+        if (result.error) throw new Error(result.error);
+        var saved = saveTitlebar(!!result.titlebar_hidden);
+        if (!saved) renderSetting(text('settings.saveFailed', '设置未能保存，请重试。'));
+        return saved;
+      }).catch(function () {
+        if (app() && app().miniPlayerNotify) app().miniPlayerNotify(text('mini.failed', '小窗切换失败，请重试'));
+        return false;
+      }).then(function (ok) { pending = false; render(); reveal(); return ok; });
+    }
     function label(node, value) { node.title = value; node.setAttribute('aria-label', value); }
     function focus(node) { if (node && !node.disabled && app() && app().miniPlayerFocus) app().miniPlayerFocus(node); }
     function clock(value) { value = Math.max(0, Math.floor(value || 0)); return Math.floor(value / 60) + ':' + ('0' + value % 60).slice(-2); }
@@ -59,12 +113,13 @@
       doc.documentElement.classList.toggle('desktop-mini-player', enabled || active);
       render();
       return Promise.resolve().then(function () {
-        return config.platform === 'preview' ? { active: enabled } : bridge().SetMiniPlayer(enabled, !!state().portrait);
+        return config.platform === 'preview' ? { active: enabled, titlebar_hidden: enabled && hideTitlebar } : bridge().SetMiniPlayer(enabled, !!state().portrait, !!(enabled && hideTitlebar && titlebarSupported()));
       }).then(function (value) {
         var result = typeof value === 'string' ? JSON.parse(value) : value;
         if (!result || typeof result.active !== 'boolean') throw new Error('Invalid window response');
         pending = false;
         apply(result.active);
+        applyTitlebar(result);
         if (result.error) throw new Error(result.error);
         return result.active === enabled;
       }).catch(function () {
@@ -79,11 +134,12 @@
       label(entry, text('mini.enter', '小窗播放'));
       entry.querySelector('.control-label').textContent = text('mini.enter', '小窗播放');
       var names = { restore: ['mini.restore', '返回大窗'], previousDrama: ['mini.previousDrama', '上一部'], previousEpisode: ['mini.previousEpisode', '上一集'],
-        nextEpisode: ['mini.nextEpisode', '下一集'], nextDrama: ['mini.nextDrama', '下一部'] };
+        nextEpisode: ['mini.nextEpisode', '下一集'], nextDrama: ['mini.nextDrama', '下一部'], titlebar: ['mini.restoreTitlebar', '恢复系统标题栏'] };
       Object.keys(names).forEach(function (name) {
         var value = text(names[name][0], names[name][1]); label(buttons[name], value); buttons[name].querySelector('span').textContent = value;
       });
       label(progress, text('hero.playbackProgress', '播放进度')); label(volume, text('ui.volume', '音量'));
+      renderSetting();
     }
     function render(nativeState, observedRevision) {
       if (!overlay) return;
@@ -92,6 +148,7 @@
       var s = state();
       entry.classList.toggle('is-hidden', !supported());
       entry.disabled = pending || !s.available;
+      renderSetting();
       if (!active) return;
       if (!s.available && !pending) { request(false); return; }
       title.textContent = s.title || text('app.name', '红果短剧');
@@ -99,6 +156,7 @@
       ['previousEpisode', 'nextEpisode', 'previousDrama', 'nextDrama'].forEach(function (name) { buttons[name].disabled = pending || !s[name]; });
       buttons.pause.disabled = pending || !s.canPlay;
       buttons.restore.disabled = pending;
+      buttons.titlebar.disabled = pending;
       var pauseLabel = s.paused ? text('common.play', '播放') : text('ui.pause', '暂停');
       label(buttons.pause, pauseLabel); buttons.pause.querySelector('span').textContent = pauseLabel;
       var symbol = s.paused ? '#icon-play' : '#icon-pause', use = buttons.pause.querySelector('use');
@@ -122,7 +180,7 @@
           else command('toggle');
         }
       } else if (key === 'Tab' || /^Arrow/.test(key)) {
-        var targets = Array.prototype.slice.call(overlay.querySelectorAll('button,input')).filter(function (node) { return !node.disabled; });
+        var targets = Array.prototype.slice.call(overlay.querySelectorAll('button,input')).filter(function (node) { return !node.disabled && !node.classList.contains('is-hidden'); });
         ['player-retry', 'player-failure-diagnostics'].forEach(function (id) {
           var node = doc.getElementById(id);
           if (node && !node.disabled && node.getClientRects && node.getClientRects().length) targets.push(node);
@@ -145,6 +203,7 @@
       var header = doc.createElement('div'); header.className = 'mini-player-header';
       var heading = doc.createElement('div'); heading.className = 'mini-player-heading';
       title = doc.createElement('strong'); episode = doc.createElement('span'); heading.appendChild(title); heading.appendChild(episode); header.appendChild(heading);
+      button(header, 'titlebar', 'settings', function () { chooseTitlebar(false); }).classList.add('is-hidden');
       button(header, 'restore', 'fullscreen-exit', function () { request(false); }); overlay.appendChild(header);
       var footer = doc.createElement('div'); footer.className = 'mini-player-footer';
       progress = doc.createElement('input'); progress.id = 'mini-player-progress'; progress.type = 'range'; progress.min = '0'; progress.step = '.1'; progress.setAttribute('data-focus', 'mini-player-progress');
@@ -166,10 +225,15 @@
       ['timeupdate', 'loadedmetadata', 'play', 'pause', 'volumechange', 'emptied', 'ended'].forEach(function (name) { video.addEventListener(name, function () { render(); }); });
       video.addEventListener('playing', function () { render(); reveal(); });
       if (win.HongguoI18n) win.HongguoI18n.onChange(function () { copy(); render(); });
+      settingCard = doc.getElementById('desktop-mini-titlebar-settings');
+      settingToggle = doc.getElementById('desktop-mini-titlebar-toggle');
+      settingState = doc.getElementById('desktop-mini-titlebar-state');
+      if (settingCard && settingToggle && settingState) settingToggle.addEventListener('click', function () { chooseTitlebar(!hideTitlebar); });
+      else settingCard = null;
       copy(); render();
     }
     install();
-    return { isActive: function () { return active; }, isPending: function () { return pending; }, revision: function () { return revision; }, request: request, render: render, handleKey: handleKey };
+    return { isActive: function () { return active; }, isPending: function () { return pending; }, revision: function () { return revision; }, request: request, render: render, handleKey: handleKey, chooseTitlebar: chooseTitlebar };
   }
   return { create: create };
 }));

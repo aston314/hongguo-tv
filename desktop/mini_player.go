@@ -19,6 +19,7 @@ type miniPlayerWindow interface {
 	setGeometry(windowGeometry)
 	setMinimum(int, int)
 	setTopmost(bool)
+	setTitlebarHidden(bool) error
 	fullscreen() bool
 	setFullscreen(bool)
 	maximised() bool
@@ -31,8 +32,10 @@ type miniPlayerWindow interface {
 }
 
 type miniPlayerWindowState struct {
-	Active bool   `json:"active"`
-	Error  string `json:"error,omitempty"`
+	Active           bool   `json:"active"`
+	TitlebarHidden   bool   `json:"titlebar_hidden"`
+	TitlebarFallback bool   `json:"titlebar_fallback,omitempty"`
+	Error            string `json:"error,omitempty"`
 }
 
 type miniPlayerController struct {
@@ -42,6 +45,7 @@ type miniPlayerController struct {
 	wasFullscreen, wasMaximised bool
 	displayID, smallDisplayID   string
 	stateFile                   string
+	titlebarHidden              bool
 }
 
 func (m *miniPlayerController) state() miniPlayerWindowState {
@@ -59,14 +63,14 @@ func waitWindowChange(pending func() bool) error {
 	return nil
 }
 
-func (m *miniPlayerController) set(w miniPlayerWindow, enabled, portrait bool) miniPlayerWindowState {
+func (m *miniPlayerController) set(w miniPlayerWindow, enabled, portrait, hideTitlebar bool) miniPlayerWindowState {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.active.Load() == enabled {
-		return miniPlayerWindowState{Active: m.active.Load()}
+		return miniPlayerWindowState{Active: m.active.Load(), TitlebarHidden: m.titlebarHidden}
 	}
 	if err := waitWindowChange(w.transitioning); err != nil {
-		return miniPlayerWindowState{Active: m.active.Load(), Error: err.Error()}
+		return miniPlayerWindowState{Active: m.active.Load(), TitlebarHidden: m.titlebarHidden, Error: err.Error()}
 	}
 	if enabled {
 		m.wasFullscreen, m.wasMaximised = w.fullscreen(), w.maximised()
@@ -119,25 +123,33 @@ func (m *miniPlayerController) set(w miniPlayerWindow, enabled, portrait bool) m
 		w.keepVisible()
 		m.small, m.smallDisplayID = w.geometry(), id
 		m.active.Store(true)
+		if hideTitlebar {
+			return m.setTitlebarLocked(w, true)
+		}
 	} else {
 		// Native title-bar fullscreen/maximise can also be used in the small
 		// window. Leave those states before restoring the saved normal bounds.
 		if w.fullscreen() {
 			w.setFullscreen(false)
 			if err := waitWindowChange(func() bool { return w.fullscreen() || w.transitioning() }); err != nil {
-				return miniPlayerWindowState{Active: true, Error: err.Error()}
+				return miniPlayerWindowState{Active: true, TitlebarHidden: m.titlebarHidden, Error: err.Error()}
 			}
 		}
 		if w.maximised() {
 			w.setMaximised(false)
 			if err := waitWindowChange(w.maximised); err != nil {
-				return miniPlayerWindowState{Active: true, Error: err.Error()}
+				return miniPlayerWindowState{Active: true, TitlebarHidden: m.titlebarHidden, Error: err.Error()}
 			}
 		}
 		m.small = w.geometry()
 		id, _, _ := w.display()
 		m.smallDisplayID = id
 		m.persistLocked()
+		if m.titlebarHidden {
+			if result := m.setTitlebarLocked(w, false); result.Error != "" {
+				return result
+			}
+		}
 		w.setTopmost(false)
 		w.setMinimum(normalMinWidth, normalMinHeight)
 		w.setGeometry(m.normal)
@@ -152,7 +164,41 @@ func (m *miniPlayerController) set(w miniPlayerWindow, enabled, portrait bool) m
 			w.setFullscreen(true)
 		}
 	}
-	return miniPlayerWindowState{Active: m.active.Load()}
+	return miniPlayerWindowState{Active: m.active.Load(), TitlebarHidden: m.titlebarHidden}
+}
+
+// Titlebar changes are optional. A failed enhancement must retain a working
+// decorated mini window; a failed restoration must keep its return controls.
+func (m *miniPlayerController) setTitlebarLocked(w miniPlayerWindow, hidden bool) miniPlayerWindowState {
+	result := miniPlayerWindowState{Active: m.active.Load(), TitlebarHidden: m.titlebarHidden}
+	if hidden == m.titlebarHidden {
+		return result
+	}
+	if err := w.setTitlebarHidden(hidden); err != nil {
+		if hidden {
+			if restoreErr := w.setTitlebarHidden(false); restoreErr == nil {
+				result.TitlebarFallback = true
+				return result
+			}
+			// Preserve a restoration attempt even after a partially applied change.
+			m.titlebarHidden = true
+			result.TitlebarHidden = true
+		}
+		result.Error = "cannot restore window titlebar"
+		return result
+	}
+	m.titlebarHidden = hidden
+	result.TitlebarHidden = hidden
+	return result
+}
+
+func (m *miniPlayerController) setTitlebar(w miniPlayerWindow, hidden bool) miniPlayerWindowState {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.active.Load() {
+		return miniPlayerWindowState{}
+	}
+	return m.setTitlebarLocked(w, hidden)
 }
 
 // Called while the native window still exists, including a quit from mini mode.
