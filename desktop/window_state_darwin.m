@@ -85,8 +85,9 @@ int hongguoFullscreenRestore(int *x, int *y, int *width, int *height, int *maxim
 void hongguoKeepMiniWindowVisible(void) {
     hongguoOnMain(^{
         NSWindow *window = hongguoMainWindow();
-        if (!window || !window.screen) return;
-        NSRect visible = NSInsetRect(window.screen.visibleFrame, 12, 12);
+        NSScreen *screen = window.screen ?: NSScreen.mainScreen;
+        if (!window || !screen) return;
+        NSRect visible = NSInsetRect(screen.visibleFrame, 12, 12);
         NSRect frame = window.frame;
         frame.size.width = MIN(frame.size.width, NSWidth(visible));
         frame.size.height = MIN(frame.size.height, NSHeight(visible));

@@ -54,7 +54,7 @@ int main(int argc, const char **argv) {
         [center postNotificationName:NSWindowDidExitFullScreenNotification object:window];
         require(!hongguoWindowTransitioning() && NSEqualRects(window.frame, ordinary), @"DidExit lost ordinary frame");
 
-        [window setFrame:NSMakeRect(NSMaxX(visible)+300, NSMinY(visible)-500, 480, 300) display:NO];
+        [window setFrame:NSMakeRect(100000, -100000, 480, 300) display:NO];
         hongguoKeepMiniWindowVisible();
         require(NSContainsRect(visible, window.frame), @"off-screen small window was not constrained to visible area");
 
