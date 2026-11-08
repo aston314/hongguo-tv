@@ -112,7 +112,7 @@ class DualEditionTests(unittest.TestCase):
 
     def kit(self, extra=False, corrupt=False):
         data = b'source'; pins = {'mpv': {'sha256': hashlib.sha256(data).hexdigest()}}
-        names = ['android/mpv-jni/bridge.cpp', 'android/mpv-jni/LICENSE', 'android/app/src/mpv/java/rocks/aston/hongguotv/MPVLib.java', 'scripts/prepare_mpv.py', 'scripts/mpv_sources.json', 'scripts/replace_mpv_library.py', 'scripts/rebuild_mpv_libraries.py', 'docs/mpv-library-source.md', 'android/mpv-jni/include/mpv/client.h', 'BINARY-PINS.json', 'NOTICE.txt', 'sources/mpv.tar.gz']
+        names = ['android/mpv-jni/bridge.cpp', 'android/mpv-jni/media_codec_layout_parser.h', 'android/mpv-jni/LICENSE', 'android/app/src/mpv/java/rocks/aston/hongguotv/MPVLib.java', 'scripts/prepare_mpv.py', 'scripts/mpv_sources.json', 'scripts/replace_mpv_library.py', 'scripts/rebuild_mpv_libraries.py', 'docs/mpv-library-source.md', 'android/mpv-jni/include/mpv/client.h', 'BINARY-PINS.json', 'NOTICE.txt', 'sources/mpv.tar.gz']
         entries = {name: b'fixture' for name in names}
         entries['scripts/mpv_sources.json'] = json.dumps(pins).encode(); entries['sources/mpv.tar.gz'] = data
         if extra: entries['private-app.go'] = b'private'

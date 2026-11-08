@@ -791,6 +791,9 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 MPVLib player = target.player;
                 target.decoder = property(player, "video-codec");
                 fields.put("video_decoder", target.decoder).put("hwdec_current", property(player, "hwdec-current"));
+                Integer codedWidth = player.getPropertyInt("width"), codedHeight = player.getPropertyInt("height");
+                if (codedWidth != null && codedWidth > 0) fields.put("coded_width", codedWidth);
+                if (codedHeight != null && codedHeight > 0) fields.put("coded_height", codedHeight);
                 Integer decodedDrops = player.getPropertyInt("decoder-frame-drop-count"), outputDrops = player.getPropertyInt("frame-drop-count");
                 Double avsync = player.getPropertyDouble("avsync");
                 Double cacheDuration = player.getPropertyDouble("demuxer-cache-duration");
@@ -799,6 +802,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 if (avsync != null && finite(avsync)) fields.put("avsync", avsync);
                 if (cacheDuration != null && finite(cacheDuration) && cacheDuration >= 0)
                     fields.put("demuxer_cache_duration", cacheDuration);
+                putMediaCodecLayout(fields, player.getMediaCodecLayout(), player.getMediaCodecDecoderName());
                 fields.put("audio_output", property(player, "current-ao"))
                     .put("audio_codec", property(player, "audio-codec"))
                     .put("audio_format", property(player, "audio-out-params/format"));
@@ -822,6 +826,37 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         String value = player.getPropertyString(name);
         // Only codec/output properties are queried. Bound strings before crossing the bridge.
         return value == null ? "" : value.substring(0, Math.min(value.length(), 80));
+    }
+    private static void putMediaCodecLayout(JSONObject fields, long[] values, String decoderName) throws Exception {
+        if (values == null || values.length != 15) return;
+        long flags = values[0];
+        fields.put("mediacodec_format_seen", (flags & 1) != 0)
+            .put("mediacodec_width_reported", (flags & 2) != 0)
+            .put("mediacodec_height_reported", (flags & 4) != 0)
+            .put("mediacodec_stride_reported", (flags & 8) != 0)
+            .put("mediacodec_slice_height_reported", (flags & 16) != 0)
+            .put("mediacodec_color_format_reported", (flags & 32) != 0)
+            .put("mediacodec_crop_available", (flags & 64) != 0)
+            .put("mediacodec_decoder_known", (flags & 128) != 0)
+            .put("mediacodec_stride_fallback_available", (flags & 256) != 0)
+            .put("mediacodec_slice_height_fallback_available", (flags & 512) != 0)
+            .put("mediacodec_stride_overridden", (flags & 1024) != 0)
+            .put("mediacodec_slice_height_overridden", (flags & 2048) != 0)
+            .put("mediacodec_decoder_family", values[6]);
+        if (decoderName != null && decoderName.matches("[A-Za-z0-9._-]{1,96}"))
+            fields.put("mediacodec_decoder", decoderName);
+        if ((flags & 2) != 0) fields.put("mediacodec_width", values[1]);
+        if ((flags & 4) != 0) fields.put("mediacodec_height", values[2]);
+        if ((flags & 8) != 0) fields.put("mediacodec_stride", values[3]);
+        if ((flags & 16) != 0) fields.put("mediacodec_slice_height", values[4]);
+        if ((flags & 32) != 0) fields.put("mediacodec_color_format", values[5]);
+        if ((flags & 64) != 0) {
+            fields.put("mediacodec_crop_top", values[7]).put("mediacodec_crop_bottom", values[8])
+                .put("mediacodec_crop_left", values[9]).put("mediacodec_crop_right", values[10])
+                .put("mediacodec_display_width", values[11]).put("mediacodec_display_height", values[12]);
+        }
+        if ((flags & 256) != 0) fields.put("mediacodec_stride_ffmpeg_fallback", values[13]);
+        if ((flags & 512) != 0) fields.put("mediacodec_slice_height_ffmpeg_fallback", values[14]);
     }
     private void event(Session target, String name, JSONObject detail) {
         if (!current(target)) return;

@@ -53,6 +53,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.13"
+      - name: Test MPV MediaCodec layout parser
+        run: |
+          c++ -std=c++17 -Wall -Wextra -Werror tests/mpv_mediacodec_layout_parser_test.cpp -o "$RUNNER_TEMP/mpv-mediacodec-layout-parser-test"
+          "$RUNNER_TEMP/mpv-mediacodec-layout-parser-test"
       - name: Test Go core
         run: go test ./...
       - name: Check concurrent account login, playback identity recovery and cancellation
