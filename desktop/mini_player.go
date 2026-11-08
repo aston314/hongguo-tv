@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"log"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -22,6 +23,9 @@ type miniPlayerWindow interface {
 	setFullscreen(bool)
 	maximised() bool
 	setMaximised(bool)
+	transitioning() bool
+	fullscreenRestore() (windowGeometry, bool, bool)
+	keepVisible()
 	center()
 	display() (string, int, int)
 }
@@ -37,6 +41,7 @@ type miniPlayerController struct {
 	normal, small               windowGeometry
 	wasFullscreen, wasMaximised bool
 	displayID, smallDisplayID   string
+	stateFile                   string
 }
 
 func (m *miniPlayerController) state() miniPlayerWindowState {
@@ -60,16 +65,26 @@ func (m *miniPlayerController) set(w miniPlayerWindow, enabled, portrait bool) m
 	if m.active.Load() == enabled {
 		return miniPlayerWindowState{Active: m.active.Load()}
 	}
+	if err := waitWindowChange(w.transitioning); err != nil {
+		return miniPlayerWindowState{Active: m.active.Load(), Error: err.Error()}
+	}
 	if enabled {
 		m.wasFullscreen, m.wasMaximised = w.fullscreen(), w.maximised()
 		if m.wasFullscreen {
+			// On macOS isZoomed can be true while fullscreen even when the
+			// window was ordinary before entering its fullscreen Space.
+			if _, maximised, ok := w.fullscreenRestore(); ok {
+				m.wasMaximised = maximised
+			}
 			w.setFullscreen(false)
-			if err := waitWindowChange(w.fullscreen); err != nil {
+			if err := waitWindowChange(func() bool { return w.fullscreen() || w.transitioning() }); err != nil {
 				return miniPlayerWindowState{Error: err.Error()}
 			}
 		}
 		if w.maximised() {
-			m.wasMaximised = true
+			if !m.wasFullscreen {
+				m.wasMaximised = true
+			}
 			w.setMaximised(false)
 			if err := waitWindowChange(w.maximised); err != nil {
 				if m.wasFullscreen {
@@ -101,13 +116,15 @@ func (m *miniPlayerController) set(w miniPlayerWindow, enabled, portrait bool) m
 			w.center()
 		}
 		w.setTopmost(true)
+		w.keepVisible()
+		m.small, m.smallDisplayID = w.geometry(), id
 		m.active.Store(true)
 	} else {
 		// Native title-bar fullscreen/maximise can also be used in the small
 		// window. Leave those states before restoring the saved normal bounds.
 		if w.fullscreen() {
 			w.setFullscreen(false)
-			if err := waitWindowChange(w.fullscreen); err != nil {
+			if err := waitWindowChange(func() bool { return w.fullscreen() || w.transitioning() }); err != nil {
 				return miniPlayerWindowState{Active: true, Error: err.Error()}
 			}
 		}
@@ -120,6 +137,7 @@ func (m *miniPlayerController) set(w miniPlayerWindow, enabled, portrait bool) m
 		m.small = w.geometry()
 		id, _, _ := w.display()
 		m.smallDisplayID = id
+		m.persistLocked()
 		w.setTopmost(false)
 		w.setMinimum(normalMinWidth, normalMinHeight)
 		w.setGeometry(m.normal)
@@ -135,4 +153,30 @@ func (m *miniPlayerController) set(w miniPlayerWindow, enabled, portrait bool) m
 		}
 	}
 	return miniPlayerWindowState{Active: m.active.Load()}
+}
+
+// Called while the native window still exists, including a quit from mini mode.
+// Fullscreen/maximised dimensions must never replace the user's small bounds.
+func (m *miniPlayerController) save(w miniPlayerWindow) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.active.Load() && !w.transitioning() {
+		if w.fullscreen() {
+			if g, maximised, ok := w.fullscreenRestore(); ok && !maximised {
+				m.small = g
+			}
+		} else if !w.maximised() {
+			m.small = w.geometry()
+		}
+		m.smallDisplayID, _, _ = w.display()
+	}
+	m.persistLocked()
+}
+
+func (m *miniPlayerController) persistLocked() {
+	if m.stateFile != "" && validSmallGeometry(m.small) {
+		if err := writeMiniPlayerGeometry(m.stateFile, m.small, m.smallDisplayID); err != nil {
+			log.Printf("cannot save mini player window: %v", err)
+		}
+	}
 }
