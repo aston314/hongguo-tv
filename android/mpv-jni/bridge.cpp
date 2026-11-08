@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 aston
 #include <jni.h>
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -10,7 +11,27 @@
 extern "C" int mpv_lavc_set_java_vm(void *vm);
 namespace {
 JavaVM *vm = nullptr;
-struct Client { mpv_handle *mpv; jobject surface = nullptr; hongguo_mpv::MediaCodecLayout mediaCodecLayout; };
+struct Client {
+    mpv_handle *mpv;
+    jobject surface = nullptr;
+    hongguo_mpv::MediaCodecLayout mediaCodecLayout;
+    hongguo_mpv::MediaCodecLogCapture layoutCapture;
+};
+int64_t nowMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+}
+void startLayoutCapture(Client *c) {
+    if (c->mediaCodecLayout.completeCopySample() || !c->layoutCapture.start(nowMs())) return;
+    if (mpv_request_log_messages(c->mpv, hongguo_mpv::MediaCodecLogCapture::DETAIL_LEVEL) < 0) {
+        c->layoutCapture.active = false;
+        c->layoutCapture.incomplete = true;
+    }
+}
+void finishLayoutCapture(Client *c, bool logEvent) {
+    if (c->layoutCapture.finishIfNeeded(c->mediaCodecLayout, nowMs(), logEvent))
+        mpv_request_log_messages(c->mpv, hongguo_mpv::MediaCodecLogCapture::STEADY_LEVEL);
+}
 Client *client(jlong pointer) { return reinterpret_cast<Client *>(static_cast<intptr_t>(pointer)); }
 void error(JNIEnv *env, const char *message) {
     jclass type = env->FindClass("java/lang/IllegalStateException");
@@ -32,9 +53,10 @@ extern "C" JNIEXPORT jlong JNICALL JNI_METHOD(nativeCreate)(JNIEnv *env, jclass)
     if (!vm || mpv_lavc_set_java_vm(vm) < 0) { error(env, "Cannot register Java VM"); return 0; }
     mpv_handle *handle = mpv_create();
     if (!handle) { error(env, "Cannot create MPV"); return 0; }
-    // Limit verbose events to FFmpeg video; nativePoll retains only the
-    // structured MediaCodec fields needed by diagnostics.
-    int status = mpv_set_option_string(handle, "msg-level", "all=warn,ffmpeg/video=debug");
+    // Steady logging enables only FFmpeg video's format/crop INFO lines.
+    // A user-requested, bounded trace subscription temporarily includes other
+    // modules too; nativePoll never forwards their raw text to Java.
+    int status = mpv_set_option_string(handle, "msg-level", "all=warn,ffmpeg/video=v");
     if (status < 0) { mpv_terminate_destroy(handle); check(env, status); return 0; }
     // An explicit "debug" subscription overrides msg-level for every module.
     // Follow msg-level instead so stream/demux debug logs stay disabled.
@@ -52,6 +74,7 @@ extern "C" JNIEXPORT void JNICALL JNI_METHOD(nativeDestroy)(JNIEnv *env, jclass,
 }
 extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativePoll)(JNIEnv *env, jclass, jlong p) {
     Client *c = client(p);
+    finishLayoutCapture(c, false);
     mpv_event *event = mpv_wait_event(c->mpv, 0);
     if (event->event_id == MPV_EVENT_NONE) return nullptr;
     jlong values[5] = {event->event_id, static_cast<jlong>(event->reply_userdata), -1, 0, -1};
@@ -64,18 +87,28 @@ extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativePoll)(JNIEnv *env, jcla
         // Classify locally. Raw logs can contain signed media URLs; never send
         // their text or arbitrary module names to Java, WebView or diagnostics.
         const std::string prefix = message->prefix ? message->prefix : "";
+        const unsigned revision = c->mediaCodecLayout.formatRevision;
         c->mediaCodecLayout.parse(message->prefix, message->text);
+        // A format change invalidates the old copy-layout sample. Allow the
+        // next user-triggered diagnostic read to sample the replacement.
+        if (!c->layoutCapture.active && revision != c->mediaCodecLayout.formatRevision)
+            c->layoutCapture = hongguo_mpv::MediaCodecLogCapture();
+        finishLayoutCapture(c, true);
         values[2] = message->log_level;
         if (prefix == "vo" || prefix.rfind("vo/", 0) == 0) values[3] = 1;
         else if (prefix == "ao" || prefix.rfind("ao/", 0) == 0) values[3] = 2;
         else if (prefix == "vd" || prefix.rfind("vd/", 0) == 0) values[3] = 3;
         else if (prefix == "ad" || prefix.rfind("ad/", 0) == 0) values[3] = 4;
     } else if (event->event_id == MPV_EVENT_END_FILE && event->data) {
+        c->layoutCapture.active = false;
+        mpv_request_log_messages(c->mpv, hongguo_mpv::MediaCodecLogCapture::STEADY_LEVEL);
         const auto *end = static_cast<mpv_event_end_file *>(event->data);
         values[2] = end->reason; values[3] = end->error;
         values[4] = end->playlist_entry_id;
     } else if (event->event_id == MPV_EVENT_START_FILE && event->data) {
         c->mediaCodecLayout.reset();
+        c->layoutCapture = hongguo_mpv::MediaCodecLogCapture();
+        mpv_request_log_messages(c->mpv, hongguo_mpv::MediaCodecLogCapture::STEADY_LEVEL);
         const auto *start = static_cast<mpv_event_start_file *>(event->data);
         values[4] = start->playlist_entry_id;
     } else if (event->event_id == MPV_EVENT_COMMAND_REPLY) {
@@ -86,7 +119,10 @@ extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativePoll)(JNIEnv *env, jcla
     return result;
 }
 extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativeMediaCodecLayout)(JNIEnv *env, jclass, jlong p) {
-    const auto snapshot = client(p)->mediaCodecLayout.values();
+    Client *c = client(p);
+    finishLayoutCapture(c, false);
+    auto snapshot = c->mediaCodecLayout.values();
+    snapshot[0] |= c->layoutCapture.flags();
     jlong values[hongguo_mpv::MediaCodecLayout::VALUE_COUNT];
     for (size_t i = 0; i < snapshot.size(); ++i) values[i] = static_cast<jlong>(snapshot[i]);
     jlongArray result = env->NewLongArray(static_cast<jsize>(snapshot.size()));
@@ -96,6 +132,9 @@ extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativeMediaCodecLayout)(JNIEn
 extern "C" JNIEXPORT jstring JNICALL JNI_METHOD(nativeMediaCodecDecoderName)(JNIEnv *env, jclass, jlong p) {
     const std::string &name = client(p)->mediaCodecLayout.safeDecoderName();
     return name.empty() ? nullptr : env->NewStringUTF(name.c_str());
+}
+extern "C" JNIEXPORT void JNICALL JNI_METHOD(nativeRequestMediaCodecSample)(JNIEnv *, jclass, jlong p) {
+    startLayoutCapture(client(p));
 }
 extern "C" JNIEXPORT void JNICALL JNI_METHOD(nativeObserve)(JNIEnv *env, jclass, jlong p, jint id, jstring name) {
     auto key = string(env, name); if (env->ExceptionCheck()) return;

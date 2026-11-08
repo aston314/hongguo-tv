@@ -69,6 +69,7 @@ final class MPVLib {
     String getPropertyString(String name) { return nativeString(handle(), name); }
     long[] getMediaCodecLayout() { return nativeMediaCodecLayout(handle()); }
     String getMediaCodecDecoderName() { return nativeMediaCodecDecoderName(handle()); }
+    void requestMediaCodecSample() { nativeRequestMediaCodecSample(handle()); }
     void command(String[] args) { nativeCommand(handle(), args); }
     void commandAsync(String[] args, long requestId) { nativeCommandAsync(handle(), requestId, args); }
     void attachSurface(Surface surface) { nativeSurface(handle(), surface); }
@@ -127,6 +128,7 @@ final class MPVLib {
     private static native String nativeString(long pointer, String name);
     private static native long[] nativeMediaCodecLayout(long pointer);
     private static native String nativeMediaCodecDecoderName(long pointer);
+    private static native void nativeRequestMediaCodecSample(long pointer);
     private static native void nativeCommand(long pointer, String[] args);
     private static native void nativeCommandAsync(long pointer, long requestId, String[] args);
     private static native void nativeSurface(long pointer, Surface surface);

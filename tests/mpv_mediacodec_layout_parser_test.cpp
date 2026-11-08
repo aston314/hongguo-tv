@@ -2,8 +2,72 @@
 #include "../android/mpv-jni/media_codec_layout_parser.h"
 
 using hongguo_mpv::MediaCodecLayout;
+using hongguo_mpv::MediaCodecLogCapture;
+
+static void copySample(MediaCodecLayout &layout) {
+    // Exact pinned FFmpeg AV_LOG_TRACE format, including mpv's AVClass prefix.
+    layout.parse("ffmpeg/video", "hevc_mediacodec: Frame: width=1080 stride=1088 height=1924 slice-height=1984 crop-top=0 crop-bottom=1923 crop-left=0 crop-right=1079 encoder=c2.vendor.hevc.decoder destination linesizes=1088,544,544\n");
+}
+
+static void testCopyAndCapture() {
+    MediaCodecLayout layout;
+    MediaCodecLogCapture capture;
+    assert(capture.start(100));
+    assert(capture.active && (capture.flags() & MediaCodecLayout::CAPTURE_REQUESTED));
+    assert(!capture.start(101)); // Repeated reads cannot extend the window.
+    assert(!capture.finishIfNeeded(layout, 1599, false));
+    assert(capture.finishIfNeeded(layout, 1600, false));
+    assert(capture.incomplete && !capture.active);
+    assert(!capture.start(5000)); // Bounded retry rate even on repeated refreshes.
+    assert(capture.start(10100));
+    for (unsigned i = 1; i < MediaCodecLogCapture::MAX_EVENTS; ++i)
+        assert(!capture.finishIfNeeded(layout, 10101, true));
+    assert(capture.finishIfNeeded(layout, 10101, true));
+    assert(capture.incomplete && capture.events == 128);
+
+    layout.parse("ffmpeg/video", "hevc_mediacodec: Output MediaFormat changed to {width=1080, height=1924, stride=1080, slice-height=1924, color-format=19, crop-top=0, crop-bottom=1923, crop-left=0, crop-right=1079}\n");
+    layout.parse("ffmpeg/video", "hevc_mediacodec: Output crop parameters top=0 bottom=1923 left=0 right=1079, resulting dimensions width=1080 height=1924\n");
+    assert(!layout.completeCopySample());
+    copySample(layout);
+    assert(layout.completeCopySample());
+    assert(layout.safeDecoderName() == "c2.vendor.hevc.decoder");
+    assert(layout.stride == 1080 && layout.copyStride == 1088);
+    assert(layout.sliceHeight == 1924 && layout.copySliceHeight == 1984);
+    assert(layout.copyWidth == 1080 && layout.copyHeight == 1924);
+    assert(layout.lineY == 1088 && layout.lineU == 544 && layout.lineV == 544);
+    const auto values = layout.values();
+    assert(values.size() == 30 && values[17] == 1088 && values[23] == 1088);
+    assert(values[26] == 0 && values[27] == 1923 && values[28] == 0 && values[29] == 1079);
+    assert(values[0] & MediaCodecLayout::CROP_REPORTED_BASE);
+    capture = MediaCodecLogCapture();
+    assert(capture.start(0));
+    assert(capture.finishIfNeeded(layout, 1, true));
+    assert(!capture.incomplete && !capture.active && !capture.start(20000));
+
+    const unsigned revision = layout.formatRevision;
+    layout.parse("ffmpeg/video", "hevc_mediacodec: Output MediaFormat changed to {width=720, height=1280, crop-top=0}\n");
+    assert(layout.formatRevision == revision + 1);
+    assert(!layout.copyLayoutAvailable && !layout.cropAvailable && !layout.completeCopySample());
+    assert(layout.cropReported[0] && !layout.cropReported[1]);
+    assert(layout.decoderKnown); // Same decoder, replacement format.
+    layout.reset(); // A new file must lose every old sample and decoder name.
+    assert(!layout.decoderKnown && !layout.copyLayoutAvailable && !layout.cropReported[0]);
+    const char *invalid[] = {
+        "hevc_mediacodec: Frame: width=1080 stride=1088 height=1924 slice-height=1984 crop-top=0 crop-bottom=1923 crop-left=0 crop-right=1079 encoder=https://media.example/secret destination linesizes=1088,544,544\n",
+        "hevc_mediacodec: Frame: width=1080 stride=1088 height=1924 slice-height=1984 crop-top=0 crop-bottom=1923 crop-left=0 crop-right=1079 encoder=c2.vendor.hevc.decoder destination linesizes=1088,544,544 token=secret",
+        "hevc_mediacodec: Frame: width=1080 stride=9999999999999999999999 height=1924 slice-height=1984 crop-top=0 crop-bottom=1923 crop-left=0 crop-right=1079 encoder=c2.vendor.hevc.decoder destination linesizes=1088,544,544\n",
+        "unrelated: hevc_mediacodec: Frame: width=1080 stride=1088 height=1924 slice-height=1984 crop-top=0 crop-bottom=1923 crop-left=0 crop-right=1079 encoder=c2.vendor.hevc.decoder destination linesizes=1088,544,544\n"
+    };
+    for (const char *line : invalid) {
+        layout.parse("ffmpeg/video", line);
+        assert(!layout.copyLayoutAvailable && !layout.decoderKnown && layout.safeDecoderName().empty());
+    }
+    layout.parse("stream", "Frame: width=1080 stride=1088 height=1924 slice-height=1984 crop-top=0 crop-bottom=1923 crop-left=0 crop-right=1079 encoder=c2.vendor.hevc.decoder destination linesizes=1088,544,544\n");
+    assert(!layout.copyLayoutAvailable);
+}
 
 int main() {
+    testCopyAndCapture();
     MediaCodecLayout layout;
     // mpv's FFmpeg log callback prepends AVClass.item_name to each line.
     layout.parse("ffmpeg/video", "hevc_mediacodec: Found decoder c2.vendor.hevc.decoder\n");

@@ -282,6 +282,20 @@ test('current native diagnostics reject persisted and delayed snapshots across l
   }
 });
 
+test('MPV detailed diagnostics are user-triggered and bound to the current native source',()=>{
+  const f=fixture('mpv'),adapter=f.context.window.HongguoNativePlaybackAdapter;
+  const calls=[];f.bridge.requestDiagnosticSample=id=>calls.push(id);
+  assert.equal(adapter.requestDiagnosticSample(),false);
+  activateNative(f);
+  f.bridge.diagnostic={diagnostic_id:f.bridge.lastPayload.diagnostic_id,engine:'mpv'};
+  adapter.nativeDiagnostics();adapter.nativeDiagnostics();
+  assert.equal(calls.length,0,'normal snapshot reads never enable trace');
+  assert.equal(adapter.requestDiagnosticSample(),true);
+  assert.equal(calls[0],f.bridge.lastPayload.diagnostic_id);
+  f.document.getElementById('hero-video').src='/media/next.mp4';
+  assert.equal(adapter.requestDiagnosticSample(),false,'do not sample the retired native session');
+});
+
 test('Media3 diagnostics stop overriding HTML5 after native failure, while MPV keeps its current failure', () => {
   for (const engine of ['webview_media3', 'mpv']) {
     const f = fixture(engine), adapter = f.context.window.HongguoNativePlaybackAdapter;

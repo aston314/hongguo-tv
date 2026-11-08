@@ -10,7 +10,7 @@ test('MPV reports actual decoding separately from preference, including software
   assert.match(rows({mode:'mpv_auto',hwdec_current:'no'})['MPV 解码'],/自动解码.*实际：软件解码/);
   const unknown=rows({mode:'mpv_software'});
   assert.match(unknown['MPV 解码'],/实际：未取得/);
-  assert.equal(unknown['MPV 掉帧'],'解码 未取得 · 渲染 未取得');assert.equal(unknown['MPV 音画差值'],undefined);
+  assert.equal(unknown['MPV 掉帧'],'解码 未取得 · 渲染 未取得');assert.equal(unknown['MPV 音画差值'],'未取得');
   assert.equal(unknown['MPV 缓存时长'],undefined);
 });
 function video(values={}) { return Object.assign({currentTime:8,duration:90,videoWidth:720,videoHeight:1280,readyState:4,networkState:1,paused:false,ended:false,seeking:false,muted:true,volume:1,buffered:{length:1,start:()=>0,end:()=>20},error:null},values); }

@@ -615,6 +615,10 @@
       } catch (ignoredBackdrop) { return false; }
     },
     portraitBackdropId: function () { return isNative() ? loadId : ''; },
+    requestDiagnosticSample: function () {
+      if (!isNative() || !state.source || !nativeDiagnosticId || !bridge.requestDiagnosticSample) return false;
+      try { bridge.requestDiagnosticSample(nativeDiagnosticId); return true; } catch (ignoredSample) { return false; }
+    },
     nativeDiagnostics: function () {
       if (!isNative() || !state.source || !nativeDiagnosticId) return {};
       try {

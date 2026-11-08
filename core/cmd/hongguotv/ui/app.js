@@ -404,6 +404,7 @@
   var playerOptionsReturn = null;
   var diagnosticEpoch = 0;
   var diagnosticRequest = null;
+  var diagnosticSampleTimer = null;
   var controlsTimer = null;
   var controlsManuallyHidden = false;
   var playbackFeedback = null;
@@ -2775,6 +2776,7 @@
   }
   function cancelDiagnosticRead() {
     ++diagnosticEpoch;
+    clearTimeout(diagnosticSampleTimer); diagnosticSampleTimer = null;
     if (diagnosticRequest) diagnosticRequest.abort();
     diagnosticRequest = null;
   }
@@ -2905,6 +2907,8 @@
     var contextGeneration = feedGeneration, contextOwner = accountEpoch, contextPlayback = activePlayback;
     var device = desktopShell ? { app_version: window.HongguoDesktop.version } : {};
     try { if (window.HongguoTVDiagnostics) device = JSON.parse(window.HongguoTVDiagnostics.readDevice()); } catch (ignored) {}
+    var sampleRequested = false, adapter = window.HongguoNativePlaybackAdapter;
+    try { if (adapter && adapter.requestDiagnosticSample) sampleRequested = adapter.requestDiagnosticSample(); } catch (ignoredSample) {}
     var playerDiagnostics = readCurrentPlaybackDiagnostics(video);
     var native = playerDiagnostics.native, playbackRoute = playerDiagnostics.route;
     // native-player.js replaces getElementById('hero-video') with a media
@@ -2954,6 +2958,35 @@
         videoVisible: style.visibility !== 'hidden' && style.display !== 'none' && Number(style.opacity) > 0,
         background: applicationInBackground || applicationHidden() }
     };
+    function sameDiagnosticContext(currentPlayers) {
+      return epoch === diagnosticEpoch && playerOptionsOpen &&
+        contextGeneration === feedGeneration && contextOwner === accountEpoch && contextPlayback === activePlayback &&
+        presentation === (activePlayback && activePlayback.presentation) &&
+        snapshot.preparationError === (activePlayback && activePlayback.generation === feedGeneration && activePlayback.owner === accountEpoch ? activePlayback.preparationError : null) &&
+        (native || {}).diagnostic_id === (currentPlayers.native || {}).diagnostic_id &&
+        (playbackRoute || {}).active_path === (currentPlayers.route || {}).active_path;
+    }
+    // Only user-opened MPV diagnostics perform this bounded local snapshot read.
+    // Keep the same snapshot object so a late core response cannot restore the
+    // earlier, incomplete native fields. No source fetch or playback changes.
+    if (sampleRequested && native.engine === 'mpv' && native.hwdec_current === 'mediacodec-copy') {
+      var sampleReads = 0;
+      var samplePending = !native.mediacodec_capture_requested && !native.mediacodec_copy_layout_available;
+      snapshot.native.mediacodec_capture_pending = samplePending;
+      diagnosticSampleTimer = setTimeout(function readSample() {
+        diagnosticSampleTimer = null;
+        if (epoch !== diagnosticEpoch || !playerOptionsOpen) return;
+        var players = readCurrentPlaybackDiagnostics(video);
+        if (!sameDiagnosticContext(players)) { refreshPlaybackDiagnostics(); return; }
+        ++sampleReads;
+        snapshot.native = players.native;
+        var pending = !snapshot.native.mediacodec_capture_requested && !snapshot.native.mediacodec_copy_layout_available;
+        snapshot.native.mediacodec_capture_pending = pending && sampleReads < 10;
+        renderPlaybackDiagnostics(snapshot);
+        if (sampleReads < 10 && (pending || snapshot.native.mediacodec_capture_active))
+          diagnosticSampleTimer = setTimeout(readSample, 250);
+      }, 250);
+    }
     renderPlaybackDiagnostics(snapshot);
     // Read local status only. webOS can still hold the previous src while the
     // next episode is preparing; query the current foreground job in that case.
@@ -2967,14 +3000,13 @@
       if (epoch !== diagnosticEpoch || diagnosticRequest !== request || !playerOptionsOpen) return;
       diagnosticRequest = null;
       var currentPlayers = readCurrentPlaybackDiagnostics(video);
-      if (contextGeneration !== feedGeneration || contextOwner !== accountEpoch || contextPlayback !== activePlayback ||
-          presentation !== (activePlayback && activePlayback.presentation) ||
-          snapshot.preparationError !== (activePlayback && activePlayback.generation === feedGeneration && activePlayback.owner === accountEpoch ? activePlayback.preparationError : null) ||
-          (native || {}).diagnostic_id !== (currentPlayers.native || {}).diagnostic_id ||
-          (playbackRoute || {}).active_path !== (currentPlayers.route || {}).active_path) {
+      if (!sameDiagnosticContext(currentPlayers)) {
         refreshPlaybackDiagnostics();
         return;
       }
+      currentPlayers.native.mediacodec_capture_pending = snapshot.native.mediacodec_capture_pending &&
+        !currentPlayers.native.mediacodec_capture_requested && !currentPlayers.native.mediacodec_copy_layout_available;
+      snapshot.native = currentPlayers.native;
       snapshot.core = core; renderPlaybackDiagnostics(snapshot);
     }
     request.onload = function () {
