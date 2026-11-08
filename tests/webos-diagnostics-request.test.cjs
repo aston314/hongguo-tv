@@ -86,6 +86,55 @@ test('other platforms retain their existing source-specific diagnostic request',
   assert.equal(request({webos:false,preparing:true,mode:'',src:media}),media);
 });
 
+test('MPV sample completes automatically and delayed core responses retain the final native sample',()=>{
+  const f=fixture({webos:false,src:media});
+  const timers=new Map();let timerId=0,requests=0;
+  f.context.setTimeout=callback=>{timers.set(++timerId,callback);return timerId;};
+  f.context.clearTimeout=id=>timers.delete(id);
+  let native={engine:'mpv',diagnostic_id:'current',hwdec_current:'mediacodec-copy'};
+  f.context.window.HongguoNativePlaybackAdapter={
+    requestDiagnosticSample(){requests++;return true;},nativeDiagnostics:()=>({...native})
+  };
+  f.context.refreshPlaybackDiagnostics();
+  const request=f.context.diagnosticRequest;
+  assert.equal(requests,1);
+  assert.equal(f.reports.at(-1).native.mediacodec_capture_pending,true);
+  function tick(){const [id,callback]=timers.entries().next().value;timers.delete(id);callback();}
+  native={...native,mediacodec_capture_requested:true,mediacodec_capture_active:true};tick();
+  assert.equal(timers.size,1);
+  native={...native,mediacodec_capture_active:false,mediacodec_copy_layout_available:true,mediacodec_copy_stride:1088};tick();
+  assert.equal(timers.size,0);
+  assert.equal(f.reports.at(-1).native.mediacodec_copy_stride,1088);
+  request.status=200;request.responseText=JSON.stringify({ok:true,data:{media_http_status:206}});request.onload();
+  assert.equal(f.reports.at(-1).native.mediacodec_copy_stride,1088);
+  assert.equal(f.reports.at(-1).core.media_http_status,206);
+  assert.equal(requests,1,'reading snapshots never starts another trace sample');
+});
+
+test('MPV snapshot reads are bounded and closing or switching episodes rejects late samples',()=>{
+  for(const change of ['budget','closed','episode']) {
+    const f=fixture({webos:false,src:media});let callback;
+    f.context.setTimeout=fn=>{callback=fn;return 1;};
+    let samples=0,native={engine:'mpv',diagnostic_id:'current',hwdec_current:'mediacodec-copy'};
+    f.context.window.HongguoNativePlaybackAdapter={requestDiagnosticSample:()=>true,nativeDiagnostics:()=>{samples++;return {...native};}};
+    f.context.refreshPlaybackDiagnostics();
+    const reads=samples;
+    if(change==='budget') {
+      for(let i=0;i<10;i++){const current=callback;callback=null;current();}
+      assert.equal(callback,null);
+      assert.equal(samples-reads,10);
+      assert.equal(f.reports.at(-1).native.mediacodec_capture_pending,false);
+    } else {
+      const old=f.reports.length;
+      if(change==='closed')f.context.playerOptionsOpen=false;
+      else {f.context.feedGeneration++;f.context.activePlayback=null;}
+      callback();
+      assert.equal(f.reports.length,old+(change==='episode'?1:0));
+      if(change==='episode')assert.equal(f.reports.at(-1).native.engine,undefined);
+    }
+  }
+});
+
 test('diagnostics read only the attached current source, including native errors and background state',()=>{
   let nativeReads=0,routeReads=0;
   const video={getAttribute:()=>media};

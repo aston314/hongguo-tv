@@ -197,6 +197,12 @@
         var displaySize = typeof native.width === 'number' && typeof native.height === 'number' ?
           layoutDimension(native.width) + ' × ' + layoutDimension(native.height) : tr('diagnostic.notObtained');
         add(tr('diagnostic.mpvDimensions'), tr('diagnostic.mpvDimensionsValue', { coded: codedSize, display: displaySize }));
+        add(tr('diagnostic.mpvPixelFormats'), tr('diagnostic.mpvPixelFormatsValue', {
+          codec: text(native.video_decoder, 80) || tr('diagnostic.notObtained'),
+          fps: typeof native.source_fps === 'number' && isFinite(native.source_fps) && native.source_fps > 0 ? String(Math.round(native.source_fps * 100) / 100) : tr('diagnostic.notObtained'),
+          decode: text(native.decode_pixel_format, 32) || tr('diagnostic.notObtained'),
+          output: text(native.output_pixel_format, 32) || tr('diagnostic.notObtained')
+        }));
         var audio = (text(native.audio_output, 20) || tr('diagnostic.outputUnavailable')) + (native.audio_codec ? ' · ' + text(native.audio_codec, 32) : '') + (native.audio_format ? ' · ' + text(native.audio_format, 16) : '') + (native.audio_rate ? ' · ' + num(native.audio_rate) + ' Hz' : '') + (native.audio_channels ? ' · ' + tr('diagnostic.channels', { count: num(native.audio_channels) }) : '');
         if (typeof native.audio_delay_ms === 'number' && isFinite(native.audio_delay_ms)) audio += ' · ' + tr('diagnostic.mpvAudioDelay', { value: (native.audio_delay_ms > 0 ? '+' : '') + Math.round(native.audio_delay_ms) });
         add(tr('diagnostic.mpvAudio'), audio);
@@ -205,7 +211,21 @@
         var actual = text(native.hwdec_current, 32);
         add(tr('diagnostic.mpvDecode'), requested + ' · ' + tr('diagnostic.actual', { value: actual === 'no' ? tr('settings.softwareDecode') : actual ? actual : tr('diagnostic.notObtained') }) + ' · ' + tr('diagnostic.outputNote'));
         add(tr('diagnostic.droppedFrames'), tr('diagnostic.decodeRender', { decode: metric(native.decoder_frame_drop_count), render: metric(native.frame_drop_count) }));
-        if (native.mediacodec_format_seen || native.mediacodec_crop_available || native.mediacodec_decoder_known) {
+        add(tr('diagnostic.mpvFrameTiming'), tr('diagnostic.mpvFrameTimingValue', {
+          mistimed: metric(native.mistimed_frame_count), delayed: metric(native.vo_delayed_frame_count)
+        }));
+        var hardwareLayout = /^mediacodec/.test(actual) || (!actual &&
+          (native.mediacodec_format_seen || native.mediacodec_crop_available || native.mediacodec_decoder_known));
+        var copyLayoutExpected = actual === 'mediacodec-copy';
+        var directSurface = actual === 'mediacodec';
+        var layoutComplete = native.mediacodec_format_seen && native.mediacodec_width_reported &&
+          native.mediacodec_height_reported && native.mediacodec_color_format_reported && native.mediacodec_crop_available &&
+          native.mediacodec_decoder_known && native.mediacodec_copy_layout_available;
+        add(tr('diagnostic.mediaCodecCapture'), tr(actual === 'no' ? 'diagnostic.mediaCodecSoftware' :
+          directSurface ? 'diagnostic.mediaCodecCopyNotApplicable' :
+          !hardwareLayout ? 'diagnostic.notObtained' : native.mediacodec_capture_active || native.mediacodec_capture_pending ? 'diagnostic.mediaCodecCollecting' :
+          layoutComplete ? 'diagnostic.mediaCodecComplete' : 'diagnostic.mediaCodecIncomplete'));
+        if (hardwareLayout) {
           var decoderFamily = typeof native.mediacodec_decoder === 'string' && /^[A-Za-z0-9._-]{1,96}$/.test(native.mediacodec_decoder) ? native.mediacodec_decoder :
             native.mediacodec_decoder_family === 1 ? tr('diagnostic.mediaCodecNvidia') :
             native.mediacodec_decoder_family === 2 ? tr('diagnostic.mediaCodecSecAvc') :
@@ -213,23 +233,37 @@
           var formatSize = native.mediacodec_width_reported && native.mediacodec_height_reported ?
             layoutDimension(native.mediacodec_width) + ' × ' + layoutDimension(native.mediacodec_height) : tr('diagnostic.notObtained');
           var formatValue = tr('diagnostic.mediaCodecFormatValue', { decoder: decoderFamily, size: formatSize,
-            color: native.mediacodec_color_format_reported ? layoutDimension(native.mediacodec_color_format) : tr('diagnostic.mediaCodecNotReported') });
+            color: native.mediacodec_color_format_reported ? layoutDimension(native.mediacodec_color_format) : tr(native.mediacodec_format_seen ? 'diagnostic.mediaCodecNotReported' : 'diagnostic.notObtained') });
           add(tr('diagnostic.mediaCodecLayout'), formatValue);
-          var strideValue = layoutBufferValue(native.mediacodec_stride_reported, native.mediacodec_stride,
-            native.mediacodec_stride_fallback_available, native.mediacodec_stride_ffmpeg_fallback, native.mediacodec_stride_overridden);
-          var sliceValue = layoutBufferValue(native.mediacodec_slice_height_reported, native.mediacodec_slice_height,
-            native.mediacodec_slice_height_fallback_available, native.mediacodec_slice_height_ffmpeg_fallback, native.mediacodec_slice_height_overridden);
+          var strideValue = native.mediacodec_format_seen ? layoutBufferValue(native.mediacodec_stride_reported, native.mediacodec_stride,
+            native.mediacodec_stride_fallback_available, native.mediacodec_stride_ffmpeg_fallback, native.mediacodec_stride_overridden) : tr('diagnostic.notObtained');
+          var sliceValue = native.mediacodec_format_seen ? layoutBufferValue(native.mediacodec_slice_height_reported, native.mediacodec_slice_height,
+            native.mediacodec_slice_height_fallback_available, native.mediacodec_slice_height_ffmpeg_fallback, native.mediacodec_slice_height_overridden) : tr('diagnostic.notObtained');
           var cropValue = native.mediacodec_crop_available ? tr('diagnostic.mediaCodecCropValue', {
             top: layoutDimension(native.mediacodec_crop_top), bottom: layoutDimension(native.mediacodec_crop_bottom),
             left: layoutDimension(native.mediacodec_crop_left), right: layoutDimension(native.mediacodec_crop_right),
             size: layoutDimension(native.mediacodec_display_width) + ' × ' + layoutDimension(native.mediacodec_display_height)
           }) : tr('diagnostic.notObtained');
+          var reportedCrop = ['top', 'bottom', 'left', 'right'].map(function (edge) {
+            return native['mediacodec_crop_' + edge + '_reported'] ? layoutDimension(native['mediacodec_reported_crop_' + edge]) :
+              tr(native.mediacodec_format_seen ? 'diagnostic.mediaCodecUnreported' : 'diagnostic.notObtained');
+          });
+          add(tr('diagnostic.mediaCodecReportedCrop'), tr('diagnostic.mediaCodecReportedCropValue', {
+            top: reportedCrop[0], bottom: reportedCrop[1], left: reportedCrop[2], right: reportedCrop[3]
+          }));
           add(tr('diagnostic.mediaCodecBuffers'), tr('diagnostic.mediaCodecBuffersValue', {
             stride: strideValue, slice: sliceValue, crop: cropValue
           }));
+          add(tr('diagnostic.mediaCodecCopy'), directSurface ? tr('diagnostic.mediaCodecCopyNotApplicable') : !copyLayoutExpected ? tr('diagnostic.notObtained') : native.mediacodec_copy_layout_available ? tr('diagnostic.mediaCodecCopyValue', {
+            size: layoutDimension(native.mediacodec_copy_width) + ' × ' + layoutDimension(native.mediacodec_copy_height),
+            stride: layoutDimension(native.mediacodec_copy_stride), slice: layoutDimension(native.mediacodec_copy_slice_height),
+            top: layoutDimension(native.mediacodec_copy_crop_top), bottom: layoutDimension(native.mediacodec_copy_crop_bottom),
+            left: layoutDimension(native.mediacodec_copy_crop_left), right: layoutDimension(native.mediacodec_copy_crop_right),
+            lines: layoutDimension(native.mediacodec_copy_line_y) + '/' + layoutDimension(native.mediacodec_copy_line_u) + '/' + layoutDimension(native.mediacodec_copy_line_v)
+          }) : tr('diagnostic.notObtained'));
         }
         if (typeof native.demuxer_cache_duration === 'number' && isFinite(native.demuxer_cache_duration) && native.demuxer_cache_duration >= 0) add(tr('diagnostic.cacheDuration'), clock(native.demuxer_cache_duration));
-        if (typeof native.avsync === 'number' && isFinite(native.avsync)) add(tr('diagnostic.avOffset'), Math.round(native.avsync * 1000) + ' ms');
+        add(tr('diagnostic.avOffset'), typeof native.avsync === 'number' && isFinite(native.avsync) ? Math.round(native.avsync * 1000) + ' ms' : tr('diagnostic.notObtained'));
         if (native.output_messages) add(tr('diagnostic.outputHint'), text(native.output_messages, 90));
       }
     }

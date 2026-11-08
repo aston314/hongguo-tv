@@ -115,6 +115,21 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         });
     }
     @JavascriptInterface public String diagnostics() { return diagnostic; }
+    @JavascriptInterface public void requestDiagnosticSample(String diagnosticId) {
+        // The WebView requests a snapshot only when opening/refreshing the
+        // diagnostics panel. Never enable trace on the normal progress timer.
+        handler.post(() -> {
+            Session target = session;
+            if (target == null || !current(target) || target.player == null || !target.diagnosticId.equals(diagnosticId)) return;
+            guarded(target, () -> {
+                String hardware = property(target.player, "hwdec-current");
+                if ("mediacodec-copy".equals(hardware)) {
+                    target.player.requestMediaCodecSample();
+                    updateDiagnostic(target, null);
+                }
+            });
+        });
+    }
     @JavascriptInterface public String decoderMode() { return MpvDecodeMode.stored(preferences.getString("mpv_decode_mode", null)).id; }
     @JavascriptInterface public boolean safeStart() { return false; }
     @JavascriptInterface public void setDecoderMode(String value) {
@@ -791,7 +806,11 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 MPVLib player = target.player;
                 target.decoder = property(player, "video-codec");
                 fields.put("video_decoder", target.decoder).put("hwdec_current", property(player, "hwdec-current"));
-                Integer codedWidth = player.getPropertyInt("width"), codedHeight = player.getPropertyInt("height");
+                fields.put("decode_pixel_format", property(player, "video-dec-params/pixelformat"))
+                    .put("output_pixel_format", property(player, "video-params/pixelformat"));
+                Double fps = player.getPropertyDouble("container-fps");
+                if (fps != null && finite(fps) && fps > 0) fields.put("source_fps", fps);
+                Integer codedWidth = player.getPropertyInt("video-dec-params/w"), codedHeight = player.getPropertyInt("video-dec-params/h");
                 if (codedWidth != null && codedWidth > 0) fields.put("coded_width", codedWidth);
                 if (codedHeight != null && codedHeight > 0) fields.put("coded_height", codedHeight);
                 Integer decodedDrops = player.getPropertyInt("decoder-frame-drop-count"), outputDrops = player.getPropertyInt("frame-drop-count");
@@ -799,6 +818,10 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 Double cacheDuration = player.getPropertyDouble("demuxer-cache-duration");
                 if (decodedDrops != null && decodedDrops >= 0) fields.put("decoder_frame_drop_count", decodedDrops);
                 if (outputDrops != null && outputDrops >= 0) fields.put("frame_drop_count", outputDrops);
+                Integer mistimed = player.getPropertyInt("mistimed-frame-count");
+                Integer delayed = player.getPropertyInt("vo-delayed-frame-count");
+                if (mistimed != null && mistimed >= 0) fields.put("mistimed_frame_count", mistimed);
+                if (delayed != null && delayed >= 0) fields.put("vo_delayed_frame_count", delayed);
                 if (avsync != null && finite(avsync)) fields.put("avsync", avsync);
                 if (cacheDuration != null && finite(cacheDuration) && cacheDuration >= 0)
                     fields.put("demuxer_cache_duration", cacheDuration);
@@ -828,7 +851,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         return value == null ? "" : value.substring(0, Math.min(value.length(), 80));
     }
     private static void putMediaCodecLayout(JSONObject fields, long[] values, String decoderName) throws Exception {
-        if (values == null || values.length != 15) return;
+        if (values == null || values.length != 30) return;
         long flags = values[0];
         fields.put("mediacodec_format_seen", (flags & 1) != 0)
             .put("mediacodec_width_reported", (flags & 2) != 0)
@@ -842,6 +865,10 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             .put("mediacodec_slice_height_fallback_available", (flags & 512) != 0)
             .put("mediacodec_stride_overridden", (flags & 1024) != 0)
             .put("mediacodec_slice_height_overridden", (flags & 2048) != 0)
+            .put("mediacodec_copy_layout_available", (flags & 4096) != 0)
+            .put("mediacodec_capture_active", (flags & 8192) != 0)
+            .put("mediacodec_capture_incomplete", (flags & 16384) != 0)
+            .put("mediacodec_capture_requested", (flags & 32768) != 0)
             .put("mediacodec_decoder_family", values[6]);
         if (decoderName != null && decoderName.matches("[A-Za-z0-9._-]{1,96}"))
             fields.put("mediacodec_decoder", decoderName);
@@ -857,6 +884,20 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         }
         if ((flags & 256) != 0) fields.put("mediacodec_stride_ffmpeg_fallback", values[13]);
         if ((flags & 512) != 0) fields.put("mediacodec_slice_height_ffmpeg_fallback", values[14]);
+        if ((flags & 4096) != 0) {
+            fields.put("mediacodec_copy_width", values[15]).put("mediacodec_copy_height", values[16])
+                .put("mediacodec_copy_stride", values[17]).put("mediacodec_copy_slice_height", values[18])
+                .put("mediacodec_copy_crop_top", values[19]).put("mediacodec_copy_crop_bottom", values[20])
+                .put("mediacodec_copy_crop_left", values[21]).put("mediacodec_copy_crop_right", values[22])
+                .put("mediacodec_copy_line_y", values[23]).put("mediacodec_copy_line_u", values[24])
+                .put("mediacodec_copy_line_v", values[25]);
+        }
+        String[] cropEdges = {"top", "bottom", "left", "right"};
+        for (int i = 0; i < cropEdges.length; ++i) {
+            boolean reported = (flags & (65536L << i)) != 0;
+            fields.put("mediacodec_crop_" + cropEdges[i] + "_reported", reported);
+            if (reported) fields.put("mediacodec_reported_crop_" + cropEdges[i], values[26 + i]);
+        }
     }
     private void event(Session target, String name, JSONObject detail) {
         if (!current(target)) return;
