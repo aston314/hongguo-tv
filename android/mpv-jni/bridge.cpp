@@ -5,11 +5,12 @@
 #include <string>
 #include <vector>
 #include <mpv/client.h>
+#include "media_codec_layout_parser.h"
 
 extern "C" int mpv_lavc_set_java_vm(void *vm);
 namespace {
 JavaVM *vm = nullptr;
-struct Client { mpv_handle *mpv; jobject surface = nullptr; };
+struct Client { mpv_handle *mpv; jobject surface = nullptr; hongguo_mpv::MediaCodecLayout mediaCodecLayout; };
 Client *client(jlong pointer) { return reinterpret_cast<Client *>(static_cast<intptr_t>(pointer)); }
 void error(JNIEnv *env, const char *message) {
     jclass type = env->FindClass("java/lang/IllegalStateException");
@@ -31,7 +32,11 @@ extern "C" JNIEXPORT jlong JNICALL JNI_METHOD(nativeCreate)(JNIEnv *env, jclass)
     if (!vm || mpv_lavc_set_java_vm(vm) < 0) { error(env, "Cannot register Java VM"); return 0; }
     mpv_handle *handle = mpv_create();
     if (!handle) { error(env, "Cannot create MPV"); return 0; }
-    int status = mpv_request_log_messages(handle, "warn");
+    // Limit verbose events to FFmpeg video; nativePoll retains only the
+    // structured MediaCodec fields needed by diagnostics.
+    int status = mpv_set_option_string(handle, "msg-level", "all=warn,ffmpeg/video=debug");
+    if (status < 0) { mpv_terminate_destroy(handle); check(env, status); return 0; }
+    status = mpv_request_log_messages(handle, "debug");
     if (status < 0) { mpv_terminate_destroy(handle); check(env, status); return 0; }
     return static_cast<jlong>(reinterpret_cast<intptr_t>(new Client{handle}));
 }
@@ -44,7 +49,8 @@ extern "C" JNIEXPORT void JNICALL JNI_METHOD(nativeDestroy)(JNIEnv *env, jclass,
     delete c;
 }
 extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativePoll)(JNIEnv *env, jclass, jlong p) {
-    mpv_event *event = mpv_wait_event(client(p)->mpv, 0);
+    Client *c = client(p);
+    mpv_event *event = mpv_wait_event(c->mpv, 0);
     if (event->event_id == MPV_EVENT_NONE) return nullptr;
     jlong values[5] = {event->event_id, static_cast<jlong>(event->reply_userdata), -1, 0, -1};
     if (event->event_id == MPV_EVENT_PROPERTY_CHANGE && event->data) {
@@ -56,6 +62,7 @@ extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativePoll)(JNIEnv *env, jcla
         // Classify locally. Raw logs can contain signed media URLs; never send
         // their text or arbitrary module names to Java, WebView or diagnostics.
         const std::string prefix = message->prefix ? message->prefix : "";
+        c->mediaCodecLayout.parse(message->prefix, message->text);
         values[2] = message->log_level;
         if (prefix == "vo" || prefix.rfind("vo/", 0) == 0) values[3] = 1;
         else if (prefix == "ao" || prefix.rfind("ao/", 0) == 0) values[3] = 2;
@@ -66,6 +73,7 @@ extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativePoll)(JNIEnv *env, jcla
         values[2] = end->reason; values[3] = end->error;
         values[4] = end->playlist_entry_id;
     } else if (event->event_id == MPV_EVENT_START_FILE && event->data) {
+        c->mediaCodecLayout.reset();
         const auto *start = static_cast<mpv_event_start_file *>(event->data);
         values[4] = start->playlist_entry_id;
     } else if (event->event_id == MPV_EVENT_COMMAND_REPLY) {
@@ -74,6 +82,18 @@ extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativePoll)(JNIEnv *env, jcla
     jlongArray result = env->NewLongArray(5);
     if (result) env->SetLongArrayRegion(result, 0, 5, values);
     return result;
+}
+extern "C" JNIEXPORT jlongArray JNICALL JNI_METHOD(nativeMediaCodecLayout)(JNIEnv *env, jclass, jlong p) {
+    const auto snapshot = client(p)->mediaCodecLayout.values();
+    jlong values[hongguo_mpv::MediaCodecLayout::VALUE_COUNT];
+    for (size_t i = 0; i < snapshot.size(); ++i) values[i] = static_cast<jlong>(snapshot[i]);
+    jlongArray result = env->NewLongArray(static_cast<jsize>(snapshot.size()));
+    if (result) env->SetLongArrayRegion(result, 0, static_cast<jsize>(snapshot.size()), values);
+    return result;
+}
+extern "C" JNIEXPORT jstring JNICALL JNI_METHOD(nativeMediaCodecDecoderName)(JNIEnv *env, jclass, jlong p) {
+    const std::string &name = client(p)->mediaCodecLayout.safeDecoderName();
+    return name.empty() ? nullptr : env->NewStringUTF(name.c_str());
 }
 extern "C" JNIEXPORT void JNICALL JNI_METHOD(nativeObserve)(JNIEnv *env, jclass, jlong p, jint id, jstring name) {
     auto key = string(env, name); if (env->ExceptionCheck()) return;

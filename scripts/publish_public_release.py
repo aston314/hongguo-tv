@@ -60,7 +60,7 @@ def digest(path):
 
 def verify_library_kit(path, pins=None):
     if pins is None: pins = json.loads((Path(__file__).parent / 'mpv_sources.json').read_text())
-    bridge = {'android/mpv-jni/bridge.cpp', 'android/mpv-jni/LICENSE',
+    bridge = {'android/mpv-jni/bridge.cpp', 'android/mpv-jni/media_codec_layout_parser.h', 'android/mpv-jni/LICENSE',
         'android/app/src/mpv/java/rocks/aston/hongguotv/MPVLib.java',
         'scripts/prepare_mpv.py', 'scripts/mpv_sources.json',
         'scripts/replace_mpv_library.py', 'scripts/rebuild_mpv_libraries.py',

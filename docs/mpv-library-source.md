@@ -42,8 +42,8 @@ API 基线为上游的 21，应用最低 23。结果在
 
 ## JNI 桥与替换安装
 
-`android/mpv-jni/bridge.cpp` 与 `MPVLib.java` 采用随附 MIT 许可。桥只调用 libmpv
-公开 API。原应用在运行时加载独立的 `libmpv.so`，无需重建整个应用即可替换。
+`android/mpv-jni/bridge.cpp`、`media_codec_layout_parser.h` 与 `MPVLib.java` 采用随附 MIT 许可。桥只调用 libmpv
+公开 API。MediaCodec 诊断只把受限的解码器标识和数值字段传入 Java，原始日志不会跨过 JNI。原应用在运行时加载独立的 `libmpv.so`，无需重建整个应用即可替换。
 如要重建桥，参考 `scripts/prepare_mpv.py` 的 NDK 27.2.12479018/API23 链接命令。
 对库本身重建不需要该桥脚本下载预编译库。
 
