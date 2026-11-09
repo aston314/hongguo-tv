@@ -1,0 +1,43 @@
+name: Experimental ByteVC2 MPV preview
+
+on:
+  push:
+    branches: [codex/bytevc2-android-validation]
+    paths:
+      - scripts/bytevc2/build_mpv_android.sh
+      - scripts/bytevc2/prepare_mpv_sources.py
+      - scripts/bytevc2/mpv_preview_sources.json
+      - scripts/bytevc2/0002-identify-bv2c.patch
+      - .github/workflows/bytevc2-mpv-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install native build dependencies
+        run: |
+          sdkmanager 'ndk;27.2.12479018'
+          sudo apt-get update -qq
+          sudo apt-get install -y ninja-build pkg-config autoconf automake libtool nasm
+          python3 -m pip install 'meson==1.7.2' 'Jinja2==3.1.6'
+      - name: Build isolated Android MPV and FFmpeg
+        run: bash scripts/bytevc2/build_mpv_android.sh "$RUNNER_TEMP/bytevc2-mpv"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experimental-bytevc2-mpv-native-${{ github.sha }}
+          path: ${{ runner.temp }}/bytevc2-mpv/
+          retention-days: 1
+          if-no-files-found: error

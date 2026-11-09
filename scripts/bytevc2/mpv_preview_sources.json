@@ -1,0 +1,47 @@
+{
+  "freetype": {
+    "repo": "freetype/freetype",
+    "commit": "de8b92dd7ec634e9e2b25ef534c54a3537555c11",
+    "sha256": "14791d34053acf30394912a8b963277bee60b35fbb3038795d86555ba0415a44",
+    "license": "LICENSE.TXT"
+  },
+  "fribidi": {
+    "repo": "fribidi/fribidi",
+    "commit": "6428d8469e536bcbb6e12c7b79ba6659371c435a",
+    "sha256": "7920b7d33f1e3945134745a8c665ca5bc748b9d907b3a03b1a6d481a77c0ae7f",
+    "license": "COPYING"
+  },
+  "harfbuzz": {
+    "repo": "harfbuzz/harfbuzz",
+    "commit": "a321c4fee56b15247c10f9aa3db7e7ccb3b8173b",
+    "sha256": "54c5e3a665810c02413ec003cd0462cb1d662cca0c5722c0f219839137251974",
+    "license": "COPYING"
+  },
+  "libass": {
+    "repo": "libass/libass",
+    "commit": "e8ad72accd3a84268275a9385beb701c9284e5b3",
+    "sha256": "ce22a60e5abd265106e854ac5f4346d449c7943c519560bd128d763de1fb3a76",
+    "license": "COPYING"
+  },
+  "dlg": {
+    "repo": "nyorain/dlg",
+    "commit": "d142e646e263c89f93663e027c2f0d03739ab42d",
+    "sha256": "ec99c57984ebe8d1b3aa28d90c5758c7b83b63c04d0b0b10db7de207de06ef28",
+    "license": "LICENSE"
+  },
+  "mpv": {
+    "repo": "mpv-player/mpv",
+    "commit": "41f6a645068483470267271e1d09966ca3b9f413",
+    "sha256": "068960e89211f2adc80af03f637fa393fb5e407d3dd23592c8fe8c5490bb7ae4"
+  },
+  "ffmpeg": {
+    "repo": "jellyfin/jellyfin-ffmpeg",
+    "commit": "f6e945886e17c2cf882143bd98222b1bd66ffe28",
+    "sha256": "05ed62f673ab735cf798870cd3eb31f3588286194fa4f000f2279e21059fd7d1"
+  },
+  "libplacebo": {
+    "repo": "haasn/libplacebo",
+    "commit": "64c1954570f1cd57f8570a57e51fb0249b57bb90",
+    "sha256": "3144bb66bc9e286da37f17f71886d65a6d1baf9e45e4efa5ac8bd61ffa935487"
+  }
+}
