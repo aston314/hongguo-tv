@@ -20,9 +20,9 @@ def replace(root, relative, old, new, count=1):
     file.write_text(text.replace(old, new))
 
 
-def stage(root):
+def stage(root, abi="arm64-v8a"):
     replace(root, "android/app/build.gradle",
-            'abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"', 'abiFilters "arm64-v8a"')
+            'abiFilters "arm64-v8a", "armeabi-v7a", "x86_64"', 'abiFilters "' + abi + '"')
     replace(root, "android/app/build.gradle", 'applicationIdSuffix ".mpv"',
             'applicationIdSuffix ".mpv.bytevc2test"\n            versionNameSuffix "-bytevc2-test"')
     replace(root, "android/app/build.gradle", 'android5Compat ? "hongguo-android5-test" : "hongguo"',
@@ -54,6 +54,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--native", type=Path, required=True)
     parser.add_argument("--stage-only", action="store_true")
+    parser.add_argument("--abi", choices=("arm64-v8a", "armeabi-v7a"), default="arm64-v8a")
     args = parser.parse_args()
     root = Path(__file__).resolve().parents[2]
     if os.environ.get("GITHUB_ACTIONS") != "true":
@@ -62,20 +63,20 @@ def main():
         digest, filename = line.split(maxsplit=1)
         if hashlib.sha256((args.native / filename).read_bytes()).hexdigest() != digest:
             raise RuntimeError("Experimental native library checksum mismatch")
-    stage(root)
+    stage(root, args.abi)
     output = root / "android/app/src/mpv/jniLibs"
     if output.exists():
         shutil.rmtree(output)
-    destination = output / "arm64-v8a"
+    destination = output / args.abi
     destination.mkdir(parents=True)
-    shutil.copy(args.native / "lib/arm64-v8a/libmpv.so", destination)
+    shutil.copy(args.native / "lib" / args.abi / "libmpv.so", destination)
     header = root / "android/mpv-jni/include"
     if header.exists():
         shutil.rmtree(header)
     shutil.copytree(args.native / "include", header)
     if not args.stage_only:
         toolchain = Path(os.environ["ANDROID_HOME"]) / "ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin"
-        subprocess.run([str(toolchain / "aarch64-linux-android23-clang++"), "-std=c++17", "-O2",
+        subprocess.run([str(toolchain / ("armv7a-linux-androideabi23-clang++" if args.abi == "armeabi-v7a" else "aarch64-linux-android23-clang++")), "-std=c++17", "-O2",
                         "-fPIC", "-shared", "-static-libstdc++", "-Wl,--no-undefined",
                         "-Wl,-z,max-page-size=16384", "-I" + str(header),
                         str(root / "android/mpv-jni/bridge.cpp"), "-L" + str(destination),
@@ -85,7 +86,7 @@ def main():
     notices.write_text("ByteVC2 experimental GPL build; MPV 0.41 / FFmpeg 8.1.3.\n"
                        "Complete corresponding app/native source is attached to this temporary test draft.\n"
                        + (args.native / "BUILD.txt").read_text())
-    print("Staged rocks.aston.hongguotv.mpv.bytevc2test.debug, arm64 only; stable updates disabled by DEBUG")
+    print("Staged isolated MPV ByteVC2 test:", args.abi, "; stable updates disabled by DEBUG")
 
 
 if __name__ == "__main__":

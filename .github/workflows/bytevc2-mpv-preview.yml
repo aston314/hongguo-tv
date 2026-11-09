@@ -14,6 +14,9 @@ on:
       - .github/workflows/bytevc2-mpv-preview.yml
   workflow_dispatch:
 
+env:
+  BVC2_ABI: armeabi-v7a
+
 permissions:
   contents: read
 
@@ -40,13 +43,13 @@ jobs:
         id: native-cache
         with:
           path: ${{ runner.temp }}/bytevc2-mpv
-          key: bytevc2-mpv-arm64-ndk27-${{ hashFiles('scripts/bytevc2/build_mpv_android.sh', 'scripts/bytevc2/prepare_mpv_sources.py', 'scripts/bytevc2/mpv_preview_sources.json', 'scripts/bytevc2/*.patch') }}
+          key: bytevc2-mpv-${{ env.BVC2_ABI }}-ndk27-${{ hashFiles('scripts/bytevc2/build_mpv_android.sh', 'scripts/bytevc2/prepare_mpv_sources.py', 'scripts/bytevc2/mpv_preview_sources.json', 'scripts/bytevc2/*.patch') }}
       - name: Build isolated Android MPV and FFmpeg
         if: steps.native-cache.outputs.cache-hit != 'true'
-        run: bash scripts/bytevc2/build_mpv_android.sh "$RUNNER_TEMP/bytevc2-mpv"
+        run: bash scripts/bytevc2/build_mpv_android.sh "$RUNNER_TEMP/bytevc2-mpv" "$BVC2_ABI"
       - uses: actions/upload-artifact@v4
         with:
-          name: experimental-bytevc2-mpv-native-${{ github.sha }}
+          name: experimental-bytevc2-mpv-native-${{ env.BVC2_ABI }}-${{ github.sha }}
           path: ${{ runner.temp }}/bytevc2-mpv/
           retention-days: 1
           if-no-files-found: error
@@ -62,7 +65,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: experimental-bytevc2-mpv-native-${{ github.sha }}
+          name: experimental-bytevc2-mpv-native-${{ env.BVC2_ABI }}-${{ github.sha }}
           path: ${{ runner.temp }}/bytevc2-mpv
       - uses: actions/setup-go@v5
         with:
@@ -82,7 +85,7 @@ jobs:
         run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;27.2.12479018'
       - name: Stage the independent ByteVC2 experiment
         run: |
-          python3 scripts/bytevc2/prepare_preview.py --native "$RUNNER_TEMP/bytevc2-mpv"
+          python3 scripts/bytevc2/prepare_preview.py --native "$RUNNER_TEMP/bytevc2-mpv" --abi "$BVC2_ABI"
           node --check core/cmd/hongguotv/ui/app.js
           node --check core/cmd/hongguotv/ui/native-player.js
           go test ./core/cmd/hongguotv -run 'TestMiniReel(Identity|Registered|FreshFallback|VideoTab|Single|SourceMemory|ByteVC2Experiment)'
@@ -95,27 +98,27 @@ jobs:
           gradle --no-daemon --max-workers=1 -p android testMpvDebugUnitTest assembleMpvDebug lintMpvDebug
           python3 scripts/bytevc2/verify_preview.py \
             android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk \
-            --build-tools "$ANDROID_HOME/build-tools/35.0.0"
+            --build-tools "$ANDROID_HOME/build-tools/35.0.0" --abi "$BVC2_ABI"
       - name: Store APK and corresponding sources in a temporary unpublished draft
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           bundle="$RUNNER_TEMP/bytevc2-preview"
           mkdir -p "$bundle"
-          cp android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk "$bundle/hongguo-tv-bytevc2-arm64-test.apk"
+          cp android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk "$bundle/hongguo-tv-bytevc2-$BVC2_ABI-test.apk"
           git archive --format=zip --output="$bundle/app-source-$GITHUB_SHA.zip" HEAD
           tar -czf "$bundle/bytevc2-native-source.tar.gz" -C "$RUNNER_TEMP/bytevc2-mpv" source BUILD.txt
           git diff > "$bundle/EXPERIMENT-GENERATED.patch"
           git rev-parse HEAD > "$bundle/COMMIT.txt"
           (cd "$bundle" && sha256sum *.apk *.zip *.tar.gz > SHA256SUMS.txt)
           cat > "$RUNNER_TEMP/bytevc2-preview-notes.md" <<'NOTES'
-          Unpublished arm64-only ByteVC2 MPV device experiment. Separate app ID and data.
+          Unpublished armeabi-v7a Android 6+ ByteVC2 MPV device experiment. Separate app ID and data.
           Does not update any stable channel. Default source selection is ByteVC2-only for testing.
           Set localStorage['hongguo.bytevc2.test-source']='compatible' then reload for existing HEVC/AVC selection.
           Complete pinned native sources, app sources and generated test patches are attached.
           No real media, media URLs, keys or account credentials are included.
           NOTES
-          gh release create "bytevc2-preview-$GITHUB_RUN_ID" "$bundle/"* \
+          gh release create "bytevc2-armv7-${GITHUB_SHA:0:12}" "$bundle/"* \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --latest=false \
             --title "Temporary ByteVC2 MPV experiment $GITHUB_RUN_ID" \
             --notes-file "$RUNNER_TEMP/bytevc2-preview-notes.md"

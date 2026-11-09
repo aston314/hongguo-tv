@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
+test "${GITHUB_ACTIONS:-}" = true || { echo "Build Android experiments in GitHub Actions" >&2; exit 1; }
 root=$(cd "$(dirname "$0")/../.." && pwd)
-output=${1:?Usage: build_mpv_android.sh OUTPUT_DIRECTORY}
+output=${1:?Usage: build_mpv_android.sh OUTPUT_DIRECTORY [arm64-v8a|armeabi-v7a]}
+abi=${2:-arm64-v8a}
+case "$abi" in
+  arm64-v8a) target=aarch64-linux-android; cpu_family=aarch64; cpu=armv8-a; arch=aarch64; host=aarch64-linux-android; abi_cflags=() ;;
+  armeabi-v7a) target=armv7a-linux-androideabi; cpu_family=arm; cpu=armv7-a; arch=arm; host=arm-linux-androideabi; abi_cflags=(--extra-cflags='-O2 -fPIC -march=armv7-a -mfpu=neon -mfloat-abi=softfp') ;;
+  *) echo "Unsupported experiment ABI" >&2; exit 2 ;;
+esac
 mkdir -p "$output"
 output=$(cd "$output" && pwd)
 work=$(mktemp -d)
@@ -10,8 +17,8 @@ python3 "$root/scripts/bytevc2/prepare_mpv_sources.py" "$work/src" "$output/sour
 prefix="$work/prefix"
 mkdir -p "$prefix"
 toolchain="${ANDROID_HOME:?}/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin"
-export CC="$toolchain/aarch64-linux-android23-clang"
-export CXX="$toolchain/aarch64-linux-android23-clang++"
+export CC="$toolchain/${target}23-clang"
+export CXX="$toolchain/${target}23-clang++"
 export AR="$toolchain/llvm-ar" RANLIB="$toolchain/llvm-ranlib"
 export STRIP="$toolchain/llvm-strip"
 export CFLAGS='-O2 -fPIC' CXXFLAGS='-O2 -fPIC'
@@ -27,8 +34,8 @@ strip = '$STRIP'
 pkg-config = 'pkg-config'
 [host_machine]
 system = 'android'
-cpu_family = 'aarch64'
-cpu = 'armv8-a'
+cpu_family = '$cpu_family'
+cpu = '$cpu'
 endian = 'little'
 [properties]
 needs_exe_wrapper = true
@@ -58,7 +65,7 @@ meson_install harfbuzz -Dtests=disabled -Ddocs=disabled -Dglib=disabled -Dgobjec
 (
   cd "$work/src/libass"
   ./autogen.sh
-  ./configure --host=aarch64-linux-android --prefix="$prefix" --libdir="$prefix/lib" \
+  ./configure --host="$host" --prefix="$prefix" --libdir="$prefix/lib" \
     --disable-shared --enable-static --with-pic --disable-asm --disable-fontconfig \
     --disable-require-system-font-provider
   make -j"$(nproc)"
@@ -73,7 +80,7 @@ meson_install libplacebo -Ddemos=false -Dtests=false -Dvulkan=disabled -Dopengl=
   cd "$work/src/ffmpeg"
   patch --batch --fuzz=0 -p1 < "$root/scripts/bytevc2/0001-add-bvc2-decoder.patch"
   patch --batch --fuzz=0 -p1 < "$root/scripts/bytevc2/0002-identify-bv2c.patch"
-  ./configure --prefix="$prefix" --libdir="$prefix/lib" --target-os=android --arch=aarch64 --cpu=armv8-a \
+  ./configure --prefix="$prefix" --libdir="$prefix/lib" --target-os=android --arch="$arch" --cpu="$cpu" \
     --enable-cross-compile --cc="$CC" --cxx="$CXX" --ar="$AR" \
     --nm="$toolchain/llvm-nm" --ranlib="$RANLIB" --strip="$STRIP" \
     --disable-everything --disable-doc --disable-debug --disable-autodetect \
@@ -85,7 +92,7 @@ meson_install libplacebo -Ddemos=false -Dtests=false -Dvulkan=disabled -Dopengl=
     --enable-decoder='bvc2,vvc,hevc*,h264*,aac' \
     --enable-filter=abuffer,abuffersink,buffer,buffersink,anull,aresample,aformat,atempo,format,scale,volume \
     --enable-swscale --enable-swresample --enable-avfilter \
-    --extra-cflags='-O2 -fPIC' --extra-ldflags='-Wl,-z,max-page-size=16384'
+    "${abi_cflags[@]}" --extra-ldflags='-Wl,-z,max-page-size=16384'
   make -j"$(nproc)"
   make install
 )
@@ -107,19 +114,19 @@ PY
 meson_install mpv -Dauto_features=disabled -Dgpl=true -Dlibmpv=true -Dcplayer=false \
   -Dlua=disabled -Dgl=enabled -Degl-android=enabled -Daudiotrack=enabled -Dopensles=enabled \
   -Dvector=enabled -Dbuild-date=false -Dmanpage-build=disabled
-mkdir -p "$output/lib/arm64-v8a" "$output/include/mpv"
-cp -L "$prefix/lib/libmpv.so" "$output/lib/arm64-v8a/libmpv.so"
-"$STRIP" --strip-unneeded "$output/lib/arm64-v8a/libmpv.so"
+mkdir -p "$output/lib/$abi" "$output/include/mpv"
+cp -L "$prefix/lib/libmpv.so" "$output/lib/$abi/libmpv.so"
+"$STRIP" --strip-unneeded "$output/lib/$abi/libmpv.so"
 cp "$prefix/include/mpv/"*.h "$output/include/mpv/"
-"$toolchain/llvm-readelf" -Ws "$output/lib/arm64-v8a/libmpv.so" | grep 'mpv_lavc_set_java_vm'
-"$toolchain/llvm-readelf" -d "$output/lib/arm64-v8a/libmpv.so" | tee "$output/ELF.txt"
+"$toolchain/llvm-readelf" -Ws "$output/lib/$abi/libmpv.so" | grep 'mpv_lavc_set_java_vm'
+"$toolchain/llvm-readelf" -d "$output/lib/$abi/libmpv.so" | tee "$output/ELF.txt"
 cp "$root/scripts/bytevc2/"*.patch "$root/scripts/bytevc2/build_mpv_android.sh" \
   "$root/scripts/bytevc2/prepare_mpv_sources.py" "$output/source/"
 cp "$cross" "$output/source/android.cross"
 cp "$work/src/ffmpeg/config.h" "$work/src/ffmpeg/config_components.h" "$output/source/"
 cp "$work/mpv-build/config.h" "$output/source/mpv-config.h"
 cat > "$output/BUILD.txt" <<EOF
-Isolated arm64 Android MPV ByteVC2 experiment; not a stable application update.
+Isolated $abi Android MPV ByteVC2 experiment; not a stable application update.
 MPV 0.41.0; FFmpeg 8.1.3 + BVC2 decoder + bv2C identification.
 NDK 27.2.12479018/API23; GPL build; vo=gpu/Android EGL; AudioTrack/OpenSL ES.
 HTTP/file input; no direct HTTPS (the app uses its existing loopback media proxy).
