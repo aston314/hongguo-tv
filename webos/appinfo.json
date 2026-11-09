@@ -8,7 +8,7 @@
   "icon": "icon.png",
   "largeIcon": "largeIcon.png",
   "resolution": "1280x720",
-  "iconColor": "#ff5c45",
+  "iconColor": "#DB411E",
   "bgColor": "#101014",
   "disableBackHistoryAPI": true,
   "handlesRelaunch": false,

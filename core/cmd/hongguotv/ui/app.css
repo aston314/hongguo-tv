@@ -22,8 +22,8 @@ button:focus { outline: none; }
 .sidebar { display: flex; flex: 0 0 200px; flex-direction: column; overflow-y: auto; min-height: 0; padding: 20px 15px 16px; background: #15151c; border-right: 1px solid rgba(255,255,255,.04); scrollbar-width: none; }
 .sidebar::-webkit-scrollbar { display: none; }
 .brand { display: flex; flex-shrink: 0; align-items: center; gap: 11px; height: 48px; padding: 0 9px; color: #f8f8fb; font-size: 21px; font-weight: 700; letter-spacing: .03em; white-space: nowrap; }
-.brand-mark { display: grid; place-items: center; width: 29px; height: 29px; color: #fff; background: #ff693e; border-radius: 9px; }
-.brand-mark svg { width: 18px; height: 18px; fill: currentColor; }
+.brand-mark { display: grid; place-items: center; width: 29px; height: 29px; }
+.brand-mark svg { display: block; width: 100%; height: 100%; }
 .side-nav { display: flex; flex: 1 1 auto; min-height: 0; flex-direction: column; gap: 5px; overflow-y: auto; margin-top: 20px; padding: 10px 8px; scrollbar-width: none; }
 .side-nav::-webkit-scrollbar { display: none; }
 .side-item { position: relative; display: flex; align-items: center; gap: 15px; width: 100%; min-height: 54px; padding: 0 16px; font-size: 20px; text-align: left; color: #c5c5ce; background: transparent; border-radius: 13px; transition: none; }
@@ -43,8 +43,7 @@ button:focus { outline: none; }
 .app-shell.sidebar-icons .brand > span:last-child,
 .app-shell.sidebar-icons .side-item > span { display: none; }
 .app-shell.sidebar-icons .side-item > .side-notification-dot { display: block; position: absolute; top: 6px; left: calc(50% + 12px); margin: 0; }
-.app-shell.sidebar-icons .brand-mark { flex: 0 0 44px; width: 44px; height: 44px; border-radius: 13px; }
-.app-shell.sidebar-icons .brand-mark svg { width: 26px; height: 26px; }
+.app-shell.sidebar-icons .brand-mark { flex: 0 0 44px; width: 44px; height: 44px; }
 .app-shell.sidebar-icons .side-item { display: block; flex-shrink: 0; padding: 9px 0; text-align: center; }
 .app-shell.sidebar-icons .side-icon { width: 36px; height: 36px; vertical-align: middle; }
 .app-shell.sidebar-icons .main-surface { width: calc(100% - 104px); }

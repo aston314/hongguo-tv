@@ -10,7 +10,11 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT_DIR"
 mkdir -p desktop/build/darwin desktop/build/sidecar desktop/dist
 cp desktop/resources/Info.plist desktop/build/darwin/Info.plist
-cp desktop/resources/appicon.png desktop/build/appicon.png
+if [[ "$DESKTOP_PLATFORM" == darwin/universal ]]; then
+  cp desktop/resources/appicon-macos.png desktop/build/appicon.png
+else
+  cp desktop/resources/appicon.png desktop/build/appicon.png
+fi
 python3 - <<'PY'
 import json, os
 from pathlib import Path

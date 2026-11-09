@@ -1,11 +1,6 @@
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="48dp"
-    android:height="48dp"
-    android:viewportWidth="48"
-    android:viewportHeight="48">
-    <!-- Fill the launcher canvas; scale the mark with its background. -->
-    <group android:pivotX="24" android:pivotY="24" android:scaleX="1.2" android:scaleY="1.2">
-        <path android:fillColor="#F35D7B" android:pathData="M12,4h24c4.418,0 8,3.582 8,8v24c0,4.418 -3.582,8 -8,8H12c-4.418,0 -8,-3.582 -8,-8V12c0,-4.418 3.582,-8 8,-8z" />
-        <path android:fillColor="#FFFFFF" android:pathData="M19,14l16,10 -16,10z" />
-    </group>
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="48dp" android:height="48dp" android:viewportWidth="100" android:viewportHeight="100">
+    <path android:fillColor="#DB411E" android:pathData="M24,0 H76 A24,24 0,0 1,100,24 V76 A24,24 0,0 1,76,100 H24 A24,24 0,0 1,0,76 V24 A24,24 0,0 1,24,0 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M17,50 A33,33 0,1 0,83,50 A33,33 0,1 0,17,50 Z" />
+    <path android:fillColor="#FFFFFF" android:pathData="M51 18 C51 11 56 8 63 8 C63 14 58 19 51 18 Z" />
+    <path android:fillColor="#DB411E" android:pathData="M43 36 L43 64 L68 50 Z" android:strokeColor="#DB411E" android:strokeWidth="4" android:strokeLineJoin="round" />
 </vector>
