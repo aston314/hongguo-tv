@@ -47,6 +47,7 @@ cp "$root/scripts/bytevc2/0001-add-bvc2-decoder.patch" "$output/source/"
 cp "$root/scripts/bytevc2/build_android.sh" "$output/source/"
 cp COPYING.GPLv3 COPYING.LGPLv2.1 "$output/source/"
 cp config.h ffbuild/config.mak "$output/source/"
+cp config_components.h "$output/source/"
 cat > "$output/BUILD.txt" <<EOF
 Experimental standalone Android arm64 ByteVC2 decoder; not an app update.
 FFmpeg: jellyfin/jellyfin-ffmpeg $commit (8.1.3)

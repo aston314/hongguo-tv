@@ -1,0 +1,77 @@
+package main
+
+// Compiled only through capture.py's opt-in overlay, never into the app.
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+	"time"
+)
+
+func TestByteVC2Capture(t *testing.T) {
+	dir, vid := os.Getenv("BYTEVC2_SAMPLE_DIR"), os.Getenv("BYTEVC2_VIDEO_ID")
+	if dir == "" || vid == "" {
+		t.Fatal("sample capture must be explicitly configured")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Second)
+	defer cancel()
+	var options []miniReelOption
+	for round := 0; round < 2 && len(options) == 0; round++ {
+		device, err := registerMiniReelPlaybackDeviceContext(ctx)
+		if err != nil {
+			continue
+		}
+		for _, host := range []string{"https://api5-normal-sinfonlineb.fqnovel.com", "https://api5-normal-hl.fqnovel.com"} {
+			var err error
+			options, err = miniReelNativeOptionsAttemptProfile(ctx, vid, host+miniReelAPIPath,
+				device, nil, "default", "1004", true, true, true)
+			if err == nil && len(options) > 0 {
+				break
+			}
+		}
+	}
+	if len(options) == 0 {
+		t.Fatal("No genuine ByteVC2 sample returned by legacy provider")
+	}
+	captured := 0
+	for _, option := range options {
+		if option.Codec != "bytevc2" || (option.Quality != "720P" && option.Quality != "1080P") {
+			continue
+		}
+		file := filepath.Join(dir, option.Quality+".mp4")
+		if err := downloadMiniReelMedia(ctx, option.URL, file); err != nil {
+			t.Fatal("sample media download failed")
+		}
+		if len(option.Key) > 0 {
+			if err := decryptMiniReelMP4(file, option.Key); err != nil {
+				t.Fatal("sample media decryption failed")
+			}
+		}
+		data, err := os.ReadFile(file)
+		if err != nil {
+			t.Fatal("sample read failed")
+		}
+		if err := os.Chmod(file, 0600); err != nil {
+			t.Fatal("sample permission change failed")
+		}
+		report := map[string]any{
+			"codec": option.Codec, "quality": option.Quality,
+			"width": option.Width, "height": option.Height,
+			"bytes": len(data), "sha256": fmt.Sprintf("%x", sha256.Sum256(data)),
+			"provider": "multi_video_model",
+		}
+		encoded, _ := json.MarshalIndent(report, "", "  ")
+		if err := os.WriteFile(file+".json", encoded, 0600); err != nil {
+			t.Fatal("sample report write failed")
+		}
+		t.Log(string(encoded))
+		captured++
+	}
+	if captured == 0 {
+		t.Fatal("No 720P/1080P ByteVC2 candidate to validate")
+	}
+}

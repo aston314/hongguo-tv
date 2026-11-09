@@ -22,3 +22,12 @@ FFmpeg 固定为 `jellyfin/jellyfin-ffmpeg`
 样本使用既有取址/下载/解密协议在本机临时目录获取，实验采样通过 Go overlay
 放开过滤；工作树中的生产过滤保持不动。对 `hvc1 + bv2C` 的样本分别尝试自动识别
 和显式选择 bvc2 解码器，保留实际失败结果，不把 HEVC 误认当成 ByteVC2 通过。
+
+```sh
+# Only the capture test compiles locally; no Android/native library build.
+python3 scripts/bytevc2/capture.py --video-id 7702841953875938328 --out /tmp/bytevc2-samples
+# Download the successful GitHub workflow's native artifact first.
+python3 scripts/bytevc2/check_device.py --artifact /tmp/bytevc2-arm64 \
+  --serial DEVICE_SERIAL --samples /tmp/bytevc2-samples/720P.mp4 \
+  /tmp/bytevc2-samples/1080P.mp4 --out /tmp/bytevc2-report
+```

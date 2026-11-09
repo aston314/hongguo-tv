@@ -32,9 +32,15 @@ jobs:
         run: |
           test -f "$RUNNER_TEMP/bytevc2-arm64/bin/ffmpeg"
           test -f "$RUNNER_TEMP/bytevc2-arm64/bin/ffprobe"
-          rg '#define CONFIG_BVC2_DECODER 1' "$RUNNER_TEMP/bytevc2-arm64/source/config.h"
-          rg '#define CONFIG_VVC_DECODER 1' "$RUNNER_TEMP/bytevc2-arm64/source/config.h"
-          rg '#define CONFIG_NETWORK 0' "$RUNNER_TEMP/bytevc2-arm64/source/config.h"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          source = Path(os.environ['RUNNER_TEMP']) / 'bytevc2-arm64/source'
+          config = (source / 'config.h').read_text() + (source / 'config_components.h').read_text()
+          for expected in ('#define CONFIG_BVC2_DECODER 1', '#define CONFIG_VVC_DECODER 1', '#define CONFIG_NETWORK 0'):
+              assert expected in config, expected
+              print(expected)
+          PY
           git diff --exit-code
           echo 'Cross-compilation passed. Runtime decoding requires the Android device test.' >> "$GITHUB_STEP_SUMMARY"
       # Native research tools only; no APK, real media, keys or app update files.
