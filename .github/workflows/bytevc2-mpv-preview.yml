@@ -8,6 +8,8 @@ on:
       - scripts/bytevc2/prepare_mpv_sources.py
       - scripts/bytevc2/mpv_preview_sources.json
       - scripts/bytevc2/0002-identify-bv2c.patch
+      - scripts/bytevc2/prepare_preview.py
+      - scripts/bytevc2/verify_preview.py
       - .github/workflows/bytevc2-mpv-preview.yml
   workflow_dispatch:
 
@@ -41,3 +43,71 @@ jobs:
           path: ${{ runner.temp }}/bytevc2-mpv/
           retention-days: 1
           if-no-files-found: error
+
+  preview-apk:
+    needs: native
+    if: github.ref == 'refs/heads/codex/bytevc2-android-validation'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: experimental-bytevc2-mpv-native-${{ github.sha }}
+          path: ${{ runner.temp }}/bytevc2-mpv
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: go.mod
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Install pinned Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;27.2.12479018'
+      - name: Stage the independent ByteVC2 experiment
+        run: |
+          python3 scripts/bytevc2/prepare_preview.py --native "$RUNNER_TEMP/bytevc2-mpv"
+          node --check core/cmd/hongguotv/ui/app.js
+          node --check core/cmd/hongguotv/ui/native-player.js
+          go test ./core/cmd/hongguotv -run 'TestMiniReel(Identity|Registered|FreshFallback|VideoTab|Single|SourceMemory)'
+      - name: Build the experimental core and MPV APK
+        env:
+          VERSION: bytevc2-test-${{ github.sha }}
+        run: |
+          bash scripts/build_android_binaries.sh
+          gradle --no-daemon --max-workers=1 -p android testMpvDebugUnitTest assembleMpvDebug lintMpvDebug
+          python3 scripts/bytevc2/verify_preview.py \
+            android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk \
+            --build-tools "$ANDROID_HOME/build-tools/35.0.0"
+      - name: Store APK and corresponding sources in a temporary unpublished draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bundle="$RUNNER_TEMP/bytevc2-preview"
+          mkdir -p "$bundle"
+          cp android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk "$bundle/hongguo-tv-bytevc2-arm64-test.apk"
+          git archive --format=zip --output="$bundle/app-source-$GITHUB_SHA.zip" HEAD
+          tar -czf "$bundle/bytevc2-native-source.tar.gz" -C "$RUNNER_TEMP/bytevc2-mpv" source BUILD.txt
+          git diff > "$bundle/EXPERIMENT-GENERATED.patch"
+          git rev-parse HEAD > "$bundle/COMMIT.txt"
+          (cd "$bundle" && sha256sum *.apk *.zip *.tar.gz > SHA256SUMS.txt)
+          cat > "$RUNNER_TEMP/bytevc2-preview-notes.md" <<'NOTES'
+          Unpublished arm64-only ByteVC2 MPV device experiment. Separate app ID and data.
+          Does not update any stable channel. Default source selection is ByteVC2-only for testing.
+          Set localStorage['hongguo.bytevc2.test-source']='compatible' then reload for existing HEVC/AVC selection.
+          Complete pinned native sources, app sources and generated test patches are attached.
+          No real media, media URLs, keys or account credentials are included.
+          NOTES
+          gh release create "bytevc2-preview-$GITHUB_RUN_ID" "$bundle/"* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --latest=false \
+            --title "Temporary ByteVC2 MPV experiment $GITHUB_RUN_ID" \
+            --notes-file "$RUNNER_TEMP/bytevc2-preview-notes.md"

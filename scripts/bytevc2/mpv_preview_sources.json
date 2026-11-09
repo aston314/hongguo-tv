@@ -43,5 +43,10 @@
     "repo": "haasn/libplacebo",
     "commit": "64c1954570f1cd57f8570a57e51fb0249b57bb90",
     "sha256": "3144bb66bc9e286da37f17f71886d65a6d1baf9e45e4efa5ac8bd61ffa935487"
+  },
+  "fast_float": {
+    "repo": "fastfloat/fast_float",
+    "commit": "2b2395f9ac836ffca6404424bcc252bff7aa80e4",
+    "sha256": "230d20e4e4ac1f6a9df92c4d746c6ec536cdb0c085bc8635d4b88cead5dc22cb"
   }
 }

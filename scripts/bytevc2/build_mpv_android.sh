@@ -62,6 +62,8 @@ meson_install harfbuzz -Dtests=disabled -Ddocs=disabled -Dglib=disabled -Dgobjec
   make -j"$(nproc)"
   make install
 )
+rmdir "$work/src/libplacebo/3rdparty/fast_float"
+mv "$work/src/fast_float" "$work/src/libplacebo/3rdparty/fast_float"
 meson_install libplacebo -Ddemos=false -Dtests=false -Dvulkan=disabled -Dopengl=disabled \
   -Dd3d11=disabled -Dshaderc=disabled -Dglslang=disabled -Dlcms=disabled \
   -Dlibdovi=disabled -Ddovi=disabled -Dxxhash=disabled -Dunwind=disabled
