@@ -9,6 +9,7 @@ import wave
 from pathlib import Path
 
 from PIL import Image, ImageChops, ImageStat
+from linux_playback_pictures import picture_stats
 
 root = Path(sys.argv[1])
 report = json.loads((root / "playback.json").read_text())
@@ -30,17 +31,9 @@ for stage in ("first-a", "first-b", "after-seek", "second-a", "second-b"):
     try:
         sample = json.loads((root / (stage + ".json")).read_text())["sample"]
         picture = Image.open(root / (stage + ".png")).convert("RGB")
-        rect = sample["rect"]
-        sx, sy = picture.width / sample["viewport"]["width"], picture.height / sample["viewport"]["height"]
-        # Use the centre of the video to exclude the app's sidebar and controls.
-        # For portrait movies, the middle column is inside the displayed image.
-        x, y, w, h = rect["x"], rect["y"], rect["width"], rect["height"]
-        crop = picture.crop((int((x + w * .4) * sx), int((y + h * .2) * sy),
-                             int((x + w * .6) * sx), int((y + h * .7) * sy))).resize((64, 64))
-        stat = ImageStat.Stat(crop)
-        entry = {"mean_rgb": stat.mean, "spread_rgb": stat.stddev, "time": sample["time"]}
+        entry, visible = picture_stats(picture, sample)
         evidence["pictures"][stage] = entry
-        if max(stat.mean) < 8 or max(stat.stddev) < 3:
+        if not visible:
             evidence["ok"] = False
         if stage.endswith("-b"):
             first = Image.open(root / (stage.replace("-b", "-a") + ".png")).convert("RGB")
