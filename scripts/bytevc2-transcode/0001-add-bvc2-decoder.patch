@@ -1,0 +1,318 @@
+diff --git a/configure b/configure
+index 86a2437..4dd8e85 100755
+--- a/configure
++++ b/configure
+@@ -2698,6 +2698,7 @@ CONFIG_EXTRA="
+     cbs
+     cbs_apv
+     cbs_av1
++    cbs_bvc2
+     cbs_h264
+     cbs_h265
+     cbs_h266
+@@ -3014,6 +3015,7 @@ threads_if_any="$THREADS_LIST"
+ # subsystems
+ cbs_apv_select="cbs"
+ cbs_av1_select="cbs"
++cbs_bvc2_select="cbs"
+ cbs_h264_select="cbs"
+ cbs_h265_select="cbs"
+ cbs_h266_select="cbs"
+@@ -3106,6 +3108,7 @@ av1_decoder_select="atsc_a53 cbs_av1 dovi_rpudec"
+ bink_decoder_select="blockdsp hpeldsp"
+ binkaudio_dct_decoder_select="wma_freqs"
+ binkaudio_rdft_decoder_select="wma_freqs"
++bvc2_decoder_select="cabac cbs_bvc2 golomb videodsp vvc_sei"
+ cavs_decoder_select="blockdsp golomb h264chroma idctdsp qpeldsp videodsp"
+ clearvideo_decoder_select="idctdsp"
+ cllc_decoder_select="bswapdsp"
+diff --git a/libavcodec/Makefile b/libavcodec/Makefile
+index 1410bd8..bcd314e 100644
+--- a/libavcodec/Makefile
++++ b/libavcodec/Makefile
+@@ -88,6 +88,7 @@ OBJS-$(CONFIG_CABAC)                   += cabac.o
+ OBJS-$(CONFIG_CBS)                     += cbs.o cbs_bsf.o
+ OBJS-$(CONFIG_CBS_APV)                 += cbs_apv.o
+ OBJS-$(CONFIG_CBS_AV1)                 += cbs_av1.o
++OBJS-$(CONFIG_CBS_BVC2)                += cbs_h266.o cbs_h2645.o cbs_sei.o h2645_parse.o
+ OBJS-$(CONFIG_CBS_H264)                += cbs_h264.o cbs_h2645.o cbs_sei.o h2645_parse.o
+ OBJS-$(CONFIG_CBS_H265)                += cbs_h265.o cbs_h2645.o cbs_sei.o h2645_parse.o
+ OBJS-$(CONFIG_CBS_H266)                += cbs_h266.o cbs_h2645.o cbs_sei.o h2645_parse.o
+@@ -302,6 +303,7 @@ OBJS-$(CONFIG_BMV_AUDIO_DECODER)       += bmvaudio.o
+ OBJS-$(CONFIG_BMV_VIDEO_DECODER)       += bmvvideo.o
+ OBJS-$(CONFIG_BONK_DECODER)            += bonk.o
+ OBJS-$(CONFIG_BRENDER_PIX_DECODER)     += brenderpix.o
++OBJS-$(CONFIG_BVC2_DECODER)            += executor.o h2645data.o
+ OBJS-$(CONFIG_C93_DECODER)             += c93.o
+ OBJS-$(CONFIG_CAVS_DECODER)            += cavs.o cavsdec.o cavsdsp.o \
+                                           cavsdata.o
+diff --git a/libavcodec/allcodecs.c b/libavcodec/allcodecs.c
+index 695214f..d83de21 100644
+--- a/libavcodec/allcodecs.c
++++ b/libavcodec/allcodecs.c
+@@ -73,6 +73,7 @@ extern const FFCodec ff_bmp_encoder;
+ extern const FFCodec ff_bmp_decoder;
+ extern const FFCodec ff_bmv_video_decoder;
+ extern const FFCodec ff_brender_pix_decoder;
++extern const FFCodec ff_bvc2_decoder;
+ extern const FFCodec ff_c93_decoder;
+ extern const FFCodec ff_cavs_decoder;
+ extern const FFCodec ff_cdgraphics_decoder;
+diff --git a/libavcodec/cbs.c b/libavcodec/cbs.c
+index b045b73..256a4ac 100644
+--- a/libavcodec/cbs.c
++++ b/libavcodec/cbs.c
+@@ -37,6 +37,9 @@ static const CodedBitstreamType *const cbs_type_table[] = {
+ #if CBS_AV1
+     &CBS_FUNC(type_av1),
+ #endif
++#if CBS_BVC2
++    &CBS_FUNC(type_bvc2),
++#endif
+ #if CBS_H264
+     &CBS_FUNC(type_h264),
+ #endif
+@@ -70,6 +73,9 @@ const enum AVCodecID CBS_FUNC(all_codec_ids)[] = {
+ #if CBS_AV1
+     AV_CODEC_ID_AV1,
+ #endif
++#if CBS_BVC2
++    AV_CODEC_ID_BVC2,
++#endif
+ #if CBS_H264
+     AV_CODEC_ID_H264,
+ #endif
+diff --git a/libavcodec/cbs_h2645.c b/libavcodec/cbs_h2645.c
+index bcf6144..5138ffa 100644
+--- a/libavcodec/cbs_h2645.c
++++ b/libavcodec/cbs_h2645.c
+@@ -333,7 +333,7 @@ int ff_cbs_h2645_unit_requires_zero_byte(enum AVCodecID codec_id,
+         return type == H264_NAL_SPS || type == H264_NAL_PPS;
+     if (codec_id == AV_CODEC_ID_HEVC)
+         return type == HEVC_NAL_VPS || type == HEVC_NAL_SPS || type == HEVC_NAL_PPS;
+-    if (codec_id == AV_CODEC_ID_VVC)
++    if (codec_id == AV_CODEC_ID_VVC || codec_id == AV_CODEC_ID_BVC2)
+         return type >= VVC_OPI_NUT && type <= VVC_SUFFIX_APS_NUT;
+     return 0;
+ }
+diff --git a/libavcodec/cbs_h266.c b/libavcodec/cbs_h266.c
+index 8c92b4f..32aeec8 100644
+--- a/libavcodec/cbs_h266.c
++++ b/libavcodec/cbs_h266.c
+@@ -249,6 +249,34 @@ static int FUNC_H266(name) args
+ 
+ 
+ 
++static int cbs_bvc2_split_fragment(CodedBitstreamContext *ctx,
++                                   CodedBitstreamFragment *frag,
++                                   int header)
++{
++    enum AVCodecID codec_id = ctx->codec->codec_id;
++    CodedBitstreamH266Context *priv = ctx->priv_data;
++    CodedBitstreamH2645Context *h2645 = &priv->common;
++    int err;
++    int flags = H2645_FLAG_IS_NALFF | H2645_FLAG_SMALL_PADDING | H2645_FLAG_USE_REF;
++    // Annex B, or later MP4 with already-known parameters.
++
++    h2645->nal_length_size = 4;
++
++    err = ff_h2645_packet_split(&h2645->read_packet,
++                                frag->data, frag->data_size,
++                                ctx->log_ctx,
++                                h2645->nal_length_size,
++                                codec_id, flags);
++    if (err < 0)
++        return err;
++
++    err = ff_cbs_h2645_fragment_add_nals(ctx, frag, &h2645->read_packet);
++    if (err < 0)
++        return err;
++
++    return 0;
++}
++
+ static int cbs_h266_split_fragment(CodedBitstreamContext *ctx,
+                                    CodedBitstreamFragment *frag,
+                                    int header)
+@@ -807,3 +835,19 @@ const CodedBitstreamType ff_cbs_type_h266 = {
+     .flush             = &cbs_h266_flush,
+     .close             = &cbs_h266_close,
+ };
++
++const CodedBitstreamType ff_cbs_type_bvc2 = {
++    .codec_id          = AV_CODEC_ID_BVC2,
++
++    .priv_data_size    = sizeof(CodedBitstreamH266Context),
++
++    .unit_types        = cbs_h266_unit_types,
++
++    .split_fragment    = &cbs_bvc2_split_fragment,
++    .read_unit         = &cbs_h266_read_nal_unit,
++    .write_unit        = &cbs_h266_write_nal_unit,
++    .assemble_fragment = &ff_cbs_h2645_assemble_fragment,
++
++    .flush             = &cbs_h266_flush,
++    .close             = &cbs_h266_close,
++};
+diff --git a/libavcodec/cbs_internal.h b/libavcodec/cbs_internal.h
+index 2af8075..8bff21f 100644
+--- a/libavcodec/cbs_internal.h
++++ b/libavcodec/cbs_internal.h
+@@ -48,6 +48,9 @@
+ #ifndef CBS_AV1
+ #define CBS_AV1 CONFIG_CBS_AV1
+ #endif
++#ifndef CBS_BVC2
++#define CBS_BVC2 CONFIG_CBS_BVC2
++#endif
+ #ifndef CBS_H264
+ #define CBS_H264 CONFIG_CBS_H264
+ #endif
+@@ -391,6 +394,7 @@ int CBS_FUNC(write_signed)(CodedBitstreamContext *ctx, PutBitContext *pbc,
+ 
+ extern const CodedBitstreamType CBS_FUNC(type_apv);
+ extern const CodedBitstreamType CBS_FUNC(type_av1);
++extern const CodedBitstreamType CBS_FUNC(type_bvc2);
+ extern const CodedBitstreamType CBS_FUNC(type_h264);
+ extern const CodedBitstreamType CBS_FUNC(type_h265);
+ extern const CodedBitstreamType CBS_FUNC(type_h266);
+diff --git a/libavcodec/cbs_sei.c b/libavcodec/cbs_sei.c
+index f354a10..d9a63f4 100644
+--- a/libavcodec/cbs_sei.c
++++ b/libavcodec/cbs_sei.c
+@@ -687,6 +687,7 @@ const SEIMessageTypeDescriptor *ff_cbs_sei_find_type(CodedBitstreamContext *ctx,
+         codec_list = ff_cbs_sei_h265_types;
+         break;
+ #endif
++    case AV_CODEC_ID_BVC2:
+     case AV_CODEC_ID_H266:
+         codec_list = cbs_sei_h274_types;
+         break;
+diff --git a/libavcodec/codec_desc.c b/libavcodec/codec_desc.c
+index a9f21f8..6e45c35 100644
+--- a/libavcodec/codec_desc.c
++++ b/libavcodec/codec_desc.c
+@@ -2009,6 +2009,14 @@ static const AVCodecDescriptor codec_descriptors[] = {
+                      AV_CODEC_PROP_LOSSLESS,
+         .mime_types= MT("image/jxs"),
+     },
++    {
++        .id        = AV_CODEC_ID_BVC2,
++        .type      = AVMEDIA_TYPE_VIDEO,
++        .name      = "bvc2",
++        .long_name = NULL_IF_CONFIG_SMALL("byteVC2"),
++        .props     = AV_CODEC_PROP_LOSSY | AV_CODEC_PROP_REORDER,
++        .profiles  = NULL_IF_CONFIG_SMALL(ff_vvc_profiles),
++    },
+ 
+     /* various PCM "codecs" */
+     {
+diff --git a/libavcodec/codec_id.h b/libavcodec/codec_id.h
+index 6529f0a..d26dd3e 100644
+--- a/libavcodec/codec_id.h
++++ b/libavcodec/codec_id.h
+@@ -332,6 +332,7 @@ enum AVCodecID {
+     AV_CODEC_ID_APV,
+     AV_CODEC_ID_PRORES_RAW,
+     AV_CODEC_ID_JPEGXS,
++    AV_CODEC_ID_BVC2,
+ 
+     /* various PCM "codecs" */
+     AV_CODEC_ID_FIRST_AUDIO = 0x10000,     ///< A dummy id pointing at the start of audio codecs
+diff --git a/libavcodec/h2645_parse.c b/libavcodec/h2645_parse.c
+index 659e818..c0da37f 100644
+--- a/libavcodec/h2645_parse.c
++++ b/libavcodec/h2645_parse.c
+@@ -641,7 +641,7 @@ int ff_h2645_packet_split(H2645Packet *pkt, const uint8_t *buf, int length,
+         /* Reset type in case it contains a stale value from a previously parsed NAL */
+         nal->type = 0;
+ 
+-        if (codec_id == AV_CODEC_ID_VVC)
++        if (codec_id == AV_CODEC_ID_VVC || codec_id == AV_CODEC_ID_BVC2)
+             ret = vvc_parse_nal_header(nal, logctx);
+         else if (codec_id == AV_CODEC_ID_LCEVC)
+             ret = lcevc_parse_nal_header(nal, logctx);
+diff --git a/libavcodec/vvc/Makefile b/libavcodec/vvc/Makefile
+index 10125ff..6a15ff2 100644
+--- a/libavcodec/vvc/Makefile
++++ b/libavcodec/vvc/Makefile
+@@ -1,6 +1,22 @@
+ clean::
+ 	$(RM) $(CLEANSUFFIXES:%=libavcodec/vvc/%)
+ 
++OBJS-$(CONFIG_BVC2_DECODER)         +=  vvc/dec.o           \
++                                        vvc/dsp.o           \
++                                        vvc/cabac.o         \
++                                        vvc/ctu.o           \
++                                        vvc/data.o          \
++                                        vvc/filter.o        \
++                                        vvc/inter.o         \
++                                        vvc/intra.o         \
++                                        vvc/intra_utils.o   \
++                                        vvc/itx_1d.o        \
++                                        vvc/mvs.o           \
++                                        vvc/ps.o            \
++                                        vvc/refs.o          \
++                                        vvc/sei.o           \
++                                        vvc/thread.o
++
+ OBJS-$(CONFIG_VVC_DECODER)          +=  vvc/dec.o           \
+                                         vvc/dsp.o           \
+                                         vvc/cabac.o         \
+diff --git a/libavcodec/vvc/dec.c b/libavcodec/vvc/dec.c
+index 022ce38..9805cf2 100644
+--- a/libavcodec/vvc/dec.c
++++ b/libavcodec/vvc/dec.c
+@@ -1273,7 +1273,7 @@ static av_cold int vvc_decode_init(AVCodecContext *avctx)
+ 
+     s->avctx = avctx;
+ 
+-    ret = ff_cbs_init(&s->cbc, AV_CODEC_ID_VVC, avctx);
++    ret = ff_cbs_init(&s->cbc, avctx->codec_id, avctx);
+     if (ret)
+         return ret;
+ 
+@@ -1329,3 +1329,19 @@ const FFCodec ff_vvc_decoder = {
+     NULL
+     },
+ };
++
++const FFCodec ff_bvc2_decoder = {
++    .p.name         = "bvc2",
++    .p.long_name    = NULL_IF_CONFIG_SMALL("BVC2"),
++    .p.type         = AVMEDIA_TYPE_VIDEO,
++    .p.id           = AV_CODEC_ID_BVC2,
++    .priv_data_size = sizeof(VVCContext),
++    .init           = vvc_decode_init,
++    .close          = vvc_decode_free,
++    FF_CODEC_DECODE_CB(vvc_decode_frame),
++    .flush          = vvc_decode_flush,
++    .p.capabilities = AV_CODEC_CAP_DR1 | AV_CODEC_CAP_DELAY | AV_CODEC_CAP_OTHER_THREADS,
++    .caps_internal  = FF_CODEC_CAP_EXPORTS_CROPPING | FF_CODEC_CAP_INIT_CLEANUP |
++                      FF_CODEC_CAP_AUTO_THREADS,
++    .p.profiles     = NULL_IF_CONFIG_SMALL(ff_vvc_profiles),
++};
+diff --git a/libavformat/cbs.h b/libavformat/cbs.h
+index dffd0e9..1e7877d 100644
+--- a/libavformat/cbs.h
++++ b/libavformat/cbs.h
+@@ -22,6 +22,7 @@
+ #define CBS_PREFIX lavf_cbs
+ #define CBS_WRITE 0
+ #define CBS_TRACE 0
++#define CBS_BVC2 0
+ #define CBS_H264 0
+ #define CBS_H265 0
+ #define CBS_H266 0
+diff --git a/libavformat/isom_tags.c b/libavformat/isom_tags.c
+index 1cd655b..41cd557 100644
+--- a/libavformat/isom_tags.c
++++ b/libavformat/isom_tags.c
+@@ -124,6 +124,7 @@ const AVCodecTag ff_codec_movvideo_tags[] = {
+     { AV_CODEC_ID_RAWVIDEO, MKTAG('W', 'R', 'A', 'W') },
+ 
+     { AV_CODEC_ID_VVC,  MKTAG('v', 'v', 'c', '1') },
++{ AV_CODEC_ID_BVC2, MKTAG('b', 'v', 'c', '2') },
+     { AV_CODEC_ID_VVC,  MKTAG('v', 'v', 'i', '1') },
+ 
+     { AV_CODEC_ID_HEVC, MKTAG('h', 'e', 'v', '1') }, /* HEVC/H.265 which indicates parameter sets may be in ES */

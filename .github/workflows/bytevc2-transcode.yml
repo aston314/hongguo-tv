@@ -1,0 +1,59 @@
+name: Experimental Android ByteVC2 transcoding
+
+on:
+  push:
+    branches: [codex/bytevc2-transcode-validation]
+    paths:
+      - scripts/bytevc2-transcode/**
+      - .github/workflows/bytevc2-transcode.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [reference, optimized]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install pinned Android NDK
+        run: sdkmanager 'ndk;27.2.12479018'
+      - uses: actions/cache@v4
+        id: native-cache
+        with:
+          path: ${{ runner.temp }}/bytevc2-transcode-${{ matrix.variant }}
+          key: bytevc2-transcode-arm64-${{ matrix.variant }}-${{ hashFiles('scripts/bytevc2-transcode/build_android.sh', 'scripts/bytevc2-transcode/*.patch') }}
+      - name: Build isolated reference-compatible transcoder
+        if: steps.native-cache.outputs.cache-hit != 'true'
+        run: bash scripts/bytevc2-transcode/build_android.sh "$RUNNER_TEMP/bytevc2-transcode-${{ matrix.variant }}" '${{ matrix.variant }}'
+      - name: Check build isolation and configured codecs
+        run: |
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'bytevc2-transcode-${{ matrix.variant }}'
+          config = (root / 'source/config_components.h').read_text()
+          for name in ('BVC2_DECODER', 'LIBX264_ENCODER', 'AAC_ENCODER', 'MOV_DEMUXER', 'MP4_MUXER'):
+              assert '#define CONFIG_' + name + ' 1' in config, name
+          assert (root / 'bin/ffmpeg').is_file()
+          PY
+          git diff --exit-code
+      # Research native tools/source only, never APK/media/keys.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bytevc2-transcode-arm64-${{ matrix.variant }}-${{ github.sha }}
+          path: ${{ runner.temp }}/bytevc2-transcode-${{ matrix.variant }}/
+          retention-days: 3
+          if-no-files-found: error
