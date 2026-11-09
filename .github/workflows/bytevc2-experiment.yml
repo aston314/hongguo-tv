@@ -1,0 +1,46 @@
+name: Experimental Android ByteVC2 decoder
+
+on:
+  push:
+    branches: [codex/bytevc2-android-validation]
+    paths:
+      - scripts/bytevc2/**
+      - .github/workflows/bytevc2-experiment.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-arm64:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install pinned NDK
+        run: sdkmanager 'ndk;27.2.12479018'
+      - name: Cross-compile the standalone ByteVC2 decoder
+        run: bash scripts/bytevc2/build_android.sh "$RUNNER_TEMP/bytevc2-arm64"
+      - name: Check decoder registration and isolation
+        run: |
+          test -f "$RUNNER_TEMP/bytevc2-arm64/bin/ffmpeg"
+          test -f "$RUNNER_TEMP/bytevc2-arm64/bin/ffprobe"
+          rg '#define CONFIG_BVC2_DECODER 1' "$RUNNER_TEMP/bytevc2-arm64/source/config.h"
+          rg '#define CONFIG_VVC_DECODER 1' "$RUNNER_TEMP/bytevc2-arm64/source/config.h"
+          rg '#define CONFIG_NETWORK 0' "$RUNNER_TEMP/bytevc2-arm64/source/config.h"
+          git diff --exit-code
+          echo 'Cross-compilation passed. Runtime decoding requires the Android device test.' >> "$GITHUB_STEP_SUMMARY"
+      # Native research tools only; no APK, real media, keys or app update files.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: experimental-bytevc2-android-arm64-${{ github.sha }}
+          path: ${{ runner.temp }}/bytevc2-arm64/
+          retention-days: 1
+          if-no-files-found: error
