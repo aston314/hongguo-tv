@@ -2,6 +2,7 @@ import os
 import shutil
 import subprocess
 import tempfile
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -118,6 +119,40 @@ class ReleaseSourceTests(unittest.TestCase):
                                       "GITHUB_SHA": git(self.clone, "rev-parse", "HEAD")},
                                  text=True, capture_output=True)
         self.assertNotEqual(0, changed.returncode)
+
+    def test_android_publication_retry_checks_out_the_immutable_tag_and_rejects_changed_app_sources(self):
+        workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/release.yml').read_text()
+        step = workflow.split('      - name: Pin existing tag for publication retry\n', 1)[1]
+        commands = textwrap.dedent(step.split('        run: |\n', 1)[1].split('      - name: Set up Go', 1)[0])
+        git(self.seed, 'tag', '-a', 'v1.2.7', '-m', 'release', self.main_sha)
+        git(self.seed, 'push', 'origin', 'v1.2.7')
+        harness = self.clone / '.github/workflows/release.yml'
+        harness.parent.mkdir(parents=True)
+        harness.write_text('CI download recovery\n')
+        git(self.clone, 'add', '.')
+        git(self.clone, 'commit', '-m', 'workflow-only repair')
+        bash = shutil.which('bash')
+        if os.name == 'nt':
+            git_executable = Path(shutil.which('git')).resolve()
+            bash = next(str(parent / 'bin/bash.exe') for parent in git_executable.parents
+                        if (parent / 'bin/bash.exe').is_file())
+        output = self.root / 'retry.env'
+        env = {**os.environ, 'APP_VERSION': '1.2.7', 'GITHUB_ENV': output.as_posix()}
+        result = subprocess.run([bash, '-e', '-c', commands], cwd=self.clone, env=env,
+                                text=True, capture_output=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(self.main_sha, git(self.clone, 'rev-parse', 'HEAD'))
+        self.assertEqual(f'HONGGUO_CORE_VERSION=1.2.7-{self.main_sha}', output.read_text().strip())
+        git(self.clone, 'checkout', 'main')
+        (self.clone / 'core').mkdir()
+        (self.clone / 'core/player.txt').write_text('different application source\n')
+        git(self.clone, 'add', '.')
+        git(self.clone, 'commit', '-m', 'application differs')
+        output.unlink()
+        rejected = subprocess.run([bash, '-e', '-c', commands], cwd=self.clone, env=env,
+                                  text=True, capture_output=True)
+        self.assertNotEqual(0, rejected.returncode)
+        self.assertFalse(output.exists())
 
 
 if __name__ == "__main__":
