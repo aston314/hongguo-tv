@@ -29,17 +29,17 @@ function snapshot(){var q=video.getVideoPlaybackQuality?video.getVideoPlaybackQu
  if(native&&bridge){try{d.native=JSON.parse(bridge.diagnostics());}catch(e){}}return d;}
 function bounds(){if(!bridge)return;var r=video.getBoundingClientRect();bridge.bounds(r.left/innerWidth,r.top/innerHeight,r.width/innerWidth,r.height/innerHeight);}
 function layout(){var box=document.querySelector('.hero-media'),top=box.getBoundingClientRect().top;box.style.width='66%';box.style.height=Math.max(80,innerHeight-top-18)+'px';el('diagnostic').style.maxHeight=box.style.height;bounds();}
-function playFull(){var url=location.origin+'/minireel-proxy/media/'+job+'.mp4';native=el('player').value==='media3';metrics.playRequested=performance.now()-metrics.started;
+function playFull(){video.pause();if(bridge)bridge.stop();document.documentElement.classList.remove('native-playback');delete metrics.firstFrame;delete metrics.firstPlaying;delete metrics.nativeProgress;metrics.nativePaused=false;var url=location.origin+'/minireel-proxy/media/'+job+'.mp4';native=el('player').value==='media3';metrics.playRequested=performance.now()-metrics.started;
  if(native){if(!bridge)throw Error('Media3 bridge unavailable');document.documentElement.classList.add('native-playback');bounds();loadId='transcode-'+Date.now();bridge.setVolume(1,false);bridge.play(loadId,JSON.stringify({source:url,paused:false,diagnostic_id:loadId}));}
  else{video.src=url;video.muted=false;video.play().catch(function(e){text('请按播放：'+e.name);});}}
 async function playStream(token,myEpoch){if(el('player').value!=='html5')throw Error('边转边播仅验证 HTML5 MSE');
  var mime='video/mp4; codecs="avc1.42c028, mp4a.40.2"';if(!window.MediaSource||!MediaSource.isTypeSupported(mime))throw Error('MSE AVC/AAC 不受支持');
- var ms=new MediaSource();objectUrl=URL.createObjectURL(ms);video.src=objectUrl;video.muted=false;
- await new Promise(function(resolve){ms.addEventListener('sourceopen',resolve,{once:true});});if(myEpoch!==epoch)return;
- var sb=ms.addSourceBuffer(mime);abort=new AbortController();var response=await fetch('/experiment/stream?id='+token,{signal:abort.signal});if(!response.ok)throw Error('stream HTTP '+response.status);
+ abort=new AbortController();var signal=abort.signal;var ms=new MediaSource();objectUrl=URL.createObjectURL(ms);video.src=objectUrl;video.muted=false;
+ await new Promise(function(resolve,reject){function ready(){signal.removeEventListener('abort',stop);resolve();}function stop(){ms.removeEventListener('sourceopen',ready);reject(Error('canceled'));}ms.addEventListener('sourceopen',ready,{once:true});signal.addEventListener('abort',stop,{once:true});});if(myEpoch!==epoch)return;
+ var sb=ms.addSourceBuffer(mime);var response=await fetch('/experiment/stream?id='+token,{signal:signal});if(!response.ok)throw Error('stream HTTP '+response.status);
  var reader=response.body.getReader(),started=false;
  while(myEpoch===epoch){var item=await reader.read();if(item.done)break;if(!metrics.firstBytes)metrics.firstBytes=performance.now()-metrics.started;
-  await new Promise(function(resolve,reject){function done(){sb.removeEventListener('error',error);resolve();}function error(){sb.removeEventListener('updateend',done);reject(Error('MSE append failed'));}sb.addEventListener('updateend',done,{once:true});sb.addEventListener('error',error,{once:true});try{sb.appendBuffer(item.value);}catch(e){sb.removeEventListener('updateend',done);sb.removeEventListener('error',error);reject(e);}});
+  await new Promise(function(resolve,reject){function clean(){sb.removeEventListener('updateend',done);sb.removeEventListener('error',error);signal.removeEventListener('abort',stop);}function done(){clean();resolve();}function error(){clean();reject(Error('MSE append failed'));}function stop(){clean();reject(Error('canceled'));}sb.addEventListener('updateend',done,{once:true});sb.addEventListener('error',error,{once:true});signal.addEventListener('abort',stop,{once:true});try{sb.appendBuffer(item.value);}catch(e){clean();reject(e);}});
   if(!started){started=true;metrics.playRequested=performance.now()-metrics.started;video.play().catch(function(){});}
  }if(myEpoch===epoch&&ms.readyState==='open'){ms.endOfStream();note('stream-complete');}}
 async function start(){cancel();var mine=epoch;metrics={started:performance.now()};events=[];status={};text('准备片源…');
