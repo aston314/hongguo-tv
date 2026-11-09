@@ -74,7 +74,7 @@ def main():
         for mode, codec in (("auto", []), ("explicit-bvc2", ["-c:v", "bvc2"])):
             for offset in (0, 15):
                 logname = f"{name}-{mode}-seek{offset}"
-                command = [remote + "/ffmpeg", "-hide_banner", "-nostdin",
+                command = ["timeout", "90", remote + "/ffmpeg", "-hide_banner", "-nostdin",
                            "-loglevel", "info", "-xerror", "-benchmark",
                            "-threads", "0", *codec]
                 if offset:
@@ -88,7 +88,8 @@ def main():
                     elapsed = time.monotonic() - start
                     metrics = dict(re.findall(r"(?m)^(frame|out_time_us|speed)=(.*)$", result.stdout))
                     frames = int(metrics.get("frame", "0"))
-                    media_seconds = int(metrics.get("out_time_us", "0")) / 1e6
+                    timestamp = metrics.get("out_time_us", "0")
+                    media_seconds = int(timestamp) / 1e6 if re.fullmatch(r"-?\d+", timestamp) else 0
                     rss = re.search(r"maxrss=(\d+)KiB", result.stderr)
                     run = {
                         "mode": mode, "seek_seconds": offset,
@@ -112,16 +113,20 @@ def main():
             # Save a visible frame and per-frame hashes. Successful time
             # progress alone is not sufficient evidence of a real picture.
             prefix = remote + "/" + name + "-" + mode
-            base = [remote + "/ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+            base = ["timeout", "90", remote + "/ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
                     "-xerror", "-y", *codec, "-i", sample, "-map", "0:v:0", "-an"]
             for extension, options in (
                 ("ppm", ["-frames:v", "1", "-c:v", "ppm", "-update", "1"]),
                 ("framemd5", ["-frames:v", "30", "-f", "framemd5"]),
             ):
+                start = time.monotonic()
                 result = shell(*base, *options, prefix + "." + extension)
                 if not result.returncode:
                     require(adb("pull", prefix + "." + extension,
                                 str(args.out / f"{name}-{mode}.{extension}")))
+                    if extension == "ppm":
+                        entry[mode + "_first_image_wall_seconds"] = round(time.monotonic() - start, 3)
+                        (args.out / "report.json").write_text(json.dumps(report, indent=2))
     print("Report:", args.out / "report.json")
 
 
