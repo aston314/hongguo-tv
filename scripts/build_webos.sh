@@ -71,8 +71,8 @@ NODE
 mkdir -p "$app_stage/webOSTVjs-1.2.13"
 cp "$repo_dir/webos/app/webOSTVjs-1.2.13/webOSTV.js" "$app_stage/webOSTVjs-1.2.13/webOSTV.js"
 cp "$repo_dir/webos/app/webOSTVjs-1.2.13/LICENSE-2.0.txt" "$app_stage/webOSTVjs-1.2.13/LICENSE-2.0.txt"
-cp "$repo_dir/desktop/resources/appicon.png" "$app_stage/icon.png"
-cp "$repo_dir/desktop/resources/appicon.png" "$app_stage/largeIcon.png"
+cp "$repo_dir/webos/resources/icon.png" "$app_stage/icon.png"
+cp "$repo_dir/webos/resources/largeIcon.png" "$app_stage/largeIcon.png"
 cp -R "$repo_dir/webos/service/." "$service_stage/"
 # Test vectors and local test harnesses stay in the source tree and are
 # exercised by CI; do not ship them in the TV service package.
