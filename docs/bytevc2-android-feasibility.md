@@ -106,3 +106,20 @@ Android arm64 的原生解码和独立 MPV 集成已证明可行，720P 的基�
 1080P 性能仍是正式接入阻碍，旧盒子/ARMv7 未验证。现有兼容源仍应优先，
 ByteVC2 将来只能作为额外能力评估，不能全局放开过滤或强制改选。
 桌面版尚未接入或测试，不能因为参考项目桌面实现存在就宣布我们的桌面版已支持。
+
+### 与参考仓库的差异，以及 1080P 根因边界
+
+已通过 GitHub 原始文件核对参考提交 `36316dcbe35aa05cfa0176036e56edba17188567`：
+BVC2 补丁与本实验逐字一致，SHA256 均为
+`fb0754afbd858cecbaacc5c0e2e9bf3a0ca47c9db74c0a8f37aa62f31bc48c18`，
+FFmpeg 基线也同为 `f6e945886e17c2cf882143bd98222b1bd66ffe28`。
+
+不过参考的 `src/server/native/bytevc2-transcode.js` 使用外部 FFmpeg 将 ByteVC2
+解码后经 `libx264 -preset ultrafast -crf 25` 转成 H.264，支持整文件及 fragmented MP4
+边转边播，再交给浏览器。Android 实验使用 libmpv 直接实时解码并通过 GPU/SurfaceView
+显示、与 AudioTrack 同步。因此核心解码补丁相同，端到端播放实现不同。
+
+目前没有分项 CPU/解码、GPU/呈现、音频同步耗时证据，不能单凭渲染掉帧与 `avsync`
+就把问题归因于硬件算力不足或算法错误，也没有证据证明漏用参考补丁。
+原样转码仍需同一 ByteVC2 软件解码并增加 H.264 编码；提前整集转换可改变等待发生的
+时机，但边转边播在盒子上未必达到实时。后续若继续，应做同文件、同设备的分项对照。
