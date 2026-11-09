@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ByteVC2 转码实验</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#10151f;color:#e9edf6;font:16px Arial,sans-serif;padding:18px}h1{font-size:23px;margin:0 0 8px}.note{color:#9eacc2;margin-bottom:12px}label{display:inline-block;margin:4px 10px 8px 0}input,select,button{font:inherit;color:inherit;background:#26334b;border:1px solid #59718d;border-radius:6px;padding:8px}input{width:210px}button{margin:4px 5px 4px 0}button:focus,input:focus,select:focus{outline:3px solid #60dcb0}.workspace{display:flex;gap:16px;margin-top:10px}.hero-media{width:66vw;height:56vh;background:#000;position:relative;flex-shrink:0}video{width:100%;height:100%;object-fit:contain}pre{font:13px/1.4 monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:56vh;overflow:auto;width:29vw}#state{color:#60dcb0;margin:8px 0;min-height:22px}.native-playback video{visibility:hidden}.native-playback .hero-media{background:transparent}
+</style></head><body>
+<h1>ByteVC2 → H.264 独立实验</h1><div class="note">仅测试包 · 不修改正式版。整文件与边转边播均先下载完整源；可取消、拖动及重复切换。</div>
+<label>片源 <select id="source"><option value="live">实时接口</option><option value="sample">固定同源样本（ADB 导入）</option></select></label>
+<label>剧 ID <input id="series" value="7702841940475120702"></label><label>集 VID <input id="vid" value="7702841953875938328"></label><br>
+<label>清晰度 <select id="quality"><option>720P</option><option>1080P</option></select></label>
+<label>构建 <select id="variant"><option value="reference">参考配置</option><option value="optimized">ARM 优化配置</option></select></label>
+<label>模式 <select id="mode"><option value="full">整文件转码</option><option value="stream">边转边播（MSE）</option></select></label>
+<label>播放 <select id="player"><option value="html5">HTML5</option><option value="media3">Media3（仅整文件）</option></select></label>
+<div><button id="start">开始 / 切换</button><button id="cancel">取消并停止</button><button id="pause">暂停 / 继续</button><button id="seek">跳到 20 秒</button><button id="again">重播当前结果</button></div>
+<div id="state">就绪</div><div class="workspace"><div class="hero-media"><video id="hero-video" controls playsinline></video></div><pre id="diagnostic"></pre></div>
+<script>
+(function(){'use strict';
+var video=document.getElementById('hero-video'), bridge=window.HongguoNativePlayer;
+var job='',epoch=0,poll=null,abort=null,objectUrl='',native=false,loadId='',status={},metrics={},events=[];
+function el(id){return document.getElementById(id);}function text(s){el('state').textContent=s;}
+function note(name,data){events.push({ms:Math.round(performance.now()-metrics.started),event:name,data:data||null});if(events.length>80)events.shift();}
+function json(url,options){return fetch(url,options).then(function(r){if(!r.ok)throw Error('HTTP '+r.status);return r.status===204?{}:r.json();});}
+function cancel(){epoch++;if(poll)clearInterval(poll);poll=null;if(abort)abort.abort();abort=null;
+ video.pause();video.removeAttribute('src');video.load();if(bridge)bridge.stop();document.documentElement.classList.remove('native-playback');native=false;
+ if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl='';}if(job){fetch('/experiment/cancel?id='+job,{method:'POST'}).catch(function(){});}job='';text('已停止');}
+function snapshot(){var q=video.getVideoPlaybackQuality?video.getVideoPlaybackQuality():{};
+ var d={status:status,metrics:metrics,video:{time:video.currentTime,duration:isFinite(video.duration)?video.duration:null,width:video.videoWidth,height:video.videoHeight,paused:video.paused,ready:video.readyState,total:q.totalVideoFrames,dropped:q.droppedVideoFrames},events:events};
+ if(native&&bridge){try{d.native=JSON.parse(bridge.diagnostics());}catch(e){}}return d;}
+function bounds(){if(!bridge)return;var r=video.getBoundingClientRect();bridge.bounds(r.left/innerWidth,r.top/innerHeight,r.width/innerWidth,r.height/innerHeight);}
+function playFull(){var url=location.origin+'/minireel-proxy/media/'+job+'.mp4';native=el('player').value==='media3';metrics.playRequested=performance.now()-metrics.started;
+ if(native){if(!bridge)throw Error('Media3 bridge unavailable');document.documentElement.classList.add('native-playback');bounds();loadId='transcode-'+Date.now();bridge.setVolume(1,false);bridge.play(loadId,JSON.stringify({source:url,paused:false,diagnostic_id:loadId}));}
+ else{video.src=url;video.muted=false;video.play().catch(function(e){text('请按播放：'+e.name);});}}
+async function playStream(token,myEpoch){if(el('player').value!=='html5')throw Error('边转边播仅验证 HTML5 MSE');
+ var mime='video/mp4; codecs="avc1.42c028, mp4a.40.2"';if(!window.MediaSource||!MediaSource.isTypeSupported(mime))throw Error('MSE AVC/AAC 不受支持');
+ var ms=new MediaSource();objectUrl=URL.createObjectURL(ms);video.src=objectUrl;video.muted=false;
+ await new Promise(function(resolve){ms.addEventListener('sourceopen',resolve,{once:true});});if(myEpoch!==epoch)return;
+ var sb=ms.addSourceBuffer(mime);abort=new AbortController();var response=await fetch('/experiment/stream?id='+token,{signal:abort.signal});if(!response.ok)throw Error('stream HTTP '+response.status);
+ var reader=response.body.getReader(),started=false;
+ while(myEpoch===epoch){var item=await reader.read();if(item.done)break;if(!metrics.firstBytes)metrics.firstBytes=performance.now()-metrics.started;
+  await new Promise(function(resolve,reject){function done(){sb.removeEventListener('error',error);resolve();}function error(){sb.removeEventListener('updateend',done);reject(Error('MSE append failed'));}sb.addEventListener('updateend',done,{once:true});sb.addEventListener('error',error,{once:true});try{sb.appendBuffer(item.value);}catch(e){sb.removeEventListener('updateend',done);sb.removeEventListener('error',error);reject(e);}});
+  if(!started){started=true;metrics.playRequested=performance.now()-metrics.started;video.play().catch(function(){});}
+ }if(myEpoch===epoch&&ms.readyState==='open'){ms.endOfStream();note('stream-complete');}}
+async function start(){cancel();var mine=epoch;metrics={started:performance.now()};events=[];status={};text('准备片源…');
+ try{var result=await json('/experiment/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({series_id:el('series').value,vid:el('vid').value,quality:el('quality').value,variant:el('variant').value,mode:el('mode').value,sample:el('source').value==='sample'})});
+  if(mine!==epoch){fetch('/experiment/cancel?id='+result.id,{method:'POST'});return;}job=result.id;var launched=false;
+  poll=setInterval(async function(){try{var s=await json('/experiment/status?id='+job);if(mine!==epoch)return;status=s;text(s.phase+' · '+s.width+'×'+s.height+' · '+Math.round(s.convert_ms/1000)+' 秒');
+   if(s.phase==='failed'||s.phase==='canceled'){text(s.phase+' '+s.error);clearInterval(poll);}
+   if(!launched&&((s.mode==='full'&&s.phase==='complete')||(s.mode==='stream'&&s.phase==='prepared'))){launched=true;if(s.mode==='full')playFull();else playStream(job,mine).catch(function(e){if(mine===epoch){note('stream-error',e.message);text(e.message);}});}
+  }catch(e){if(mine===epoch)text(e.message);}},250);
+ }catch(e){text(e.message);}}
+['loadedmetadata','playing','waiting','stalled','seeked','pause','ended','error'].forEach(function(name){video.addEventListener(name,function(){note(name,name==='error'&&video.error?video.error.code:null);if(name==='playing'&&!metrics.firstPlaying)metrics.firstPlaying=performance.now()-metrics.started;});});
+if(video.requestVideoFrameCallback){var frame=function(){if(!metrics.firstFrame)metrics.firstFrame=performance.now()-metrics.started;video.requestVideoFrameCallback(frame);};video.requestVideoFrameCallback(frame);}
+window.HongguoNativePlayback={event:function(id,name,detail){if(id!==loadId)return;note('native-'+name,detail);if(name==='frame'&&!metrics.firstFrame)metrics.firstFrame=performance.now()-metrics.started;},progress:function(id,pos,duration){if(id===loadId)metrics.nativeProgress={time:pos/1000,duration:duration/1000};}};
+el('start').onclick=start;el('cancel').onclick=cancel;el('pause').onclick=function(){if(native){if(metrics.nativePaused)bridge.resume();else bridge.pause();metrics.nativePaused=!metrics.nativePaused;}else if(video.paused)video.play();else video.pause();};el('seek').onclick=function(){if(native)bridge.seekTo(20);else video.currentTime=20;};el('again').onclick=function(){if(status.phase==='complete'&&status.mode==='full')playFull();};
+setInterval(function(){el('diagnostic').textContent=JSON.stringify(snapshot(),null,2);},500);
+window.BVC2Test={start:start,cancel:cancel,snapshot:snapshot};
+window.HongguoTV={canShowAppUpdate:function(){return false;},pauseForBackground:cancel,resumeFromBackground:function(){},remoteKey:function(){return false;}};
+window.addEventListener('pagehide',cancel);window.addEventListener('resize',bounds);
+if(window.HongguoTVInput){HongguoTVInput.setPlaybackPageActive(true);HongguoTVInput.setPlaybackActive(true);}
+})();
+</script></body></html>

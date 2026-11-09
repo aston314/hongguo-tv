@@ -57,3 +57,84 @@ jobs:
           path: ${{ runner.temp }}/bytevc2-transcode-${{ matrix.variant }}/
           retention-days: 3
           if-no-files-found: error
+
+  preview-apk:
+    needs: native
+    if: github.ref == 'refs/heads/codex/bytevc2-transcode-validation'
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bytevc2-transcode-arm64-reference-${{ github.sha }}
+          path: ${{ runner.temp }}/bytevc2-transcode-reference
+      - uses: actions/download-artifact@v4
+        with:
+          name: bytevc2-transcode-arm64-optimized-${{ github.sha }}
+          path: ${{ runner.temp }}/bytevc2-transcode-optimized
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: go.mod
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Install pinned Android SDK
+        run: sdkmanager 'platforms;android-36' 'build-tools;35.0.0' 'ndk;27.2.12479018'
+      - name: Stage the isolated test application
+        run: |
+          python3 scripts/bytevc2-transcode/prepare_preview.py
+          gofmt -w core/cmd/hongguotv/bytevc2_experiment_linux.go
+          go test ./core/cmd/hongguotv -run 'TestMiniReel(Registered|VideoTab|Identity|Single|SourceMemory)'
+          python3 - <<'PY'
+          from pathlib import Path
+          page=Path('scripts/bytevc2-transcode/preview.html').read_text()
+          Path('/tmp/bytevc2-preview.js').write_text(page.split('<script>')[1].split('</script>')[0])
+          PY
+          node --check /tmp/bytevc2-preview.js
+      - name: Build isolated standard APK with both transcoders
+        env:
+          VERSION: bytevc2-transcode-${{ github.sha }}
+          HONGGUO_CORE_VERSION: bytevc2-transcode-${{ github.sha }}
+        run: |
+          bash scripts/build_android_binaries.sh
+          python3 scripts/bytevc2-transcode/prepare_preview.py --native-only
+          gradle --no-daemon --max-workers=1 -p android testStandardDebugUnitTest assembleStandardDebug lintStandardDebug
+          python3 scripts/bytevc2-transcode/verify_preview.py \
+            android/app/build/outputs/apk/standard/debug/app-standard-debug.apk \
+            --build-tools "$ANDROID_HOME/build-tools/35.0.0"
+      - name: Store test APK and complete sources in an unpublished draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          bundle="$RUNNER_TEMP/bytevc2-transcode-preview"
+          mkdir -p "$bundle"
+          cp android/app/build/outputs/apk/standard/debug/app-standard-debug.apk "$bundle/hongguo-tv-bytevc2-transcode-test.apk"
+          git archive --format=zip --output="$bundle/app-source-$GITHUB_SHA.zip" HEAD
+          tar -czf "$bundle/reference-native-source.tar.gz" -C "$RUNNER_TEMP/bytevc2-transcode-reference" source BUILD.txt
+          tar -czf "$bundle/optimized-native-source.tar.gz" -C "$RUNNER_TEMP/bytevc2-transcode-optimized" source BUILD.txt
+          git diff > "$bundle/EXPERIMENT-GENERATED.patch"
+          git rev-parse HEAD > "$bundle/COMMIT.txt"
+          (cd "$bundle" && sha256sum *.apk *.zip *.tar.gz EXPERIMENT-GENERATED.patch > SHA256SUMS.txt)
+          cat > "$RUNNER_TEMP/bytevc2-transcode-notes.md" <<'NOTES'
+          Unpublished arm64 Android ByteVC2 to H.264 experiment. Independent test package/data.
+          Whole-file HTML5/Media3 playback and fragmented-MP4 MSE streaming.
+          Both modes download/decrypt the full original before conversion, as the reference does.
+          Includes reference configuration and separate ARM-optimized build for comparison.
+          Not a stable release; no stable updater. Corresponding GPL source and generated patches included.
+          Contains no media, signed URLs, keys or account data.
+          NOTES
+          gh release create "bytevc2-transcode-${GITHUB_SHA:0:12}" "$bundle/"* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --latest=false \
+            --title "Temporary Android ByteVC2 transcoding experiment" \
+            --notes-file "$RUNNER_TEMP/bytevc2-transcode-notes.md"

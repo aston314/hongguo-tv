@@ -1,0 +1,137 @@
+// This Linux/Android-only experiment is copied into a disposable CI checkout.
+package main
+
+import (
+ "context"
+ "crypto/rand"
+ "encoding/hex"
+ "encoding/json"
+ "fmt"
+ "io"
+ "net/http"
+ "os"
+ "os/exec"
+ "path/filepath"
+ "runtime"
+ "strconv"
+ "strings"
+ "sync"
+ "syscall"
+ "time"
+)
+
+const bytevc2Limit = 128 * 1024 * 1024
+type bytevc2Probe struct {
+ mu sync.Mutex
+ ID, Mode, Variant, Phase, Error string
+ Width, Height int
+ ResolveMS, ConvertMS, Bytes, RSSKiB int64
+ Progress map[string]string
+ Path, Directory string
+ cancel context.CancelFunc
+ done chan struct{}
+ consume chan struct{}
+ reader *io.PipeReader
+ writer *io.PipeWriter
+ claimed bool
+}
+var bytevc2Experiment struct { sync.Mutex; start sync.Mutex; active *bytevc2Probe }
+
+func registerBytevc2Experiment(mux *http.ServeMux) {
+ mux.HandleFunc("/experiment/start", startBytevc2Experiment)
+ mux.HandleFunc("/experiment/status", func(w http.ResponseWriter, r *http.Request) {
+  j := currentBytevc2Probe(r.URL.Query().Get("id")); if j == nil { http.NotFound(w,r); return }
+  j.mu.Lock(); defer j.mu.Unlock()
+  writeJSON(w,200,map[string]any{"id":j.ID,"mode":j.Mode,"variant":j.Variant,"phase":j.Phase,"error":j.Error,"width":j.Width,"height":j.Height,"resolve_ms":j.ResolveMS,"convert_ms":j.ConvertMS,"bytes":j.Bytes,"maxrss_kib":j.RSSKiB,"progress":j.Progress})
+ })
+ mux.HandleFunc("/experiment/cancel", func(w http.ResponseWriter,r *http.Request) {
+  if r.Method != "POST" { w.WriteHeader(405); return }; j:=currentBytevc2Probe(r.URL.Query().Get("id")); if j != nil { j.cancel(); j.reader.Close() }; w.WriteHeader(204)
+ })
+ mux.HandleFunc("/experiment/stream", func(w http.ResponseWriter,r *http.Request) {
+  j:=currentBytevc2Probe(r.URL.Query().Get("id")); if j==nil { http.NotFound(w,r);return }
+  j.mu.Lock(); if j.Mode!="stream" || j.claimed { j.mu.Unlock();w.WriteHeader(409);return }; j.claimed=true;j.mu.Unlock()
+  defer j.cancel();defer j.reader.Close()
+  close(j.consume)
+  w.Header().Set("Content-Type","video/mp4");w.Header().Set("Cache-Control","no-store")
+  // Flush each bounded read so the browser consumes fragments while FFmpeg runs.
+  buf:=make([]byte,32768)
+  for { n,err:=j.reader.Read(buf); if n>0 { if _,e:=w.Write(buf[:n]);e!=nil{return};if f,ok:=w.(http.Flusher);ok{f.Flush()} };if err!=nil{return};select { case <-r.Context().Done():return;default: } }
+ })
+}
+func currentBytevc2Probe(id string)*bytevc2Probe { bytevc2Experiment.Lock();defer bytevc2Experiment.Unlock();j:=bytevc2Experiment.active;if j==nil||j.ID!=id{return nil};return j }
+func startBytevc2Experiment(w http.ResponseWriter,r *http.Request) {
+ if r.Method!="POST" { w.WriteHeader(405);return }
+ var a struct { SeriesID string `json:"series_id"`; VID string `json:"vid"`; Quality string `json:"quality"`; Mode string `json:"mode"`; Variant string `json:"variant"`; Sample bool `json:"sample"` }
+ if json.NewDecoder(io.LimitReader(r.Body,2048)).Decode(&a)!=nil || (!a.Sample&&(!miniReelIDRE.MatchString(a.SeriesID)||!miniReelIDRE.MatchString(a.VID)))||(a.Quality!="720P"&&a.Quality!="1080P")||(a.Mode!="full"&&a.Mode!="stream")||(a.Variant!="reference"&&a.Variant!="optimized") { w.WriteHeader(400);return }
+ bytevc2Experiment.start.Lock();defer bytevc2Experiment.start.Unlock()
+ bytevc2Experiment.Lock();old:=bytevc2Experiment.active;bytevc2Experiment.Unlock()
+ if old!=nil { old.cancel();old.reader.Close();select {case <-old.done:case <-time.After(5*time.Second):w.WriteHeader(409);return};old.mu.Lock();directory:=old.Directory;old.Path="";old.mu.Unlock();if directory!=""{os.RemoveAll(directory)} }
+ var token [12]byte;if _,err:=rand.Read(token[:]);err!=nil {w.WriteHeader(500);return}
+ ctx,cancel:=context.WithTimeout(context.Background(),5*time.Minute)
+ j:=&bytevc2Probe{ID:hex.EncodeToString(token[:]),Mode:a.Mode,Variant:a.Variant,Phase:"resolving",cancel:cancel,done:make(chan struct{}),consume:make(chan struct{})};j.reader,j.writer=io.Pipe()
+ bytevc2Experiment.Lock();bytevc2Experiment.active=j;bytevc2Experiment.Unlock()
+ go runBytevc2Experiment(ctx,j,a.SeriesID,a.VID,a.Quality,a.Sample)
+ writeJSON(w,202,map[string]any{"id":j.ID})
+}
+func runBytevc2Experiment(ctx context.Context,j *bytevc2Probe,seriesID,vid,quality string,sample bool) {
+ // Pdeathsig belongs to the OS thread that starts FFmpeg; retain it until Wait.
+ runtime.LockOSThread();defer runtime.UnlockOSThread()
+ defer close(j.done)
+ pipeDone:=make(chan struct{});defer close(pipeDone)
+ go func(){select{case <-ctx.Done():j.reader.CloseWithError(ctx.Err());case <-pipeDone:}}()
+ success:=false
+ defer func(){j.writer.Close();if !success {j.mu.Lock();directory:=j.Directory;j.Path="";j.mu.Unlock();if directory!=""{os.RemoveAll(directory)}}}()
+ fail:=func(code string){j.mu.Lock();j.Phase="failed";j.Error=code;if ctx.Err()!=nil{j.Phase="canceled";j.Error=""};j.mu.Unlock()}
+ started:=time.Now();source:=&miniReelMediaJob{CodecMode:"bytevc2"}
+ if sample {
+  source.Err=ensureMiniReelRoot()
+  if source.Err==nil {
+   miniReelState.Lock();directory:=filepath.Join(miniReelState.root,j.ID);miniReelState.Unlock()
+   j.mu.Lock();j.Directory=directory;j.mu.Unlock()
+   source.Err=os.MkdirAll(directory,0700)
+   if source.Err==nil {
+    input,err:=os.Open(filepath.Join(filepath.Dir(os.Getenv("MINIREEL_CACHE_DIR")),"bvc2-samples",quality+".mp4"));source.Err=err
+    if err==nil { defer input.Close();source.Path=filepath.Join(directory,"input.mp4");output,e:=os.Create(source.Path);source.Err=e;if e==nil{_,source.Err=io.Copy(output,io.LimitReader(input,bytevc2Limit+1));output.Close();if stat,e:=os.Stat(source.Path);e==nil&&stat.Size()>bytevc2Limit{source.Err=fmt.Errorf("sample too large")}} }
+   }
+   source.VideoWidth=1280;source.VideoHeight=720;if quality=="1080P"{source.VideoWidth=1920;source.VideoHeight=1080}
+  }
+ }else{prepareMiniReelMedia(ctx,source,j.ID,seriesID,vid,quality,false)}
+ if source.Err!=nil {fail("SOURCE_PREPARATION_FAILED");return}
+ j.mu.Lock();j.Directory=filepath.Dir(source.Path);j.ResolveMS=time.Since(started).Milliseconds();j.Width=source.VideoWidth;j.Height=source.VideoHeight;j.Phase="prepared";j.mu.Unlock()
+ if j.Mode=="stream" {select{case <-j.consume:case <-ctx.Done():fail("CANCELED");return}}
+ if ctx.Err()!=nil {fail("CANCELED");return}
+ executable:=os.Getenv("BVC2_"+strings.ToUpper(j.Variant));output:=filepath.Join(filepath.Dir(source.Path),"output.mp4")
+ progress:=filepath.Join(filepath.Dir(source.Path),"progress.txt")
+ args:=[]string{"-hide_banner","-loglevel","error","-nostdin","-i",source.Path,"-map","0:v:0","-map","0:a:0?","-c:v","libx264","-preset","ultrafast","-crf","25","-pix_fmt","yuv420p"}
+ if j.Mode=="stream"{args=append(args,"-g","30")};args=append(args,"-c:a","aac","-nostats","-progress",progress)
+ if j.Mode=="full"{args=append(args,"-movflags","+faststart","-y",output)}else{args=append(args,"-movflags","frag_keyframe+empty_moov+default_base_moof","-f","mp4","pipe:1")}
+ cmd:=exec.CommandContext(ctx,executable,args...);cmd.SysProcAttr=&syscall.SysProcAttr{Pdeathsig:syscall.SIGKILL};cmd.WaitDelay=2*time.Second
+ cmd.Stderr=io.Discard // Never expose raw FFmpeg errors, source paths, URLs or keys.
+ if j.Mode=="stream"{cmd.Stdout=&bytevc2LimitedWriter{job:j,destination:j.writer}}
+ converted:=time.Now();j.mu.Lock();j.Phase="transcoding";j.mu.Unlock()
+ if err:=cmd.Start();err!=nil {fail("TRANSCODER_START_FAILED");return}
+ monitorDone:=make(chan struct{});go monitorBytevc2Experiment(ctx,j,cmd.Process.Pid,output,progress,converted,monitorDone)
+ err:=cmd.Wait();close(monitorDone)
+ j.mu.Lock();j.ConvertMS=time.Since(converted).Milliseconds();j.mu.Unlock()
+ if err!=nil {fail("TRANSCODE_FAILED");return}
+ if j.Mode=="full"{stat,err:=os.Stat(output);if err!=nil||stat.Size()==0||stat.Size()>=bytevc2Limit{fail("OUTPUT_SIZE_INVALID");return};j.mu.Lock();j.Path=output;j.Bytes=stat.Size();j.mu.Unlock()}
+ j.mu.Lock();if j.Bytes==0 {j.mu.Unlock();fail("EMPTY_OUTPUT");return};j.Phase="complete";j.mu.Unlock();success=true
+ // Keep full output for repeat playback/seek until explicit cancellation/new job.
+ if j.Mode=="stream"{j.mu.Lock();directory:=j.Directory;j.mu.Unlock();os.RemoveAll(directory)}
+}
+type bytevc2LimitedWriter struct { job *bytevc2Probe; destination io.Writer }
+func(w *bytevc2LimitedWriter)Write(p []byte)(int,error){w.job.mu.Lock();size:=w.job.Bytes;w.job.mu.Unlock();if size+int64(len(p))>bytevc2Limit{return 0,fmt.Errorf("output size limit")};n,err:=w.destination.Write(p);w.job.mu.Lock();w.job.Bytes+=int64(n);w.job.mu.Unlock();return n,err}
+func monitorBytevc2Experiment(ctx context.Context,j *bytevc2Probe,pid int,output,progress string,started time.Time,done <-chan struct{}){
+ tick:=time.NewTicker(200*time.Millisecond);defer tick.Stop()
+ for{select{case <-done:return;case <-ctx.Done():return;case <-tick.C:}
+  j.mu.Lock();j.ConvertMS=time.Since(started).Milliseconds()
+  if data,err:=os.ReadFile(fmt.Sprintf("/proc/%d/status",pid));err==nil{for _,line:=range strings.Split(string(data),"\n"){if strings.HasPrefix(line,"VmHWM:"){fields:=strings.Fields(line);if len(fields)>1{v,_:=strconv.ParseInt(fields[1],10,64);if v>j.RSSKiB{j.RSSKiB=v}}}}}
+  if data,err:=os.ReadFile(progress);err==nil && len(data)<1<<20{values:=map[string]string{};for _,line:=range strings.Split(string(data),"\n"){p:=strings.SplitN(line,"=",2);if len(p)==2&&(p[0]=="frame"||p[0]=="out_time_us"||p[0]=="speed"){values[p[0]]=p[1]}};j.Progress=values}
+  if j.Mode=="full"{if stat,err:=os.Stat(output);err==nil{j.Bytes=stat.Size();if j.Bytes>=bytevc2Limit{j.cancel()}}};j.mu.Unlock()
+ }
+}
+func handleBytevc2ExperimentMedia(w http.ResponseWriter,r *http.Request){
+ id:=strings.TrimSuffix(strings.TrimPrefix(r.URL.Path,"/minireel-proxy/media/"),".mp4");j:=currentBytevc2Probe(id)
+ if j==nil{handleMiniReelMedia(w,r);return};j.mu.Lock();path:=j.Path;complete:=j.Phase=="complete";j.mu.Unlock()
+ if !complete||path==""{w.WriteHeader(409);return};w.Header().Set("Content-Type","video/mp4");w.Header().Set("Cache-Control","no-store");http.ServeFile(w,r,path)
+}
