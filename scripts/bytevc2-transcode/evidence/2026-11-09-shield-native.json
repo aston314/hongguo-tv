@@ -1,0 +1,324 @@
+{
+  "date": "2026-11-09",
+  "branch": "codex/bytevc2-transcode-validation",
+  "native_build": "https://github.com/aston314/hongguo-tv/actions/runs/42611298371",
+  "native_commit": "69d118f4b3aee3809168e5b1577fe3d789b3cd50",
+  "device": "Shield / darcy / Android 11 / arm64",
+  "scope": "complete reference whole-file conversion, source already downloaded/decrypted; no player running",
+  "whole_file": [
+    {
+      "variant": "reference",
+      "quality": "720P",
+      "exit_code": 0,
+      "wall_seconds": 26.439,
+      "metrics": {
+        "frame": "1485",
+        "out_time_us": "61875000",
+        "speed": "2.36x"
+      },
+      "maxrss_kib": 220576,
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 720,
+            "avg_frame_rate": "24/1",
+            "duration": "61.875000",
+            "nb_read_packets": "1485"
+          },
+          {
+            "codec_name": "aac",
+            "avg_frame_rate": "0/0",
+            "duration": "61.928005",
+            "nb_read_packets": "2669"
+          }
+        ],
+        "format": {
+          "duration": "61.928005",
+          "size": "23699517"
+        }
+      }
+    },
+    {
+      "variant": "reference",
+      "quality": "1080P",
+      "exit_code": 0,
+      "wall_seconds": 56.136,
+      "metrics": {
+        "frame": "1485",
+        "out_time_us": "61875000",
+        "speed": "1.11x"
+      },
+      "maxrss_kib": 422916,
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "avg_frame_rate": "24/1",
+            "duration": "61.875000",
+            "nb_read_packets": "1485"
+          },
+          {
+            "codec_name": "aac",
+            "avg_frame_rate": "0/0",
+            "duration": "61.928005",
+            "nb_read_packets": "2669"
+          }
+        ],
+        "format": {
+          "duration": "61.928005",
+          "size": "39516751"
+        }
+      }
+    },
+    {
+      "variant": "optimized",
+      "quality": "720P",
+      "exit_code": 0,
+      "wall_seconds": 20.151,
+      "metrics": {
+        "frame": "1485",
+        "out_time_us": "61875000",
+        "speed": "3.11x"
+      },
+      "maxrss_kib": 223056,
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1280,
+            "height": 720,
+            "avg_frame_rate": "24/1",
+            "duration": "61.875000",
+            "nb_read_packets": "1485"
+          },
+          {
+            "codec_name": "aac",
+            "avg_frame_rate": "0/0",
+            "duration": "61.928005",
+            "nb_read_packets": "2669"
+          }
+        ],
+        "format": {
+          "duration": "61.928005",
+          "size": "23701010"
+        }
+      }
+    },
+    {
+      "variant": "optimized",
+      "quality": "1080P",
+      "exit_code": 0,
+      "wall_seconds": 43.048,
+      "metrics": {
+        "frame": "1485",
+        "out_time_us": "61875000",
+        "speed": "1.45x"
+      },
+      "maxrss_kib": 427012,
+      "probe": {
+        "programs": [],
+        "stream_groups": [],
+        "streams": [
+          {
+            "codec_name": "h264",
+            "width": 1920,
+            "height": 1080,
+            "avg_frame_rate": "24/1",
+            "duration": "61.875000",
+            "nb_read_packets": "1485"
+          },
+          {
+            "codec_name": "aac",
+            "avg_frame_rate": "0/0",
+            "duration": "61.928005",
+            "nb_read_packets": "2669"
+          }
+        ],
+        "format": {
+          "duration": "61.928005",
+          "size": "39514642"
+        }
+      }
+    }
+  ],
+  "streaming_transport_only": [
+    {
+      "variant": "reference",
+      "quality": "720P",
+      "exit_code": 0,
+      "first_bytes_seconds": 0.413,
+      "first_mdat_complete_seconds": 1.154,
+      "wall_seconds": 26.304,
+      "bytes": 25971481,
+      "boxes": [
+        {
+          "type": "ftyp",
+          "bytes": 28,
+          "received_seconds": 0.413
+        },
+        {
+          "type": "moov",
+          "bytes": 1282,
+          "received_seconds": 0.413
+        },
+        {
+          "type": "moof",
+          "bytes": 860,
+          "received_seconds": 1.083
+        },
+        {
+          "type": "mdat",
+          "bytes": 563479,
+          "received_seconds": 1.154
+        },
+        {
+          "type": "moof",
+          "bytes": 732,
+          "received_seconds": 1.651
+        }
+      ],
+      "progress": {
+        "frame": "1485",
+        "out_time_us": "61875000",
+        "speed": "2.38x"
+      },
+      "box_count": 103
+    },
+    {
+      "variant": "reference",
+      "quality": "1080P",
+      "exit_code": 0,
+      "first_bytes_seconds": 0.664,
+      "first_mdat_complete_seconds": 2.128,
+      "wall_seconds": 56.307,
+      "bytes": 43462737,
+      "boxes": [
+        {
+          "type": "ftyp",
+          "bytes": 28,
+          "received_seconds": 0.664
+        },
+        {
+          "type": "moov",
+          "bytes": 1306,
+          "received_seconds": 0.669
+        },
+        {
+          "type": "moof",
+          "bytes": 860,
+          "received_seconds": 2.028
+        },
+        {
+          "type": "mdat",
+          "bytes": 899942,
+          "received_seconds": 2.128
+        },
+        {
+          "type": "moof",
+          "bytes": 732,
+          "received_seconds": 3.055
+        }
+      ],
+      "progress": {
+        "frame": "1485",
+        "out_time_us": "61875000",
+        "speed": "1.11x"
+      },
+      "box_count": 103
+    },
+    {
+      "variant": "optimized",
+      "quality": "720P",
+      "exit_code": 0,
+      "first_bytes_seconds": 0.376,
+      "first_mdat_complete_seconds": 0.893,
+      "wall_seconds": 20.411,
+      "bytes": 25972974,
+      "boxes": [
+        {
+          "type": "ftyp",
+          "bytes": 28,
+          "received_seconds": 0.376
+        },
+        {
+          "type": "moov",
+          "bytes": 1282,
+          "received_seconds": 0.382
+        },
+        {
+          "type": "moof",
+          "bytes": 860,
+          "received_seconds": 0.833
+        },
+        {
+          "type": "mdat",
+          "bytes": 563479,
+          "received_seconds": 0.893
+        },
+        {
+          "type": "moof",
+          "bytes": 732,
+          "received_seconds": 1.25
+        }
+      ],
+      "progress": {
+        "frame": "1485",
+        "out_time_us": "61875000",
+        "speed": "3.07x"
+      },
+      "box_count": 103
+    },
+    {
+      "variant": "optimized",
+      "quality": "1080P",
+      "exit_code": 0,
+      "first_bytes_seconds": 0.654,
+      "first_mdat_complete_seconds": 1.662,
+      "wall_seconds": 45.101,
+      "bytes": 43460628,
+      "boxes": [
+        {
+          "type": "ftyp",
+          "bytes": 28,
+          "received_seconds": 0.654
+        },
+        {
+          "type": "moov",
+          "bytes": 1306,
+          "received_seconds": 0.654
+        },
+        {
+          "type": "moof",
+          "bytes": 860,
+          "received_seconds": 1.572
+        },
+        {
+          "type": "mdat",
+          "bytes": 899942,
+          "received_seconds": 1.662
+        },
+        {
+          "type": "moof",
+          "bytes": 732,
+          "received_seconds": 2.542
+        }
+      ],
+      "progress": {
+        "frame": "1485",
+        "out_time_us": "61875000",
+        "speed": "1.38x"
+      },
+      "box_count": 103
+    }
+  ]
+}

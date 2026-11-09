@@ -1,0 +1,6309 @@
+{
+  "date": "2026-11-09",
+  "github_build": "https://github.com/aston314/hongguo-tv/actions/runs/42614915976",
+  "apk_commit": "2c92d75ec8914158fc5d62b94ebf3669c390566f",
+  "apk_sha256": "c60bfbcf9d34a2aa3c8931ab246cbe657b65897be605bb6ad477595a5742bb45",
+  "apk_bytes": 16104207,
+  "package": "rocks.aston.hongguotv.transcodetest.debug",
+  "same_source_1080_html5_after_media3": {
+    "status": {
+      "bytes": 39514642,
+      "convert_ms": 47786,
+      "error": "",
+      "height": 1080,
+      "maxrss_kib": 424172,
+      "mode": "full",
+      "phase": "complete",
+      "progress": {
+        "frame": "1475",
+        "out_time_us": "N/A",
+        "speed": "N/A"
+      },
+      "resolve_ms": 14,
+      "variant": "optimized",
+      "width": 1920
+    },
+    "metrics": {
+      "started": 44099.80000000002,
+      "nativePaused": false,
+      "playRequested": 83627.79999999999,
+      "firstPlaying": 84594.89999999997,
+      "firstFrame": 84662.39999999997
+    },
+    "video": {
+      "time": 61.949887,
+      "duration": 61.949887,
+      "width": 1920,
+      "height": 1080,
+      "paused": true,
+      "ready": 4,
+      "total": 1485,
+      "dropped": 0
+    },
+    "events": [
+      {
+        "ms": 48651,
+        "event": "native-buffering",
+        "data": {}
+      },
+      {
+        "ms": 48684,
+        "event": "native-buffering",
+        "data": {}
+      },
+      {
+        "ms": 50071,
+        "event": "native-frame",
+        "data": {
+          "width": 1920,
+          "height": 1080
+        }
+      },
+      {
+        "ms": 50250,
+        "event": "native-playing",
+        "data": {}
+      },
+      {
+        "ms": 50252,
+        "event": "native-playing",
+        "data": {}
+      },
+      {
+        "ms": 66439,
+        "event": "native-paused",
+        "data": {}
+      },
+      {
+        "ms": 68875,
+        "event": "native-playing",
+        "data": {}
+      },
+      {
+        "ms": 68875,
+        "event": "native-playing",
+        "data": {}
+      },
+      {
+        "ms": 70703,
+        "event": "native-buffering",
+        "data": {}
+      },
+      {
+        "ms": 71357,
+        "event": "native-frame",
+        "data": {
+          "width": 1920,
+          "height": 1080
+        }
+      },
+      {
+        "ms": 71365,
+        "event": "native-playing",
+        "data": {}
+      },
+      {
+        "ms": 71366,
+        "event": "native-playing",
+        "data": {}
+      },
+      {
+        "ms": 84117,
+        "event": "waiting",
+        "data": null
+      },
+      {
+        "ms": 84251,
+        "event": "loadedmetadata",
+        "data": null
+      },
+      {
+        "ms": 84595,
+        "event": "playing",
+        "data": null
+      },
+      {
+        "ms": 146653,
+        "event": "pause",
+        "data": null
+      },
+      {
+        "ms": 146653,
+        "event": "ended",
+        "data": null
+      }
+    ]
+  },
+  "controls": {
+    "nativeReplay": true,
+    "nativePlaying": {
+      "status": {
+        "bytes": 39514642,
+        "convert_ms": 47786,
+        "error": "",
+        "height": 1080,
+        "maxrss_kib": 424172,
+        "mode": "full",
+        "phase": "complete",
+        "progress": {
+          "frame": "1475",
+          "out_time_us": "N/A",
+          "speed": "N/A"
+        },
+        "resolve_ms": 14,
+        "variant": "optimized",
+        "width": 1920
+      },
+      "metrics": {
+        "started": 44099.80000000002,
+        "nativePaused": false,
+        "playRequested": 225332.39999999994,
+        "firstFrame": 225524.69999999998,
+        "nativeProgress": {
+          "time": 2.43,
+          "duration": 61.929
+        }
+      },
+      "video": {
+        "time": 61.949887,
+        "duration": 61.949887,
+        "width": 1920,
+        "height": 1080,
+        "paused": true,
+        "ready": 4,
+        "total": 1485,
+        "dropped": 0
+      },
+      "events": [
+        {
+          "ms": 48651,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 48684,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 50071,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 50250,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 50252,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 66439,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 70703,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 71357,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 71365,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 71366,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 84117,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 84251,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 84595,
+          "event": "playing",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "pause",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "ended",
+          "data": null
+        },
+        {
+          "ms": 225361,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225363,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225524,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 225557,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 225558,
+          "event": "native-playing",
+          "data": {}
+        }
+      ],
+      "native": {
+        "state": "playing",
+        "surface": "SurfaceView",
+        "mode": "standard",
+        "audio_output": "system",
+        "clock_ratio": 0,
+        "first_frame": true,
+        "width": 1920,
+        "height": 1080,
+        "view_width": 1220,
+        "view_height": 472,
+        "render_width": 839,
+        "render_height": 472,
+        "speed": 1,
+        "video_track": "video/avc [avc1.42C028] \u00b7 1920x1080 \u00b7 24fps \u00b7 BT709/Limited range/SDR SMPTE 170M/8/8",
+        "track_support": "FORMAT_HANDLED",
+        "track_selected": "\u662f",
+        "video_track_count": 1,
+        "video_decoder": "OMX.Nvidia.h264.decode",
+        "audio_decoder": "OMX.google.aac.decoder",
+        "video_mime": "video/avc",
+        "audio_mime": "audio/mp4a-latm",
+        "sample_rate": 44100,
+        "channels": 2
+      }
+    },
+    "pauseAction": true,
+    "pause1": {
+      "status": {
+        "bytes": 39514642,
+        "convert_ms": 47786,
+        "error": "",
+        "height": 1080,
+        "maxrss_kib": 424172,
+        "mode": "full",
+        "phase": "complete",
+        "progress": {
+          "frame": "1475",
+          "out_time_us": "N/A",
+          "speed": "N/A"
+        },
+        "resolve_ms": 14,
+        "variant": "optimized",
+        "width": 1920
+      },
+      "metrics": {
+        "started": 44099.80000000002,
+        "nativePaused": true,
+        "playRequested": 225332.39999999994,
+        "firstFrame": 225524.69999999998,
+        "nativeProgress": {
+          "time": 3.002,
+          "duration": 61.929
+        }
+      },
+      "video": {
+        "time": 61.949887,
+        "duration": 61.949887,
+        "width": 1920,
+        "height": 1080,
+        "paused": true,
+        "ready": 4,
+        "total": 1485,
+        "dropped": 0
+      },
+      "events": [
+        {
+          "ms": 48651,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 48684,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 50071,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 50250,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 50252,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 66439,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 70703,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 71357,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 71365,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 71366,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 84117,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 84251,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 84595,
+          "event": "playing",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "pause",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "ended",
+          "data": null
+        },
+        {
+          "ms": 225361,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225363,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225524,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 225557,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 225558,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 228620,
+          "event": "native-paused",
+          "data": {}
+        }
+      ],
+      "native": {
+        "state": "paused",
+        "surface": "SurfaceView",
+        "mode": "standard",
+        "audio_output": "system",
+        "clock_ratio": 0,
+        "first_frame": true,
+        "width": 1920,
+        "height": 1080,
+        "view_width": 1220,
+        "view_height": 472,
+        "render_width": 839,
+        "render_height": 472,
+        "speed": 1,
+        "video_track": "video/avc [avc1.42C028] \u00b7 1920x1080 \u00b7 24fps \u00b7 BT709/Limited range/SDR SMPTE 170M/8/8",
+        "track_support": "FORMAT_HANDLED",
+        "track_selected": "\u662f",
+        "video_track_count": 1,
+        "video_decoder": "OMX.Nvidia.h264.decode",
+        "audio_decoder": "OMX.google.aac.decoder",
+        "video_mime": "video/avc",
+        "audio_mime": "audio/mp4a-latm",
+        "sample_rate": 44100,
+        "channels": 2
+      }
+    },
+    "pause2": {
+      "status": {
+        "bytes": 39514642,
+        "convert_ms": 47786,
+        "error": "",
+        "height": 1080,
+        "maxrss_kib": 424172,
+        "mode": "full",
+        "phase": "complete",
+        "progress": {
+          "frame": "1475",
+          "out_time_us": "N/A",
+          "speed": "N/A"
+        },
+        "resolve_ms": 14,
+        "variant": "optimized",
+        "width": 1920
+      },
+      "metrics": {
+        "started": 44099.80000000002,
+        "nativePaused": true,
+        "playRequested": 225332.39999999994,
+        "firstFrame": 225524.69999999998,
+        "nativeProgress": {
+          "time": 3.002,
+          "duration": 61.929
+        }
+      },
+      "video": {
+        "time": 61.949887,
+        "duration": 61.949887,
+        "width": 1920,
+        "height": 1080,
+        "paused": true,
+        "ready": 4,
+        "total": 1485,
+        "dropped": 0
+      },
+      "events": [
+        {
+          "ms": 48651,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 48684,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 50071,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 50250,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 50252,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 66439,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 70703,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 71357,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 71365,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 71366,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 84117,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 84251,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 84595,
+          "event": "playing",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "pause",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "ended",
+          "data": null
+        },
+        {
+          "ms": 225361,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225363,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225524,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 225557,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 225558,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 228620,
+          "event": "native-paused",
+          "data": {}
+        }
+      ],
+      "native": {
+        "state": "paused",
+        "surface": "SurfaceView",
+        "mode": "standard",
+        "audio_output": "system",
+        "clock_ratio": 0,
+        "first_frame": true,
+        "width": 1920,
+        "height": 1080,
+        "view_width": 1220,
+        "view_height": 472,
+        "render_width": 839,
+        "render_height": 472,
+        "speed": 1,
+        "video_track": "video/avc [avc1.42C028] \u00b7 1920x1080 \u00b7 24fps \u00b7 BT709/Limited range/SDR SMPTE 170M/8/8",
+        "track_support": "FORMAT_HANDLED",
+        "track_selected": "\u662f",
+        "video_track_count": 1,
+        "video_decoder": "OMX.Nvidia.h264.decode",
+        "audio_decoder": "OMX.google.aac.decoder",
+        "video_mime": "video/avc",
+        "audio_mime": "audio/mp4a-latm",
+        "sample_rate": 44100,
+        "channels": 2
+      }
+    },
+    "resumeAction": true,
+    "resume": {
+      "status": {
+        "bytes": 39514642,
+        "convert_ms": 47786,
+        "error": "",
+        "height": 1080,
+        "maxrss_kib": 424172,
+        "mode": "full",
+        "phase": "complete",
+        "progress": {
+          "frame": "1475",
+          "out_time_us": "N/A",
+          "speed": "N/A"
+        },
+        "resolve_ms": 14,
+        "variant": "optimized",
+        "width": 1920
+      },
+      "metrics": {
+        "started": 44099.80000000002,
+        "nativePaused": false,
+        "playRequested": 225332.39999999994,
+        "firstFrame": 225524.69999999998,
+        "nativeProgress": {
+          "time": 4.295,
+          "duration": 61.929
+        }
+      },
+      "video": {
+        "time": 61.949887,
+        "duration": 61.949887,
+        "width": 1920,
+        "height": 1080,
+        "paused": true,
+        "ready": 4,
+        "total": 1485,
+        "dropped": 0
+      },
+      "events": [
+        {
+          "ms": 48651,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 48684,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 50071,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 50250,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 50252,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 66439,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 70703,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 71357,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 71365,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 71366,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 84117,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 84251,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 84595,
+          "event": "playing",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "pause",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "ended",
+          "data": null
+        },
+        {
+          "ms": 225361,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225363,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225524,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 225557,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 225558,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 228620,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 231282,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 231283,
+          "event": "native-playing",
+          "data": {}
+        }
+      ],
+      "native": {
+        "state": "playing",
+        "surface": "SurfaceView",
+        "mode": "standard",
+        "audio_output": "system",
+        "clock_ratio": 0,
+        "first_frame": true,
+        "width": 1920,
+        "height": 1080,
+        "view_width": 1220,
+        "view_height": 472,
+        "render_width": 839,
+        "render_height": 472,
+        "speed": 1,
+        "video_track": "video/avc [avc1.42C028] \u00b7 1920x1080 \u00b7 24fps \u00b7 BT709/Limited range/SDR SMPTE 170M/8/8",
+        "track_support": "FORMAT_HANDLED",
+        "track_selected": "\u662f",
+        "video_track_count": 1,
+        "video_decoder": "OMX.Nvidia.h264.decode",
+        "audio_decoder": "OMX.google.aac.decoder",
+        "video_mime": "video/avc",
+        "audio_mime": "audio/mp4a-latm",
+        "sample_rate": 44100,
+        "channels": 2
+      }
+    },
+    "seekAction": true,
+    "seek20": {
+      "status": {
+        "bytes": 39514642,
+        "convert_ms": 47786,
+        "error": "",
+        "height": 1080,
+        "maxrss_kib": 424172,
+        "mode": "full",
+        "phase": "complete",
+        "progress": {
+          "frame": "1475",
+          "out_time_us": "N/A",
+          "speed": "N/A"
+        },
+        "resolve_ms": 14,
+        "variant": "optimized",
+        "width": 1920
+      },
+      "metrics": {
+        "started": 44099.80000000002,
+        "nativePaused": false,
+        "playRequested": 225332.39999999994,
+        "firstFrame": 225524.69999999998,
+        "nativeProgress": {
+          "time": 21.335,
+          "duration": 61.929
+        }
+      },
+      "video": {
+        "time": 61.949887,
+        "duration": 61.949887,
+        "width": 1920,
+        "height": 1080,
+        "paused": true,
+        "ready": 4,
+        "total": 1485,
+        "dropped": 0
+      },
+      "events": [
+        {
+          "ms": 48651,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 48684,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 50071,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 50250,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 50252,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 66439,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 70703,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 71357,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 71365,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 71366,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 84117,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 84251,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 84595,
+          "event": "playing",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "pause",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "ended",
+          "data": null
+        },
+        {
+          "ms": 225361,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225363,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225524,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 225557,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 225558,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 228620,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 231282,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 231283,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 233056,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 233681,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 233690,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 233690,
+          "event": "native-playing",
+          "data": {}
+        }
+      ],
+      "native": {
+        "state": "playing",
+        "surface": "SurfaceView",
+        "mode": "standard",
+        "audio_output": "system",
+        "clock_ratio": 0,
+        "first_frame": true,
+        "width": 1920,
+        "height": 1080,
+        "view_width": 1220,
+        "view_height": 472,
+        "render_width": 839,
+        "render_height": 472,
+        "speed": 1,
+        "video_track": "video/avc [avc1.42C028] \u00b7 1920x1080 \u00b7 24fps \u00b7 BT709/Limited range/SDR SMPTE 170M/8/8",
+        "track_support": "FORMAT_HANDLED",
+        "track_selected": "\u662f",
+        "video_track_count": 1,
+        "video_decoder": "OMX.Nvidia.h264.decode",
+        "audio_decoder": "OMX.google.aac.decoder",
+        "video_mime": "video/avc",
+        "audio_mime": "audio/mp4a-latm",
+        "sample_rate": 44100,
+        "channels": 2
+      }
+    },
+    "fullscreenAction": true,
+    "nativeFullscreen": {
+      "status": {
+        "bytes": 39514642,
+        "convert_ms": 47786,
+        "error": "",
+        "height": 1080,
+        "maxrss_kib": 424172,
+        "mode": "full",
+        "phase": "complete",
+        "progress": {
+          "frame": "1475",
+          "out_time_us": "N/A",
+          "speed": "N/A"
+        },
+        "resolve_ms": 14,
+        "variant": "optimized",
+        "width": 1920
+      },
+      "metrics": {
+        "started": 44099.80000000002,
+        "nativePaused": false,
+        "playRequested": 225332.39999999994,
+        "firstFrame": 225524.69999999998,
+        "nativeProgress": {
+          "time": 24.341,
+          "duration": 61.929
+        }
+      },
+      "video": {
+        "time": 61.949887,
+        "duration": 61.949887,
+        "width": 1920,
+        "height": 1080,
+        "paused": true,
+        "ready": 4,
+        "total": 1485,
+        "dropped": 0
+      },
+      "events": [
+        {
+          "ms": 48651,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 48684,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 50071,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 50250,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 50252,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 66439,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 70703,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 71357,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 71365,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 71366,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 84117,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 84251,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 84595,
+          "event": "playing",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "pause",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "ended",
+          "data": null
+        },
+        {
+          "ms": 225361,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225363,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225524,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 225557,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 225558,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 228620,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 231282,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 231283,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 233056,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 233681,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 233690,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 233690,
+          "event": "native-playing",
+          "data": {}
+        }
+      ],
+      "native": {
+        "state": "playing",
+        "surface": "SurfaceView",
+        "mode": "standard",
+        "audio_output": "system",
+        "clock_ratio": 0.9976689976689976,
+        "first_frame": true,
+        "width": 1920,
+        "height": 1080,
+        "view_width": 1920,
+        "view_height": 1080,
+        "render_width": 1920,
+        "render_height": 1080,
+        "speed": 1,
+        "video_track": "video/avc [avc1.42C028] \u00b7 1920x1080 \u00b7 24fps \u00b7 BT709/Limited range/SDR SMPTE 170M/8/8",
+        "track_support": "FORMAT_HANDLED",
+        "track_selected": "\u662f",
+        "video_track_count": 1,
+        "video_decoder": "OMX.Nvidia.h264.decode",
+        "audio_decoder": "OMX.google.aac.decoder",
+        "video_mime": "video/avc",
+        "audio_mime": "audio/mp4a-latm",
+        "sample_rate": 44100,
+        "channels": 2
+      }
+    },
+    "html5Replay": true,
+    "html5FullscreenAction": true,
+    "html5Fullscreen1": {
+      "status": {
+        "bytes": 39514642,
+        "convert_ms": 47786,
+        "error": "",
+        "height": 1080,
+        "maxrss_kib": 424172,
+        "mode": "full",
+        "phase": "complete",
+        "progress": {
+          "frame": "1475",
+          "out_time_us": "N/A",
+          "speed": "N/A"
+        },
+        "resolve_ms": 14,
+        "variant": "optimized",
+        "width": 1920
+      },
+      "metrics": {
+        "started": 44099.80000000002,
+        "nativePaused": false,
+        "playRequested": 238661.6,
+        "firstPlaying": 238904.69999999998,
+        "firstFrame": 238920.29999999996
+      },
+      "video": {
+        "time": 1.957796,
+        "duration": 61.928005,
+        "width": 1920,
+        "height": 1080,
+        "paused": false,
+        "ready": 4,
+        "total": 52,
+        "dropped": 0
+      },
+      "events": [
+        {
+          "ms": 48651,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 48684,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 50071,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 50250,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 50252,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 66439,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 70703,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 71357,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 71365,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 71366,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 84117,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 84251,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 84595,
+          "event": "playing",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "pause",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "ended",
+          "data": null
+        },
+        {
+          "ms": 225361,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225363,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225524,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 225557,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 225558,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 228620,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 231282,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 231283,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 233056,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 233681,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 233690,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 233690,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 238672,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 238765,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 238905,
+          "event": "playing",
+          "data": null
+        }
+      ]
+    },
+    "html5Fullscreen2": {
+      "status": {
+        "bytes": 39514642,
+        "convert_ms": 47786,
+        "error": "",
+        "height": 1080,
+        "maxrss_kib": 424172,
+        "mode": "full",
+        "phase": "complete",
+        "progress": {
+          "frame": "1475",
+          "out_time_us": "N/A",
+          "speed": "N/A"
+        },
+        "resolve_ms": 14,
+        "variant": "optimized",
+        "width": 1920
+      },
+      "metrics": {
+        "started": 44099.80000000002,
+        "nativePaused": false,
+        "playRequested": 238661.6,
+        "firstPlaying": 238904.69999999998,
+        "firstFrame": 238920.29999999996
+      },
+      "video": {
+        "time": 14.100714,
+        "duration": 61.928005,
+        "width": 1920,
+        "height": 1080,
+        "paused": false,
+        "ready": 4,
+        "total": 343,
+        "dropped": 0
+      },
+      "events": [
+        {
+          "ms": 48651,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 48684,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 50071,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 50250,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 50252,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 66439,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 68875,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 70703,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 71357,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 71365,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 71366,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 84117,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 84251,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 84595,
+          "event": "playing",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "pause",
+          "data": null
+        },
+        {
+          "ms": 146653,
+          "event": "ended",
+          "data": null
+        },
+        {
+          "ms": 225361,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225363,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 225524,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 225557,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 225558,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 228620,
+          "event": "native-paused",
+          "data": {}
+        },
+        {
+          "ms": 231282,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 231283,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 233056,
+          "event": "native-buffering",
+          "data": {}
+        },
+        {
+          "ms": 233681,
+          "event": "native-frame",
+          "data": {
+            "width": 1920,
+            "height": 1080
+          }
+        },
+        {
+          "ms": 233690,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 233690,
+          "event": "native-playing",
+          "data": {}
+        },
+        {
+          "ms": 238672,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 238765,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 238905,
+          "event": "playing",
+          "data": null
+        }
+      ]
+    },
+    "stop": true
+  },
+  "live_720_reference": {
+    "case": {
+      "name": "live-720-reference-full",
+      "quality": "720P",
+      "mode": "full",
+      "variant": "reference",
+      "player": "html5",
+      "seconds": 10,
+      "live": true
+    },
+    "at": "2026-11-09T12:25:21.750Z",
+    "samples": [
+      {
+        "status": {
+          "bytes": 0,
+          "convert_ms": 0,
+          "error": "",
+          "height": 0,
+          "maxrss_kib": 0,
+          "mode": "full",
+          "phase": "resolving",
+          "progress": null,
+          "resolve_ms": 0,
+          "variant": "reference",
+          "width": 0
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 0,
+          "convert_ms": 0,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 0,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": null,
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 524336,
+          "convert_ms": 1002,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 184452,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "11",
+            "out_time_us": "458333",
+            "speed": "0.917x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 1572912,
+          "convert_ms": 2403,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 206520,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "97",
+            "out_time_us": "4041667",
+            "speed": "2.02x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 2359344,
+          "convert_ms": 3402,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 206520,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "156",
+            "out_time_us": "6500000",
+            "speed": "2.17x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 3145776,
+          "convert_ms": 4403,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 206520,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "216",
+            "out_time_us": "9000000",
+            "speed": "2.25x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 4194352,
+          "convert_ms": 5402,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 213488,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "271",
+            "out_time_us": "11291667",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 4980784,
+          "convert_ms": 6403,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 213488,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "333",
+            "out_time_us": "13875000",
+            "speed": "2.31x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 6291504,
+          "convert_ms": 7402,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 216904,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "387",
+            "out_time_us": "16125000",
+            "speed": " 2.3x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 6815792,
+          "convert_ms": 8402,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 216904,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "446",
+            "out_time_us": "18583333",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 7864368,
+          "convert_ms": 9403,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 216904,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "505",
+            "out_time_us": "21041667",
+            "speed": "2.34x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 8912944,
+          "convert_ms": 10402,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 216904,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "564",
+            "out_time_us": "23500000",
+            "speed": "2.35x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 9437232,
+          "convert_ms": 11402,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 216980,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "627",
+            "out_time_us": "26125000",
+            "speed": "2.37x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 10485808,
+          "convert_ms": 12602,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 216980,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "678",
+            "out_time_us": "28250000",
+            "speed": "2.35x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 11796528,
+          "convert_ms": 13602,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 216980,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "721",
+            "out_time_us": "30041667",
+            "speed": "2.31x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 12845104,
+          "convert_ms": 14602,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 220200,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "778",
+            "out_time_us": "32416667",
+            "speed": "2.31x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 13893680,
+          "convert_ms": 15602,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 220200,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "834",
+            "out_time_us": "34750000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 14942256,
+          "convert_ms": 16602,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 220452,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "885",
+            "out_time_us": "36875000",
+            "speed": " 2.3x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 15728688,
+          "convert_ms": 17602,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 220452,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "941",
+            "out_time_us": "39208333",
+            "speed": " 2.3x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 16515120,
+          "convert_ms": 18602,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 220460,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "994",
+            "out_time_us": "41416667",
+            "speed": " 2.3x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 17563696,
+          "convert_ms": 19604,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 220460,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "1041",
+            "out_time_us": "43416667",
+            "speed": "2.28x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 18350128,
+          "convert_ms": 20602,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 220460,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "1095",
+            "out_time_us": "45625000",
+            "speed": "2.28x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 19136560,
+          "convert_ms": 21602,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223900,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "1149",
+            "out_time_us": "47875000",
+            "speed": "2.28x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 19922992,
+          "convert_ms": 22802,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223900,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "1231",
+            "out_time_us": "51291667",
+            "speed": "2.28x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 20971568,
+          "convert_ms": 23802,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223932,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "1282",
+            "out_time_us": "53375000",
+            "speed": "2.27x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 21495856,
+          "convert_ms": 24803,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223932,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "1337",
+            "out_time_us": "55708333",
+            "speed": "2.27x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 22282288,
+          "convert_ms": 25802,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223944,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "1387",
+            "out_time_us": "57791667",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 23068720,
+          "convert_ms": 26802,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223944,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "1439",
+            "out_time_us": "59958333",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      {
+        "status": {
+          "bytes": 23699517,
+          "convert_ms": 27455,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223944,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1465",
+            "out_time_us": "61041667",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252,
+          "nativePaused": false,
+          "playRequested": 29293.400000000023,
+          "firstPlaying": 29470.300000000047,
+          "firstFrame": 29483.300000000047
+        },
+        "video": {
+          "time": 0.084513,
+          "duration": 61.928005,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 7,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 29298,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 29344,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 29470,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 23699517,
+          "convert_ms": 27455,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223944,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1465",
+            "out_time_us": "61041667",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252,
+          "nativePaused": false,
+          "playRequested": 29293.400000000023,
+          "firstPlaying": 29470.300000000047,
+          "firstFrame": 29483.300000000047
+        },
+        "video": {
+          "time": 4.224941,
+          "duration": 61.928005,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 106,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 29298,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 29344,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 29470,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 23699517,
+          "convert_ms": 27455,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223944,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1465",
+            "out_time_us": "61041667",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252,
+          "nativePaused": false,
+          "playRequested": 29293.400000000023,
+          "firstPlaying": 29470.300000000047,
+          "firstFrame": 29483.300000000047
+        },
+        "video": {
+          "time": 5.235481,
+          "duration": 61.928005,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 130,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 29298,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 29344,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 29470,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 23699517,
+          "convert_ms": 27455,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223944,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1465",
+            "out_time_us": "61041667",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252,
+          "nativePaused": false,
+          "playRequested": 29293.400000000023,
+          "firstPlaying": 29470.300000000047,
+          "firstFrame": 29483.300000000047
+        },
+        "video": {
+          "time": 6.244208,
+          "duration": 61.928005,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 154,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 29298,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 29344,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 29470,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 23699517,
+          "convert_ms": 27455,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223944,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1465",
+            "out_time_us": "61041667",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252,
+          "nativePaused": false,
+          "playRequested": 29293.400000000023,
+          "firstPlaying": 29470.300000000047,
+          "firstFrame": 29483.300000000047
+        },
+        "video": {
+          "time": 7.27637,
+          "duration": 61.928005,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 179,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 29298,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 29344,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 29470,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 23699517,
+          "convert_ms": 27455,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223944,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1465",
+            "out_time_us": "61041667",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252,
+          "nativePaused": false,
+          "playRequested": 29293.400000000023,
+          "firstPlaying": 29470.300000000047,
+          "firstFrame": 29483.300000000047
+        },
+        "video": {
+          "time": 8.294339,
+          "duration": 61.928005,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 203,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 29298,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 29344,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 29470,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 23699517,
+          "convert_ms": 27455,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223944,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1465",
+            "out_time_us": "61041667",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252,
+          "nativePaused": false,
+          "playRequested": 29293.400000000023,
+          "firstPlaying": 29470.300000000047,
+          "firstFrame": 29483.300000000047
+        },
+        "video": {
+          "time": 9.311294,
+          "duration": 61.928005,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 228,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 29298,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 29344,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 29470,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 23699517,
+          "convert_ms": 27455,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 223944,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1465",
+            "out_time_us": "61041667",
+            "speed": "2.26x"
+          },
+          "resolve_ms": 1612,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 319252,
+          "nativePaused": false,
+          "playRequested": 29293.400000000023,
+          "firstPlaying": 29470.300000000047,
+          "firstFrame": 29483.300000000047
+        },
+        "video": {
+          "time": 10.320412,
+          "duration": 61.928005,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 252,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 29298,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 29344,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 29470,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      }
+    ],
+    "first": {
+      "status": {
+        "bytes": 23699517,
+        "convert_ms": 27455,
+        "error": "",
+        "height": 720,
+        "maxrss_kib": 223944,
+        "mode": "full",
+        "phase": "complete",
+        "progress": {
+          "frame": "1465",
+          "out_time_us": "61041667",
+          "speed": "2.26x"
+        },
+        "resolve_ms": 1612,
+        "variant": "reference",
+        "width": 1280
+      },
+      "metrics": {
+        "started": 319252,
+        "nativePaused": false,
+        "playRequested": 29293.400000000023,
+        "firstPlaying": 29470.300000000047,
+        "firstFrame": 29483.300000000047
+      },
+      "video": {
+        "time": 0.084513,
+        "duration": 61.928005,
+        "width": 1280,
+        "height": 720,
+        "paused": false,
+        "ready": 4,
+        "total": 7,
+        "dropped": 0
+      },
+      "events": [
+        {
+          "ms": 29298,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 29344,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 29470,
+          "event": "playing",
+          "data": null
+        }
+      ]
+    },
+    "media": {
+      "kVideoDecoderName": "MediaCodecVideoDecoder",
+      "kIsPlatformAudioDecoder": "false",
+      "kAudioDecoderName": "FFmpegAudioDecoder",
+      "kIsPlatformVideoDecoder": "true",
+      "kResolution": "1280x720"
+    },
+    "final": {
+      "status": {
+        "bytes": 23699517,
+        "convert_ms": 27455,
+        "error": "",
+        "height": 720,
+        "maxrss_kib": 223944,
+        "mode": "full",
+        "phase": "complete",
+        "progress": {
+          "frame": "1465",
+          "out_time_us": "61041667",
+          "speed": "2.26x"
+        },
+        "resolve_ms": 1612,
+        "variant": "reference",
+        "width": 1280
+      },
+      "metrics": {
+        "started": 319252,
+        "nativePaused": false,
+        "playRequested": 29293.400000000023,
+        "firstPlaying": 29470.300000000047,
+        "firstFrame": 29483.300000000047
+      },
+      "video": {
+        "time": 10.327371,
+        "duration": 61.928005,
+        "width": 1280,
+        "height": 720,
+        "paused": false,
+        "ready": 4,
+        "total": 252,
+        "dropped": 0
+      },
+      "events": [
+        {
+          "ms": 29298,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 29344,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 29470,
+          "event": "playing",
+          "data": null
+        }
+      ]
+    },
+    "elapsedSeconds": 39.887
+  },
+  "limits": [
+    "No subjective audio listening",
+    "No low-end or ARMv7 testing",
+    "No production automatic-episode flow: isolated test page",
+    "Native Media3 does not expose frame-drop counters in this version",
+    "Direct core-kill parent-death validation was denied by SELinux; normal exit/cancel/background were observed instead"
+  ],
+  "lifecycle": {
+    "cancel": {
+      "before": {
+        "status": {
+          "bytes": 0,
+          "convert_ms": 0,
+          "error": "",
+          "height": 1080,
+          "maxrss_kib": 0,
+          "mode": "stream",
+          "phase": "transcoding",
+          "progress": null,
+          "resolve_ms": 33,
+          "variant": "optimized",
+          "width": 1920
+        },
+        "metrics": {
+          "started": 439893.80000000005
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      "processes_before": [
+        [
+          "10733",
+          "3351",
+          "rocks.aston.hongguotv.transcodetest.debug"
+        ],
+        [
+          "11526",
+          "10866",
+          "libbvc2optimized.so"
+        ]
+      ],
+      "processes_after": [
+        [
+          "10733",
+          "3351",
+          "rocks.aston.hongguotv.transcodetest.debug"
+        ]
+      ],
+      "cache_after": []
+    },
+    "rapid": {
+      "last": {
+        "status": {
+          "bytes": 48,
+          "convert_ms": 401,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 120700,
+          "mode": "full",
+          "phase": "transcoding",
+          "progress": {},
+          "resolve_ms": 7,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 444938.4
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      "processes": [
+        [
+          "10733",
+          "3351",
+          "rocks.aston.hongguotv.transcodetest.debug"
+        ],
+        [
+          "11597",
+          "10866",
+          "libbvc2optimized.so"
+        ]
+      ],
+      "processes_after": [
+        [
+          "10733",
+          "3351",
+          "rocks.aston.hongguotv.transcodetest.debug"
+        ]
+      ],
+      "cache_after": []
+    },
+    "background": {
+      "before": {
+        "status": {
+          "bytes": 0,
+          "convert_ms": 201,
+          "error": "",
+          "height": 1080,
+          "maxrss_kib": 70232,
+          "mode": "stream",
+          "phase": "transcoding",
+          "progress": {},
+          "resolve_ms": 16,
+          "variant": "optimized",
+          "width": 1920
+        },
+        "metrics": {
+          "started": 447776.1
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      "processes_before": [
+        [
+          "10733",
+          "3351",
+          "rocks.aston.hongguotv.transcodetest.debug"
+        ],
+        [
+          "11636",
+          "10866",
+          "libbvc2optimized.so"
+        ]
+      ],
+      "processes_after": [
+        [
+          "10733",
+          "3351",
+          "rocks.aston.hongguotv.transcodetest.debug"
+        ]
+      ],
+      "cache_after": [],
+      "resume": {
+        "status": {
+          "bytes": 7904578,
+          "convert_ms": 12602,
+          "error": "",
+          "height": 1080,
+          "maxrss_kib": 408952,
+          "mode": "stream",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "317",
+            "out_time_us": "13208333",
+            "speed": " 1.1x"
+          },
+          "resolve_ms": 16,
+          "variant": "optimized",
+          "width": 1920
+        },
+        "metrics": {
+          "started": 447776.1,
+          "firstBytes": 1124.2000000000698,
+          "playRequested": 1125.5,
+          "firstFrame": 3573.8000000000466,
+          "firstPlaying": 3585.8000000000466
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 1131,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1132,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 3586,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 8361,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 10897,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      }
+    },
+    "parent_death": {
+      "before": {
+        "status": {
+          "bytes": 0,
+          "convert_ms": 207,
+          "error": "",
+          "height": 1080,
+          "maxrss_kib": 69836,
+          "mode": "stream",
+          "phase": "transcoding",
+          "progress": {},
+          "resolve_ms": 14,
+          "variant": "optimized",
+          "width": 1920
+        },
+        "metrics": {
+          "started": 464078.5
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": []
+      },
+      "processes_before": [
+        [
+          "10733",
+          "3351",
+          "rocks.aston.hongguotv.transcodetest.debug"
+        ],
+        [
+          "11932",
+          "10866",
+          "libbvc2optimized.so"
+        ]
+      ],
+      "processes_after": [
+        [
+          "10733",
+          "3351",
+          "rocks.aston.hongguotv.transcodetest.debug"
+        ],
+        [
+          "11932",
+          "10866",
+          "libbvc2optimized.so"
+        ]
+      ],
+      "verified": false,
+      "reason": "run-as kill of the core was denied by SELinux; FFmpeg was not orphaned. Do not count as a parent-death test."
+    },
+    "normal_exit": {
+      "confirmed_native_dialog": true,
+      "core_pid_removed": 10866,
+      "transcoder_pid_removed": 11932,
+      "remaining_ui_process": 10733,
+      "core_service_absent": true,
+      "note": "Cached UI and Chromium sandbox process may remain; core and transcoder stopped."
+    }
+  },
+  "optimized_720_stream": {
+    "case": {
+      "name": "final-stream-opt-720-html5",
+      "quality": "720P",
+      "mode": "stream",
+      "variant": "optimized",
+      "player": "html5",
+      "seconds": 66
+    },
+    "at": "2026-11-09T12:29:48.627Z",
+    "samples": [
+      {
+        "status": {
+          "bytes": 0,
+          "convert_ms": 201,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 48932,
+          "mode": "stream",
+          "phase": "transcoding",
+          "progress": {},
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 1,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 1147489,
+          "convert_ms": 1601,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 190412,
+          "mode": "stream",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "38",
+            "out_time_us": "1625000",
+            "speed": "1.62x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 0.387252,
+          "duration": null,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 9,
+          "dropped": 3
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 26.210391,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 634,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 27.224575,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 658,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 28.236689,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 682,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 29.247398,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 707,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 30.264051,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 731,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 31.274274,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 755,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 32.284303,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 779,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 33.293414,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 803,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 34.30225,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 828,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 35.312868,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 852,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 36.321955,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 876,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 37.333803,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 900,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 38.345979,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 925,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 39.355432,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 949,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 40.364041,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 973,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 41.374675,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 997,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 42.391196,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1022,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 43.404479,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1046,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 44.414413,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1070,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 45.421047,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1094,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 46.430401,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1118,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 47.439263,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1143,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 48.458946,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1167,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 49.466939,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1191,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 50.478294,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1215,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 51.486561,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1240,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 52.495587,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1264,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 53.504385,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1288,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 54.513114,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1312,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 55.525156,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1337,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 56.536107,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1361,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 57.549684,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1385,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 58.559765,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1410,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 59.568517,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1434,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 60.577877,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1458,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 61.593392,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 1482,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      {
+        "status": {
+          "bytes": 25972974,
+          "convert_ms": 26798,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 221708,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1446",
+            "out_time_us": "60250000",
+            "speed": "2.32x"
+          },
+          "resolve_ms": 38,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 816.2000000000698,
+          "firstBytes": 895.7999999999302,
+          "playRequested": 927.5,
+          "firstPlaying": 1975.0999999999767,
+          "firstFrame": 1976.4000000000233
+        },
+        "video": {
+          "time": 61.951291,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": true,
+          "ready": 4,
+          "total": 1485,
+          "dropped": 88
+        },
+        "events": [
+          {
+            "ms": 973,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1255,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1975,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 5420,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 5829,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 27266,
+            "event": "stream-complete",
+            "data": null
+          },
+          {
+            "ms": 64481,
+            "event": "pause",
+            "data": null
+          },
+          {
+            "ms": 64482,
+            "event": "ended",
+            "data": null
+          }
+        ]
+      }
+    ],
+    "first": {
+      "status": {
+        "bytes": 1147489,
+        "convert_ms": 1601,
+        "error": "",
+        "height": 720,
+        "maxrss_kib": 190412,
+        "mode": "stream",
+        "phase": "transcoding",
+        "progress": {
+          "frame": "38",
+          "out_time_us": "1625000",
+          "speed": "1.62x"
+        },
+        "resolve_ms": 38,
+        "variant": "optimized",
+        "width": 1280
+      },
+      "metrics": {
+        "started": 816.2000000000698,
+        "firstBytes": 895.7999999999302,
+        "playRequested": 927.5,
+        "firstPlaying": 1975.0999999999767,
+        "firstFrame": 1976.4000000000233
+      },
+      "video": {
+        "time": 0.387252,
+        "duration": null,
+        "width": 1280,
+        "height": 720,
+        "paused": false,
+        "ready": 4,
+        "total": 9,
+        "dropped": 3
+      },
+      "events": [
+        {
+          "ms": 973,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 1255,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 1975,
+          "event": "playing",
+          "data": null
+        }
+      ]
+    },
+    "media": {
+      "kVideoDecoderName": "MediaCodecVideoDecoder",
+      "kIsPlatformAudioDecoder": "false",
+      "kAudioDecoderName": "FFmpegAudioDecoder",
+      "kIsPlatformVideoDecoder": "true",
+      "kResolution": "1280x720"
+    },
+    "final": {
+      "status": {
+        "bytes": 25972974,
+        "convert_ms": 26798,
+        "error": "",
+        "height": 720,
+        "maxrss_kib": 221708,
+        "mode": "stream",
+        "phase": "complete",
+        "progress": {
+          "frame": "1446",
+          "out_time_us": "60250000",
+          "speed": "2.32x"
+        },
+        "resolve_ms": 38,
+        "variant": "optimized",
+        "width": 1280
+      },
+      "metrics": {
+        "started": 816.2000000000698,
+        "firstBytes": 895.7999999999302,
+        "playRequested": 927.5,
+        "firstPlaying": 1975.0999999999767,
+        "firstFrame": 1976.4000000000233
+      },
+      "video": {
+        "time": 61.951291,
+        "duration": 61.951291,
+        "width": 1280,
+        "height": 720,
+        "paused": true,
+        "ready": 4,
+        "total": 1485,
+        "dropped": 88
+      },
+      "events": [
+        {
+          "ms": 973,
+          "event": "loadedmetadata",
+          "data": null
+        },
+        {
+          "ms": 1255,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 1975,
+          "event": "playing",
+          "data": null
+        },
+        {
+          "ms": 5420,
+          "event": "waiting",
+          "data": null
+        },
+        {
+          "ms": 5829,
+          "event": "playing",
+          "data": null
+        },
+        {
+          "ms": 27266,
+          "event": "stream-complete",
+          "data": null
+        },
+        {
+          "ms": 64481,
+          "event": "pause",
+          "data": null
+        },
+        {
+          "ms": 64482,
+          "event": "ended",
+          "data": null
+        }
+      ]
+    },
+    "elapsedSeconds": 65.021
+  }
+}

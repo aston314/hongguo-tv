@@ -1,0 +1,732 @@
+{
+  "date": "2026-11-09",
+  "device": "Shield / Android 11 / arm64",
+  "apk_commit": "dab47372217db206b05faabe39e7d21cda0dc434",
+  "apk_sha256": "195e3ee0739542547e214492b99477dae82edd741aa9ddb7cb02ced27a3af49f",
+  "github_build": "https://github.com/aston314/hongguo-tv/actions/runs/42612942805",
+  "scope": "fixed same-source 24fps samples; isolated standard-player test UI; source predownloaded/decrypted; no production episode integration",
+  "runtime_style_changes": [
+    "transparent body for native surface",
+    "fit test video inside viewport, applied during reference 720P streaming test"
+  ],
+  "tests": {
+    "full-opt-1080-media3": {
+      "case": {
+        "name": "full-opt-1080-media3",
+        "quality": "1080P",
+        "mode": "full",
+        "variant": "optimized",
+        "player": "media3",
+        "seconds": 18
+      },
+      "elapsed_seconds": 45.391,
+      "media": {},
+      "final": {
+        "status": {
+          "bytes": 39514642,
+          "convert_ms": 45205,
+          "error": "",
+          "height": 1080,
+          "maxrss_kib": 424568,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1485",
+            "out_time_us": "61875000",
+            "speed": "1.38x"
+          },
+          "resolve_ms": 22,
+          "variant": "optimized",
+          "width": 1920
+        },
+        "metrics": {
+          "started": 188033.10000002384,
+          "playRequested": 45292.299999952316
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 45345,
+            "event": "native-error",
+            "data": {
+              "kind": "display"
+            }
+          }
+        ],
+        "native": {
+          "error_kind": "display",
+          "error_code": 0,
+          "diagnostic_id": "transcode-1794225898874",
+          "state": "error",
+          "surface": "SurfaceView",
+          "mode": "standard",
+          "audio_output": "system",
+          "clock_ratio": 0,
+          "first_frame": false,
+          "width": 0,
+          "height": 0
+        }
+      },
+      "first": null,
+      "failure": {
+        "status": {
+          "bytes": 39514642,
+          "convert_ms": 45205,
+          "error": "",
+          "height": 1080,
+          "maxrss_kib": 424568,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1485",
+            "out_time_us": "61875000",
+            "speed": "1.38x"
+          },
+          "resolve_ms": 22,
+          "variant": "optimized",
+          "width": 1920
+        },
+        "metrics": {
+          "started": 188033.10000002384,
+          "playRequested": 45292.299999952316
+        },
+        "video": {
+          "time": 0,
+          "duration": null,
+          "width": 0,
+          "height": 0,
+          "paused": true,
+          "ready": 0,
+          "total": 0,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 45345,
+            "event": "native-error",
+            "data": {
+              "kind": "display"
+            }
+          }
+        ],
+        "native": {
+          "error_kind": "display",
+          "error_code": 0,
+          "diagnostic_id": "transcode-1794225898874",
+          "state": "error",
+          "surface": "SurfaceView",
+          "mode": "standard",
+          "audio_output": "system",
+          "clock_ratio": 0,
+          "first_frame": false,
+          "width": 0,
+          "height": 0
+        }
+      }
+    },
+    "full-opt-720-html5": {
+      "case": {
+        "name": "full-opt-720-html5",
+        "quality": "720P",
+        "mode": "full",
+        "variant": "optimized",
+        "player": "html5",
+        "seconds": 15
+      },
+      "elapsed_seconds": 37.741,
+      "media": {
+        "kVideoDecoderName": "MediaCodecVideoDecoder",
+        "kIsPlatformAudioDecoder": "false",
+        "kAudioDecoderName": "FFmpegAudioDecoder",
+        "kIsPlatformVideoDecoder": "true",
+        "kResolution": "1280x720"
+      },
+      "final": {
+        "status": {
+          "bytes": 23701010,
+          "convert_ms": 21353,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 222312,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1468",
+            "out_time_us": "61166667",
+            "speed": "2.91x"
+          },
+          "resolve_ms": 8,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 149597.39999997616,
+          "playRequested": 21544.200000047684,
+          "firstFrame": 21724.399999976158,
+          "firstPlaying": 21729.399999976158
+        },
+        "video": {
+          "time": 15.92253,
+          "duration": 61.928005,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 386,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 21550,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 21606,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 21729,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      "first": {
+        "status": {
+          "bytes": 23701010,
+          "convert_ms": 21353,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 222312,
+          "mode": "full",
+          "phase": "complete",
+          "progress": {
+            "frame": "1468",
+            "out_time_us": "61166667",
+            "speed": "2.91x"
+          },
+          "resolve_ms": 8,
+          "variant": "optimized",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 149597.39999997616,
+          "playRequested": 21544.200000047684,
+          "firstFrame": 21724.399999976158,
+          "firstPlaying": 21729.399999976158
+        },
+        "video": {
+          "time": 0.872332,
+          "duration": 61.928005,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 25,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 21550,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 21606,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 21729,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      "failure": null
+    },
+    "stream-opt-1080-html5": {
+      "case": {
+        "name": "stream-opt-1080-html5",
+        "quality": "1080P",
+        "mode": "stream",
+        "variant": "optimized",
+        "player": "html5",
+        "seconds": 66
+      },
+      "elapsed_seconds": 69.804,
+      "media": {
+        "kVideoDecoderName": "MediaCodecVideoDecoder",
+        "kIsPlatformAudioDecoder": "false",
+        "kAudioDecoderName": "FFmpegAudioDecoder",
+        "kIsPlatformVideoDecoder": "true",
+        "kResolution": "1920x1080"
+      },
+      "final": {
+        "status": {
+          "bytes": 43460628,
+          "convert_ms": 57678,
+          "error": "",
+          "height": 1080,
+          "maxrss_kib": 424568,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1469",
+            "out_time_us": "61208333",
+            "speed": "1.07x"
+          },
+          "resolve_ms": 27,
+          "variant": "optimized",
+          "width": 1920
+        },
+        "metrics": {
+          "started": 374202.39999997616,
+          "firstBytes": 1078.2000000476837,
+          "playRequested": 1084.3000000715256,
+          "firstPlaying": 3305.100000023842,
+          "firstFrame": 3311.100000023842
+        },
+        "video": {
+          "time": 59.838702,
+          "duration": 61.951291,
+          "width": 1920,
+          "height": 1080,
+          "paused": false,
+          "ready": 4,
+          "total": 1440,
+          "dropped": 457
+        },
+        "events": [
+          {
+            "ms": 1107,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1135,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 3305,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 13077,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 19677,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 57995,
+            "event": "stream-complete",
+            "data": null
+          }
+        ]
+      },
+      "first": {
+        "status": {
+          "bytes": 902136,
+          "convert_ms": 2601,
+          "error": "",
+          "height": 1080,
+          "maxrss_kib": 350064,
+          "mode": "stream",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "42",
+            "out_time_us": "1750000",
+            "speed": "0.875x"
+          },
+          "resolve_ms": 27,
+          "variant": "optimized",
+          "width": 1920
+        },
+        "metrics": {
+          "started": 374202.39999997616,
+          "firstBytes": 1078.2000000476837,
+          "playRequested": 1084.3000000715256,
+          "firstPlaying": 3305.100000023842,
+          "firstFrame": 3311.100000023842
+        },
+        "video": {
+          "time": 0.113037,
+          "duration": null,
+          "width": 1920,
+          "height": 1080,
+          "paused": false,
+          "ready": 4,
+          "total": 4,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 1107,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 1135,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 3305,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      "failure": null
+    },
+    "stream-ref-1080-html5": {
+      "case": {
+        "name": "stream-ref-1080-html5",
+        "quality": "1080P",
+        "mode": "stream",
+        "variant": "reference",
+        "player": "html5",
+        "seconds": 66
+      },
+      "elapsed_seconds": 71.313,
+      "media": {
+        "kVideoDecoderName": "MediaCodecVideoDecoder",
+        "kIsPlatformAudioDecoder": "false",
+        "kAudioDecoderName": "FFmpegAudioDecoder",
+        "kIsPlatformVideoDecoder": "true",
+        "kResolution": "1920x1080"
+      },
+      "final": {
+        "status": {
+          "bytes": 40748853,
+          "convert_ms": 70401,
+          "error": "",
+          "height": 1080,
+          "maxrss_kib": 421584,
+          "mode": "stream",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "1403",
+            "out_time_us": "58458333",
+            "speed": "0.835x"
+          },
+          "resolve_ms": 15,
+          "variant": "reference",
+          "width": 1920
+        },
+        "metrics": {
+          "started": 299435,
+          "firstBytes": 1198.2999999523163,
+          "playRequested": 1281.2999999523163,
+          "firstPlaying": 3906.100000023842,
+          "firstFrame": 3908.7999999523163
+        },
+        "video": {
+          "time": 55.529873,
+          "duration": null,
+          "width": 1920,
+          "height": 1080,
+          "paused": false,
+          "ready": 4,
+          "total": 1331,
+          "dropped": 563
+        },
+        "events": [
+          {
+            "ms": 1283,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1329,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 3906,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 9047,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 11765,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 19313,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 19338,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 34353,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 35821,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 40911,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 42428,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 47396,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 50112,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 65118,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 68237,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      "first": {
+        "status": {
+          "bytes": 902136,
+          "convert_ms": 3401,
+          "error": "",
+          "height": 1080,
+          "maxrss_kib": 353864,
+          "mode": "stream",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "48",
+            "out_time_us": "2000000",
+            "speed": "0.666x"
+          },
+          "resolve_ms": 15,
+          "variant": "reference",
+          "width": 1920
+        },
+        "metrics": {
+          "started": 299435,
+          "firstBytes": 1198.2999999523163,
+          "playRequested": 1281.2999999523163,
+          "firstPlaying": 3906.100000023842,
+          "firstFrame": 3908.7999999523163
+        },
+        "video": {
+          "time": 0.955462,
+          "duration": null,
+          "width": 1920,
+          "height": 1080,
+          "paused": false,
+          "ready": 4,
+          "total": 9,
+          "dropped": 0
+        },
+        "events": [
+          {
+            "ms": 1283,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1329,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 3906,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      "failure": null
+    },
+    "stream-ref-720-html5": {
+      "case": {
+        "name": "stream-ref-720-html5",
+        "quality": "720P",
+        "mode": "stream",
+        "variant": "reference",
+        "player": "html5",
+        "seconds": 66
+      },
+      "elapsed_seconds": 64.621,
+      "media": {
+        "kVideoDecoderName": "MediaCodecVideoDecoder",
+        "kIsPlatformAudioDecoder": "false",
+        "kAudioDecoderName": "FFmpegAudioDecoder",
+        "kIsPlatformVideoDecoder": "true",
+        "kResolution": "1280x720"
+      },
+      "final": {
+        "status": {
+          "bytes": 25971481,
+          "convert_ms": 35453,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 222636,
+          "mode": "stream",
+          "phase": "complete",
+          "progress": {
+            "frame": "1472",
+            "out_time_us": "61333333",
+            "speed": "1.75x"
+          },
+          "resolve_ms": 7,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 234101.70000004768,
+          "firstBytes": 1017,
+          "playRequested": 1063.0999999046326,
+          "firstPlaying": 2239.2999999523163,
+          "firstFrame": 2239.6999999284744
+        },
+        "video": {
+          "time": 61.951291,
+          "duration": 61.951291,
+          "width": 1280,
+          "height": 720,
+          "paused": true,
+          "ready": 4,
+          "total": 1485,
+          "dropped": 100
+        },
+        "events": [
+          {
+            "ms": 1068,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1068,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 2239,
+            "event": "playing",
+            "data": null
+          },
+          {
+            "ms": 35938,
+            "event": "stream-complete",
+            "data": null
+          },
+          {
+            "ms": 64285,
+            "event": "pause",
+            "data": null
+          },
+          {
+            "ms": 64286,
+            "event": "ended",
+            "data": null
+          }
+        ]
+      },
+      "first": {
+        "status": {
+          "bytes": 1147489,
+          "convert_ms": 2402,
+          "error": "",
+          "height": 720,
+          "maxrss_kib": 192948,
+          "mode": "stream",
+          "phase": "transcoding",
+          "progress": {
+            "frame": "76",
+            "out_time_us": "3166667",
+            "speed": "1.58x"
+          },
+          "resolve_ms": 7,
+          "variant": "reference",
+          "width": 1280
+        },
+        "metrics": {
+          "started": 234101.70000004768,
+          "firstBytes": 1017,
+          "playRequested": 1063.0999999046326,
+          "firstPlaying": 2239.2999999523163,
+          "firstFrame": 2239.6999999284744
+        },
+        "video": {
+          "time": 1.013839,
+          "duration": null,
+          "width": 1280,
+          "height": 720,
+          "paused": false,
+          "ready": 4,
+          "total": 17,
+          "dropped": 5
+        },
+        "events": [
+          {
+            "ms": 1068,
+            "event": "loadedmetadata",
+            "data": null
+          },
+          {
+            "ms": 1068,
+            "event": "waiting",
+            "data": null
+          },
+          {
+            "ms": 2239,
+            "event": "playing",
+            "data": null
+          }
+        ]
+      },
+      "failure": null
+    }
+  },
+  "limits": [
+    "No subjective audio listening validation",
+    "No low-end/ARMv7 or desktop testing",
+    "Native Media3 display-bound test failure occurred before decoding, later code fix awaits device retest",
+    "Streaming 1080P samples canceled at observation deadline, not verified naturally ended",
+    "Latest corrected APK not yet installed: device became unreachable after completed test cases"
+  ]
+}

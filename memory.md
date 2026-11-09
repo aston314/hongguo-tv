@@ -56,3 +56,20 @@
 - [参考转码实现](https://github.com/zfdang/hongguo-open-player/blob/36316dcbe35aa05cfa0176036e56edba17188567/src/server/native/bytevc2-transcode.js)
 
 媒体、截图、URL、密钥、账号留在本机临时目录，不写入记忆或公开仓库。
+
+
+## 2026-11-09：独立复刻参考转码路径（继续验证）
+
+- 新分支 `codex/bytevc2-transcode-validation`，从干净 `9738107` 建立；不含此前 MPV 应用改动，不并入主线。
+- APK 包名 `rocks.aston.hongguotv.transcodetest.debug`，与正式版和旧 MPV 实验包隔离。所有 Android/native 编译均在 GitHub。
+- 原生构建 `42611298371`：同参考 FFmpeg/x264/BVC2 补丁，分别保留 reference（禁用汇编）与 optimized（ARM 优化）两套，不混写性能。
+- 同一 61.875s/24fps 样本：720P 整文件转换约 26.4s（reference）/20.2s（optimized）；1080P 约 56.1s/43.0s。都成功输出 H.264/AAC、1485 视频帧。
+- 纯转换速度不是并播能力：实机边转边播 reference 1080P 仅约 0.83×，明显掉帧/缓冲；optimized 约 1.07×，仍明显掉帧，不达标。
+- reference 720P 流式可自然播完，但有掉帧，不能写成全程流畅。整文件转换完再播的 optimized 720P，约 16 秒窗口内 HTML5 零掉帧，系统 AVC 硬解。
+- 最终包 optimized 720P 流式也自然播完，首帧约 1.98s，但 1485 帧中掉 88 帧；仍不能称全程流畅。
+- 输出文件约为原文件八倍；1080P FFmpeg 进程峰值约 400MiB，尚不含 Java/WebView/Go。标准版定位低端设备，不应凭此加入新依赖或更换默认链路。
+- 最终隔离 APK 构建 `42614915976` / `2c92d75` 成功，修正了测试页 Media3 区域越界、透明背景、MSE 中断及转换取消清理。先前 Media3 的 display 错误发生于解码之前，不是解码失败证据。
+- 最终包在 Shield 补测：1080P 整文件约 47.8s 转完后 Media3/HTML5 均出画面；Media3 用 `OMX.Nvidia.h264.decode`，暂停恢复、seek、全屏通过基本检查；HTML5 约 53s 采样零掉帧。仍有很长的播放前等待，不能当成低成本方案。
+- 实时接口 720P/reference 整文件：取源下载解密约 1.6s，转换约 27.5s，首帧约 29.5s。取消、快速替换、后台和原生确认退出已检查，转码进程清掉；直接杀 core 的父进程死亡试验被 SELinux 拒绝，未验收。
+- 仍需分清：此前 MPV 720P 可播验证继续保留；转码成功不能证明 MPV 1080P 根因，也不能代表我们的桌面版已支持 ByteVC2。
+- 详细数据和后续补测见 [转码报告](docs/bytevc2-transcode-validation.md)。媒体、密钥、截图和签名 URL 不进仓库。
