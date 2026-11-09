@@ -37,7 +37,9 @@ jobs:
           git diff --exit-code "$release_commit" HEAD -- core desktop android webos scripts go.mod go.sum
           git fetch --no-tags --unshallow origin main || git fetch --no-tags origin main
           git merge-base --is-ancestor "$release_commit" FETCH_HEAD
+          harness_commit="$(git rev-parse HEAD)"
           git checkout --detach "$release_commit"
+          git restore --source "$harness_commit" --worktree -- .github/actions/android5-build
           echo "HONGGUO_CORE_VERSION=$APP_VERSION-$release_commit" >> "$GITHUB_ENV"
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -147,6 +149,7 @@ jobs:
         id: android5
         uses: ./.github/actions/android5-build
         env:
+          GH_TOKEN: ${{ github.token }}
           ANDROID_KEYSTORE_FILE: ${{ runner.temp }}/hongguo-release.keystore
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}

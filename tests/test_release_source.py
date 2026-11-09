@@ -126,6 +126,9 @@ class ReleaseSourceTests(unittest.TestCase):
         commands = textwrap.dedent(step.split('        run: |\n', 1)[1].split('      - name: Set up Go', 1)[0])
         git(self.seed, 'tag', '-a', 'v1.2.7', '-m', 'release', self.main_sha)
         git(self.seed, 'push', 'origin', 'v1.2.7')
+        action = self.clone / '.github/actions/android5-build/action.yml'
+        action.parent.mkdir(parents=True)
+        action.write_text('original package API fallback\n')
         harness = self.clone / '.github/workflows/release.yml'
         harness.parent.mkdir(parents=True)
         harness.write_text('CI download recovery\n')
@@ -142,7 +145,9 @@ class ReleaseSourceTests(unittest.TestCase):
                                 text=True, capture_output=True)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual(self.main_sha, git(self.clone, 'rev-parse', 'HEAD'))
+        self.assertEqual('original package API fallback\n', action.read_text())
         self.assertEqual(f'HONGGUO_CORE_VERSION=1.2.7-{self.main_sha}', output.read_text().strip())
+        shutil.rmtree(action.parent)
         git(self.clone, 'checkout', 'main')
         (self.clone / 'core').mkdir()
         (self.clone / 'core/player.txt').write_text('different application source\n')
