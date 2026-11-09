@@ -46,6 +46,8 @@ def stage(root):
     replace(root, "android/app/src/mpv/java/rocks/aston/hongguotv/MpvPlayerBridge.java",
             'return target.softwareFallback ? "no" : target.mode.hwdec;',
             'return "bytevc2".equals(target.data.optString("video_codec")) || target.softwareFallback ? "no" : target.mode.hwdec;')
+    shutil.copy(Path(__file__).parent / "preview_probe.go.txt",
+                root / "core/cmd/hongguotv/bytevc2_experiment_test.go")
 
 
 def main():

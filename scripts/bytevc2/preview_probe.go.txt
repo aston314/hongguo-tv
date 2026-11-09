@@ -1,0 +1,43 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"testing"
+)
+
+// The experiment must not silently allow ByteVC2 through existing modes.
+func TestMiniReelByteVC2ExperimentIsolation(t *testing.T) {
+	const response = `{"code":0,"data":{"123":{"video_model":{"video_list":{
+		"avc":{"main_url":"https://media.example/avc.mp4","codec_type":"h264","vwidth":1280,"vheight":720},
+		"hevc":{"main_url":"https://media.example/hevc.mp4","codec_type":"bytevc1","vwidth":1280,"vheight":720},
+		"bvc2":{"main_url":"https://media.example/bvc2.mp4","codec_type":"bytevc2","vwidth":1280,"vheight":720}
+	}}}}}`
+	var envelope map[string]any
+	if err := json.Unmarshal([]byte(response), &envelope); err != nil {
+		t.Fatal(err)
+	}
+	for _, mode := range []string{"default", "auto", "software", "bytevc2"} {
+		t.Run(mode, func(t *testing.T) {
+			if normalized, err := normalizeMiniReelCodecMode(mode); err != nil || normalized != mode {
+				t.Fatalf("mode rejected: %v", err)
+			}
+			options, err := miniReelOptionsFromEnvelope(context.Background(), "123", envelope, nil, mode, &playbackPreparationDiagnostic{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			want := 2
+			if mode == "bytevc2" {
+				want = 1
+			}
+			if len(options) != want {
+				t.Fatalf("candidates=%d want=%d", len(options), want)
+			}
+			for _, option := range options {
+				if (option.Codec == "bytevc2") != (mode == "bytevc2") {
+					t.Fatalf("source isolation failed: mode=%s codec=%s", mode, option.Codec)
+				}
+			}
+		})
+	}
+}

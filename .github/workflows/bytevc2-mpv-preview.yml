@@ -10,6 +10,7 @@ on:
       - scripts/bytevc2/0002-identify-bv2c.patch
       - scripts/bytevc2/prepare_preview.py
       - scripts/bytevc2/verify_preview.py
+      - scripts/bytevc2/preview_probe.go.txt
       - .github/workflows/bytevc2-mpv-preview.yml
   workflow_dispatch:
 
@@ -35,7 +36,13 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y ninja-build pkg-config autoconf automake libtool nasm
           python3 -m pip install 'meson==1.7.2' 'Jinja2==3.1.6'
+      - uses: actions/cache@v4
+        id: native-cache
+        with:
+          path: ${{ runner.temp }}/bytevc2-mpv
+          key: bytevc2-mpv-arm64-ndk27-${{ hashFiles('scripts/bytevc2/build_mpv_android.sh', 'scripts/bytevc2/prepare_mpv_sources.py', 'scripts/bytevc2/mpv_preview_sources.json', 'scripts/bytevc2/*.patch') }}
       - name: Build isolated Android MPV and FFmpeg
+        if: steps.native-cache.outputs.cache-hit != 'true'
         run: bash scripts/bytevc2/build_mpv_android.sh "$RUNNER_TEMP/bytevc2-mpv"
       - uses: actions/upload-artifact@v4
         with:
@@ -78,10 +85,11 @@ jobs:
           python3 scripts/bytevc2/prepare_preview.py --native "$RUNNER_TEMP/bytevc2-mpv"
           node --check core/cmd/hongguotv/ui/app.js
           node --check core/cmd/hongguotv/ui/native-player.js
-          go test ./core/cmd/hongguotv -run 'TestMiniReel(Identity|Registered|FreshFallback|VideoTab|Single|SourceMemory)'
+          go test ./core/cmd/hongguotv -run 'TestMiniReel(Identity|Registered|FreshFallback|VideoTab|Single|SourceMemory|ByteVC2Experiment)'
       - name: Build the experimental core and MPV APK
         env:
           VERSION: bytevc2-test-${{ github.sha }}
+          HONGGUO_CORE_VERSION: bytevc2-test-${{ github.sha }}
         run: |
           bash scripts/build_android_binaries.sh
           gradle --no-daemon --max-workers=1 -p android testMpvDebugUnitTest assembleMpvDebug lintMpvDebug
