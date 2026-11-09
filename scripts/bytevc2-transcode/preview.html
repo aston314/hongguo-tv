@@ -28,6 +28,7 @@ function snapshot(){var q=video.getVideoPlaybackQuality?video.getVideoPlaybackQu
  var d={status:status,metrics:metrics,video:{time:video.currentTime,duration:isFinite(video.duration)?video.duration:null,width:video.videoWidth,height:video.videoHeight,paused:video.paused,ready:video.readyState,total:q.totalVideoFrames,dropped:q.droppedVideoFrames},events:events};
  if(native&&bridge){try{d.native=JSON.parse(bridge.diagnostics());}catch(e){}}return d;}
 function bounds(){if(!bridge)return;var r=video.getBoundingClientRect();bridge.bounds(r.left/innerWidth,r.top/innerHeight,r.width/innerWidth,r.height/innerHeight);}
+function layout(){var box=document.querySelector('.hero-media'),top=box.getBoundingClientRect().top;box.style.width='66%';box.style.height=Math.max(80,innerHeight-top-18)+'px';el('diagnostic').style.maxHeight=box.style.height;bounds();}
 function playFull(){var url=location.origin+'/minireel-proxy/media/'+job+'.mp4';native=el('player').value==='media3';metrics.playRequested=performance.now()-metrics.started;
  if(native){if(!bridge)throw Error('Media3 bridge unavailable');document.documentElement.classList.add('native-playback');bounds();loadId='transcode-'+Date.now();bridge.setVolume(1,false);bridge.play(loadId,JSON.stringify({source:url,paused:false,diagnostic_id:loadId}));}
  else{video.src=url;video.muted=false;video.play().catch(function(e){text('请按播放：'+e.name);});}}
@@ -56,7 +57,7 @@ el('start').onclick=start;el('cancel').onclick=cancel;el('pause').onclick=functi
 setInterval(function(){el('diagnostic').textContent=JSON.stringify(snapshot(),null,2);},500);
 window.BVC2Test={start:start,cancel:cancel,snapshot:snapshot};
 window.HongguoTV={canShowAppUpdate:function(){return false;},pauseForBackground:cancel,resumeFromBackground:function(){},remoteKey:function(){return false;}};
-window.addEventListener('pagehide',cancel);window.addEventListener('resize',bounds);
+window.addEventListener('pagehide',cancel);window.addEventListener('resize',layout);layout();
 if(window.HongguoTVInput){HongguoTVInput.setPlaybackPageActive(true);HongguoTVInput.setPlaybackActive(true);}
 })();
 </script></body></html>
