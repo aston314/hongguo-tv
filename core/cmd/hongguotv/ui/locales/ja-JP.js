@@ -2,6 +2,10 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['ja-JP'] = {
+    "watching.continue": "視聴を再開",
+    "watching.episodePosition": "第{episode}話 · {position}",
+    "watching.fullscreen": "全画面で再開",
+    "watching.accessibility": "『{title}』第{episode}話を{position}から全画面で再開",
     "mini.titlebarSetting": "ミニプレーヤーのタイトルバーを隠す",
     "mini.titlebarSettingDescription": "タイトルバーを隠し、上部をドラッグして移動します。システムのタイトルバーはいつでも復元できます。",
     "mini.titlebarSettingState": "初期設定はオフです。デスクトップのミニプレーヤーにのみ適用されます。",

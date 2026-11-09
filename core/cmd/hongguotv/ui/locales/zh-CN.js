@@ -5,6 +5,10 @@
   // without changing the UI or the focus model.
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-CN'] = {
+    "watching.continue": "继续观看",
+    "watching.episodePosition": "第 {episode} 集 · {position}",
+    "watching.fullscreen": "全屏继续",
+    "watching.accessibility": "全屏继续观看《{title}》第{episode}集，从{position}继续",
     "mini.titlebarSetting": "小窗隐藏系统标题栏",
     "mini.titlebarSettingDescription": "隐藏标题栏，通过小窗顶部拖动窗口。可随时恢复系统标题栏。",
     "mini.titlebarSettingState": "默认关闭，仅用于桌面小窗。",

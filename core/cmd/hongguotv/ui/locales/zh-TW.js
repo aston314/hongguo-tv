@@ -2,6 +2,10 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-TW'] = {
+    "watching.continue": "繼續觀看",
+    "watching.episodePosition": "第 {episode} 集 · {position}",
+    "watching.fullscreen": "全螢幕繼續",
+    "watching.accessibility": "全螢幕繼續觀看《{title}》第{episode}集，從{position}繼續",
     "mini.titlebarSetting": "小窗隱藏系統標題列",
     "mini.titlebarSettingDescription": "隱藏標題列，透過小窗頂部拖曳視窗。可隨時恢復系統標題列。",
     "mini.titlebarSettingState": "預設關閉，僅用於桌面小窗。",

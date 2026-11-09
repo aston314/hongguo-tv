@@ -35,6 +35,23 @@ button:focus { outline: none; }
 .sidebar-bottom .side-item { flex-shrink: 0; }
 .sidebar-bottom .side-item + .side-item { margin-top: 5px; }
 .side-item-secondary { color: #c5c5ce; }
+.watching-return-wrap { flex: 0 0 auto; margin: 6px 3px 0; padding-top: 10px; border-top: 1px solid #30313b; }
+.watching-return { display: flex; align-items: center; width: 100%; min-width: 0; padding: 9px; border: 1px solid #2b2c35; border-radius: 10px; background: #1b1c24; text-align: left; transition: none; }
+.watching-return.is-focused, .watching-return:focus:not(.pointer-focus-muted) { background: #272831; border-color: #5b5c69; box-shadow: 0 0 0 2px #fff; }
+.watching-return-poster { position: relative; display: block; flex: 0 0 36px; width: 36px; height: 50px; overflow: hidden; border-radius: 5px; background: #30313b; }
+.watching-return-poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.watching-return-poster img.is-empty { visibility: hidden; }
+.watching-return-play { position: absolute; right: 3px; bottom: 3px; display: flex; align-items: center; justify-content: center; width: 17px; height: 17px; border-radius: 50%; color: #25252f; background: #f7f7fb; }
+.watching-return-play svg { width: 11px; height: 11px; fill: currentColor; }
+.watching-return-copy { display: block; flex: 1 1 auto; min-width: 0; margin-left: 9px; }
+.watching-return-kicker { display: block; color: #aaaab8; font-size: 11px; font-weight: 400; line-height: 1.5; }
+.watching-return-copy strong { display: block; overflow: hidden; color: #ececf2; font-size: 14px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; }
+.watching-return-meta { display: block; margin-top: 3px; color: #b7b8c6; font-size: 11px; line-height: 1.5; font-variant-numeric: tabular-nums; }
+.watching-return-tooltip { position: fixed; z-index: 25; width: 230px; max-width: calc(100vw - 16px); padding: 12px 15px; border: 1px solid #4a4a58; border-radius: 8px; color: #f7f7fb; background: #24242f; pointer-events: none; }
+.watching-return-tooltip strong { display: block; margin-top: 3px; font-size: 16px; overflow-wrap: break-word; }
+.app-shell.sidebar-icons .watching-return { justify-content: center; padding: 7px; }
+.app-shell.sidebar-icons .watching-return-copy { display: none; }
+@media (max-height: 560px) { .watching-return-wrap { padding-top: 6px; } .watching-return { padding: 7px; } .watching-return-poster { height: 46px; } .app-shell.has-watching-return .side-nav { gap: 3px; padding-top: 4px; padding-bottom: 4px; } }
 .side-notification-dot { display: block; flex: 0 0 9px; width: 9px; height: 9px; margin-left: auto; border-radius: 50%; background: #f35d7b; box-shadow: 0 0 0 2px #15151c; }
 
 /* Both rail widths are fixed preferences; focus never changes the layout. */

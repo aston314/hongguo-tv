@@ -5,7 +5,7 @@
   // can jump from the sidebar to a right-side action just because it is close
   // on screen, which is especially confusing on a TV.
   var zoneSelectors = {
-    sidebar: '.side-item',
+    sidebar: '.side-item, .watching-return',
     channels: '.channel-tab, #core-status[tabindex="0"]',
     coreConnection: '.core-connection-action, #core-connection-scroll',
     feed: '.hero-feed-focus',
@@ -148,6 +148,7 @@
     bridge: window.HongguoTVPreferences,
     render: function (data) {
       shell.classList.toggle('sidebar-icons', data.mode === 'icons');
+      renderWatchingReturn();
       document.querySelectorAll('.sidebar-display-action').forEach(function (button) {
         var selected = button.getAttribute('data-mode') === data.mode;
         button.classList.toggle('account-primary', selected);
@@ -400,6 +401,19 @@
   var confirmAfterClose = null;
   var confirmationGeneration = 0;
   var activePlayback = null;
+  var watchingReturn = window.HongguoWatchingReturn.create({
+    view: {
+      wrap: document.getElementById('watching-return-wrap'), button: document.getElementById('watching-return'),
+      cover: document.getElementById('watching-return-cover'), title: document.getElementById('watching-return-title'), meta: document.getElementById('watching-return-meta'),
+      tooltip: document.getElementById('watching-return-tooltip'), tooltipTitle: document.getElementById('watching-return-tooltip-title'), tooltipMeta: document.getElementById('watching-return-tooltip-meta')
+    },
+    owner: function () { return accountEpoch; }, playbackPage: isPlaybackPage,
+    visibility: function (visible) { shell.classList.toggle('has-watching-return', visible); },
+    icons: function () { return shell.classList.contains('sidebar-icons'); },
+    bounds: function () { return { width: window.innerWidth, height: window.innerHeight }; },
+    text: uiText, clock: clockText, cover: setCover,
+    resume: function (current, target) { startPlayer(current.item, target, { watchingResume: current }); }
+  });
   var episodeCoverLoader = null;
   var prewarmedEpisodeCover = null;
   var detailCache = {};
@@ -1167,7 +1181,7 @@
     if (element.classList.contains('account-country-item') || element.classList.contains('account-country-close')) return 'accountCountryItems';
     if (element.classList.contains('support-card') || element.classList.contains('support-close')) return 'support';
     if (element.classList.contains('discussion-item') || element.classList.contains('discussion-close')) return 'discussion';
-    if (element.classList.contains('side-item')) return 'sidebar';
+    if (element.classList.contains('side-item') || element.classList.contains('watching-return')) return 'sidebar';
     if (element.classList.contains('channel-tab')) return 'channels';
     if (element.classList.contains('hero-feed-focus')) return 'feed';
     if (element.classList.contains('catalog-card')) return 'catalog';
@@ -3823,6 +3837,7 @@
     accountCountdownUntil = Date.now() + (data.retry_after || 0) * 1000;
     if (owner !== previousOwner || owner !== (libraryData.owner_id || '')) {
       ++accountEpoch;
+      if (typeof watchingReturn !== 'undefined' && watchingReturn) watchingReturn.clear();
       ++notificationGeneration;
       followNotificationItems = [];
       followNotificationUnread = 0;
@@ -4331,6 +4346,29 @@
     setCatalogHeading(activeChannel().textContent);
     playFeedItem(feedIndex, undefined, undefined, null, session.checkpoint);
     return true;
+  }
+
+  function renderWatchingReturn() {
+    if (typeof watchingReturn !== 'undefined' && watchingReturn) watchingReturn.render();
+  }
+
+  function rememberWatchingReturn() {
+    if (typeof watchingReturn === 'undefined' || !watchingReturn || !isPlaybackPage()) return;
+    var playback = activePlayback;
+    var request = playbackRequest;
+    var item, episode, position, completed = false;
+    if (playback && playback.owner === accountEpoch && playback.generation === feedGeneration) {
+      item = playback.item; episode = playback.episode; completed = !!playback.completed;
+      position = playback.started ? Math.max(0, Number(document.getElementById('hero-video').currentTime) || 0) : playback.position || 0;
+    } else if (request && request.owner === accountEpoch && request.generation === feedGeneration && feedItems[request.index] && feedItems[request.index].series_id === request.series_id) {
+      item = feedItems[request.index];
+      var entry = libraryEntry(item.series_id);
+      episode = request.episode || resumeEpisode(entry, item);
+      position = request.position !== undefined ? request.position : entry && !entry.completed && entry.episode === episode ? entry.position || 0 : 0;
+    }
+    if (!item || !episode) return;
+    if (completed) { episode = resumeEpisode({ last_played_at: 1, episode: episode, completed: true }, item); position = 0; }
+    watchingReturn.capture({ item: basicDrama(item), episode: episode, position: position, owner: accountEpoch });
   }
 
   function showRecommendationPlaceholder(title, summary) {
@@ -5812,6 +5850,7 @@
       playerReturnFocus = returnFocus || document.activeElement;
     }
     shell.dataset.mode = 'player';
+    renderWatchingReturn();
     shell.classList.add('is-player');
     if (typeof syncNativePlaybackPageState === 'function') syncNativePlaybackPageState();
     document.getElementById('page-context').disabled = false;
@@ -5827,10 +5866,12 @@
     cancelPendingAutoCinema();
     playbackMenuHintCandidate = menuHintCandidate;
     autoCinemaCandidate = autoCinemaEnabled && launchFromCard;
-    playFeedItem(0, item.__explicitEpisode ? item.start_episode : undefined, item.__explicitEpisode ? 0 : undefined);
+    var watchingResume = startOptions && startOptions.watchingResume;
+    playFeedItem(0, watchingResume ? watchingResume.episode : item.__explicitEpisode ? item.start_episode : undefined, watchingResume ? watchingResume.position : item.__explicitEpisode ? 0 : undefined);
     if (autoCinemaCandidate) autoCinemaGeneration = feedGeneration;
     if (recommendation) settleRecommendationSave(recommendation, libraryQueue);
     goFocus(document.getElementById('hero-feed-focus'));
+    if (watchingResume) { cancelPendingAutoCinema(); setCinema(true); revealControls(); }
   }
 
   function leavePlayer() {
@@ -7981,6 +8022,7 @@
     if (detailModalOpen) closeDetail();
     closePlayerOptions(false);
     var recommendation = rememberRecommendation();
+    rememberWatchingReturn();
     settleRecommendationSave(recommendation, saveProgress(true));
     allPagers.forEach(function (pager) { pager.cancel(); });
     activePlayback = null;
@@ -7990,6 +8032,7 @@
     document.querySelectorAll('.side-item').forEach(function (node) { node.classList.toggle('is-active', node === item); });
     var label = item.querySelector('[data-i18n]');
     shell.dataset.mode = item.dataset.page || 'recommend';
+    renderWatchingReturn();
     if (typeof syncNativePlaybackPageState === 'function') syncNativePlaybackPageState();
     document.getElementById('page-context').textContent = label ? label.textContent : uiText('ui.page', '页面');
     document.getElementById('page-context').disabled = true;
@@ -8073,6 +8116,9 @@
   window.addEventListener('resize', queueTailCheck);
   window.addEventListener('resize', layoutLastPlaybackFrame);
   window.addEventListener('resize', resizePlaybackMenuHint);
+  window.addEventListener('resize', function () { if (watchingReturn) watchingReturn.layout(); });
+  document.querySelector('.sidebar').addEventListener('scroll', function () { if (watchingReturn) watchingReturn.layout(); });
+  if (window.HongguoI18n && typeof window.HongguoI18n.onChange === 'function') window.HongguoI18n.onChange(renderWatchingReturn);
   window.addEventListener('resize', function () { if (endRecommendations && endRecommendations.isOpen()) scrollEndRecommendationIntoView(document.activeElement); });
   window.addEventListener('blur', cancelEndRecommendationAutoplay);
   document.addEventListener('focusin', function (event) {

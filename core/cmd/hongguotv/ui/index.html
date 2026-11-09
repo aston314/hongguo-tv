@@ -68,11 +68,18 @@
         <button class="side-item" id="sidebar-follows" data-page="follows" data-focus="sidebar-follows" aria-label="追更"><svg class="side-icon"><use href="#icon-bell" xlink:href="#icon-bell"></use></svg><span data-i18n="nav.follow">追更</span><span class="side-notification-dot is-hidden" id="follow-sidebar-badge" aria-hidden="true"></span></button>
         <button class="side-item" data-page="support" data-focus="sidebar-support" aria-label="打赏" data-i18n-aria-label="nav.support"><svg class="side-icon"><use href="#icon-heart" xlink:href="#icon-heart"></use></svg><span data-i18n="nav.support">打赏</span></button>
       </nav>
+      <div class="watching-return-wrap is-hidden" id="watching-return-wrap">
+        <button type="button" class="watching-return" id="watching-return" data-focus="watching-return" aria-describedby="watching-return-tooltip">
+          <span class="watching-return-poster"><img id="watching-return-cover" alt=""><span class="watching-return-play" aria-hidden="true"><svg><use href="#icon-play" xlink:href="#icon-play"></use></svg></span></span>
+          <span class="watching-return-copy"><span class="watching-return-kicker" data-i18n="watching.continue">继续观看</span><strong id="watching-return-title"></strong><span class="watching-return-meta" id="watching-return-meta"></span></span>
+        </button>
+      </div>
       <div class="sidebar-bottom">
         <button class="side-item side-item-secondary" data-page="account" data-focus="sidebar-account" aria-label="我的" data-i18n-aria-label="nav.account"><svg class="side-icon"><use href="#icon-user" xlink:href="#icon-user"></use></svg><span data-i18n="nav.account">我的</span></button>
         <button class="side-item side-item-secondary" data-page="settings" data-focus="sidebar-settings" aria-label="设置" data-i18n-aria-label="nav.settings"><svg class="side-icon"><use href="#icon-settings" xlink:href="#icon-settings"></use></svg><span data-i18n="nav.settings">设置</span></button>
       </div>
     </aside>
+    <div class="watching-return-tooltip is-hidden" id="watching-return-tooltip" role="tooltip"><span class="watching-return-kicker" data-i18n="watching.continue">继续观看</span><strong id="watching-return-tooltip-title"></strong><span class="watching-return-meta" id="watching-return-tooltip-meta"></span></div>
 
     <section class="main-surface" id="main-surface" tabindex="-1">
       <div class="top-bar">
@@ -603,6 +610,7 @@
   <script src="/recommendation-auto-cinema.js"></script>
   <script src="/recommendation-direction.js"></script>
   <script src="/sidebar-settings.js"></script>
+  <script src="/watching-return.js"></script>
   <script src="/startup-page.js"></script>
   <script src="/episode-wheel.js"></script>
   <script src="/playback-pointer.js"></script>
