@@ -40,8 +40,10 @@ cpp_link_args = ['-Wl,-z,max-page-size=16384', '-static-libstdc++']
 EOF
 meson_install() {
   local name=$1; shift
+  local library=static
+  if [ "$name" = mpv ]; then library=shared; fi
   meson setup "$work/$name-build" "$work/src/$name" --cross-file "$cross" \
-    --prefix "$prefix" --libdir lib --buildtype release --default-library static \
+    --prefix "$prefix" --libdir lib --buildtype release --default-library "$library" \
     --wrap-mode nodownload "$@"
   ninja -C "$work/$name-build" -j"$(nproc)"
   ninja -C "$work/$name-build" install
