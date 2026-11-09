@@ -77,7 +77,7 @@ test('saving a favorite refreshes the open detail dialog after the library write
     showNotice() {},
     uiText
   });
-  vm.runInContext(slice('changeLibrary', 'toggleSaved'), c);
+  vm.runInContext(slice('restoreWatchingReturn', 'showRecommendationPlaceholder') + slice('changeLibrary', 'toggleSaved'), c);
 
   assert.equal(await c.changeLibrary({ action: 'favorite', drama: { series_id: '42' }, value: true }, true), true);
   assert.equal(detailRefreshes, 1);

@@ -20,7 +20,7 @@ function fixture(owner = '') {
       return {ok: true, status: 200, json: async () => ({ok: true, data: {owner_id: owner, entries: []}})};
     }};
   vm.createContext(c);
-  vm.runInContext(fn('basicDrama') + '\n' + fn('changeLibrary') + '\n' + fn('saveProgress'), c);
+  vm.runInContext(fn('basicDrama') + '\n' + fn('changeLibrary') + '\n' + fn('saveProgress') + '\n' + fn('restoreWatchingReturn'), c);
   return {c, requests, notices};
 }
 

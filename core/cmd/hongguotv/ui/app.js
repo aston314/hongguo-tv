@@ -402,6 +402,7 @@
   var confirmationGeneration = 0;
   var activePlayback = null;
   var watchingReturn = window.HongguoWatchingReturn.create({
+    resumeEpisode: resumeEpisode,
     view: {
       wrap: document.getElementById('watching-return-wrap'), button: document.getElementById('watching-return'),
       cover: document.getElementById('watching-return-cover'), title: document.getElementById('watching-return-title'), meta: document.getElementById('watching-return-meta'),
@@ -3561,6 +3562,7 @@
         if (!payload.ok || !payload.data) throw new Error(apiError(payload, 200, 'ui.recordInvalid', '记录响应无效'));
         libraryData = payload.data;
         libraryLoaded = true;
+        restoreWatchingReturn();
         updateSavedButtons();
         updateDetailProgress();
         if (isLibraryPage()) renderLibrary(true);
@@ -3580,6 +3582,7 @@
           if (ownerEpoch !== accountEpoch || (payload.data.owner_id || '') !== (libraryData.owner_id || '')) return false;
           libraryData = payload.data;
           libraryLoaded = true;
+          restoreWatchingReturn(change);
           updateSavedButtons();
           var changedSeriesID = change.drama && change.drama.series_id || change.series_id;
           if (detailModalOpen && currentDetail && currentDetail.series_id === changedSeriesID) updateDetailActions();
@@ -4369,6 +4372,15 @@
     if (!item || !episode) return;
     if (completed) { episode = resumeEpisode({ last_played_at: 1, episode: episode, completed: true }, item); position = 0; }
     watchingReturn.capture({ item: basicDrama(item), episode: episode, position: position, owner: accountEpoch });
+  }
+
+  function restoreWatchingReturn(change) {
+    if (typeof watchingReturn === 'undefined' || !watchingReturn) return;
+    var current = watchingReturn.snapshot();
+    if (change && change.kind === 'history' && (change.action === 'clear' ||
+        change.action === 'remove' && current && current.item.series_id === change.series_id)) watchingReturn.clear();
+    watchingReturn.restore(libraryData.entries);
+    renderWatchingReturn();
   }
 
   function showRecommendationPlaceholder(title, summary) {

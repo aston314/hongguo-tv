@@ -63,7 +63,7 @@ function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,d
     function episodeLoadingText(){return 'loading'}function setPlayerStatus(text,failed){calls.push('status:'+text);if(failed){clearLastPlaybackFrame();if(activePlayback&&activePlayback.presentation)activePlayback.presentation.failed=true}}function revealControls(){}
     function tickDanmaku(){}function scheduleControlsHide(){}function maybePrefetchNextEpisode(){}
     function showNotice(x){notices.push(x)}function playMedia(){calls.push('play');return Promise.resolve()}
-  `+slice('clearPrefetchedEpisodeHint','setPlayerStatus')+slice('changeLibrary','toggleSaved')+slice('saveProgress','continueAfterEpisode')+
+  `+slice('restoreWatchingReturn','showRecommendationPlaceholder')+slice('clearPrefetchedEpisodeHint','setPlayerStatus')+slice('changeLibrary','toggleSaved')+slice('saveProgress','continueAfterEpisode')+
     slice('continueAfterEpisode','offerNextSeasonReservation')+slice('holdPlaybackAudio','renderFeed'),c);
   vm.runInContext('var media=video;'+source.slice(source.indexOf("  media.addEventListener('playing'"),source.indexOf("  document.addEventListener('visibilitychange'")),c);
   vm.runInContext("document.addEventListener('visibilitychange', function () { if (desktopShell) return; if (applicationHidden()) pauseForBackground(); else resumeFromBackground(); });",c);

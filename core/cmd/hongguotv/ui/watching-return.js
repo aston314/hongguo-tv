@@ -2,6 +2,7 @@
   'use strict';
   function create(options) {
     var saved = null;
+    var captured = false;
     var view = options.view;
     var hovered = false;
     var focused = false;
@@ -40,7 +41,25 @@
     function capture(value) {
       if (!value || !value.item || !value.item.series_id || value.owner !== options.owner() || !(value.episode > 0)) return false;
       saved = { item: Object.assign({}, value.item), episode: value.episode, position: Math.max(0, Number(value.position) || 0), owner: value.owner };
+      captured = true;
       return true;
+    }
+    function restore(entries) {
+      // A delayed history response must not replace a fresher departure point,
+      // including one whose final progress save failed.
+      if (snapshot() && captured) return;
+      var latest = null;
+      (entries || []).forEach(function (entry) {
+        if (!entry || !entry.drama || !entry.drama.series_id || !Number.isFinite(entry.last_played_at) || entry.last_played_at <= 0 ||
+            !Number.isFinite(entry.episode) || Math.floor(entry.episode) !== entry.episode || entry.episode < 1) return;
+        if (!latest || entry.last_played_at > latest.last_played_at) latest = entry;
+      });
+      saved = null;
+      if (latest) {
+        var position = !latest.completed && Number.isFinite(latest.position) ? Math.max(0, latest.position) : 0;
+        capture({ item: latest.drama, episode: options.resumeEpisode(latest, latest.drama), position: position, owner: options.owner() });
+      }
+      captured = false;
     }
     view.button.addEventListener('click', function () {
       var current = snapshot();
@@ -52,7 +71,7 @@
     view.button.addEventListener('blur', function () { focused = false; hideTooltip(); });
     view.button.addEventListener('mouseenter', function () { hovered = true; tooltip(); });
     view.button.addEventListener('mouseleave', function () { hovered = false; if (!focused) hideTooltip(); });
-    return { capture: capture, render: render, layout: tooltip, clear: function () { saved = null; coverKey = ''; render(); }, snapshot: snapshot };
+    return { capture: capture, restore: restore, render: render, layout: tooltip, clear: function () { saved = null; captured = false; coverKey = ''; render(); }, snapshot: snapshot };
   }
   var api = { create: create };
   if (typeof module === 'object' && module.exports) module.exports = api;
