@@ -3,6 +3,7 @@
 <title>ByteVC2 转码实验</title>
 <style>
 *{box-sizing:border-box}body{margin:0;background:#10151f;color:#e9edf6;font:16px Arial,sans-serif;padding:18px}h1{font-size:23px;margin:0 0 8px}.note{color:#9eacc2;margin-bottom:12px}label{display:inline-block;margin:4px 10px 8px 0}input,select,button{font:inherit;color:inherit;background:#26334b;border:1px solid #59718d;border-radius:6px;padding:8px}input{width:210px}button{margin:4px 5px 4px 0}button:focus,input:focus,select:focus{outline:3px solid #60dcb0}.workspace{display:flex;gap:16px;margin-top:10px}.hero-media{width:66vw;height:56vh;background:#000;position:relative;flex-shrink:0}video{width:100%;height:100%;object-fit:contain}pre{font:13px/1.4 monospace;white-space:pre-wrap;overflow-wrap:anywhere;max-height:56vh;overflow:auto;width:29vw}#state{color:#60dcb0;margin:8px 0;min-height:22px}.native-playback video{visibility:hidden}.native-playback .hero-media{background:transparent}
+.native-playback body{background:transparent}
 </style></head><body>
 <h1>ByteVC2 → H.264 独立实验</h1><div class="note">仅测试包 · 不修改正式版。整文件与边转边播均先下载完整源；可取消、拖动及重复切换。</div>
 <label>片源 <select id="source"><option value="live">实时接口</option><option value="sample">固定同源样本（ADB 导入）</option></select></label>
@@ -51,7 +52,7 @@ async function start(){cancel();var mine=epoch;metrics={started:performance.now(
 ['loadedmetadata','playing','waiting','stalled','seeked','pause','ended','error'].forEach(function(name){video.addEventListener(name,function(){note(name,name==='error'&&video.error?video.error.code:null);if(name==='playing'&&!metrics.firstPlaying)metrics.firstPlaying=performance.now()-metrics.started;});});
 if(video.requestVideoFrameCallback){var frame=function(){if(!metrics.firstFrame)metrics.firstFrame=performance.now()-metrics.started;video.requestVideoFrameCallback(frame);};video.requestVideoFrameCallback(frame);}
 window.HongguoNativePlayback={event:function(id,name,detail){if(id!==loadId)return;note('native-'+name,detail);if(name==='frame'&&!metrics.firstFrame)metrics.firstFrame=performance.now()-metrics.started;},progress:function(id,pos,duration){if(id===loadId)metrics.nativeProgress={time:pos/1000,duration:duration/1000};}};
-el('start').onclick=start;el('cancel').onclick=cancel;el('pause').onclick=function(){if(native){if(metrics.nativePaused)bridge.resume();else bridge.pause();metrics.nativePaused=!metrics.nativePaused;}else if(video.paused)video.play();else video.pause();};el('seek').onclick=function(){if(native)bridge.seekTo(20);else video.currentTime=20;};el('again').onclick=function(){if(status.phase==='complete'&&status.mode==='full')playFull();};
+el('start').onclick=start;el('cancel').onclick=cancel;el('pause').onclick=function(){if(native){if(metrics.nativePaused)bridge.resume();else bridge.pause();metrics.nativePaused=!metrics.nativePaused;}else if(video.paused)video.play();else video.pause();};el('seek').onclick=function(){if(native)bridge.seekTo(20);else video.currentTime=20;};el('again').onclick=function(){if(job&&status.phase==='complete'&&status.mode==='full')playFull();};
 setInterval(function(){el('diagnostic').textContent=JSON.stringify(snapshot(),null,2);},500);
 window.BVC2Test={start:start,cancel:cancel,snapshot:snapshot};
 window.HongguoTV={canShowAppUpdate:function(){return false;},pauseForBackground:cancel,resumeFromBackground:function(){},remoteKey:function(){return false;}};
