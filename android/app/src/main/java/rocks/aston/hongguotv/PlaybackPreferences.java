@@ -26,7 +26,7 @@ final class PlaybackPreferences {
 
     @JavascriptInterface
     public String readSidebarDisplay() {
-        return preferences.getString("sidebarDisplay", "icons");
+        return preferences.getString("sidebarDisplay", "expanded");
     }
 
     @JavascriptInterface

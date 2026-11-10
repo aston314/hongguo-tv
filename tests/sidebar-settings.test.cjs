@@ -13,33 +13,33 @@ function storage(initial) {
   };
 }
 
-test('sidebar display defaults to icons and rejects invalid persisted values', () => {
+test('sidebar display defaults to expanded and rejects invalid persisted values', () => {
   const empty = storage();
-  assert.equal(read(empty), 'icons');
-  assert.equal(read(storage({ [key]: 'compact' })), 'icons');
+  assert.equal(read(empty), 'expanded');
+  assert.equal(read(storage({ [key]: 'compact' })), 'expanded');
 });
 
 test('sidebar display selection persists and is restored by a new controller', () => {
   const store = storage();
   const states = [];
   const settings = create({ storage: store, render: state => states.push(state.mode) });
-  assert.deepEqual(states, ['icons']);
-  assert.equal(settings.choose('expanded'), true);
-  assert.equal(settings.mode(), 'expanded');
-  assert.equal(read(store), 'expanded');
+  assert.deepEqual(states, ['expanded']);
+  assert.equal(settings.choose('icons'), true);
+  assert.equal(settings.mode(), 'icons');
+  assert.equal(read(store), 'icons');
   const restored = create({ storage: store });
-  assert.equal(restored.mode(), 'expanded');
-  assert.equal(store.values[key], 'expanded');
+  assert.equal(restored.mode(), 'icons');
+  assert.equal(store.values[key], 'icons');
 });
 
 test('storage failures do not report a successful mode change', () => {
   const broken = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
-  assert.equal(read(broken), 'icons');
+  assert.equal(read(broken), 'expanded');
   assert.equal(write(broken, 'icons'), false);
   const states = [];
   const settings = create({ storage: broken, render: state => states.push(state.mode) });
-  assert.equal(settings.choose('expanded'), false);
-  assert.deepEqual(states, ['icons']);
+  assert.equal(settings.choose('icons'), false);
+  assert.deepEqual(states, ['expanded']);
   const dropped = { getItem() { return null; }, setItem() {} };
   assert.equal(write(dropped, 'expanded'), false);
   assert.equal(write(undefined, 'icons'), false);
