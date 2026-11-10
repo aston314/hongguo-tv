@@ -67,3 +67,48 @@ test('focus validation skips hidden cached cards without resolving their styles'
   assert.deepEqual(Array.from(context.focusables()), [modal]);
   assert.deepEqual(reads, [modal], 'modal focus containment is unchanged');
 });
+
+test('statistics focus reveals the full preference panel and falls back to the action in a short workspace', () => {
+  const workspace = {scrollTop:0,clientTop:0,clientHeight:468,parentElement:null,style:{overflowY:'auto'},getBoundingClientRect:()=>({top:72})};
+  const panel = {offsetHeight:340,parentElement:workspace,getBoundingClientRect:()=>({top:650-workspace.scrollTop,bottom:650-workspace.scrollTop+panel.offsetHeight})};
+  const action = {tagName:'BUTTON',disabled:false,parentElement:panel,classList:{contains:name=>name==='watch-stat-action'},
+    getClientRects:()=>[{}],hasAttribute:name=>name==='data-stat-kind',closest:()=>panel,
+    getBoundingClientRect:()=>({top:710-workspace.scrollTop,bottom:744-workspace.scrollTop}),focus(){context.document.activeElement=action;}};
+  const context = vm.createContext({document:{activeElement:null},libraryPage:workspace,androidShell:false,
+    window:{getComputedStyle:node=>node.style||{visibility:'visible'}},coreConnectionModalOpen:false,
+    markFocus(){},zoneOf:()=> 'watchStatistics',pageMode:()=> 'history',accountCountryModalOpen:false,
+    scanModalOpen:()=>false,accountKeypadOpen:()=>false,detailModalOpen:false,confirmOpen:false,
+    playerOptionsOpen:false,discussionOpen:false,lastPageFocus:{}});
+  vm.runInContext(functions('revealSidebarFocus','zoneOf')+functions('goFocus','firstContentFocus'),context);
+  context.goFocus(action);
+  assert.equal(context.document.activeElement,action);
+  assert.ok(panel.getBoundingClientRect().top>=78 && panel.getBoundingClientRect().bottom<=534,'panel fits inside the workspace with focus clearance');
+  workspace.scrollTop=0;panel.offsetHeight=700;
+  context.goFocus(action);
+  assert.ok(action.getBoundingClientRect().top>=78 && action.getBoundingClientRect().bottom<=534,'an oversized panel still keeps its action visible');
+});
+
+test('genre navigation follows four, two or one columns after resizing and keeps incomplete-row boundaries', () => {
+  let columns = 4;
+  const kind = {hasAttribute: name => name === 'data-stat-kind'}, sidebar = {};
+  const items = Array.from({length:11}, (_,index) => ({
+    hasAttribute: name => name === 'data-stat-preference',
+    getBoundingClientRect: () => ({left:index % columns * 220,top:Math.floor(index / columns) * 56,width:196,height:34})
+  }));
+  const context = vm.createContext({
+    focusables: () => items,
+    firstVisible: selector => selector === '[data-stat-kind][aria-pressed="true"]' ? kind : null,
+    activeSidebar: () => sidebar
+  });
+  const route = source.slice(source.indexOf("    if (zone === 'watchStatistics')"),source.indexOf("    if (zone === 'libraryActions')"));
+  vm.runInContext(functions('moveGrid', 'moveModalFrom') + 'function route(current,direction){var zone="watchStatistics";'+route+'}',context);
+  for (columns of [4,2,1]) {
+    items.forEach((item,index) => {
+      const column = index % columns, row = Math.floor(index / columns);
+      assert.equal(context.route(item,'left'),column ? items[index-1] : sidebar);
+      assert.equal(context.route(item,'right'),column < columns-1 && index+1 < items.length ? items[index+1] : null,'Right never wraps into a different row');
+      assert.equal(context.route(item,'up'),row ? items[index-columns] : kind);
+      assert.equal(context.route(item,'down'),row < Math.floor((items.length-1)/columns) ? items[Math.min(index+columns,items.length-1)] : null,'Down uses the closest item in a partial last row, then stops');
+    });
+  }
+});

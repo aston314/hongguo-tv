@@ -24,6 +24,7 @@
     "stats.emptyCopy": "これからの視聴時間を記録します",
     "stats.preference": "視聴の好み",
     "stats.thisMonth": "今月",
+    "stats.preferenceCount": "今月 · 全 {n} 件",
     "stats.types": "コンテンツ",
     "stats.genres": "ジャンル",
     "stats.emptyPreference": "好みを少しずつ発見",

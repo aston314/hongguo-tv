@@ -15,13 +15,15 @@ function element() {
 function viewFixture() {
   const nodes = new Map(), q = key => {if(!nodes.has(key))nodes.set(key,element());return nodes.get(key);};
   const buttons=['types','genres'].map(kind=>{const el=element();el.dataset.statKind=kind;return el;});
-  const root={querySelector:q,querySelectorAll:selector=>selector==='[data-stat-kind]'?buttons:q('[data-stat-columns]').children,addEventListener(){}};
+  const events={};
+  const root={querySelector:q,querySelectorAll:selector=>selector==='[data-stat-kind]'?buttons:q('[data-stat-columns]').children,contains:()=>true,addEventListener:(name,fn)=>events[name]=fn};
   let owner='account',saved={since:'2026-11-01',days:{[stats.dayKey(Date.now())]:{ms:60000,types:{real:60000},genres:{悬疑:60000}}}};
   let reset=async()=>{saved={since:stats.dayKey(Date.now()),reset_at:Date.now(),revision:'reset',days:{}};return saved;};
   const text=(_,fallback,params)=>fallback.replace(/\{(\w+)\}/g,(m,key)=>params&&params[key]!==undefined?params[key]:m);
   const prior=global.document;global.document={createElement:element};
   const view=stats.createView({root,text,owner:()=>owner,flush:async()=>{},request:async()=>saved,reset:owner=>reset(owner)});
-  return {view,q,setOwner:v=>owner=v,setSaved:v=>saved=v,setReset:v=>reset=v,restore:()=>global.document=prior};
+  return {view,q,setOwner:v=>owner=v,setSaved:v=>saved=v,setReset:v=>reset=v,restore:()=>global.document=prior,
+    clickKind:kind=>events.click({target:{closest:()=>({dataset:{statKind:kind},hasAttribute:name=>name==='data-stat-kind'})}})};
 }
 
 test('view updates totals and exact start only after a successful reset, and preserves them on failure',async()=>{
@@ -72,13 +74,42 @@ test('confirmation defaults to Cancel, restores reset focus, and rechecks the ac
  context.closeConfirmation();context.confirmResetWatchStatistics();await context.confirmOperation();assert.equal(resets,1);
 });
 
-test('remote navigation reaches reset from both header and preferences without trapping empty statistics',()=>{
- const back={hasAttribute:k=>k==='data-stat-back'},reset={hasAttribute:k=>k==='data-stat-reset'},kind={hasAttribute:k=>k==='data-stat-kind'};
+test('preference count and scrolling include all genres when switching categories',async()=>{
+ const f=viewFixture();
+ try {
+ const genres=Object.fromEntries(Array.from({length:12},(_,i)=>['题材'+i,(12-i)*60000]));
+ f.setSaved({days:{[stats.dayKey(Date.now())]:{ms:78*60000,types:{real:78*60000},genres}}});
+ f.view.show();await tick();assert.equal(f.q('[data-stat-preference-count]').textContent,'本月 · 共 1 项');
+ f.clickKind('genres');
+ const list=f.q('[data-stat-preferences]');assert.equal(list.children.length,12);
+ assert.equal(list.classList.contains('is-genres'),true);
+ assert.equal(f.q('[data-stat-preference-count]').textContent,'本月 · 共 12 项');
+ assert.equal(list.children[11].children[0].children[0].textContent,'题材11','lower-ranked entries remain available');
+ list.scrollTop=200;f.clickKind('types');assert.equal(list.scrollTop,0);assert.equal(list.children.length,1);
+ assert.equal(list.classList.contains('is-genres'),false,'content types retain their single-column presentation');
+ f.clickKind('genres');assert.equal(list.children.length,12);assert.equal(list.scrollTop,0);
+ }finally{f.restore();}
+});
+
+test('stacked statistics focus follows the vertical layout and supports empty preferences',()=>{
+ const back={hasAttribute:k=>k==='data-stat-back'},reset={hasAttribute:k=>k==='data-stat-reset'},kind={dataset:{statKind:'types'},hasAttribute:k=>k==='data-stat-kind'};
  const sidebar={},targets={'[data-stat-back]':back,'[data-stat-reset]':reset,'[data-stat-kind][aria-pressed="true"]':kind};
  const block=source.slice(source.indexOf("    if (zone === 'watchStatistics')"),source.indexOf("    if (zone === 'libraryActions')"));
- const context=vm.createContext({firstVisible:s=>targets[s]||null,activeSidebar:()=>sidebar});
- vm.runInContext('function route(current,direction){var zone="watchStatistics";'+block+'}',context);
+ const days=[0,1].map(i=>({hasAttribute:k=>k==='data-stat-day',index:i}));
+ const preferences=[0,1,2].map(i=>({hasAttribute:k=>k==='data-stat-preference',index:i,
+  getBoundingClientRect:()=>({left:0,top:i*60,width:300,height:30})}));
+ const context=vm.createContext({firstVisible:s=>targets[s]||null,activeSidebar:()=>sidebar,
+  focusables:s=>s==='[data-stat-day]'?days:preferences});
+ vm.runInContext(source.slice(source.indexOf('  function moveGrid('),source.indexOf('  function moveModalFrom('))+
+  'function route(current,direction){var zone="watchStatistics";'+block+'}',context);
  assert.equal(context.route(back,'right'),reset);assert.equal(context.route(reset,'left'),back);
- assert.equal(context.route(kind,'up'),reset);assert.equal(context.route(reset,'down'),kind);
+ assert.equal(context.route(kind,'up'),back);assert.equal(context.route(reset,'down'),kind);
  assert.equal(context.route(back,'left'),sidebar);
+ targets['[data-stat-day][aria-pressed="true"]']=days[1];targets['[data-stat-preference]']=preferences[0];
+ assert.equal(context.route(reset,'down'),days[1]);assert.equal(context.route(days[1],'down'),kind);
+ assert.equal(context.route(days[1],'right'),null,'right boundary stays in the trend row');
+ assert.equal(context.route(kind,'up'),days[1]);assert.equal(context.route(kind,'down'),preferences[0]);
+ assert.equal(context.route(kind,'left'),sidebar);
+ assert.equal(context.route(preferences[0],'up'),kind);assert.equal(context.route(preferences[0],'down'),preferences[1]);
+ assert.equal(context.route(preferences[2],'down'),null);assert.equal(context.route(preferences[2],'left'),sidebar);
 });

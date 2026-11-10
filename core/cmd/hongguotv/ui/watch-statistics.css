@@ -19,10 +19,9 @@
 .watch-stat-card > span { display: block; color: #b9b9c4; font-size: 17px; }
 .watch-stat-card strong { display: block; margin: 10px 0 5px; font-size: 30px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .watch-stat-card small { color: #a9a9b3; font-size: 14px; }
-.watch-stat-analysis { display: flex; margin: 0 -8px; }
-.watch-stat-panel { min-width: 0; background: #1c1d26; border-radius: 12px; margin: 0 8px; padding: 20px; }
-.watch-stat-trend { flex: 1.65; }
-.watch-stat-preferences { flex: 1; }
+.watch-stat-analysis { display: block; }
+.watch-stat-panel { min-width: 0; background: #1c1d26; border-radius: 12px; padding: 20px; }
+.watch-stat-panel + .watch-stat-panel { margin-top: 20px; }
 .watch-stat-panel-title h2 { margin: 0; font-size: 21px; font-weight: 500; }
 .watch-stat-panel-title > span { color: #a9a9b3; font-size: 14px; margin-left: 10px; }
 .watch-stat-chart-unit { margin: 12px 0 0; color: #a2a3b1; font-size: 13px; line-height: 18px; white-space: nowrap; }
@@ -46,13 +45,16 @@
 .watch-stat-day-label { display: block; margin-top: 8px; font-size: 14px; }
 .watch-stat-day-date { display: block; color: #9697a5; font-size: 12px; margin-top: 3px; }
 .watch-stat-total { color: #a9a9b3; font-size: 14px; margin: 16px 0 0; }
-.watch-stat-kinds { display: flex; padding: 0; margin: 17px 0; background: transparent; }
+.watch-stat-kinds { display: flex; max-width: 360px; padding: 0; margin: 17px 0; background: transparent; }
 .watch-stat-kinds button { flex: 1; border: 0; background: #292a35; color: #b7b8c4; font-size: 14px; border-radius: 7px; padding: 8px 3px; }
 .watch-stat-kinds button + button { margin-left: 14px; }
 .watch-stat-kinds button[aria-pressed="true"] { background: #444553; color: #f7f7fb; }
 .watch-stat-preference { margin-top: 16px; }
-.watch-stat-preference-list { max-height: 170px; overflow-y: auto; padding: 6px; margin: -6px; }
+.watch-stat-preference-list { max-height: 320px; overflow-y: auto; padding: 6px; margin: -6px; }
 .watch-stat-preference-list .watch-stat-preference { margin: 6px 0 16px; border-radius: 4px; }
+.watch-stat-preference-list.is-genres { display: flex; flex-wrap: wrap; align-content: flex-start; }
+.watch-stat-preference-list.is-genres .watch-stat-preference { flex: 0 0 auto; min-width: 0; width: calc(25% - 18px); margin-right: 24px; }
+.watch-stat-preference-list.is-genres .watch-stat-preference:nth-child(4n) { margin-right: 0; }
 .watch-stat-preference-label { display: flex; justify-content: space-between; margin-bottom: 7px; font-size: 16px; }
 .watch-stat-preference-label span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-right: 10px; }
 .watch-stat-preference-label span:last-child { color: #b7b8c4; }
@@ -69,6 +71,8 @@
 .watch-stat-retry { padding: 10px 20px; background: #292a35; color: #f7f7fb; border: 1px solid #484957; border-radius: 8px; }
 .watch-stat-action:focus:not(.pointer-focus-muted), .watch-stat-action.is-focused { outline: none; box-shadow: 0 0 0 3px #f7f7fb; }
 @media(max-width:1200px) {
+ .watch-stat-preference-list.is-genres .watch-stat-preference { width: calc(50% - 12px); }
+ .watch-stat-preference-list.is-genres .watch-stat-preference:nth-child(2n) { margin-right: 0; }
  .watch-stat-card { padding: 15px 17px; }
  .watch-stat-card strong { font-size: 23px; }
  .watch-stat-card > span { font-size: 15px; }
@@ -84,7 +88,7 @@
  .watch-stat-kinds { margin: 13px 0; }
  .watch-stat-kinds button { font-size: 12px; padding: 7px 2px; }
  .watch-stat-preference { margin-top: 12px; }
- .watch-stat-preference-list { max-height: 142px; }
+ .watch-stat-preference-list { max-height: 300px; }
  .watch-stat-preference-label { font-size: 14px; }
  .watch-stat-preference-note { font-size: 11px; margin-top: 14px; }
  .watch-stat-empty { min-height: 211px; }
@@ -96,8 +100,8 @@
  .watch-stat-reset { font-size: 12px; margin-left: 16px; padding: 9px 12px; }
 }
 @media(max-width:760px) {
- .watch-stat-analysis { display: block; }
- .watch-stat-panel { margin-bottom: 15px; }
+ .watch-stat-preference-list.is-genres .watch-stat-preference { width: 100%; margin-right: 0; }
+ .watch-stat-panel + .watch-stat-panel { margin-top: 15px; }
  .watch-stat-card { padding: 12px; }
  .watch-stat-card strong { font-size: 19px; }
  .watch-stat-card small { font-size: 11px; }
@@ -124,5 +128,7 @@
  .watch-stat-empty h3 { font-size: 16px; }
  .watch-stat-empty p { font-size: 12px; }
  .watch-stat-preference-empty { min-height: 100px; }
- .watch-stat-preference-list { max-height: 112px; }
+}
+@media (max-height:650px) {
+ .watch-stat-preference-list { max-height: 204px; }
 }
