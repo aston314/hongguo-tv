@@ -2,6 +2,7 @@ const {test} = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
+const {createHash} = require('node:crypto');
 const {createLine} = require('../core/cmd/hongguotv/ui/danmaku-content.js');
 const {countText} = require('../core/cmd/hongguotv/ui/engagement.js');
 
@@ -21,7 +22,7 @@ test('mixed bracket codes, Unicode emoji, unknown codes and HTML remain safe and
   const line = createLine(document, {text: '笑死了😂[捂脸][笑哭][新表情]<img src=x onerror=alert(1)>', likes: 128}, countText);
   const images = descendants(line).filter(n => n.tag === 'img');
   assert.deepEqual(images.map(n => n.alt), ['[捂脸]', '[笑哭]']);
-  assert.deepEqual(images.map(n => n.src), ['emoji/noto/1fae3.png', 'emoji/noto/1f602.png']);
+  assert.deepEqual(images.map(n => n.src), ['emoji/hongguo/25.webp', 'emoji/hongguo/20.webp']);
   assert.equal(textOf(line), '笑死了😂[新表情]<img src=x onerror=alert(1)>128');
   const badge = line.children.at(-1);
   assert.equal(badge.className, 'danmaku-likes');
@@ -53,17 +54,49 @@ test('the existing text limit does not leave a broken emoji surrogate', () => {
   assert.equal(textOf(createLine(document, {text: null, likes: 0})), '');
 });
 
-test('all mapped images ship offline at a fixed 128px size with attribution, before the shared app starts', () => {
-  const ui = path.resolve(__dirname, '../core/cmd/hongguotv/ui');
-  const source = fs.readFileSync(path.join(ui, 'danmaku-content.js'), 'utf8');
-  const codes = [...source.matchAll(/'\[[^']+\]': '([a-f0-9-]+)'/g)].map(m => m[1]);
-  assert.ok(codes.length >= 40);
-  for (const code of new Set(codes)) {
-    const png = fs.readFileSync(path.join(ui, 'emoji/noto', code + '.png'));
-    assert.equal(png.subarray(1, 4).toString(), 'PNG');
-    assert.equal(png.readUInt32BE(16), 128); assert.equal(png.readUInt32BE(20), 128);
+test('existing synonymous codes share the same artwork while unmatched codes remain text', () => {
+  const aliases = [
+    ['[白眼]', '[翻白眼]'], ['[心碎]', '[伤心]'], ['[心]', '[爱心]'],
+    ['[强]', '[赞]'], ['[玫瑰]', '[送花]'], ['[破涕为笑]', '[笑哭]'],
+    ['[大哭]', '[哭]'], ['[调皮]', '[做鬼脸]'], ['[色]', '[爱慕]'],
+    ['[发怒]', '[怒]'], ['[愤怒]', '[怒]'], ['[尴尬]', '[尬笑]'], ['[酷拽]', '[酷]']
+  ];
+  for (const [alias, canonical] of aliases) {
+    const line = createLine(document, {text: alias + canonical});
+    const images = line.children.slice();
+    assert.equal(images.length, 2);
+    assert.equal(images[0].src, images[1].src);
+    assert.equal(images[0].alt, alias);
+    images[0].events.error(); images[1].events.error();
+    assert.equal(textOf(line), alias + canonical, 'a failed alias restores its own original spelling');
+    assert.equal(images[0].parentNode, null);
   }
-  assert.match(fs.readFileSync(path.join(ui, 'emoji/noto/README.txt'), 'utf8'), /Apache.*2\.0/);
+  const text = '[睡觉][流泪][握手][比心][未知表情][ok]';
+  const line = createLine(document, {text});
+  assert.equal(textOf(line), text);
+  assert.equal(descendants(line).filter(n => n.tag === 'img').length, 0);
+});
+
+test('all 53 canonical emoji render their original offline assets before the shared app starts', () => {
+  const ui = path.resolve(__dirname, '../core/cmd/hongguotv/ui');
+  const pack = path.join(ui, 'emoji/hongguo');
+  const manifest = JSON.parse(fs.readFileSync(path.join(pack, 'manifest.json'), 'utf8'));
+  assert.equal(manifest.items.length, 53);
+  assert.equal(new Set(manifest.items.map(item => item.file)).size, 53);
+  for (const item of manifest.items) {
+    const line = createLine(document, {text: item.code});
+    assert.equal(line.children.length, 1);
+    const image = line.children[0];
+    assert.equal(image.tag, 'img', item.code);
+    assert.equal(image.alt, item.code);
+    assert.equal(image.src, 'emoji/hongguo/' + item.file, item.code);
+    const webp = fs.readFileSync(path.join(pack, item.file));
+    assert.equal(webp.subarray(0, 4).toString(), 'RIFF');
+    assert.equal(webp.subarray(8, 12).toString(), 'WEBP');
+    assert.equal(createHash('sha256').update(webp).digest('hex'), item.sha256);
+  }
+  assert.match(fs.readFileSync(path.join(pack, 'README.txt'), 'utf8'), /v0\.1\.14/);
+  assert.equal(fs.existsSync(path.join(ui, 'emoji/noto')), false);
   const html = fs.readFileSync(path.join(ui, 'index.html'), 'utf8');
   assert.ok(html.indexOf('src="/danmaku-content.js"') < html.indexOf('src="/app.js"'));
 });

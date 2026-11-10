@@ -1,0 +1,279 @@
+{
+  "repository": "https://github.com/liangzai-kk/hongguo-short-drama-desktop",
+  "release": "v0.1.14",
+  "download": "https://github.com/liangzai-kk/hongguo-short-drama-desktop/releases/tag/v0.1.14",
+  "installer_sha256": "97cf4ea981fc2216a9f3866903b336e4b9fab9ed25e7ce1a8304242a0cf624d0",
+  "bundle": "resources/app.asar/out/renderer/assets/index-CFpP1gPR.js",
+  "notes": [
+    "Static extraction only; installer and bundled JavaScript were not executed.",
+    "Indices 1–53 are client-local ordering, not verified upstream API identifiers.",
+    "The repository calls these official emoji; provenance was not independently certified."
+  ],
+  "items": [
+    {
+      "code": "[微笑]",
+      "file": "1.webp",
+      "sha256": "49e7f11fcba5d02f473bfc16965db3cb91f3b41b85b8726745704e34254a70b4"
+    },
+    {
+      "code": "[偷笑]",
+      "file": "2.webp",
+      "sha256": "449ba8b8336affb633c4728f8bf29bb2eeba7497b733fbadd545b21dbd729a24"
+    },
+    {
+      "code": "[笑]",
+      "file": "3.webp",
+      "sha256": "b5f5768eed81cfdadff18db313788998b9694053b0c7cc93f9084607c10b1d22"
+    },
+    {
+      "code": "[什么]",
+      "file": "4.webp",
+      "sha256": "561c35c98b144a527433c7fc3bdddd6fff45a55a7fa5cbe5e258092004d6774e"
+    },
+    {
+      "code": "[害羞]",
+      "file": "5.webp",
+      "sha256": "1448a9d1b5dfcfd8f5cfde26ba57bc5095963b02f5ed306a0d7fe847788cdbcc"
+    },
+    {
+      "code": "[爱慕]",
+      "file": "6.webp",
+      "sha256": "6cb252b816bcbbbed861fbcff9d3a5f82296ebc7547bd5cb09c18e9f930f7331"
+    },
+    {
+      "code": "[飞吻]",
+      "file": "7.webp",
+      "sha256": "3f1b4aaa0b3fa56719fb9633e093a7c9cf71fe99663c6f4df924389a8c1321c3"
+    },
+    {
+      "code": "[奸笑]",
+      "file": "8.webp",
+      "sha256": "a14c8f5969d8cafef6f19d1eb205919058d84709e5af7ff1312d2ea8b8045e11"
+    },
+    {
+      "code": "[尬笑]",
+      "file": "9.webp",
+      "sha256": "390a6a8e425e396f02a9ca749d87a43c79905df399c14a2855c0db45f5047a4d"
+    },
+    {
+      "code": "[思考]",
+      "file": "10.webp",
+      "sha256": "19a882e21715e34adca37f12d0d503809bf837eb20b66754957ba74c938dccd4"
+    },
+    {
+      "code": "[撇嘴]",
+      "file": "11.webp",
+      "sha256": "1e221cf59ac378e6c9ce833ddd672ab3fa438b5fbf0521af7b87cc81a6e3b60b"
+    },
+    {
+      "code": "[做鬼脸]",
+      "file": "12.webp",
+      "sha256": "354b2a49136967b9e8bb6d09039a9007248e1cbb21b418e58192ce4a1720d18e"
+    },
+    {
+      "code": "[酷]",
+      "file": "13.webp",
+      "sha256": "b6813dd029c21376a7c27bfb23441e8a923cea3ad41a59adff518f2298d3bcea"
+    },
+    {
+      "code": "[翻白眼]",
+      "file": "14.webp",
+      "sha256": "2f4ea5cfdc33f6dfac146e1109009ee6748e67c5033a088609f92460f6af936f"
+    },
+    {
+      "code": "[惊呆]",
+      "file": "15.webp",
+      "sha256": "d97a00eda40c4b97f1de41559580515a2aa24a094ea67a4172c6e828520721ec"
+    },
+    {
+      "code": "[震惊]",
+      "file": "16.webp",
+      "sha256": "5afad4a2dc409f0fee11423c6ce02d5e4a45f16ebaeaf6ba411dfac5e8702f7e"
+    },
+    {
+      "code": "[送心]",
+      "file": "17.webp",
+      "sha256": "59418a31223e73c256d4e6cf34667709b5f416828186cc5e762535904ae08b5d"
+    },
+    {
+      "code": "[委屈]",
+      "file": "18.webp",
+      "sha256": "7d0fc00ebf42141b84bc3da26fad310664cdd8cb7b5321306a70d7420161bcc8"
+    },
+    {
+      "code": "[快哭了]",
+      "file": "19.webp",
+      "sha256": "59c43769274211d90276ee05ce7ff51decb28915651b87266d59503885dd55b9"
+    },
+    {
+      "code": "[笑哭]",
+      "file": "20.webp",
+      "sha256": "6a613f27c37d36d08f94da8b8f6638165bdc51221f5f5aea09f44005954a605e"
+    },
+    {
+      "code": "[哭]",
+      "file": "21.webp",
+      "sha256": "badcab9751fa0c7c83ca2c4f55d3ab1f5a0c0b38195e8e7057d69e02d4443fd2"
+    },
+    {
+      "code": "[大笑]",
+      "file": "22.webp",
+      "sha256": "1ad22b12980711653bd0d5476a3fc69608be533373867c0c918e39ce48f4a6aa"
+    },
+    {
+      "code": "[舔屏]",
+      "file": "23.webp",
+      "sha256": "81cb1868eb163cf8ced8f90244c399973bc9f0e2dd596740cea5061a524a7fd6"
+    },
+    {
+      "code": "[怒]",
+      "file": "24.webp",
+      "sha256": "aa9bb31d2b9f872a441725417fdaee05496be3da7fad3c3e9c02b2d01ab4c633"
+    },
+    {
+      "code": "[捂脸]",
+      "file": "25.webp",
+      "sha256": "dc18fd63499d36da56ce465d3419fe5b9fed64d861471114579d01d7ee9024f0"
+    },
+    {
+      "code": "[吐]",
+      "file": "26.webp",
+      "sha256": "227564a79e1876a6debffecfc8475dffacef70bf47a60d7e3ac7fc3a4636a833"
+    },
+    {
+      "code": "[恐惧]",
+      "file": "27.webp",
+      "sha256": "5f3f65ee79c4b5617c16f183390f1fc36f971b69c51df364c50382bcb9999a4c"
+    },
+    {
+      "code": "[抓狂]",
+      "file": "28.webp",
+      "sha256": "e58912833e4a72ca039af09d0bfe2eff843aaabb53e05cef23cbcc097110ea30"
+    },
+    {
+      "code": "[敬礼]",
+      "file": "29.webp",
+      "sha256": "f8280f18ed42f45e2990b0d770c3fef29b748167a16ced705845ce0069ebba39"
+    },
+    {
+      "code": "[石化]",
+      "file": "30.webp",
+      "sha256": "5f01030e355c3bf9366a965982ae8b3ef308defcdca55c900d915fe23e910bd6"
+    },
+    {
+      "code": "[OK]",
+      "file": "31.webp",
+      "sha256": "f829660df14459c62ac595188073edce3f32c67522feebffd9adb6cfaefababd"
+    },
+    {
+      "code": "[赞]",
+      "file": "32.webp",
+      "sha256": "b7227c2d5d03b33424ec45eedb1558e796c1a4f0d745789e0db47a5151080648"
+    },
+    {
+      "code": "[爱心]",
+      "file": "33.webp",
+      "sha256": "418a1b21daf90cc6219469c5294bd151359fd539ed1c0e6994cab54e08b58055"
+    },
+    {
+      "code": "[伤心]",
+      "file": "34.webp",
+      "sha256": "4bd0800b0488666f18bc68b44d0feed09e2439a0159a1558605b3d05f4987a26"
+    },
+    {
+      "code": "[KISS]",
+      "file": "35.webp",
+      "sha256": "cfaf16be4b8ec67bea298d6b0b9d37ffaf8e6d40383dc9ad5061dcea646cdf0d"
+    },
+    {
+      "code": "[懂了]",
+      "file": "36.webp",
+      "sha256": "d7c2cd960e93dee9724d32940e444184dac8957161a3e940c1dfda27d661c3fc"
+    },
+    {
+      "code": "[探究]",
+      "file": "37.webp",
+      "sha256": "9479c56dfda3201f9113466f6c0cba18387368379a29597a9735a93d825b14af"
+    },
+    {
+      "code": "[重拳出击]",
+      "file": "38.webp",
+      "sha256": "3fd6b9f4ca992eeb804faf7ee62cd62c4b8194ea282afcfc4e921cbc69c90551"
+    },
+    {
+      "code": "[吃瓜]",
+      "file": "39.webp",
+      "sha256": "0503b5e74e25c93319a8291c16783a6de7c1aaacc03ac20c5f67ebace74413dc"
+    },
+    {
+      "code": "[盯]",
+      "file": "40.webp",
+      "sha256": "c88cd766f1f8d9e5e6853af41fb259e89b0e3b432f473581fce4a0502938bac2"
+    },
+    {
+      "code": "[你细品]",
+      "file": "41.webp",
+      "sha256": "a52b7d3314a23ae6d21f697a12e954d1483bcfc7beeda5c414c9d019fa75e914"
+    },
+    {
+      "code": "[赶稿中]",
+      "file": "42.webp",
+      "sha256": "3382a5aa4f63b3307e54980c1b55e9725c5e1a938407583e183873599b80bc10"
+    },
+    {
+      "code": "[注意]",
+      "file": "43.webp",
+      "sha256": "8914916da075857dc5ed3967b29b8b9fe97f4dd35021e9c6d1c3848dcd09325b"
+    },
+    {
+      "code": "[饱了]",
+      "file": "44.webp",
+      "sha256": "bf0fab0223a68b7565a369310b67e4fdfe5ec19c51edfece5d0608bae81c54a6"
+    },
+    {
+      "code": "[码住]",
+      "file": "45.webp",
+      "sha256": "9264f6b83374bd807c3eb4e436fc2c467fd3a87a17767dec67492bb9c94e5fe2"
+    },
+    {
+      "code": "[学会了]",
+      "file": "46.webp",
+      "sha256": "bd32855fd006e05cf8c77d05b85edfa6c22b437c2ea988f2aa414ce161762197"
+    },
+    {
+      "code": "[顶帖]",
+      "file": "47.webp",
+      "sha256": "155b4d6c2756b1952e063832fd9a7eed22af3b2c90c96b0dfb17487e0836994e"
+    },
+    {
+      "code": "[求爆更]",
+      "file": "48.webp",
+      "sha256": "a5cddc7c7bee525c1f64ccb04e5831c032974c97098fcdeb1f5b5526c245f227"
+    },
+    {
+      "code": "[求关注]",
+      "file": "49.webp",
+      "sha256": "19bd6df8595672eab446001f0ae80030438f14a047315c76b791979546606e23"
+    },
+    {
+      "code": "[爽]",
+      "file": "50.webp",
+      "sha256": "9e7785f77dc1b3ae7fd5da61339b079daeda4f4d14c1e49a8abcfa96cf2576bf"
+    },
+    {
+      "code": "[鼓掌]",
+      "file": "51.webp",
+      "sha256": "3c521f831a51813332382d0026bf2ff9971d83e8b23f9b139cec9485f0aa3297"
+    },
+    {
+      "code": "[没看够]",
+      "file": "52.webp",
+      "sha256": "d1b9452401e39526571165b5ab5e277c97dcd66a5efe757fbeb424f658b2f680"
+    },
+    {
+      "code": "[送花]",
+      "file": "53.webp",
+      "sha256": "98e9c77cb2117742431c02df9cd761d1415125d31bceb788645beced06191164"
+    }
+  ]
+}

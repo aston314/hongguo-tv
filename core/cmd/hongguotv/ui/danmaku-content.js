@@ -5,23 +5,29 @@
   else root.HongguoDanmakuContent = api;
 }(typeof window !== 'undefined' ? window : this, function () {
   'use strict';
-  // Common bracket codes use bundled, semantically equivalent Noto Emoji art.
-  // These are not the upstream client's proprietary emoji images.
-  var emoji = {
-    '[捂脸]': '1fae3', '[笑哭]': '1f602', '[破涕为笑]': '1f602',
-    '[流泪]': '1f622', '[泪奔]': '1f62d', '[大哭]': '1f62d', '[泣不成声]': '1f62d',
-    '[微笑]': '1f642', '[呲牙]': '1f601', '[大笑]': '1f606', '[憨笑]': '1f604',
-    '[偷笑]': '1f92d', '[害羞]': '1f60a', '[调皮]': '1f61c', '[可爱]': '1f970',
-    '[色]': '1f60d', '[爱慕]': '1f60d', '[爱心]': '2764', '[心]': '2764',
-    '[比心]': '1faf0', '[心碎]': '1f494', '[赞]': '1f44d', '[强]': '1f44d',
-    '[鼓掌]': '1f44f', '[握手]': '1f91d', '[抱拳]': '1f64f', '[祈祷]': '1f64f',
-    '[玫瑰]': '1f339', '[惊讶]': '1f62e', '[震惊]': '1f631', '[发怒]': '1f620',
-    '[愤怒]': '1f621', '[撇嘴]': '1f612', '[白眼]': '1f644', '[晕]': '1f635',
-    '[尴尬]': '1f605', '[尬笑]': '1f605', '[汗]': '1f613', '[困]': '1f62a',
-    '[睡]': '1f634', '[睡觉]': '1f634', '[酷拽]': '1f60e', '[得意]': '1f60f',
-    '[思考]': '1f914', '[疑问]': '1f914', '[嘘]': '1f92b', '[委屈]': '1f97a',
-    '[再见]': '1f44b', '[灵光一闪]': '1f4a1', '[机智]': '1f609'
+  // Asset order from the reference client's 53-image pack; these are local
+  // file numbers, not upstream API identifiers. See emoji/hongguo/README.txt.
+  var names = [
+    '微笑', '偷笑', '笑', '什么', '害羞', '爱慕', '飞吻', '奸笑', '尬笑',
+    '思考', '撇嘴', '做鬼脸', '酷', '翻白眼', '惊呆', '震惊', '送心', '委屈',
+    '快哭了', '笑哭', '哭', '大笑', '舔屏', '怒', '捂脸', '吐', '恐惧', '抓狂',
+    '敬礼', '石化', 'OK', '赞', '爱心', '伤心', 'KISS', '懂了', '探究',
+    '重拳出击', '吃瓜', '盯', '你细品', '赶稿中', '注意', '饱了', '码住',
+    '学会了', '顶帖', '求爆更', '求关注', '爽', '鼓掌', '没看够', '送花'
+  ];
+  var emoji = {}, i, token;
+  for (i = 0; i < names.length; i += 1) emoji['[' + names[i] + ']'] = i + 1;
+  // Only unambiguous existing aliases share an image. Everything else stays
+  // as its original text instead of mixing artwork or guessing an expression.
+  var aliases = {
+    '[破涕为笑]': '[笑哭]', '[大哭]': '[哭]', '[调皮]': '[做鬼脸]',
+    '[色]': '[爱慕]', '[心]': '[爱心]', '[心碎]': '[伤心]', '[强]': '[赞]',
+    '[玫瑰]': '[送花]', '[发怒]': '[怒]', '[愤怒]': '[怒]',
+    '[白眼]': '[翻白眼]', '[尴尬]': '[尬笑]', '[酷拽]': '[酷]'
   };
+  for (token in aliases) {
+    if (Object.prototype.hasOwnProperty.call(aliases, token)) emoji[token] = emoji[aliases[token]];
+  }
   function appendText(document, parent, value) {
     parent.appendChild(document.createTextNode(value));
   }
@@ -32,7 +38,7 @@
     image.addEventListener('error', function () {
       if (image.parentNode) image.parentNode.replaceChild(document.createTextNode(token), image);
     });
-    image.src = 'emoji/noto/' + code + '.png';
+    image.src = 'emoji/hongguo/' + code + '.webp';
     parent.appendChild(image);
   }
   function appendContent(document, parent, value) {
