@@ -1780,9 +1780,9 @@
         return null;
       }
       if (current.hasAttribute('data-stat-preference')) {
-        var preferences = focusables('[data-stat-preference]'), preferenceIndex = preferences.indexOf(current);
-        if (direction === 'up') return preferences[preferenceIndex - 1] || firstVisible('[data-stat-kind][aria-pressed="true"]');
-        if (direction === 'down') return preferences[preferenceIndex + 1] || null;
+        var preferenceTarget = moveGrid('[data-stat-preference]', current, direction);
+        if (preferenceTarget) return preferenceTarget;
+        if (direction === 'up') return firstVisible('[data-stat-kind][aria-pressed="true"]');
         if (direction === 'left') return activeSidebar();
         return null;
       }

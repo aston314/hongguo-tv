@@ -82,9 +82,11 @@ test('preference count and scrolling include all genres when switching categorie
  f.view.show();await tick();assert.equal(f.q('[data-stat-preference-count]').textContent,'本月 · 共 1 项');
  f.clickKind('genres');
  const list=f.q('[data-stat-preferences]');assert.equal(list.children.length,12);
+ assert.equal(list.classList.contains('is-genres'),true);
  assert.equal(f.q('[data-stat-preference-count]').textContent,'本月 · 共 12 项');
  assert.equal(list.children[11].children[0].children[0].textContent,'题材11','lower-ranked entries remain available');
  list.scrollTop=200;f.clickKind('types');assert.equal(list.scrollTop,0);assert.equal(list.children.length,1);
+ assert.equal(list.classList.contains('is-genres'),false,'content types retain their single-column presentation');
  f.clickKind('genres');assert.equal(list.children.length,12);assert.equal(list.scrollTop,0);
  }finally{f.restore();}
 });
@@ -94,10 +96,12 @@ test('stacked statistics focus follows the vertical layout and supports empty pr
  const sidebar={},targets={'[data-stat-back]':back,'[data-stat-reset]':reset,'[data-stat-kind][aria-pressed="true"]':kind};
  const block=source.slice(source.indexOf("    if (zone === 'watchStatistics')"),source.indexOf("    if (zone === 'libraryActions')"));
  const days=[0,1].map(i=>({hasAttribute:k=>k==='data-stat-day',index:i}));
- const preferences=[0,1,2].map(i=>({hasAttribute:k=>k==='data-stat-preference',index:i}));
+ const preferences=[0,1,2].map(i=>({hasAttribute:k=>k==='data-stat-preference',index:i,
+  getBoundingClientRect:()=>({left:0,top:i*60,width:300,height:30})}));
  const context=vm.createContext({firstVisible:s=>targets[s]||null,activeSidebar:()=>sidebar,
   focusables:s=>s==='[data-stat-day]'?days:preferences});
- vm.runInContext('function route(current,direction){var zone="watchStatistics";'+block+'}',context);
+ vm.runInContext(source.slice(source.indexOf('  function moveGrid('),source.indexOf('  function moveModalFrom('))+
+  'function route(current,direction){var zone="watchStatistics";'+block+'}',context);
  assert.equal(context.route(back,'right'),reset);assert.equal(context.route(reset,'left'),back);
  assert.equal(context.route(kind,'up'),back);assert.equal(context.route(reset,'down'),kind);
  assert.equal(context.route(back,'left'),sidebar);

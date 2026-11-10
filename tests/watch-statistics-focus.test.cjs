@@ -87,3 +87,28 @@ test('statistics focus reveals the full preference panel and falls back to the a
   context.goFocus(action);
   assert.ok(action.getBoundingClientRect().top>=78 && action.getBoundingClientRect().bottom<=534,'an oversized panel still keeps its action visible');
 });
+
+test('genre navigation follows four, two or one columns after resizing and keeps incomplete-row boundaries', () => {
+  let columns = 4;
+  const kind = {hasAttribute: name => name === 'data-stat-kind'}, sidebar = {};
+  const items = Array.from({length:11}, (_,index) => ({
+    hasAttribute: name => name === 'data-stat-preference',
+    getBoundingClientRect: () => ({left:index % columns * 220,top:Math.floor(index / columns) * 56,width:196,height:34})
+  }));
+  const context = vm.createContext({
+    focusables: () => items,
+    firstVisible: selector => selector === '[data-stat-kind][aria-pressed="true"]' ? kind : null,
+    activeSidebar: () => sidebar
+  });
+  const route = source.slice(source.indexOf("    if (zone === 'watchStatistics')"),source.indexOf("    if (zone === 'libraryActions')"));
+  vm.runInContext(functions('moveGrid', 'moveModalFrom') + 'function route(current,direction){var zone="watchStatistics";'+route+'}',context);
+  for (columns of [4,2,1]) {
+    items.forEach((item,index) => {
+      const column = index % columns, row = Math.floor(index / columns);
+      assert.equal(context.route(item,'left'),column ? items[index-1] : sidebar);
+      assert.equal(context.route(item,'right'),column < columns-1 && index+1 < items.length ? items[index+1] : null,'Right never wraps into a different row');
+      assert.equal(context.route(item,'up'),row ? items[index-columns] : kind);
+      assert.equal(context.route(item,'down'),row < Math.floor((items.length-1)/columns) ? items[Math.min(index+columns,items.length-1)] : null,'Down uses the closest item in a partial last row, then stops');
+    });
+  }
+});
