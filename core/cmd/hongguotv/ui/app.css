@@ -431,7 +431,6 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
 .danmaku-layer.is-region-half { top: 8%; bottom: 42%; }
 .danmaku-layer.is-region-quarter { top: 8%; bottom: 67%; }
 .danmaku-line { position: absolute; left: 100%; white-space: nowrap; color: #fff; font-size: 22px; font-weight: 600; text-shadow: 1px 1px 3px #000, -1px -1px 2px #000; animation: danmaku-travel 9s linear forwards; }
-.danmaku-emoji { display: inline-block; width: 1.15em; height: 1.15em; margin: 0 0.08em; vertical-align: -0.22em; }
 .danmaku-likes { display: inline-block; margin-left: 0.55em; padding: 0.12em 0.45em; border-radius: 1em; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 0.72em; line-height: 1.25; vertical-align: 0.05em; }
 .danmaku-likes svg { display: inline-block; width: 1em; height: 1em; margin-right: 0.25em; vertical-align: -0.15em; }
 .danmaku-layer.is-paused .danmaku-line { animation-play-state: paused; }
