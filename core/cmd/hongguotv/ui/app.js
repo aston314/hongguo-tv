@@ -947,7 +947,8 @@
       if (item.shown || item.offset_ms > now || now - last < 700 || layer.children.length >= 8) return;
       item.shown = true; last = now; danmakuLast = now;
       if (item.offset_ms < now - 2000) return;
-      var line = document.createElement('span'); line.className = 'danmaku-line'; line.textContent = item.text.slice(0, 120); line.style.top = (danmakuLane++ % layout.count) * layout.step + 'px';
+      var line = HongguoDanmakuContent.createLine(document, item, HongguoEngagement.countText);
+      line.style.top = (danmakuLane++ % layout.count) * layout.step + 'px';
       line.addEventListener('animationend', function () { line.remove(); }); layer.appendChild(line);
     });
   }
