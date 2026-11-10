@@ -67,3 +67,23 @@ test('focus validation skips hidden cached cards without resolving their styles'
   assert.deepEqual(Array.from(context.focusables()), [modal]);
   assert.deepEqual(reads, [modal], 'modal focus containment is unchanged');
 });
+
+test('statistics focus reveals the full preference panel and falls back to the action in a short workspace', () => {
+  const workspace = {scrollTop:0,clientTop:0,clientHeight:468,parentElement:null,style:{overflowY:'auto'},getBoundingClientRect:()=>({top:72})};
+  const panel = {offsetHeight:340,parentElement:workspace,getBoundingClientRect:()=>({top:650-workspace.scrollTop,bottom:650-workspace.scrollTop+panel.offsetHeight})};
+  const action = {tagName:'BUTTON',disabled:false,parentElement:panel,classList:{contains:name=>name==='watch-stat-action'},
+    getClientRects:()=>[{}],hasAttribute:name=>name==='data-stat-kind',closest:()=>panel,
+    getBoundingClientRect:()=>({top:710-workspace.scrollTop,bottom:744-workspace.scrollTop}),focus(){context.document.activeElement=action;}};
+  const context = vm.createContext({document:{activeElement:null},libraryPage:workspace,androidShell:false,
+    window:{getComputedStyle:node=>node.style||{visibility:'visible'}},coreConnectionModalOpen:false,
+    markFocus(){},zoneOf:()=> 'watchStatistics',pageMode:()=> 'history',accountCountryModalOpen:false,
+    scanModalOpen:()=>false,accountKeypadOpen:()=>false,detailModalOpen:false,confirmOpen:false,
+    playerOptionsOpen:false,discussionOpen:false,lastPageFocus:{}});
+  vm.runInContext(functions('revealSidebarFocus','zoneOf')+functions('goFocus','firstContentFocus'),context);
+  context.goFocus(action);
+  assert.equal(context.document.activeElement,action);
+  assert.ok(panel.getBoundingClientRect().top>=78 && panel.getBoundingClientRect().bottom<=534,'panel fits inside the workspace with focus clearance');
+  workspace.scrollTop=0;panel.offsetHeight=700;
+  context.goFocus(action);
+  assert.ok(action.getBoundingClientRect().top>=78 && action.getBoundingClientRect().bottom<=534,'an oversized panel still keeps its action visible');
+});

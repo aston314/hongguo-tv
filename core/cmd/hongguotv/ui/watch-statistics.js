@@ -201,7 +201,9 @@
       if (!current) return;
       buttons.forEach(function (button) { button.setAttribute('aria-pressed', String(button.dataset.statKind === kind)); });
       var rows = Object.keys(current[kind]).map(function (key) { return { key: key, ms: current[kind][key] }; }).sort(function (a, b) { return b.ms - a.ms || a.key.localeCompare(b.key); });
+      q('[data-stat-preference-count]').textContent = t('stats.preferenceCount', '本月 · 共 {n} 项', { n: rows.length });
       var list = q('[data-stat-preferences]'); list.innerHTML = '';
+      list.scrollTop = 0;
       rows.forEach(function (row, i) {
         var line = document.createElement('div'); line.className = 'watch-stat-preference watch-stat-action';
         line.tabIndex = 0; line.setAttribute('role', 'listitem'); line.dataset.statPreference = String(i); line.dataset.focus = 'stat-preference-' + i;

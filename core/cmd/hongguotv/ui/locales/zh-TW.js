@@ -24,6 +24,7 @@
     "stats.emptyCopy": "從現在開始，記錄你的觀影時光",
     "stats.preference": "觀看偏好",
     "stats.thisMonth": "本月",
+    "stats.preferenceCount": "本月 · 共 {n} 項",
     "stats.types": "內容類型",
     "stats.genres": "題材偏好",
     "stats.emptyPreference": "你的喜好，慢慢發現",

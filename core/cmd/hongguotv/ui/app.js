@@ -1292,7 +1292,12 @@
     if (previous && previous.tagName === 'INPUT' && element.tagName !== 'INPUT' && window.HongguoTVInput) window.HongguoTVInput.finishEditing();
     element.focus();
     markFocus(element);
-    if (zoneOf(element) === 'sidebar' || element.hasAttribute('data-stat-preference')) revealSidebarFocus(element);
+    if (zoneOf(element) === 'sidebar') revealSidebarFocus(element);
+    else if (element.classList.contains('watch-stat-action')) {
+      var preferencePanel = element.hasAttribute('data-stat-kind') && element.closest('.watch-stat-preferences');
+      // Enter the lower panel with its list visible when it fits the workspace.
+      revealSidebarFocus(preferencePanel && preferencePanel.offsetHeight <= libraryPage.clientHeight - 12 ? preferencePanel : element);
+    }
     // Older WebViews may focus an action without scrolling its workspace.
     if ((pageMode() === 'account' || pageMode() === 'settings') && element.closest &&
         element.closest(pageMode() === 'settings' ? '#settings-page' : '#account-page')) {
@@ -1758,19 +1763,19 @@
       }
       if (current.hasAttribute('data-stat-reset')) {
         if (direction === 'left') return firstVisible('[data-stat-back]');
-        if (direction === 'down') return firstVisible('[data-stat-retry]') || firstVisible('[data-stat-kind][aria-pressed="true"]');
+        if (direction === 'down') return firstVisible('[data-stat-retry]') || firstVisible('[data-stat-day][aria-pressed="true"]') || firstVisible('[data-stat-kind][aria-pressed="true"]');
         return null;
       }
       if (current.hasAttribute('data-stat-day')) {
         if (direction === 'up') return firstVisible('[data-stat-back]');
         if (direction === 'down') return firstVisible('[data-stat-kind][aria-pressed="true"]');
         var days = focusables('[data-stat-day]'), dayIndex = days.indexOf(current);
-        return days[dayIndex + (direction === 'left' ? -1 : 1)] || (direction === 'left' ? activeSidebar() : firstVisible('[data-stat-kind]'));
+        return days[dayIndex + (direction === 'left' ? -1 : 1)] || (direction === 'left' ? activeSidebar() : null);
       }
       if (current.hasAttribute('data-stat-kind')) {
-        if (direction === 'up') return firstVisible('[data-stat-reset]') || firstVisible('[data-stat-back]');
+        if (direction === 'up') return firstVisible('[data-stat-day][aria-pressed="true"]') || firstVisible('[data-stat-back]');
         if (direction === 'down') return firstVisible('[data-stat-preference]');
-        if (direction === 'left') return current.dataset.statKind === 'genres' ? firstVisible('[data-stat-kind="types"]') : firstVisible('[data-stat-day][aria-pressed="true"]') || activeSidebar();
+        if (direction === 'left') return current.dataset.statKind === 'genres' ? firstVisible('[data-stat-kind="types"]') : activeSidebar();
         if (direction === 'right') return firstVisible('[data-stat-kind="genres"]');
         return null;
       }
@@ -1778,7 +1783,7 @@
         var preferences = focusables('[data-stat-preference]'), preferenceIndex = preferences.indexOf(current);
         if (direction === 'up') return preferences[preferenceIndex - 1] || firstVisible('[data-stat-kind][aria-pressed="true"]');
         if (direction === 'down') return preferences[preferenceIndex + 1] || null;
-        if (direction === 'left') return firstVisible('[data-stat-day][aria-pressed="true"]') || activeSidebar();
+        if (direction === 'left') return activeSidebar();
         return null;
       }
       return direction === 'up' ? firstVisible('[data-stat-back]') : direction === 'left' ? activeSidebar() : null;
