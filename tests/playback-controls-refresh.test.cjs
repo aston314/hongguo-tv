@@ -38,6 +38,7 @@ function fixture({hidden=false,webos=false}={}) {
   scheduleControlsHide(){calls.push('schedule');},controlsManuallyHidden:true,
   media:{addEventListener:(k,fn)=>events[k]=fn},activePlayback:{started:true},
   tickDanmaku(){calls.push('danmaku');},checkPlaybackProgress(){calls.push('check');},
+  updateNextSeasonHint(){},
   maybePrefetchNextEpisode(){calls.push('prefetch');},saveProgress(force){calls.push(['save',force]);}
  };
  const begin=source.indexOf('  function setControlIcon(');

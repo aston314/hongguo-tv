@@ -487,6 +487,7 @@
   var recommendationDirectionSettings = null;
   var portraitBackdrop = null;
   var endRecommendationIndex = 0, endRecommendationAnimation = 0, endRecommendationReadyCleanup = null;
+  var nextSeasonHint = typeof HongguoNextSeasonHint !== 'undefined' ? HongguoNextSeasonHint.create({ show: showNextSeasonHint, hide: hideNextSeasonHint }) : null;
   var endRecommendations = HongguoEndRecommendations.create({
     isCurrent: function (playback) {
       return !!(playback && activePlayback === playback && playback.owner === accountEpoch && playback.generation === feedGeneration &&
@@ -3274,6 +3275,7 @@
   }
   function setCinema(enabled) {
     shell.classList.toggle('is-cinema', enabled);
+    if (!enabled && typeof nextSeasonHint !== 'undefined' && nextSeasonHint) nextSeasonHint.reset();
     updatePlaybackControls();
     // CSS cinema mode does not resize the Android WebView. Read the new
     // layout explicitly, including after the browser fullscreen callback.
@@ -4546,6 +4548,39 @@
     if (restore && isPlaybackPage()) goFocus(document.getElementById('hero-feed-focus'));
   }
   function flushEndRecommendations() { if (typeof endRecommendations !== 'undefined' && endRecommendations) endRecommendations.flush(); }
+  function showNextSeasonHint(model) {
+    var card = document.getElementById('next-season-hint');
+    var cover = document.getElementById('next-season-cover');
+    setCover(cover, model.next);
+    cover.alt = '';
+    document.getElementById('next-season-title').textContent = model.next.title || uiText('ui.seasonNumber', '第{season}季', { season: model.season });
+    document.getElementById('next-season-position').textContent = model.total ?
+      uiText('player.seasonPosition', '第 {season} / {total} 季', { season: model.season, total: model.total }) :
+      uiText('ui.seasonNumber', '第{season}季', { season: model.season });
+    card.classList.remove('is-hidden'); card.setAttribute('aria-hidden', 'false');
+  }
+  function hideNextSeasonHint() {
+    var card = document.getElementById('next-season-hint');
+    card.classList.add('is-hidden'); card.setAttribute('aria-hidden', 'true');
+  }
+  function resetNextSeasonHint() {
+    if (typeof nextSeasonHint !== 'undefined' && nextSeasonHint) nextSeasonHint.reset();
+  }
+  function updateNextSeasonHint(video) {
+    if (typeof nextSeasonHint === 'undefined' || !nextSeasonHint) return;
+    var playback = activePlayback;
+    var entry = playback && seasonCatalogCache[playback.item.series_id];
+    // The existing season shortcut fetches this catalog on drama selection.
+    // Never fetch extra metadata or resolve media merely to show a hint.
+    var items = entry && entry.epoch === accountEpoch && entry.items;
+    var allowed = !!(playback && playback.owner === accountEpoch && playback.generation === feedGeneration &&
+      isPlaybackPage() && shell.classList.contains('is-cinema') && !applicationInBackground && !applicationHidden() &&
+      !playback.continuationPending && !seasonSwitchRequest && !detailModalOpen && !playerOptionsOpen &&
+      !playbackCommandMenuOpen && !discussionOpen && !confirmOpen && !scanModalOpen() && !supportModalOpen &&
+      !(endRecommendations && endRecommendations.isOpen()) &&
+      playbackVideoReady(playback, playback.presentation, video));
+    nextSeasonHint.update(playback, video, items, allowed);
+  }
   function offerEndRecommendations(playback, detail) {
     if (pageMode() !== 'player' || !endRecommendations || !HongguoEndRecommendations.itemsFor(detail.related, playback.item.series_id).length) return false;
     endRecommendations.offer(playback, detail.related);
@@ -4919,6 +4954,7 @@
   }
 
   function cancelPlaybackPreparation() {
+    resetNextSeasonHint();
     if (portraitBackdrop) portraitBackdrop.reset();
     clearPrefetchedEpisodeHint();
     clearRangeTransitionHint();
@@ -7659,6 +7695,7 @@
       entry.pending = false; entry.expires = Date.now() + 120000;
       entry.items.forEach(function (item) { rememberSeasonCatalog(item.series_id, entry); });
       rememberSeasonCatalog(id, entry);
+      updateNextSeasonHint(document.getElementById('hero-video'));
       if (playbackMenuHintCandidate || (document.getElementById('playback-menu-hint') && !document.getElementById('playback-menu-hint').classList.contains('is-hidden'))) updatePlaybackMenuHintCopy(activePlayback);
       return entry.items;
     }).catch(function (error) {
@@ -8829,11 +8866,13 @@
     tickDanmaku();
     checkPlaybackProgress(media);
     if (!activePlayback || !activePlayback.started) return;
+    updateNextSeasonHint(media);
     if (!shell.classList.contains('is-controls-hidden')) updatePlaybackControls();
     maybePrefetchNextEpisode(media);
     saveProgress(false);
   });
   media.addEventListener('pause', function () {
+    resetNextSeasonHint();
     if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback);
     if (activePlayback) activePlayback.stableSince = 0;
     var staticMpvFrame = activePlayback && playbackEngineName() === 'mpv' && !activePlayback.started &&
@@ -8881,6 +8920,7 @@
   });
   media.addEventListener('emptied', updatePlaybackControls);
   media.addEventListener('waiting', function () {
+    resetNextSeasonHint();
     if (!activePlayback) return;
     if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback);
     activePlayback.stableSince = 0;
@@ -8893,7 +8933,7 @@
     if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback);
     if (activePlayback && activePlayback.mode === 'range') scheduleRangeStallFallback(activePlayback);
   });
-  media.addEventListener('seeking', function () { if (activePlayback) { if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback); activePlayback.stableSince = 0; } interruptPlaybackPresentation(activePlayback); });
+  media.addEventListener('seeking', function () { resetNextSeasonHint(); if (activePlayback) { if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback); activePlayback.stableSince = 0; } interruptPlaybackPresentation(activePlayback); });
   media.addEventListener('seeked', function () {
     if (activePlayback && activePlayback.started && !media.paused && !media.ended) activePlayback.stableSince = Date.now();
     if (activePlayback && activePlayback.presentation) activePlayback.presentation.position = Number(media.currentTime) || 0;
@@ -8901,6 +8941,7 @@
     if (media.paused) setPlayerStatus('');
   });
   media.addEventListener('error', function () {
+    resetNextSeasonHint();
     if (!activePlayback || !media.getAttribute('src')) return;
     clearRangeStallTimer();
     if (fallbackRangePlayback(activePlayback)) return;
@@ -8908,6 +8949,7 @@
     setPlayerStatus(uiText('ui.playbackFailed', '这集未能正常播放'), true);
   });
   media.addEventListener('ended', function () {
+    resetNextSeasonHint();
     clearRangeStallTimer();
     var playback = activePlayback;
     if (!playback || playback.generation !== feedGeneration) return;

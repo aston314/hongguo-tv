@@ -5,6 +5,8 @@
   // without changing the UI or the focus model.
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-CN'] = {
+    "player.nextSeasonSoon": "即将播放下一季",
+    "player.seasonPosition": "第 {season} / {total} 季",
     "stats.title": "观看统计",
     "stats.back": "返回观看历史",
     "stats.deviceOnly": "仅本设备 · 当前用户",
