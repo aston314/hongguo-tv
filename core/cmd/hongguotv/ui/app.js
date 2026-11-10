@@ -670,6 +670,7 @@
     if (pageMode() === 'rank') return rankPager;
     if (pageMode() === 'new') return newMode === 'calendar' ? calendarPager : newPager;
     if (pageMode() === 'follows') return followView === 'notifications' ? null : followView === 'reservations' ? reservationPager : followPager;
+    if (pageMode() === 'history' && typeof watchStatisticsView !== 'undefined' && watchStatisticsView && watchStatisticsView.isOpen()) return null;
     if (isLibraryPage()) return libraryPager;
     return null;
   }
@@ -679,6 +680,9 @@
   function checkListTail() {
     var pager = visiblePager();
     if (!pager || !pager.loaded || pager.busy || pager.error || !pager.hasMore()) return;
+    // Hidden subpages have zero-sized cards, which look like a visible tail.
+    // Never drain their remaining pages while another view owns the screen.
+    if (!pager.container.getClientRects().length) return;
     var cards = pager.container.querySelectorAll(pager.selector);
     var last = cards[cards.length - 1];
     if (!last) { pager.load(); return; }
@@ -1101,7 +1105,6 @@
     var result = [];
     var query = selector || Object.keys(zoneSelectors).map(function (zone) { return zoneSelectors[zone]; }).join(',');
     Array.prototype.forEach.call(document.querySelectorAll(query), function (element) {
-      var style = window.getComputedStyle(element);
       var insideModal = element.closest && element.closest('#detail-modal');
       if (coreConnectionModalOpen) { if (!element.closest('#core-connection-modal')) return; }
       else if (scanModalOpen()) { if (!element.closest('#search-scan-modal')) return; }
@@ -1120,8 +1123,12 @@
       else if (element.closest('#end-recommendations')) return;
       else if (element.closest('#discussion-panel')) return;
       else if (detailModalOpen ? !insideModal : insideModal) return;
+      // Cached pages can contain hundreds of hidden cards. Discard them
+      // before resolving computed styles on every remote focus check.
+      if (element.disabled) return;
       if (!element.getClientRects || !element.getClientRects().length) return;
-      if (!element.disabled && style.display !== 'none' && style.visibility !== 'hidden') result.push(element);
+      var style = window.getComputedStyle(element);
+      if (style.display !== 'none' && style.visibility !== 'hidden') result.push(element);
     });
     return result;
   }
