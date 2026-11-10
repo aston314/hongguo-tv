@@ -11,6 +11,7 @@
   <script src="/i18n.js"></script>
   <link rel="stylesheet" href="/app.css">
   <link rel="stylesheet" href="/watch-statistics.css">
+  <link rel="stylesheet" href="/recommended-apps.css">
   <link rel="stylesheet" href="/compat.css">
   <link rel="stylesheet" href="/desktop-mini-player.css">
 </head>
@@ -68,6 +69,7 @@
         <button class="side-item" data-page="favorites" data-focus="sidebar-favorites" aria-label="收藏" data-i18n-aria-label="nav.favorites"><svg class="side-icon"><use href="#icon-favorite" xlink:href="#icon-favorite"></use></svg><span data-i18n="nav.favorites">收藏</span></button>
         <button class="side-item" id="sidebar-follows" data-page="follows" data-focus="sidebar-follows" aria-label="追更"><svg class="side-icon"><use href="#icon-bell" xlink:href="#icon-bell"></use></svg><span data-i18n="nav.follow">追更</span><span class="side-notification-dot is-hidden" id="follow-sidebar-badge" aria-hidden="true"></span></button>
         <button class="side-item" data-page="support" data-focus="sidebar-support" aria-label="打赏" data-i18n-aria-label="nav.support"><svg class="side-icon"><use href="#icon-heart" xlink:href="#icon-heart"></use></svg><span data-i18n="nav.support">打赏</span></button>
+        <button class="side-item is-hidden" id="sidebar-apps" data-page="apps" data-focus="sidebar-apps" aria-label="应用" data-i18n-aria-label="nav.apps"><svg class="side-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg><span data-i18n="nav.apps">应用</span></button>
       </nav>
       <div class="watching-return-wrap is-hidden" id="watching-return-wrap">
         <button type="button" class="watching-return" id="watching-return" data-focus="watching-return" aria-describedby="watching-return-tooltip">
@@ -452,6 +454,29 @@
         </div>
       </section>
 
+      <section id="recommended-apps-page" class="page-workspace recommended-apps-page is-hidden" aria-labelledby="recommended-apps-title">
+        <div class="recommended-apps-heading"><h1 id="recommended-apps-title" data-i18n="apps.title">应用推荐</h1><p data-i18n="apps.subtitle">我的其他作品，同样为电视体验而做。</p></div>
+        <article class="recommended-app-card" data-recommended-app="doudou">
+          <div class="recommended-app-info">
+            <div class="recommended-app-title"><img class="recommended-app-icon" src="/images/apps/doudou.svg" alt="" width="66" height="66"><div><h2 data-i18n="apps.doudouName">豆逗 TV</h2><span data-i18n="apps.doudouTagline">换个心情，发现更多精彩</span></div></div>
+            <p class="recommended-app-description" data-i18n="apps.doudouDescription">短视频、精选内容与直播，大屏观看，遥控器轻松切换。</p>
+            <div class="recommended-app-meta"><span data-app-android data-i18n="apps.androidBaseline">Android 6.0 及以上</span><span data-app-version></span><span data-app-size></span></div>
+            <button class="recommended-app-action" data-app-id="doudou" data-focus="apps-doudou" aria-disabled="true" data-i18n="apps.loading">正在获取安装包信息…</button>
+            <div class="recommended-app-progress is-hidden" role="progressbar" aria-label="下载进度" data-i18n-aria-label="apps.downloadProgress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div><p class="recommended-app-status" role="status"></p>
+          </div><img class="recommended-app-screen" src="/images/apps/doudou-screen.jpg" alt="豆逗 TV 应用界面" data-i18n-alt="apps.doudouScreen" width="480" height="270" loading="lazy">
+        </article>
+        <article class="recommended-app-card" data-recommended-app="sports">
+          <div class="recommended-app-info">
+            <div class="recommended-app-title"><img class="recommended-app-icon" src="/images/apps/sports.svg" alt="" width="66" height="66"><div><h2 data-i18n="apps.sportsName">球赛直播</h2><span data-i18n="apps.sportsTagline">把比赛，搬到大屏上</span></div></div>
+            <p class="recommended-app-description" data-i18n="apps.sportsDescription">赛事直播、赛程与录像回放，支持豆包直播和咖啡直播双来源。</p>
+            <div class="recommended-app-meta"><span data-app-android data-i18n="apps.androidBaseline">Android 6.0 及以上</span><span data-app-version></span><span data-app-size></span></div>
+            <button class="recommended-app-action" data-app-id="sports" data-focus="apps-sports" aria-disabled="true" data-i18n="apps.loading">正在获取安装包信息…</button>
+            <div class="recommended-app-progress is-hidden" role="progressbar" aria-label="下载进度" data-i18n-aria-label="apps.downloadProgress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div><p class="recommended-app-status" role="status"></p>
+          </div><img class="recommended-app-screen" src="/images/apps/sports-screen.jpg" alt="球赛直播应用界面" data-i18n-alt="apps.sportsScreen" width="480" height="270" loading="lazy">
+        </article>
+        <p class="recommended-apps-note" data-i18n="apps.note">选择应用后下载安装，安装需在系统界面确认。</p>
+      </section>
+
       <section id="support-page" class="page-workspace support-page is-hidden" aria-labelledby="support-title">
         <div class="support-heading"><span class="support-kicker" data-i18n="support.thanks">谢谢你的支持</span><h1 id="support-title" data-i18n="support.title">喜欢这里？请我喝杯咖啡</h1><p data-i18n="support.description">如果这里让你少花一点找剧的时间，多一点追剧的快乐，欢迎请我喝杯咖啡。<br>你的支持，会成为继续打磨体验、保持更新的一份动力。</p></div>
         <div class="support-methods">
@@ -644,6 +669,7 @@
   <script src="/desktop-mini-player.js"></script>
   <script src="/desktop.js"></script>
   <script src="/watch-statistics.js"></script>
+  <script src="/recommended-apps.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

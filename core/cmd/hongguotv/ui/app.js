@@ -60,6 +60,7 @@
     accountKeypad: '.account-keypad-key',
     accountActions: '.account-action',
     appUpdates: '.app-update-action',
+    recommendedApps: '.recommended-app-action',
     webosUpdateNotes: '.webos-update-notes',
     localeActions: '.locale-action',
     recommendationDirection: '.recommendation-direction-action',
@@ -359,6 +360,7 @@
   var libraryPage = document.getElementById('library-page');
   var accountPage = document.getElementById('account-page');
   var settingsPage = document.getElementById('settings-page');
+  var recommendedAppsPage = document.getElementById('recommended-apps-page');
   var accountData = null;
   var accountStatusInitialized = false;
   var accountQR = null;
@@ -1191,6 +1193,7 @@
     if (element.classList.contains('account-country-button')) return 'accountCountry';
     if (element.classList.contains('account-country-item') || element.classList.contains('account-country-close')) return 'accountCountryItems';
     if (element.classList.contains('support-card') || element.classList.contains('support-close')) return 'support';
+    if (element.classList.contains('recommended-app-action')) return 'recommendedApps';
     if (element.classList.contains('discussion-item') || element.classList.contains('discussion-close')) return 'discussion';
     if (element.classList.contains('side-item') || element.classList.contains('watching-return')) return 'sidebar';
     if (element.classList.contains('channel-tab')) return 'channels';
@@ -1298,6 +1301,10 @@
       // Enter the lower panel with its list visible when it fits the workspace.
       revealSidebarFocus(preferencePanel && preferencePanel.offsetHeight <= libraryPage.clientHeight - 12 ? preferencePanel : element);
     }
+    else if (element.classList.contains('recommended-app-action')) {
+      var appCard = element.closest('.recommended-app-card');
+      revealSidebarFocus(appCard && appCard.offsetHeight <= recommendedAppsPage.clientHeight - 12 ? appCard : element);
+    }
     // Older WebViews may focus an action without scrolling its workspace.
     if ((pageMode() === 'account' || pageMode() === 'settings') && element.closest &&
         element.closest(pageMode() === 'settings' ? '#settings-page' : '#account-page')) {
@@ -1333,6 +1340,7 @@
     if (pageMode() === 'account') return firstVisible('#account-method-qr[aria-pressed="true"]') || firstVisible('#account-method-phone') || firstVisible('.account-input') || firstVisible('.account-action');
     if (pageMode() === 'settings') return selectedSidebarDisplay() || selectedLocale() || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action') || activeSidebar();
     if (pageMode() === 'support') return firstVisible('.support-card');
+    if (pageMode() === 'apps') return firstVisible('.recommended-app-action') || activeSidebar();
     if (isLibraryPage()) return firstVisible('.library-card') || firstVisible('.history-filter.is-active') || firstVisible('[data-action="library-discover"]') || firstVisible('.library-toolbar-button');
     if (pageMode() === 'new') return firstVisible('.new-tab.is-active') || firstNewTab();
     if (pageMode() === 'follows') return firstVisible('.follow-tab.is-active') || firstVisible('.follow-tab');
@@ -1406,7 +1414,8 @@
   function firstCalendarRow() { return firstVisible('.calendar-row'); }
 
   function hideWorkspacePages() {
-    [rankPage, newPage, followPage, libraryPage, accountPage, settingsPage, supportPage].forEach(function (page) {
+    if (typeof recommendedApps !== 'undefined' && recommendedApps) recommendedApps.hide();
+    [rankPage, newPage, followPage, libraryPage, accountPage, settingsPage, supportPage, recommendedAppsPage].forEach(function (page) {
       if (page) page.classList.add('is-hidden');
     });
   }
@@ -1596,6 +1605,11 @@
     if (zone === 'support') {
       if (direction === 'left' || direction === 'right') return moveWithinZone('support', current, direction) || (direction === 'left' ? activeSidebar() : null);
       return direction === 'up' ? activeSidebar() : null;
+    }
+    if (zone === 'recommendedApps') {
+      if (direction === 'left') return activeSidebar();
+      if (direction === 'up' || direction === 'down') return moveWithinZone(zone, current, direction) || (direction === 'up' ? activeSidebar() : null);
+      return null;
     }
     if (zone === 'sidebar') {
       if (direction === 'up' || direction === 'down') return moveWithinZone(zone, current, direction);
@@ -3445,7 +3459,7 @@
   }
   function canShowAppUpdate() {
     var current = document.activeElement;
-    return !applicationInBackground && !applicationHidden() && !isPlaybackPage() && !supportModalOpen && !detailModalOpen && !(typeof actorWorksOpen !== 'undefined' && actorWorksOpen) && !discussionOpen && !confirmOpen && !playerOptionsOpen && !accountBusy && !accountKeypadOpen() && !(current && /INPUT|TEXTAREA/.test(current.tagName));
+    return !applicationInBackground && !applicationHidden() && pageMode() !== 'apps' && !isPlaybackPage() && !supportModalOpen && !detailModalOpen && !(typeof actorWorksOpen !== 'undefined' && actorWorksOpen) && !discussionOpen && !confirmOpen && !playerOptionsOpen && !accountBusy && !accountKeypadOpen() && !(current && /INPUT|TEXTAREA/.test(current.tagName));
   }
   // Old native IME callbacks are irrelevant to the app-owned numeric keypad.
   function openHomeProgram(program) {
@@ -8119,6 +8133,7 @@
 
   function activatePage(item, restoring) {
     cancelSearchSuggestionActivation();
+    if (item.dataset.page === 'apps' && (typeof recommendedApps === 'undefined' || !recommendedApps || !recommendedApps.supported)) return;
     if (typeof watchStatisticsCollector !== 'undefined' && watchStatisticsCollector) watchStatisticsCollector.stop(true);
     if (typeof watchStatisticsView !== 'undefined' && watchStatisticsView && watchStatisticsView.isOpen()) closeWatchStatistics(false);
     if (portraitBackdrop) portraitBackdrop.reset();
@@ -8205,6 +8220,10 @@
     } else if (item.dataset.page === 'support') {
       mainSurface.classList.add('has-workspace');
       supportPage.classList.remove('is-hidden');
+    } else if (item.dataset.page === 'apps') {
+      mainSurface.classList.add('has-workspace');
+      recommendedAppsPage.classList.remove('is-hidden');
+      recommendedApps.show();
     } else {
       mainSurface.classList.add('has-placeholder');
       pagePlaceholder.classList.remove('is-hidden');
@@ -9204,6 +9223,40 @@
     });
   });
   var desktopUpdateNotifiedCode = 0;
+  var recommendedApps = window.HongguoRecommendedAppsUI.create({
+    android: androidShell && !desktopShell && !webosShell,
+    bridge: window.HongguoRecommendedApps,
+    render: function (apps) {
+      apps.forEach(function (data) {
+        var card = recommendedAppsPage.querySelector('[data-recommended-app="' + data.id + '"]');
+        if (!card) return;
+        var view = window.HongguoRecommendedAppsUI.model(data, function (key, values) { return uiText(key, key, values); });
+        var action = card.querySelector('.recommended-app-action');
+        action.removeAttribute('data-i18n'); action.textContent = view.label;
+        action.setAttribute('aria-disabled', view.blocked ? 'true' : 'false');
+        var android = card.querySelector('[data-app-android]');
+        android.removeAttribute('data-i18n'); android.textContent = view.android;
+        card.querySelector('[data-app-version]').textContent = view.version;
+        card.querySelector('[data-app-size]').textContent = view.size;
+        card.querySelector('.recommended-app-status').textContent = view.status;
+        var progress = card.querySelector('.recommended-app-progress');
+        progress.classList.toggle('is-hidden', data.state !== 'downloading');
+        progress.setAttribute('aria-valuenow', String(view.percent));
+        progress.firstElementChild.style.width = view.percent + '%';
+      });
+    }
+  });
+  document.getElementById('sidebar-apps').classList.toggle('is-hidden', !recommendedApps.supported);
+  recommendedAppsPage.addEventListener('click', function (event) {
+    var button = event.target.closest('.recommended-app-action');
+    if (button && button.getAttribute('aria-disabled') !== 'true') recommendedApps.activate(button.getAttribute('data-app-id'));
+  });
+  document.addEventListener('visibilitychange', function () {
+    if (applicationHidden()) recommendedApps.hide(); else if (pageMode() === 'apps') recommendedApps.show();
+  });
+  if (window.HongguoI18n) window.HongguoI18n.onChange(function () { recommendedApps.refresh(); });
+  window.addEventListener('pagehide', function () { recommendedApps.destroy(); });
+
   var appUpdates = window.HongguoAppUpdates.create({
     bridge: window.HongguoTVUpdates,
     canPrompt: canShowAppUpdate,
