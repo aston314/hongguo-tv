@@ -2,6 +2,8 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['ja-JP'] = {
+    "player.nextSeasonSoon": "次のシーズンをまもなく再生",
+    "player.seasonPosition": "{season} / {total}",
     "stats.title": "視聴統計",
     "stats.back": "視聴履歴に戻る",
     "stats.deviceOnly": "この端末・現在のユーザー",

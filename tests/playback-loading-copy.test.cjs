@@ -135,6 +135,7 @@ test('a ready full-file switch shows the target at 800ms and adds its spinner on
   f.c.media={addEventListener:(name,callback)=>{listeners[name]=callback}};
   f.c.cancelFullEpisodePrefetchForPlayback=()=>{};
   f.c.interruptPlaybackPresentation=()=>{};
+  f.c.resetNextSeasonHint=()=>{};
   const start=source.indexOf("  media.addEventListener('waiting'");
   vm.runInContext(source.slice(start,source.indexOf("  media.addEventListener('stalled'",start)),f.c);
   listeners.waiting();

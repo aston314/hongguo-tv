@@ -484,6 +484,10 @@
           <div class="hero-title"><div id="hero-rank-badge" class="hero-rank-badge is-hidden"><svg aria-hidden="true" focusable="false"><use href="#icon-rank" xlink:href="#icon-rank"></use></svg><span id="hero-rank-label"></span></div><span id="hero-series-title"></span></div>
           <div class="hero-episode"></div>
           <div class="hero-summary"></div>
+          <div id="next-season-hint" class="next-season-hint is-hidden" role="status" aria-live="polite" aria-hidden="true">
+            <div class="next-season-poster"><img id="next-season-cover" alt=""></div>
+            <div class="next-season-copy"><span data-i18n="player.nextSeasonSoon">即将播放下一季</span><strong id="next-season-title"></strong><small id="next-season-position" class="next-season-position"></small></div>
+          </div>
         </div>
 
         <div class="right-actions" data-focus-zone="actions" aria-label="视频操作" data-i18n-aria-label="hero.videoActions">
@@ -611,6 +615,7 @@
   <script src="/pagination.js"></script>
   <script src="/episode-prefetch.js"></script>
   <script src="/end-recommendations.js"></script>
+  <script src="/next-season-hint.js"></script>
   <script src="/updates.js"></script>
   <script src="/engagement.js"></script>
   <script src="/danmaku-content.js"></script>

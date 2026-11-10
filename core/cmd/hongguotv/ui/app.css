@@ -163,6 +163,23 @@ html.desktop-shell .hero-media { -webkit-user-select: none; user-select: none; }
 .hero.is-preparing-video:not(.is-starting-video) .hero-video { visibility: hidden !important; opacity: 0 !important; }
 .hero-video { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 1; width: 100%; height: 100%; object-fit: contain; visibility: hidden; opacity: 0; background: #000; }
 .hero-video.has-source { visibility: visible; opacity: 1; }
+.next-season-hint { position: absolute; z-index: 5; right: 28px; bottom: 28px; display: flex; align-items: center; width: 332px; max-width: 44%; padding: 12px; border: 1px solid rgba(255,255,255,.12); border-radius: 12px; background: rgba(19,20,26,.64); color: #fff; pointer-events: none; }
+.next-season-poster { position: relative; flex: 0 0 82px; height: 112px; overflow: hidden; border-radius: 7px; background: #2b2c35; }
+.next-season-poster img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.next-season-copy { min-width: 0; margin-left: 14px; text-shadow: 0 1px 3px rgba(0,0,0,.6); }
+.next-season-copy > span { display: block; margin-bottom: 8px; color: #c5c6cf; font-size: 14px; line-height: 1.4; }
+.next-season-copy > strong { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; max-height: 2.9em; font-size: 19px; line-height: 1.45; word-wrap: break-word; }
+.next-season-position { display: block; margin-top: 7px; color: #dedee5; font-size: 13px; line-height: 1.4; }
+.app-shell:not(.is-cinema) .next-season-hint, .hero.is-preparing-video .next-season-hint, html.desktop-mini-player .next-season-hint { display: none; }
+.app-shell:not(.is-controls-hidden) .next-season-hint { right: 112px; bottom: 112px; }
+@media (max-height: 650px) {
+  .next-season-hint { right: 18px; bottom: 18px; width: 290px; padding: 10px; }
+  .next-season-poster { flex-basis: 76px; height: 104px; }
+  .next-season-copy { margin-left: 12px; }
+  .next-season-copy > strong { font-size: 17px; }
+  .next-season-copy > span { font-size: 13px; }
+  .app-shell:not(.is-controls-hidden) .next-season-hint { right: 88px; bottom: 96px; }
+}
 .end-recommendations { position: absolute; z-index: 8; top: 0; right: 0; bottom: 0; left: 0; display: flex; flex-direction: column; justify-content: flex-end; }
 .end-recommendations-panel { width: 100%; padding: 34px 28px 22px; background: linear-gradient(180deg, rgba(10,11,16,0), rgba(10,11,16,.95) 38px, #101117); opacity: 0; transform: translateY(32px); transition: opacity .18s ease, transform .18s ease; }
 .end-recommendations.is-open .end-recommendations-panel { opacity: 1; transform: translateY(0); }

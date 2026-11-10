@@ -2,6 +2,8 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-TW'] = {
+    "player.nextSeasonSoon": "即將播放下一季",
+    "player.seasonPosition": "第 {season} / {total} 季",
     "stats.title": "觀看統計",
     "stats.back": "返回觀看記錄",
     "stats.deviceOnly": "僅此裝置 · 目前使用者",
