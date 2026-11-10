@@ -42,6 +42,7 @@
       request.promise.then(function (result) {
         if (epoch !== generation || target !== current || !result || result.series_id !== current.series_id || result.vid !== current.vid) return;
         data = { likes: result.likes, favorites: result.favorites, comments: result.comments, episode_cover: result.episode_cover || '' };
+        if (result.metadata) data.metadata = result.metadata;
         var keys = Object.keys(cache); if (keys.length >= 48) delete cache[keys[0]];
         cache[id] = { at: Date.now(), data: data }; request = null; options.render(target, data);
       }, function () { if (epoch === generation) { request = null; options.render(target, data); } });
@@ -72,6 +73,7 @@
       pending.promise = pending.request.promise.then(function (result) {
         if (prewarmRequests[id] !== pending || !result || result.series_id !== current.series_id || result.vid !== current.vid) return null;
         var value = { likes: result.likes, favorites: result.favorites, comments: result.comments, episode_cover: result.episode_cover || '' };
+        if (result.metadata) value.metadata = result.metadata;
         var keys = Object.keys(cache); if (keys.length >= 48) delete cache[keys[0]];
         cache[id] = { at: Date.now(), data: value };
         return value;

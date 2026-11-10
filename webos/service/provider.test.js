@@ -113,6 +113,12 @@ https.request = function (options) {
       body = fallbackResponseBody;
     }
     if (options.path.indexOf('/reading/bookapi/plan/v') >= 0) body = '{"code":0,"data":[]}';
+    if (options.path.indexOf('/reading/bookapi/bookmall/cell/change/v') >= 0) {
+      body = JSON.stringify({code:0,data:{has_more:false,next_offset:1,cell_view:{cell_data:[{video_data:[{
+        rec_tags:[{content:'男频榜 No.1'}],video_detail:{series_id:seriesID,series_title:'推荐首集',episode_cnt:80,first_vid:'2234567890123456789',
+        content_type:'1004',video_category_type:'ai_video',category_schema:JSON.stringify([{category_id:5463,name:'爱情',schema:'dragon8662://categorySearch?categoryId=5463'},{name:'都市爱情'},{name:'爱情'}])}
+      }]}]}}});
+    }
     if (options.path.indexOf('/reading/distribution/category/landpage/v/') >= 0) {
       categoryRequest = { options: options, query: Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams), body: Buffer.concat(requestChunks).toString('utf8') };
       body = JSON.stringify({ code: 0, data: { has_more: true, next_offset: 15, session_id: 'category-session', video_data: categoryCoverRows || [{ series_id: seriesID, series_title: '真实分类剧', series_cover: heicCover, episode_cnt: 12, vid: '2234567890123456789', tags: ['悬疑'] }], selector_rows: [] } });
@@ -126,7 +132,7 @@ https.request = function (options) {
       engagementRequests.push({ options: options, query: Object.fromEntries(parsedRequest.searchParams), body: Buffer.concat(requestChunks).toString('utf8') });
       body = engagementRequests.length === 1 ? '' : JSON.stringify({ code: 0, data: {} });
       var engagementData = {};
-      engagementData[seriesID] = { video_data: { series_id_str: seriesID, followed_cnt: 19, video_list: [{ vid: '2234567890123456789', digged_count: 7, comment_count: 4, episode_cover: 'https://example.test/episode.jpg' }] } };
+      engagementData[seriesID] = { video_data: { series_id_str: seriesID, followed_cnt: 19, content_type:'1004', video_category_type:'ai_video', category_schema:'[{"name":"都市"}]', video_list: [{ vid: '2234567890123456789', digged_count: 7, comment_count: 4, episode_cover: 'https://example.test/episode.jpg' }] } };
       if (engagementRequests.length > 1) body = JSON.stringify({ code: 0, data: engagementData });
     }
     process.nextTick(function () {
@@ -243,6 +249,11 @@ async function run() {
     assert.strictEqual(detail.reviews[0].content, '真实剧评');
     assert.strictEqual(detail.reviews[0].rating, 9);
 
+    var recommendation = await provider.recommend({channel:'16'});
+    assert.strictEqual(recommendation.items[0].vid, '2234567890123456789', 'first episode retains its direct playback path');
+    assert.deepStrictEqual(recommendation.items[0].tags, ['爱情','都市爱情'], 'recommendation genre names survive normalization without ranking badges or schemas');
+    assert.strictEqual(recommendation.items[0].video_category_type, 'ai_video', 'statistics reuse recommendation content type');
+
     var category = await provider.category('/category/real-drama', 0, {}, false);
     assert.strictEqual(category.items.length, 1);
     assert.strictEqual(category.items[0].title, '真实分类剧');
@@ -295,6 +306,7 @@ async function run() {
     assert.strictEqual(stats.favorites, 19);
     assert.strictEqual(stats.comments, 4);
     assert.strictEqual(stats.episode_cover, 'https://example.test/episode.jpg');
+    assert.deepStrictEqual(stats.metadata, {content_type:'1004',video_category_type:'ai_video',tags:['都市']}, 'existing preload carries public classification for every playback entry');
     assert.strictEqual(engagementRequests.length, 2, 'an empty upstream response is retried');
     assert(engagementRequests[0].options.headers['X-Gorgon'] && engagementRequests[1].options.headers['X-Gorgon'], 'both attempts are signed');
     assert.notStrictEqual(engagementRequests[0].query.device_id, engagementRequests[1].query.device_id, 'retry uses a fresh device identity');

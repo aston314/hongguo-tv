@@ -13,12 +13,21 @@ import (
 // Likes/comments belong to an exact episode; followed_cnt belongs to the series.
 // Pointers preserve the difference between a real zero and missing statistics.
 type Engagement struct {
-	SeriesID     string `json:"series_id"`
-	VideoID      string `json:"vid"`
-	Likes        *int64 `json:"likes"`
-	Favorites    *int64 `json:"favorites"`
-	Comments     *int64 `json:"comments"`
-	EpisodeCover string `json:"episode_cover,omitempty"`
+	SeriesID     string              `json:"series_id"`
+	VideoID      string              `json:"vid"`
+	Likes        *int64              `json:"likes"`
+	Favorites    *int64              `json:"favorites"`
+	Comments     *int64              `json:"comments"`
+	EpisodeCover string              `json:"episode_cover,omitempty"`
+	Metadata     *EngagementMetadata `json:"metadata,omitempty"`
+}
+
+// Reuse classification already present in the episode's existing preload read.
+// No extra request or playback dependency is introduced for watch statistics.
+type EngagementMetadata struct {
+	ContentType       string   `json:"content_type,omitempty"`
+	VideoCategoryType string   `json:"video_category_type,omitempty"`
+	Tags              []string `json:"tags,omitempty"`
 }
 
 func episodeCoverURL(value any) string {
@@ -60,6 +69,10 @@ func engagementFromVideo(series, vid string, video map[string]any) (Engagement, 
 		return out, errors.New("短剧统计身份不一致")
 	}
 	out.Favorites = engagementCount(video["followed_cnt"])
+	metadata := &EngagementMetadata{ContentType: asString(video["content_type"]), VideoCategoryType: asString(video["video_category_type"]), Tags: dramaTags(video)}
+	if metadata.ContentType != "" || metadata.VideoCategoryType != "" || len(metadata.Tags) > 0 {
+		out.Metadata = metadata
+	}
 	rows, _ := video["video_list"].([]any)
 	for _, raw := range rows {
 		row, _ := asMap(raw)

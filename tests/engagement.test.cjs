@@ -18,9 +18,10 @@ test('counts format zero, missing values, Chinese units and integer limits',()=>
 });
 test('a late previous episode cannot overwrite current counts',async()=>{
  const f=fixture();f.state.select(a);f.state.select(b);assert.equal(f.calls[0].aborted,true);
- f.calls[1].resolve({...b,likes:5,comments:0,favorites:10});await settle();
- f.calls[0].resolve({...a,likes:13000,comments:529,favorites:388000});await settle();
+ f.calls[1].resolve({...b,likes:5,comments:0,favorites:10,metadata:{content_type:'1',tags:['悬疑']}});await settle();
+ f.calls[0].resolve({...a,likes:13000,comments:529,favorites:388000,metadata:{content_type:'1004',tags:['玄幻']}});await settle();
  assert.equal(f.paints.at(-1).data.likes,5);assert.equal(f.paints.at(-1).data.comments,0);
+ assert.deepEqual(f.paints.at(-1).data.metadata,{content_type:'1',tags:['悬疑']});
 });
 test('clearing and changing account discard in-flight responses and cached counts',async()=>{
  const f=fixture();f.state.select(a);f.calls[0].resolve({...a,likes:4,comments:0,favorites:10});await settle();

@@ -1292,6 +1292,21 @@
         pathname.indexOf('/novel-pic/') !== 0 || pathname.indexOf('~') < 0) return '';
     return 'https://p3-novel.byteimg.com' + pathname.split('~')[0] + '~tplv-shrink:640:0.image';
   }
+  function dramaTags(object) {
+    var tags = stringArray(object.tags);
+    if (tags.length) return tags;
+    if (typeof object.category_schema !== 'string' || object.category_schema.length > 65536) return [];
+    try {
+      var categories = JSON.parse(object.category_schema);
+      if (!Array.isArray(categories)) return [];
+      categories.some(function (category) {
+        var name = category && typeof category.name === 'string' ? category.name.trim() : '';
+        if (name && Array.from(name).length <= 40 && tags.indexOf(name) < 0) tags.push(name);
+        return tags.length >= 8;
+      });
+    } catch (error) { return []; }
+    return tags;
+  }
   function normalize(value) {
     if (!value || typeof value !== 'object') return null;
     var object = value.video_data && typeof value.video_data === 'object' ? value.video_data : value;
@@ -1299,7 +1314,7 @@
     if (!id) return null;
     var vids = stringArray(object.vid_list); if (!vids.length) vids = stringArray(object.episodeVids);
     var episodeCount = number(first(object.episode_cnt, object.episode_total_cnt)) || vids.length;
-    var item = { series_id: id, title: first(object.series_title, object.series_name, object.title, '未命名短剧'), cover: first(object.series_cover, object.cover, object.cover_url), intro: first(object.series_intro, object.video_desc, object.description), score: first(object.score, object.rating, object.scoreText).replace(/^评分/, ''), play_count: number(object.play_cnt), episode_count: episodeCount, accessible_episode_cnt: number(object.accessible_episode_cnt) || episodeCount, vid: first(object.vid, object.video_id, vids[0]), vid_list: vids, tags: stringArray(object.tags), rank: number(object.rank), heat: first(object.heatText), season_index: number(object.season_index), is_multi_season: bool(object.is_multi_season), followed: bool(object.followed) || bool(object.is_subscribed), following_update: bool(object.following_update), follow_count: number(object.follow_count), series_status: first(object.series_status, object.status) };
+    var item = { series_id: id, title: first(object.series_title, object.series_name, object.title, '未命名短剧'), cover: first(object.series_cover, object.cover, object.cover_url), intro: first(object.series_intro, object.video_desc, object.description), score: first(object.score, object.rating, object.scoreText).replace(/^评分/, ''), play_count: number(object.play_cnt), episode_count: episodeCount, accessible_episode_cnt: number(object.accessible_episode_cnt) || episodeCount, vid: first(object.vid, object.video_id, vids[0]), vid_list: vids, tags: dramaTags(object), content_type: first(object.content_type, object.contentType), video_category_type: first(object.video_category_type, object.videoCategoryType), rank: number(object.rank), heat: first(object.heatText), season_index: number(object.season_index), is_multi_season: bool(object.is_multi_season), followed: bool(object.followed) || bool(object.is_subscribed), following_update: bool(object.following_update), follow_count: number(object.follow_count), series_status: first(object.series_status, object.status) };
     var fallback = browserCoverFallback(item.cover);
     if (fallback) item.cover_fallback = fallback;
     return item;
@@ -1794,6 +1809,8 @@
     return signedJSON('/novel/player/multi_video_detail/preload/v1', 'POST', {}, { dr_scene: 'preload', series_id: seriesID, biz_param: { detail_page_version: 0, disable_digg_stat: false, disable_video_relate_book: false, need_all_video_definition: false, need_mp4_align: false, source: 7, use_os_player: false, use_server_dns: false } }).then(function (payload) {
       var data = payload && payload.data || {}; var series = data[seriesID] || {}; var video = series.video_data || {};
       var out = { series_id: seriesID, vid: vid, likes: null, favorites: number(video.followed_cnt), comments: null, episode_cover: '' };
+      var metadata = { content_type: first(video.content_type), video_category_type: first(video.video_category_type), tags: dramaTags(video) };
+      if (metadata.content_type || metadata.video_category_type || metadata.tags.length) out.metadata = metadata;
       (Array.isArray(video.video_list) ? video.video_list : []).forEach(function (row) { if (String(row.vid) === vid) { out.likes = number(row.digged_count); out.comments = number(row.comment_count); out.episode_cover = first(row.episode_cover); } });
       return out;
     });

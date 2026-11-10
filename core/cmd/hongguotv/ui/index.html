@@ -10,6 +10,7 @@
   <script src="/locales/ja-JP.js"></script>
   <script src="/i18n.js"></script>
   <link rel="stylesheet" href="/app.css">
+  <link rel="stylesheet" href="/watch-statistics.css">
   <link rel="stylesheet" href="/compat.css">
   <link rel="stylesheet" href="/desktop-mini-player.css">
 </head>
@@ -274,6 +275,7 @@
             <p id="library-hint" data-i18n="library.localHistory">保存在本机的观看记录</p>
           </div>
           <div class="library-toolbar">
+            <button type="button" class="library-toolbar-button" id="library-statistics" data-focus="library-statistics" data-i18n="stats.title">观看统计</button>
             <button class="library-toolbar-button" id="library-manage" data-focus="library-manage" data-i18n="common.manage">管理</button>
             <button class="library-toolbar-button" id="library-clear" data-focus="library-clear" data-i18n="common.clear">清空</button>
           </div>
@@ -293,6 +295,25 @@
         <div id="library-grid" class="library-grid" aria-live="polite"></div>
         <div id="library-pagination" class="list-status" role="status"></div>
         <div id="library-empty" class="library-empty is-hidden"><svg><use href="#icon-history" xlink:href="#icon-history"></use></svg><strong id="library-empty-title" data-i18n="ui.noHistory">还没有观看记录</strong><p id="library-empty-copy" data-i18n="ui.libraryStartHint">开始播放后，会自动保存集数和进度</p><button class="library-toolbar-button" data-action="library-discover" data-focus="library-discover" data-i18n="library.findDrama">去找剧</button></div>
+        <section id="watch-statistics" class="watch-statistics is-hidden" aria-label="观看统计" data-i18n-aria-label="stats.title">
+          <div class="watch-stat-heading"><div class="watch-stat-title"><button type="button" class="watch-stat-back watch-stat-action" data-stat-back data-focus="watch-stat-back" aria-label="返回观看历史" data-i18n-aria-label="stats.back">‹</button><h1 data-i18n="stats.title">观看统计</h1></div><span class="watch-stat-scope" data-i18n="stats.deviceOnly">仅本设备 · 当前用户</span></div>
+          <p data-stat-message role="status" aria-live="polite"></p><button type="button" class="watch-stat-action watch-stat-retry is-hidden" data-stat-retry data-focus="watch-stat-retry" data-i18n="common.retry">重试</button>
+          <div data-stat-content class="is-hidden">
+            <div class="watch-stat-cards">
+              <article class="watch-stat-card is-today"><span data-i18n="stats.todayWatch">今日观看</span><strong data-stat-value="today"></strong><small data-stat-date></small></article>
+              <article class="watch-stat-card"><span data-i18n="stats.weekWatch">本周观看</span><strong data-stat-value="week"></strong><small data-i18n="stats.weekToDate">周一至今</small></article>
+              <article class="watch-stat-card"><span data-i18n="stats.monthWatch">本月观看</span><strong data-stat-value="month"></strong><small data-i18n="stats.monthToDate">本月 1 日至今</small></article>
+            </div>
+            <div class="watch-stat-analysis">
+              <section class="watch-stat-panel watch-stat-trend"><div class="watch-stat-panel-title"><h2 data-i18n="stats.recent">最近 7 天</h2><span data-stat-selected aria-live="polite"></span></div>
+                <div data-stat-chart><div class="watch-stat-chart"><div class="watch-stat-axis" aria-hidden="true"><span data-i18n="stats.minuteUnit">分钟</span><span data-stat-axis-max></span><span data-stat-axis-mid></span><span>0</span></div><div class="watch-stat-plot"><div class="watch-stat-grid" aria-hidden="true"><i></i><i></i><i></i></div><div class="watch-stat-columns" data-stat-columns role="group" aria-label="每日观看时长" data-i18n-aria-label="stats.daily"></div></div></div><p class="watch-stat-total" data-stat-total></p></div>
+                <div class="watch-stat-empty is-hidden" data-stat-trend-empty><svg aria-hidden="true"><use href="#icon-rank" xlink:href="#icon-rank"></use></svg><h3 data-i18n="stats.emptyTitle">观看一会儿，再来看看</h3><p data-i18n="stats.emptyCopy">从现在开始，记录你的观影时光</p></div>
+              </section>
+              <section class="watch-stat-panel watch-stat-preferences"><div class="watch-stat-panel-title"><h2 data-i18n="stats.preference">观看偏好</h2><span data-i18n="stats.thisMonth">本月</span></div><div class="watch-stat-kinds" role="group" aria-label="偏好分类" data-i18n-aria-label="stats.preference"><button type="button" class="watch-stat-action" data-stat-kind="types" data-focus="stat-type" aria-pressed="true" data-i18n="stats.types">内容类型</button><button type="button" class="watch-stat-action" data-stat-kind="genres" data-focus="stat-genre" aria-pressed="false" data-i18n="stats.genres">题材偏好</button></div><div class="watch-stat-preference-list" data-stat-preferences role="list"></div><div class="watch-stat-preference-empty is-hidden" data-stat-preference-empty data-i18n="stats.emptyPreference">你的喜好，慢慢发现</div><p class="watch-stat-preference-note" data-stat-preference-note></p></section>
+            </div>
+            <footer class="watch-stat-footnote"><span data-stat-since></span><span data-i18n="stats.excluded">暂停和加载不计时</span><span data-i18n="stats.retention">保留最近一年，不回填旧历史</span></footer>
+          </div>
+        </section>
       </section>
 
       <section class="account-page page-workspace is-hidden" id="account-page" aria-label="我的账号" data-i18n-aria-label="account.title">
@@ -616,6 +637,7 @@
   <script src="/playback-pointer.js"></script>
   <script src="/desktop-mini-player.js"></script>
   <script src="/desktop.js"></script>
+  <script src="/watch-statistics.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

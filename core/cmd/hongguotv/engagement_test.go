@@ -9,13 +9,17 @@ import (
 )
 
 func TestEngagementSelectsExactEpisodeAndDistinguishesMissingFromZero(t *testing.T) {
-	video := map[string]any{"series_id_str": fixtureSeries, "followed_cnt": json.Number("388000"), "digg_cnt": 999999, "video_list": []any{
-		map[string]any{"vid": "11111", "digged_count": 13000, "comment_count": 529},
-		map[string]any{"vid": fixtureVideo, "digged_count": 0, "episode_cover": "https://p3-novel.example/episode-2.jpg"},
-	}}
+	video := map[string]any{"series_id_str": fixtureSeries, "followed_cnt": json.Number("388000"), "digg_cnt": 999999,
+		"content_type": json.Number("1004"), "video_category_type": "ai_video", "category_schema": `[{"name":"爱情"},{"name":"都市爱情"}]`, "video_list": []any{
+			map[string]any{"vid": "11111", "digged_count": 13000, "comment_count": 529},
+			map[string]any{"vid": fixtureVideo, "digged_count": 0, "episode_cover": "https://p3-novel.example/episode-2.jpg"},
+		}}
 	out, err := engagementFromVideo(fixtureSeries, fixtureVideo, video)
 	if err != nil || out.Likes == nil || *out.Likes != 0 || out.Comments != nil || *out.Favorites != 388000 || out.EpisodeCover != "https://p3-novel.example/episode-2.jpg" {
 		t.Fatalf("wrong episode or missing count: %+v %v", out, err)
+	}
+	if out.Metadata == nil || out.Metadata.ContentType != "1004" || out.Metadata.VideoCategoryType != "ai_video" || len(out.Metadata.Tags) != 2 || out.Metadata.Tags[0] != "爱情" {
+		t.Fatalf("existing preload classification lost: %+v", out.Metadata)
 	}
 	if _, err = engagementFromVideo(fixtureSeries, "99999", video); err == nil {
 		t.Fatal("missing video accepted")

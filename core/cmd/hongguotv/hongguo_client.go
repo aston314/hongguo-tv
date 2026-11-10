@@ -1161,6 +1161,38 @@ func findArrayByKey(value any, key string) ([]any, bool) {
 	return nil, false
 }
 
+// Recommended first episodes supply genres as a JSON-encoded category_schema,
+// unlike detail/search responses' tags. Only category names cross our API;
+// ranking badges, navigation schemas and tracking fields are not genres.
+func dramaTags(object map[string]any) []string {
+	if tags := asStringSlice(object["tags"]); len(tags) > 0 {
+		return tags
+	}
+	raw, ok := object["category_schema"].(string)
+	if !ok || len(raw) > 65536 {
+		return nil
+	}
+	var categories []struct {
+		Name string `json:"name"`
+	}
+	if json.Unmarshal([]byte(raw), &categories) != nil {
+		return nil
+	}
+	var tags []string
+	seen := map[string]bool{}
+	for _, category := range categories {
+		name := strings.TrimSpace(category.Name)
+		if name != "" && !seen[name] && len([]rune(name)) <= 40 {
+			tags = append(tags, name)
+			seen[name] = true
+			if len(tags) >= 8 {
+				break
+			}
+		}
+	}
+	return tags
+}
+
 func normalizeDrama(value any) (Drama, bool) {
 	object, ok := asMap(value)
 	if !ok {
@@ -1195,7 +1227,7 @@ func normalizeDrama(value any) (Drama, bool) {
 		EpisodeCount:         firstPositive(asInt(object["episode_cnt"]), asInt(object["episode_total_cnt"])),
 		AccessibleEpisodeCnt: firstPositive(asInt(object["accessible_episode_cnt"]), 0),
 		Vid:                  firstNonEmpty(asString(object["vid"]), asString(object["video_id"])),
-		Tags:                 asStringSlice(object["tags"]),
+		Tags:                 dramaTags(object),
 		VidList:              asStringSlice(object["vid_list"]),
 		Rank:                 asInt(object["rank"]),
 		Heat:                 asString(object["heatText"]),

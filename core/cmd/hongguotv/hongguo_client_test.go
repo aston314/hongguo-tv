@@ -274,6 +274,29 @@ func TestActorWorksRejectsMismatchedActor(t *testing.T) {
 	}
 }
 
+func TestRecommendedFirstEpisodeCategorySchemaTags(t *testing.T) {
+	// Sanitized shape captured from bookmall/cell/change/v on 2026-11-10.
+	detail := map[string]any{"series_id": "1234567890123456789", "episode_cnt": 80,
+		"first_vid": "2234567890123456789", "category_schema": `[{"category_id":5463,"name":"爱情","schema":"dragon8662://categorySearch?categoryId=5463"},{"category_id":5491,"name":"都市爱情"},{"name":"爱情"}]`}
+	items := feedDramas([]any{map[string]any{"video_data": []any{map[string]any{"video_detail": detail, "rec_tags": []any{map[string]any{"content": "男频榜 No.1"}}}}}})
+	if len(items) != 1 || strings.Join(items[0].Tags, ",") != "爱情,都市爱情" || items[0].Vid != "2234567890123456789" {
+		t.Fatalf("first episode lost genres or playback identity: %+v", items)
+	}
+	detail["tags"] = []any{"悬疑"}
+	drama, _ := normalizeDrama(detail)
+	if strings.Join(drama.Tags, ",") != "悬疑" {
+		t.Fatalf("existing tags changed: %v", drama.Tags)
+	}
+	delete(detail, "tags")
+	for _, malformed := range []string{`{`, `{}`, `[{"name":7}]`, `null`} {
+		detail["category_schema"] = malformed
+		drama, ok := normalizeDrama(detail)
+		if !ok || len(drama.Tags) != 0 {
+			t.Fatalf("optional tags broke drama normalization: %+v", drama)
+		}
+	}
+}
+
 func TestNormalizeDramaReadsTopLevelAndNestedSeriesStatus(t *testing.T) {
 	ongoing, ok := normalizeDrama(map[string]any{
 		"series_id": "1234567890123456789", "series_title": "连载剧", "series_status": json.Number("0"),

@@ -5,6 +5,7 @@ repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 node_bin=${NODE:-node}
 
 "$node_bin" --check "$repo_dir/scripts/run_webos_http_direct_service.js"
+"$node_bin" --check "$repo_dir/webos/service/watch-statistics.js"
 "$node_bin" --check "$repo_dir/webos/service/range-media.js"
 "$node_bin" --check "$repo_dir/webos/service/account-scan.js"
 "$node_bin" --check "$repo_dir/webos/app/webos-updates.js"

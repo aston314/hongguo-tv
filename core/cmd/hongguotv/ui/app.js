@@ -52,6 +52,7 @@
     libraryTabs: '.library-tab',
     followTabs: '.follow-tab',
     libraryActions: '.library-toolbar-button',
+    watchStatistics: '.watch-stat-action',
     historyFilters: '.history-filter',
     libraryItems: '.library-card',
     libraryRemovals: '.library-remove',
@@ -1223,6 +1224,7 @@
     // Follow controls share the toolbar styling, but have their own focus graph.
     if (element.classList.contains('follow-action')) return 'followActions';
     if (element.classList.contains('follow-notification-action')) return 'followNotifications';
+    if (element.classList.contains('watch-stat-action')) return 'watchStatistics';
     if (element.classList.contains('library-toolbar-button')) return 'libraryActions';
     if (element.classList.contains('history-filter')) return 'historyFilters';
     if (element.classList.contains('library-card')) return 'libraryItems';
@@ -1281,7 +1283,7 @@
     if (previous && previous.tagName === 'INPUT' && element.tagName !== 'INPUT' && window.HongguoTVInput) window.HongguoTVInput.finishEditing();
     element.focus();
     markFocus(element);
-    if (zoneOf(element) === 'sidebar') revealSidebarFocus(element);
+    if (zoneOf(element) === 'sidebar' || element.hasAttribute('data-stat-preference')) revealSidebarFocus(element);
     // Older WebViews may focus an action without scrolling its workspace.
     if ((pageMode() === 'account' || pageMode() === 'settings') && element.closest &&
         element.closest(pageMode() === 'settings' ? '#settings-page' : '#account-page')) {
@@ -1300,6 +1302,7 @@
   }
 
   function firstContentFocus() {
+    if (pageMode() === 'history' && typeof watchStatisticsView !== 'undefined' && watchStatisticsView && watchStatisticsView.isOpen()) return firstVisible('[data-stat-back]');
     if (pageMode() === 'player') return document.querySelector('.hero-feed-focus');
     // Restored recommendations are already visible; enter the channel bar
     // explicitly instead of relying on the loading placeholder.
@@ -1736,6 +1739,34 @@
       if (direction === 'right') return current.querySelector('.publication-action');
       if (direction === 'left') return activeSidebar();
       return null;
+    }
+    if (zone === 'watchStatistics') {
+      if (current.hasAttribute('data-stat-back')) {
+        if (direction === 'left') return activeSidebar();
+        if (direction === 'down' || direction === 'right') return firstVisible('[data-stat-retry]') || firstVisible('[data-stat-day][aria-pressed="true"]') || firstVisible('[data-stat-kind]');
+        return null;
+      }
+      if (current.hasAttribute('data-stat-day')) {
+        if (direction === 'up') return firstVisible('[data-stat-back]');
+        if (direction === 'down') return firstVisible('[data-stat-kind][aria-pressed="true"]');
+        var days = focusables('[data-stat-day]'), dayIndex = days.indexOf(current);
+        return days[dayIndex + (direction === 'left' ? -1 : 1)] || (direction === 'left' ? activeSidebar() : firstVisible('[data-stat-kind]'));
+      }
+      if (current.hasAttribute('data-stat-kind')) {
+        if (direction === 'up') return firstVisible('[data-stat-back]');
+        if (direction === 'down') return firstVisible('[data-stat-preference]');
+        if (direction === 'left') return current.dataset.statKind === 'genres' ? firstVisible('[data-stat-kind="types"]') : firstVisible('[data-stat-day][aria-pressed="true"]') || activeSidebar();
+        if (direction === 'right') return firstVisible('[data-stat-kind="genres"]');
+        return null;
+      }
+      if (current.hasAttribute('data-stat-preference')) {
+        var preferences = focusables('[data-stat-preference]'), preferenceIndex = preferences.indexOf(current);
+        if (direction === 'up') return preferences[preferenceIndex - 1] || firstVisible('[data-stat-kind][aria-pressed="true"]');
+        if (direction === 'down') return preferences[preferenceIndex + 1] || null;
+        if (direction === 'left') return firstVisible('[data-stat-day][aria-pressed="true"]') || activeSidebar();
+        return null;
+      }
+      return direction === 'up' ? firstVisible('[data-stat-back]') : direction === 'left' ? activeSidebar() : null;
     }
     if (zone === 'libraryActions') {
       if (current.dataset.action === 'library-discover' && direction === 'up') return firstVisible('.history-filter.is-active') || firstVisible('.library-tab.is-active') || activeSidebar();
@@ -3313,6 +3344,7 @@
     else if (playerOptionsOpen) closePlayerOptions();
     else if (detailModalOpen) closeDetail();
     else if (discussionOpen) closeDiscussion();
+    else if (pageMode() === 'history' && typeof watchStatisticsView !== 'undefined' && watchStatisticsView && watchStatisticsView.isOpen()) closeWatchStatistics();
     else if (pageMode() === 'account' && accountQR && accountQR.snapshot().active) { cancelAccountQR(true); }
     else if (pageMode() === 'account' && accountData && accountData.phase === 'mfa') { cancelAccountVerification(true); }
     else if (shell.classList.contains('is-cinema')) {
@@ -3671,6 +3703,8 @@
     if (value.indexOf('ai') >= 0) return 'ai';
     if (value.indexOf('comic') >= 0 || value.indexOf('漫') >= 0) return 'comic';
     if (value.indexOf('real') >= 0 || value.indexOf('真人') >= 0) return 'real';
+    if (value === '1' || value === 'short_play') return 'real';
+    if (value === '1004') return 'comic';
     return '';
   }
   function selectLibraryType(value) {
@@ -3687,6 +3721,7 @@
   function renderLibrary(restoring) {
     var kind = pageMode();
     if (!isLibraryPage()) return;
+    document.getElementById('library-statistics').classList.toggle('is-hidden', kind !== 'history' || libraryEditing);
     var label = ({ history: uiText('ui.history', '历史'), favorites: uiText('ui.favorite', '收藏'), likes: uiText('ui.likes', '点赞') })[kind];
     document.getElementById('library-title').textContent = kind === 'history' ? uiText('ui.watchHistory', '观看历史') : label;
     var libraryTabs = document.getElementById('library-tabs');
@@ -3829,6 +3864,7 @@
 
   function acceptAccountStatus(data) {
     var previous = accountData;
+    if (typeof watchStatisticsCollector !== 'undefined' && watchStatisticsCollector && String(data.profile && data.profile.uid || '') !== watchStatisticsOwner()) watchStatisticsCollector.stop(false);
     var wasInitialized = accountStatusInitialized;
     var owner = data.profile && data.profile.uid || '';
     var previousOwner = previous && previous.profile && previous.profile.uid || '';
@@ -3879,6 +3915,7 @@
       else if (pageMode() === 'recommend') loadCatalog(activeChannel().textContent);
       historyFilter = 'all';
       libraryData = { entries: [], owner_id: owner };
+      if (typeof watchStatisticsView !== 'undefined' && watchStatisticsView && watchStatisticsView.isOpen()) watchStatisticsView.reload();
       libraryLoaded = false;
       libraryReady = libraryQueue.catch(function () {}).then(loadLibrary);
       updateSavedButtons();
@@ -8017,6 +8054,8 @@
 
   function activatePage(item, restoring) {
     cancelSearchSuggestionActivation();
+    if (typeof watchStatisticsCollector !== 'undefined' && watchStatisticsCollector) watchStatisticsCollector.stop(true);
+    if (typeof watchStatisticsView !== 'undefined' && watchStatisticsView && watchStatisticsView.isOpen()) closeWatchStatistics(false);
     if (portraitBackdrop) portraitBackdrop.reset();
     if (accountQR && accountQR.snapshot().active && item.dataset.page !== 'account') cancelAccountQR(false);
     if (item.dataset.page === 'recommend' && pageMode() === 'recommend') {
@@ -8622,7 +8661,97 @@
     request.send();
   }
 
+  function watchStatisticsOwner() {
+    return String(accountData && accountData.logged_in && accountData.profile && accountData.profile.uid || '');
+  }
+  var watchStatisticsObserved = Object.create(null);
+  function rememberWatchStatisticsMetadata(id, metadata) {
+    if (!id || !metadata) return;
+    var ids = Object.keys(watchStatisticsObserved);
+    if (ids.length >= 24 && !watchStatisticsObserved[id]) delete watchStatisticsObserved[ids[0]];
+    watchStatisticsObserved[id] = metadata;
+  }
+  var watchStatisticsMetadata = Object.create(null);
+  function watchStatisticsMetadataFor(id) {
+    if (!id) return Promise.resolve(null);
+    if (watchStatisticsMetadata[id]) return watchStatisticsMetadata[id];
+    var ids = Object.keys(watchStatisticsMetadata);
+    if (ids.length >= 24) delete watchStatisticsMetadata[ids[0]];
+    var abort = new AbortController(), timeout = setTimeout(function () { abort.abort(); }, 2000);
+    // Recommended first episodes may play without fetching details. Resolve
+    // labels only in this background statistics queue, never the player path.
+    watchStatisticsMetadata[id] = getDetail({ series_id: id }, abort.signal).then(function (detail) {
+      clearTimeout(timeout); return detail;
+    }, function () { clearTimeout(timeout); delete watchStatisticsMetadata[id]; return null; });
+    return watchStatisticsMetadata[id];
+  }
+  function enrichWatchStatisticsBatch(batch) {
+    var items = batch.items.map(function (item) {
+      var metadata = watchStatisticsObserved[item.series_id];
+      var observedType = metadata && dramaType(metadata);
+      return Object.assign({}, item, { type: observedType === 'ai' || item.type === 'unknown' && observedType ? observedType : item.type,
+        genre: item.genre || window.HongguoWatchStatistics.genreFor(metadata && metadata.tags || []) });
+    });
+    var ids = [];
+    items.forEach(function (item) { if (item.series_id && (!item.genre || item.type === 'unknown') && ids.indexOf(item.series_id) < 0) ids.push(item.series_id); });
+    return Promise.all(ids.map(watchStatisticsMetadataFor)).then(function (details) {
+      return { owner_id: batch.owner_id, id: batch.id, items: items.map(function (item) {
+        var index = ids.indexOf(item.series_id), detail = index >= 0 && details[index];
+        return { day: item.day, ms: item.ms, type: item.type === 'unknown' && detail ? dramaType(detail) || 'unknown' : item.type,
+          genre: item.genre || window.HongguoWatchStatistics.genreFor(detail && detail.tags || []) };
+      }) };
+    });
+  }
+  function watchStatisticsRequest(method, owner, batch) {
+    var abort = new AbortController();
+    var timeout = setTimeout(function () { abort.abort(); }, 3000);
+    var request = { method: method, signal: abort.signal };
+    if (batch) { request.headers = { 'Content-Type': 'application/json' }; request.body = JSON.stringify(batch); }
+    return fetch('/api/v1/watch-statistics?owner_id=' + encodeURIComponent(owner) + '&day=' + window.HongguoWatchStatistics.dayKey(Date.now()), request).then(function (response) {
+      if (!response.ok) { var error = new Error('statistics unavailable'); error.status = response.status; throw error; }
+      return response.json();
+    }).then(function (payload) {
+      clearTimeout(timeout);
+      if (!payload.ok) throw new Error('statistics unavailable');
+      return payload.data;
+    }, function (error) { clearTimeout(timeout); throw error; });
+  }
+  function openWatchStatistics() {
+    if (pageMode() !== 'history' || libraryEditing) return;
+    libraryPage.classList.add('has-watch-statistics');
+    document.getElementById('watch-statistics').classList.remove('is-hidden');
+    libraryPage.scrollTop = 0;
+    watchStatisticsView.show();
+    goFocus(document.querySelector('[data-stat-back]'));
+  }
+  function closeWatchStatistics(focus) {
+    watchStatisticsView.hide();
+    libraryPage.classList.remove('has-watch-statistics');
+    document.getElementById('watch-statistics').classList.add('is-hidden');
+    if (focus !== false && pageMode() === 'history') goFocus(document.getElementById('library-statistics'));
+  }
+  var watchStatisticsCollector = window.HongguoWatchStatistics.createCollector({
+    snapshot: function () {
+      var p = activePlayback, video = document.getElementById('hero-video');
+      if (!p || !video) return null;
+      var item = p.item || {}, metadata = watchStatisticsObserved[item.series_id] || {}, observedType = dramaType(metadata);
+      return { key: String(p.generation) + ':' + p.vid + ':' + p.episode, owner: watchStatisticsOwner(),
+        eligible: accountStatusInitialized && libraryLoaded && p.owner === accountEpoch && p.started && isPlaybackPage() && !applicationInBackground && !applicationHidden() &&
+          !video.paused && !video.ended && !video.seeking && !video.error && video.readyState >= 2 && !(p.presentation && p.presentation.waiting),
+        position: Number(video.currentTime) || 0, rate: Number(video.playbackRate) || 1, type: observedType === 'ai' ? 'ai' : dramaType(item) || observedType, tags: item.tags && item.tags.length ? item.tags : metadata.tags || [], series_id: item.series_id || '' };
+    },
+    request: function (batch) { return enrichWatchStatisticsBatch(batch).then(function (payload) { return watchStatisticsRequest('POST', payload.owner_id, payload); }); }
+  });
+  var watchStatisticsView = window.HongguoWatchStatistics.createView({
+    root: document.getElementById('watch-statistics'), text: uiText, owner: watchStatisticsOwner,
+    flush: function () { return watchStatisticsCollector.flush(); },
+    request: function (owner) { return watchStatisticsRequest('GET', owner); }, close: closeWatchStatistics
+  });
+  document.getElementById('library-statistics').addEventListener('click', openWatchStatistics);
+  if (window.HongguoI18n && typeof window.HongguoI18n.onChange === 'function') window.HongguoI18n.onChange(function () { watchStatisticsView.render(); });
+
   var media = document.getElementById('hero-video');
+  watchStatisticsCollector.bind(media, window);
   media.addEventListener('loadedmetadata', function () {
     if (!activePlayback || activePlayback.generation !== feedGeneration) return;
     if (media.videoWidth > 0 && media.videoHeight > 0) {
@@ -8778,7 +8907,7 @@
     }
     continueAfterEpisode(playback);
   });
-  document.addEventListener('visibilitychange', function () { if (desktopShell) return; if (applicationHidden()) pauseForBackground(); else resumeFromBackground(); });
+  document.addEventListener('visibilitychange', function () { if (applicationHidden()) watchStatisticsCollector.stop(true); if (desktopShell) return; if (applicationHidden()) pauseForBackground(); else resumeFromBackground(); });
 
   function openQRCode(card, image, title) {
     supportReturnFocus = card; supportModalOpen = true;
@@ -8923,6 +9052,7 @@
     },
     render: function (target, data) {
       setEpisodeCover(target, data);
+      if (target && data && data.metadata) rememberWatchStatisticsMetadata(target.series_id, data.metadata);
       ['like', 'favorite', 'comment'].forEach(function (kind) {
         var field = { like: 'likes', favorite: 'favorites', comment: 'comments' }[kind];
         var text = window.HongguoEngagement.countText(data && data[field]);

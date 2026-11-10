@@ -15,6 +15,7 @@
     if (!process.env.HONGGUO_WEBOS_SERVICE_ID) process.env.HONGGUO_WEBOS_SERVICE_ID = serviceID;
     var provider = options.provider || require('./provider');
     var account = options.account || require('./account')({ dataDir: provider.dataDirectory ? provider.dataDirectory() : process.env.HONGGUO_WEBOS_DATA_DIR });
+    var watchStatistics = options.watchStatistics || require('./watch-statistics')({ dataDir: provider.dataDirectory ? provider.dataDirectory() : process.env.HONGGUO_WEBOS_DATA_DIR || require('os').tmpdir() });
     var numberInput = options.numberInput || require('./number-input')();
     var updates = options.updates || require('./updates')();
     var port = options.port === undefined ? Number(process.env.HONGGUO_WEBOS_PORT) || DEFAULT_PORT : options.port;
@@ -248,6 +249,16 @@
       }
       if (pathName === '/api/v1/player/stats') {
         return provider.engagement(String(q.series_id || ''), String(q.vid || '')).then(function (result) { data(req, res, result); }, function (error) { failure(req, res, error); });
+      }
+      if (pathName === '/api/v1/watch-statistics') {
+        var statsOwner = account.status().profile;
+        statsOwner = statsOwner && String(statsOwner.uid || '') || '';
+        if (String(q.owner_id || '') !== statsOwner) return json(res, 409, { ok: false, error: 'ACCOUNT_CHANGED' }, req);
+        var statsBody = req.method === 'POST' ? bodyJSON(req, 32768) : Promise.resolve(null);
+        return statsBody.then(function (body) {
+          if (body && body.owner_id !== statsOwner) throw Object.assign(new Error('账号已切换'), { status: 409 });
+          return watchStatistics.request(req.method, statsOwner, String(q.day || ''), body);
+        }).then(function (value) { data(req, res, value); }, function (error) { failure(req, res, error); });
       }
       if (pathName === '/api/v1/library') {
         if (req.method === 'GET' || req.method === 'HEAD') return data(req, res, account.librarySnapshot());
