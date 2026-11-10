@@ -133,7 +133,7 @@ final class RecommendedApps {
     }
     private boolean markInstalled(Entry e) {
         if (!installed(e)) return false;
-        e.state = "installed"; e.verified = false; e.apk.delete(); return true;
+        e.state = "installed"; e.error = ""; e.verified = false; e.apk.delete(); return true;
     }
     private void load() {
         if (destroyed || !visible || !host.foreground() || busy) return;
