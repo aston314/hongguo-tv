@@ -20,6 +20,7 @@ type Engagement struct {
 	Comments     *int64              `json:"comments"`
 	EpisodeCover string              `json:"episode_cover,omitempty"`
 	Metadata     *EngagementMetadata `json:"metadata,omitempty"`
+	RankBadge    string              `json:"rank_badge,omitempty"`
 }
 
 // Reuse classification already present in the episode's existing preload read.
@@ -69,6 +70,7 @@ func engagementFromVideo(series, vid string, video map[string]any) (Engagement, 
 		return out, errors.New("短剧统计身份不一致")
 	}
 	out.Favorites = engagementCount(video["followed_cnt"])
+	out.RankBadge = rankBadge(video)
 	metadata := &EngagementMetadata{ContentType: asString(video["content_type"]), VideoCategoryType: asString(video["video_category_type"]), Tags: dramaTags(video)}
 	if metadata.ContentType != "" || metadata.VideoCategoryType != "" || len(metadata.Tags) > 0 {
 		out.Metadata = metadata

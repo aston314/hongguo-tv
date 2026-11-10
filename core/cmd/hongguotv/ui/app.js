@@ -4227,11 +4227,19 @@
     else loader.onerror();
   }
 
+  function updateHeroRankBadge(item, value) {
+    var badge = document.getElementById('hero-rank-badge'), label = document.getElementById('hero-rank-label');
+    if (!badge || !label) return;
+    var text = String(value || item && item.rank_badge || '').trim();
+    label.textContent = text.slice(0, 80);
+    badge.classList.toggle('is-hidden', !text);
+  }
+
   function setFeatured(item, waitingForProgress, transitionKind) {
     if (!item || !item.series_id) return;
     featuredItem = item;
     var backdrop = document.getElementById('hero-backdrop');
-    var title = document.querySelector('.hero-title');
+    var title = document.getElementById('hero-series-title');
     var episode = document.querySelector('.hero-episode');
     var summary = document.querySelector('.hero-summary');
     var topTitle = document.getElementById('hero-top-title');
@@ -4250,6 +4258,7 @@
       } else setBackdrop(backdrop, item, poster);
     }
     if (title) title.textContent = item.title || uiText('app.name', '红果短剧');
+    updateHeroRankBadge(item);
     if (episode) episode.textContent = waitingForProgress ? item.episode_count ? uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : '' : uiText('content.episodeNumber', '第{episode}集', { episode: item.start_episode || 1 }) + (item.episode_count ? ' · ' + uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : '');
     if (summary) summary.textContent = item.intro || '';
     if (topTitle) topTitle.textContent = item.title || uiText('app.name', '红果短剧');
@@ -9053,6 +9062,7 @@
     render: function (target, data) {
       setEpisodeCover(target, data);
       if (target && data && data.metadata) rememberWatchStatisticsMetadata(target.series_id, data.metadata);
+      if (target && featuredItem && target.series_id === featuredItem.series_id) updateHeroRankBadge(featuredItem, data && data.rank_badge);
       ['like', 'favorite', 'comment'].forEach(function (kind) {
         var field = { like: 'likes', favorite: 'favorites', comment: 'comments' }[kind];
         var text = window.HongguoEngagement.countText(data && data[field]);

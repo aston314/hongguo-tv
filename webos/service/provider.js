@@ -1292,6 +1292,16 @@
         pathname.indexOf('/novel-pic/') !== 0 || pathname.indexOf('~') < 0) return '';
     return 'https://p3-novel.byteimg.com' + pathname.split('~')[0] + '~tplv-shrink:640:0.image';
   }
+  function rankBadge(object) {
+    var rows = object && Array.isArray(object.rec_tags) ? object.rec_tags : [];
+    for (var i = 0; i < rows.length; i++) {
+      var tag = rows[i];
+      if (!tag || String(tag.rec_type) !== '9' || typeof tag.content !== 'string') continue;
+      var label = tag.content.trim();
+      if (label.indexOf('榜') >= 0 && Array.from(label).length <= 80 && !/[\x00-\x1f\x7f-\x9f<>/\\]/.test(label)) return label;
+    }
+    return '';
+  }
   function dramaTags(object) {
     var tags = stringArray(object.tags);
     if (tags.length) return tags;
@@ -1316,6 +1326,8 @@
     var episodeCount = number(first(object.episode_cnt, object.episode_total_cnt)) || vids.length;
     var item = { series_id: id, title: first(object.series_title, object.series_name, object.title, '未命名短剧'), cover: first(object.series_cover, object.cover, object.cover_url), intro: first(object.series_intro, object.video_desc, object.description), score: first(object.score, object.rating, object.scoreText).replace(/^评分/, ''), play_count: number(object.play_cnt), episode_count: episodeCount, accessible_episode_cnt: number(object.accessible_episode_cnt) || episodeCount, vid: first(object.vid, object.video_id, vids[0]), vid_list: vids, tags: dramaTags(object), content_type: first(object.content_type, object.contentType), video_category_type: first(object.video_category_type, object.videoCategoryType), rank: number(object.rank), heat: first(object.heatText), season_index: number(object.season_index), is_multi_season: bool(object.is_multi_season), followed: bool(object.followed) || bool(object.is_subscribed), following_update: bool(object.following_update), follow_count: number(object.follow_count), series_status: first(object.series_status, object.status) };
     var fallback = browserCoverFallback(item.cover);
+    var badge = rankBadge(object);
+    if (badge) item.rank_badge = badge;
     if (fallback) item.cover_fallback = fallback;
     return item;
   }
@@ -1494,19 +1506,21 @@
 
   function feedRows(cells) {
     var items = [], seen = {};
-    function append(raw, disabled) {
+    function append(raw, disabled, parent) {
       var value = raw && raw.video_detail || raw;
       var item = normalize(value);
       if (!item || disabled || !validID(item.series_id) || !item.episode_count || seen[item.series_id]) return;
       item.vid = first(raw && raw.first_vid, item.vid);
+      var badge = rankBadge(parent);
+      if (badge) item.rank_badge = badge;
       if (!validID(item.vid)) return;
       seen[item.series_id] = true; items.push(item);
     }
     function walk(rows) {
       (rows || []).forEach(function (cell) {
         if (!cell) return;
-        if (cell.video_detail) append(cell.video_detail, cell.disable_play);
-        (cell.video_data || []).forEach(function (video) { if (!video || !video.video_detail) return; append(video.video_detail, video.disable_play); });
+        if (cell.video_detail) append(cell.video_detail, cell.disable_play, cell);
+        (cell.video_data || []).forEach(function (video) { if (!video || !video.video_detail) return; append(video.video_detail, video.disable_play, video); });
         walk(cell.cell_data);
       });
     }
@@ -1809,6 +1823,8 @@
     return signedJSON('/novel/player/multi_video_detail/preload/v1', 'POST', {}, { dr_scene: 'preload', series_id: seriesID, biz_param: { detail_page_version: 0, disable_digg_stat: false, disable_video_relate_book: false, need_all_video_definition: false, need_mp4_align: false, source: 7, use_os_player: false, use_server_dns: false } }).then(function (payload) {
       var data = payload && payload.data || {}; var series = data[seriesID] || {}; var video = series.video_data || {};
       var out = { series_id: seriesID, vid: vid, likes: null, favorites: number(video.followed_cnt), comments: null, episode_cover: '' };
+      var badge = rankBadge(video);
+      if (badge) out.rank_badge = badge;
       var metadata = { content_type: first(video.content_type), video_category_type: first(video.video_category_type), tags: dramaTags(video) };
       if (metadata.content_type || metadata.video_category_type || metadata.tags.length) out.metadata = metadata;
       (Array.isArray(video.video_list) ? video.video_list : []).forEach(function (row) { if (String(row.vid) === vid) { out.likes = number(row.digged_count); out.comments = number(row.comment_count); out.episode_cover = first(row.episode_cover); } });

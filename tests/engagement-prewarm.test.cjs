@@ -17,11 +17,11 @@ test('prewarm caches the next episode stats and cover without rendering it', asy
     render(target, data) { renders.push({ target, data }); },
   });
   const pending = api.prewarm({ series_id: 'series-1', vid: 'vid-2' });
-  reply.resolve({ series_id: 'series-1', vid: 'vid-2', likes: 4, favorites: 2, comments: 1, episode_cover: '/cover-2.jpg' });
-  assert.deepEqual(await pending, { likes: 4, favorites: 2, comments: 1, episode_cover: '/cover-2.jpg' });
+  reply.resolve({ series_id: 'series-1', vid: 'vid-2', likes: 4, favorites: 2, comments: 1, episode_cover: '/cover-2.jpg', rank_badge: '收藏月榜 No.2' });
+  assert.deepEqual(await pending, { likes: 4, favorites: 2, comments: 1, episode_cover: '/cover-2.jpg', rank_badge: '收藏月榜 No.2' });
   assert.equal(requests, 1);
   assert.equal(renders.length, 0);
-  assert.deepEqual(await api.prewarm({ series_id: 'series-1', vid: 'vid-2' }), { likes: 4, favorites: 2, comments: 1, episode_cover: '/cover-2.jpg' });
+  assert.deepEqual(await api.prewarm({ series_id: 'series-1', vid: 'vid-2' }), { likes: 4, favorites: 2, comments: 1, episode_cover: '/cover-2.jpg', rank_badge: '收藏月榜 No.2' });
   assert.equal(requests, 1);
 });
 

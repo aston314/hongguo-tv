@@ -48,7 +48,7 @@
     return {
       stage: stage,
       elapsedMs: Date.now() - started,
-      title: safeText('.hero-title'),
+      title: safeText('#hero-series-title'),
       episode: safeText('#hero-top-episode'),
       episode1Source: matchesEpisode(episodes[0]),
       episode2Source: matchesEpisode(episodes[1]),

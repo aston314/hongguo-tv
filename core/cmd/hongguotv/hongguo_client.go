@@ -40,6 +40,7 @@ type Drama struct {
 	VidList              []string  `json:"vid_list,omitempty"`
 	Tags                 []string  `json:"tags,omitempty"`
 	Rank                 int       `json:"rank,omitempty"`
+	RankBadge            string    `json:"rank_badge,omitempty"`
 	Heat                 string    `json:"heat,omitempty"`
 	FavoriteText         string    `json:"favorite_text,omitempty"`
 	LikeText             string    `json:"like_text,omitempty"`
@@ -1230,6 +1231,7 @@ func normalizeDrama(value any) (Drama, bool) {
 		Tags:                 dramaTags(object),
 		VidList:              asStringSlice(object["vid_list"]),
 		Rank:                 asInt(object["rank"]),
+		RankBadge:            rankBadge(object),
 		Heat:                 asString(object["heatText"]),
 		FavoriteText:         asString(object["favoriteText"]),
 		LikeText:             asString(object["likeText"]),

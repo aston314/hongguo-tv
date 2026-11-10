@@ -203,7 +203,7 @@ func (c *passportClient) NewSeries(ctx context.Context, q url.Values) (ListResul
 func parseFeedDramas(cells []any) ([]Drama, FeedParseDiagnostics) {
 	out := []Drama{}
 	diagnostics := FeedParseDiagnostics{}
-	appendDetail := func(detail any, disabled bool) {
+	appendDetail := func(detail any, disabled bool, parent map[string]any) {
 		diagnostics.RecordsSeen++
 		if disabled {
 			diagnostics.Filtered++
@@ -217,6 +217,9 @@ func parseFeedDramas(cells []any) ([]Drama, FeedParseDiagnostics) {
 		diagnostics.Parsed++
 		detailMap, _ := asMap(detail)
 		drama.Vid = firstNonEmpty(asString(detailMap["first_vid"]), drama.Vid)
+		if badge := rankBadge(parent); badge != "" {
+			drama.RankBadge = badge
+		}
 		out = append(out, drama)
 	}
 	var walk func([]any)
@@ -225,7 +228,7 @@ func parseFeedDramas(cells []any) ([]Drama, FeedParseDiagnostics) {
 			cell, _ := asMap(value)
 			diagnostics.CellsSeen++
 			if detail, ok := cell["video_detail"]; ok {
-				appendDetail(detail, asBool(cell["disable_play"]))
+				appendDetail(detail, asBool(cell["disable_play"]), cell)
 			}
 			videos, _ := cell["video_data"].([]any)
 			for _, value := range videos {
@@ -236,7 +239,7 @@ func parseFeedDramas(cells []any) ([]Drama, FeedParseDiagnostics) {
 					diagnostics.Filtered++
 					continue
 				}
-				appendDetail(detail, asBool(video["disable_play"]))
+				appendDetail(detail, asBool(video["disable_play"]), video)
 			}
 			if nested, ok := cell["cell_data"].([]any); ok {
 				walk(nested)
