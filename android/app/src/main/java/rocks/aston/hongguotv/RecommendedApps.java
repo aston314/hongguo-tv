@@ -57,7 +57,7 @@ final class RecommendedApps {
         @Override public void onReceive(Context context, Intent intent) {
             if (destroyed || intent == null) return;
             Entry e = entries.get(intent.getStringExtra("app_id"));
-            if (e == null || e.manifest == null || intent.getIntExtra("target_code", 0) != e.manifest.code) return;
+            if (e == null || e.manifest == null || e.installCode <= 0 || intent.getIntExtra("target_code", 0) != e.installCode) return;
             int status = intent.getIntExtra("status", PackageInstaller.STATUS_FAILURE);
             busy = false;
             if (status == PackageInstaller.STATUS_PENDING_USER_ACTION) { waitingInstaller = e; e.state = "installing"; }
@@ -69,28 +69,15 @@ final class RecommendedApps {
         }
     };
 
-    private static final class Manifest {
-        final int code, minSdk;
-        final long size;
-        final String version, sha, url;
-        Manifest(RecommendedAppPolicy.App app, String body) throws Exception {
-            JSONObject json = new JSONObject(body);
-            if (json.getInt("schema") != 1) throw new IOException("manifest");
-            code = json.getInt("version_code"); minSdk = json.getInt("min_sdk");
-            size = json.getLong("size"); version = json.getString("version_name");
-            sha = json.getString("sha256").toLowerCase(java.util.Locale.ROOT);
-            url = json.getString("download_url");
-            RecommendedAppPolicy.validate(app, json.getString("package_name"), code, version, minSdk, size, sha, url);
-        }
-    }
     private static final class Entry {
         final RecommendedAppPolicy.App app;
         final File apk, partial;
-        Manifest manifest;
+        RecommendedAppManifest manifest;
         String state = "idle", error = "";
         String nextRoute = UpdateInstallPolicy.VIEW;
         long downloaded;
         boolean verified;
+        int installCode;
         Entry(RecommendedAppPolicy.App app, File directory) {
             this.app = app; apk = new File(directory, app.id + ".apk"); partial = new File(directory, app.id + ".part");
         }
@@ -152,12 +139,12 @@ final class RecommendedApps {
         worker.execute(() -> {
             for (Entry e : pending) {
                 if (!valid(epoch)) return;
-                Manifest result = null;
+                RecommendedAppManifest result = null;
                 for (String source : RecommendedAppPolicy.sources(e.app.manifestUrl + "?check=" + System.currentTimeMillis())) {
-                    try { result = new Manifest(e.app, read(source, epoch)); break; }
+                    try { result = new RecommendedAppManifest(e.app, read(source, epoch)); break; }
                     catch (Exception failed) { if (!valid(epoch)) return; }
                 }
-                final Manifest found = result;
+                final RecommendedAppManifest found = result;
                 activity.runOnUiThread(() -> {
                     if (!valid(epoch)) return;
                     if (!markInstalled(e)) {
@@ -178,13 +165,13 @@ final class RecommendedApps {
         if ("ready".equals(e.state) && e.verified) { install(e); return; }
         if (e.manifest == null || "metadata".equals(e.error)) { load(); return; }
         if (e.manifest.minSdk > Build.VERSION.SDK_INT) return;
-        final Manifest target = e.manifest;
+        final RecommendedAppManifest target = e.manifest;
         final int epoch = generation.incrementAndGet();
         e.state = "downloading"; e.error = ""; e.downloaded = 0; e.verified = false;
         downloading = e; busy = true; publish();
         worker.execute(() -> download(e, target, epoch));
     }
-    private void download(Entry e, Manifest target, int epoch) {
+    private void download(Entry e, RecommendedAppManifest target, int epoch) {
         try {
             IOException last = new IOException("download");
             for (String source : RecommendedAppPolicy.sources(target.url)) {
@@ -205,7 +192,7 @@ final class RecommendedApps {
                             }
                         });
                     } finally { request.disconnect(); if (connection == request) connection = null; }
-                    ensureValid(epoch); verifyArchive(e, target, e.partial);
+                    ensureValid(epoch); final int archiveCode = verifyArchive(e, target, e.partial);
                     ensureValid(epoch);
                     e.apk.delete();
                     if (!e.partial.renameTo(e.apk)) throw new IOException("storage");
@@ -213,7 +200,7 @@ final class RecommendedApps {
                         if (!valid(epoch)) return;
                         downloading = null; busy = false;
                         if (markInstalled(e)) { publish(); return; }
-                        e.verified = true; e.state = "ready"; e.downloaded = target.size; publish();
+                        e.verified = true; e.installCode = archiveCode; e.state = "ready"; e.downloaded = target.size; publish();
                         // A completed background download must not interrupt another page or playback.
                         if (visible && host.foreground() && host.trusted()) install(e);
                     });
@@ -232,7 +219,7 @@ final class RecommendedApps {
         }
     }
     @SuppressWarnings("deprecation")
-    private void verifyArchive(Entry e, Manifest target, File file) throws Exception {
+    private int verifyArchive(Entry e, RecommendedAppManifest target, File file) throws Exception {
         PackageInfo archive = activity.getPackageManager().getPackageArchiveInfo(file.getPath(), PackageManager.GET_SIGNATURES);
         if (archive == null || archive.signatures == null) throw new IOException("archive");
         String[] signers = new String[archive.signatures.length];
@@ -244,6 +231,7 @@ final class RecommendedApps {
                 target.code, target.version, signers)) throw new IOException("signature");
         if (Build.VERSION.SDK_INT >= 24 && archive.applicationInfo.minSdkVersion > Build.VERSION.SDK_INT)
             throw new IOException("incompatible");
+        return archive.versionCode;
     }
     private void install(Entry e) {
         if (destroyed || !visible || !host.foreground() || !host.trusted() || !e.verified || !e.apk.isFile()) return;
@@ -284,7 +272,7 @@ final class RecommendedApps {
     private void installSession(Entry e) {
         if (busy) return;
         final int epoch = generation.get();
-        final Manifest target = e.manifest;
+        final int installCode = e.installCode;
         busy = true; e.state = "installing"; e.nextRoute = UpdateInstallPolicy.VIEW;
         publish();
         worker.execute(() -> {
@@ -305,12 +293,12 @@ final class RecommendedApps {
                     }
                     ensureValid(epoch);
                     if (!visible || !host.foreground()) throw new IOException("not_visible");
-                    preferences.edit().putInt(e.app.id + ".session", sessionId).putInt(e.app.id + ".code", target.code)
+                    preferences.edit().putInt(e.app.id + ".session", sessionId).putInt(e.app.id + ".code", installCode)
                             .remove(e.app.id + ".status").apply();
                     Intent callback = new Intent(activity, RecommendedAppInstallReceiver.class)
                             .setAction(RecommendedAppInstallReceiver.ACTION_STATUS)
                             .setData(Uri.parse("hongguo-recommended://session/" + sessionId))
-                            .putExtra("app_id", e.app.id).putExtra("target_code", target.code);
+                            .putExtra("app_id", e.app.id).putExtra("target_code", installCode);
                     int flags = PendingIntent.FLAG_UPDATE_CURRENT;
                     if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
                     PendingIntent status = PendingIntent.getBroadcast(activity, sessionId, callback, flags);

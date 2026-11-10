@@ -53,4 +53,12 @@ public final class RecommendedAppPolicyTest {
         assertTrue(UpdateInstallPolicy.canUsePackageInstallerSession(23, false));
         assertFalse(UpdateInstallPolicy.canUsePackageInstallerSession(26, false));
     }
+    @Test public void yunyingUsesItsOwnCertificateAndArchiveVersionCode() {
+        RecommendedAppPolicy.App yunying = RecommendedAppPolicy.find("yunying");
+        String url = "https://github.com/aston314/yunying-tv-releases/releases/download/v0.1.44/yunying-tv-0.1.44.apk";
+        RecommendedAppPolicy.validate(yunying, "cc.yunying.tv", 0, "0.1.44", 23, 26980671, sha, url);
+        assertTrue(RecommendedAppPolicy.matchingArchive(yunying, yunying.packageName, 26, "0.1.44", 0, "0.1.44", new String[]{yunying.signer}));
+        assertFalse(RecommendedAppPolicy.matchingArchive(yunying, yunying.packageName, 26, "0.1.44", 0, "0.1.44", new String[]{app.signer}));
+        assertFalse(RecommendedAppPolicy.matchingArchive(app, app.packageName, 46, "0.1.45", 0, "0.1.45", new String[]{app.signer}));
+    }
 }

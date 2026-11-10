@@ -12,6 +12,7 @@
     <queries>
         <package android:name="rocks.aston.doudoutv" />
         <package android:name="cc.kafeizhibo.tv" />
+        <package android:name="cc.yunying.tv" />
     </queries>
 
     <application

@@ -4,7 +4,7 @@ const {create, model} = require('../core/cmd/hongguotv/ui/recommended-apps.js');
 const text = (key, args) => key + (args ? JSON.stringify(args) : '');
 function setup(options = {}) {
   const calls = [], timers = new Map(), renders = [];
-  let status = {apps: [{id:'doudou',state:'available',min_sdk:23}, {id:'sports',state:'installed',min_sdk:23}]};
+  let status = {apps: [{id:'doudou',state:'available',min_sdk:23}, {id:'sports',state:'installed',min_sdk:23}, {id:'yunying',state:'available',min_sdk:23}]};
   let serial = 0;
   const bridge = {getStatus:()=>JSON.stringify(status),setVisible:x=>calls.push(['visible',x]),refresh:()=>calls.push(['refresh']),activate:id=>calls.push(['activate',id])};
   const controller = create({android:true,bridge,render:x=>renders.push(x),setTimeout:fn=>{timers.set(++serial,fn);return serial;},clearTimeout:id=>timers.delete(id),...options});
@@ -23,8 +23,8 @@ test('page entry refreshes metadata once and leaving stops polling without an up
   x.controller.show();assert.equal(x.timers.size,1);x.controller.destroy();assert.equal(x.timers.size,0);x.controller.show();assert.equal(x.timers.size,0);
 });
 test('only catalog IDs reach the bridge and invalid status does not break the page',()=>{
-  const x=setup();x.controller.show();x.controller.activate('../x');x.controller.activate('doudou');
-  assert.deepEqual(x.calls.filter(x=>x[0]==='activate'),[['activate','doudou']]);
+  const x=setup();x.controller.show();x.controller.activate('../x');x.controller.activate('doudou');x.controller.activate('yunying');
+  assert.deepEqual(x.calls.filter(x=>x[0]==='activate'),[['activate','doudou'],['activate','yunying']]);
   x.setStatus({apps:[{id:'doudou',state:'installed'},{id:'foreign',state:'installed'}]});x.controller.refresh();assert.equal(x.renders.at(-1).length,1);
   x.setStatus({});x.controller.refresh();assert.equal(x.renders.at(-1)[0].error,'metadata');
 });

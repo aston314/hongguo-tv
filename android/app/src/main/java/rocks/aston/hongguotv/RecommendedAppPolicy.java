@@ -7,19 +7,26 @@ import java.util.Arrays;
 final class RecommendedAppPolicy {
     static final class App {
         final String id, packageName, repository, manifestUrl, filePrefix, signer;
+        final boolean releaseApi;
         final int minSdk = 23;
         App(String id, String packageName, String repository, String manifestUrl, String filePrefix) {
+            this(id, packageName, repository, manifestUrl, filePrefix,
+                    "117dc57341c638a6f416ef256e0d9893bcdf7961acfc4c1b270b79bea8b6785f", false);
+        }
+        App(String id, String packageName, String repository, String manifestUrl, String filePrefix, String signer, boolean releaseApi) {
             this.id = id; this.packageName = packageName; this.repository = repository;
             this.manifestUrl = manifestUrl; this.filePrefix = filePrefix;
-            // Verified against the certificates in both official signed releases.
-            signer = "117dc57341c638a6f416ef256e0d9893bcdf7961acfc4c1b270b79bea8b6785f";
+            this.signer = signer; this.releaseApi = releaseApi;
         }
     }
     static final App[] APPS = {
         new App("doudou", "rocks.aston.doudoutv", "aston314/doudou-tv-releases",
                 "https://raw.githubusercontent.com/aston314/doudou-tv-releases/main/update.json", "doudou-tv-"),
         new App("sports", "cc.kafeizhibo.tv", "aston314/kafeizhibo-tv",
-                "https://github.com/aston314/kafeizhibo-tv/releases/latest/download/update.json", "sports-live-tv-")
+                "https://github.com/aston314/kafeizhibo-tv/releases/latest/download/update.json", "sports-live-tv-"),
+        new App("yunying", "cc.yunying.tv", "aston314/yunying-tv-releases",
+                "https://api.github.com/repos/aston314/yunying-tv-releases/releases/latest", "yunying-tv-",
+                "0871aeb15cbb0bc153a2b76cc73338e2476d5d1855058f1381145b68d669f845", true)
     };
     static App find(String id) {
         for (App app : APPS) if (app.id.equals(id)) return app;
@@ -37,7 +44,7 @@ final class RecommendedAppPolicy {
     }
     static void validate(App app, String pkg, int code, String version, int minSdk,
                          long size, String sha, String download) {
-        if (!app.packageName.equals(pkg) || code <= 0 || version == null
+        if (!app.packageName.equals(pkg) || code < 0 || code == 0 && !app.releaseApi || version == null
                 || !version.matches("[0-9]+\\.[0-9]+\\.[0-9]+(?:[-+][A-Za-z0-9.-]+)?")
                 || minSdk < app.minSdk || size <= 0 || size > UpdatePolicy.MAX_APK_BYTES
                 || sha == null || !sha.matches("[a-fA-F0-9]{64}"))
@@ -51,7 +58,8 @@ final class RecommendedAppPolicy {
     }
     static boolean matchingArchive(App app, String pkg, int code, String version,
                                    int expectedCode, String expectedVersion, String[] signers) {
-        return app.packageName.equals(pkg) && code == expectedCode && expectedVersion.equals(version)
+        return app.packageName.equals(pkg) && code > 0
+                && (code == expectedCode || expectedCode == 0 && app.releaseApi) && expectedVersion.equals(version)
                 && signers != null && Arrays.equals(new String[]{app.signer}, signers);
     }
 }
