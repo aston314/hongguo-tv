@@ -10,6 +10,9 @@
 .watch-stat-back { position: relative; flex-shrink: 0; margin-right: 14px; width: 42px; height: 42px; padding: 0; border: 1px solid #353642; border-radius: 10px; background: #23242e; color: #f7f7fb; }
 .watch-stat-back svg { position: absolute; top: 50%; left: 50%; width: 24px; height: 24px; transform: translate(-50%, -50%); pointer-events: none; }
 .watch-stat-scope { color: #a9a9b3; font-size: 14px; margin-left: 15px; }
+.watch-stat-heading-actions { display: flex; align-items: center; margin-left: 20px; }
+.watch-stat-reset { margin-left: 22px; padding: 10px 16px; border: 1px solid #484957; border-radius: 8px; background: transparent; color: #bfc0cb; font: inherit; font-size: 14px; white-space: nowrap; }
+.watch-stat-reset:disabled { opacity: .45; }
 .watch-stat-cards { display: flex; margin: 0 -7px 20px; }
 .watch-stat-card { flex: 1; min-width: 0; margin: 0 7px; padding: 19px 22px; background: #22232d; border-radius: 12px; }
 .watch-stat-card.is-today { background: #30232f; }
@@ -90,6 +93,7 @@
  .watch-stat-cards { margin-bottom: 15px; }
  .watch-stat-heading { margin-bottom: 17px; }
  .watch-stat-scope { font-size: 12px; }
+ .watch-stat-reset { font-size: 12px; margin-left: 16px; padding: 9px 12px; }
 }
 @media(max-width:760px) {
  .watch-stat-analysis { display: block; }
@@ -98,7 +102,8 @@
  .watch-stat-card strong { font-size: 19px; }
  .watch-stat-card small { font-size: 11px; }
  .watch-stat-heading { flex-wrap: wrap; }
- .watch-stat-scope { margin: 8px 0 0; }
+ .watch-stat-heading-actions { margin: 12px 0 0 auto; }
+ .watch-stat-scope { margin-left: 0; }
 }
 @media(max-width:500px) {
  .watch-stat-cards { display: block; }

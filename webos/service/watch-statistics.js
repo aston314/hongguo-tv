@@ -9,7 +9,7 @@ function validDate(value) {
 }
 function offset(day, n) { var d = new Date(day + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); }
 function fail(message, status) { var e = new Error(message); e.status = status; return e; }
-function empty() { return { version: 1, since: '', days: {}, batches: [] }; }
+function empty() { return { version: 1, since: '', revision: '', days: {}, batches: [] }; }
 function prune(data, today) {
   var cutoff = offset(today, -365);
   Object.keys(data.days).forEach(function (day) { if (!validDate(day) || day < cutoff) delete data.days[day]; });
@@ -18,7 +18,8 @@ function prune(data, today) {
 }
 function validate(batch, today) {
   if (!batch || typeof batch.owner_id !== 'string' || !/^[a-zA-Z0-9_-]{8,96}$/.test(batch.id) || !Array.isArray(batch.items) || !batch.items.length || batch.items.length > 128) return false;
-  if (Object.keys(batch).some(function (key) { return ['owner_id', 'id', 'items'].indexOf(key) < 0; })) return false;
+  if (Object.keys(batch).some(function (key) { return ['owner_id', 'id', 'revision', 'items'].indexOf(key) < 0; })) return false;
+  if (batch.revision !== undefined && typeof batch.revision !== 'string') return false;
   var total = 0;
   return batch.items.every(function (item) {
     if (!item || Object.keys(item).some(function (key) { return ['day', 'ms', 'type', 'genre'].indexOf(key) < 0; })) return false;
@@ -61,10 +62,17 @@ module.exports = function create(options) {
     request: function (method, owner, today, batch) {
       var utc = new Date(now()).toISOString().slice(0, 10);
       if (!validDate(today) || today < offset(utc, -1) || today > offset(utc, 1)) return Promise.reject(fail('统计日期无效', 400));
-      if (method !== 'GET' && method !== 'HEAD' && method !== 'POST') return Promise.reject(fail('method not allowed', 405));
+      if (method !== 'GET' && method !== 'HEAD' && method !== 'POST' && method !== 'DELETE') return Promise.reject(fail('method not allowed', 405));
       if (method === 'POST' && (!validate(batch, today) || batch.owner_id !== owner)) return Promise.reject(fail('统计请求无效', 400));
-      return serial(function () { return read(owner).then(function (data) {
+      return serial(function () {
+        if (method === 'DELETE') {
+          var fresh = empty(); fresh.since = today; fresh.reset_at = now(); fresh.revision = crypto.randomBytes(16).toString('hex');
+          return persist(owner, fresh).then(function () { delete fresh.batches; return fresh; });
+        }
+        return read(owner).then(function (data) {
+        data.revision = data.revision || '';
         if (method !== 'POST') { prune(data, today); delete data.batches; return data; }
+        if ((batch.revision || '') !== data.revision) throw fail('统计已重置，请重新记录', 409);
         if ((data.batches || []).indexOf(batch.id) >= 0) return null;
         prune(data, today);
         batch.items.forEach(function (item) {

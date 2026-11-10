@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -28,10 +29,12 @@ type watchDay struct {
 }
 
 type watchStatisticsData struct {
-	Version int                  `json:"version"`
-	Since   string               `json:"since"`
-	Days    map[string]*watchDay `json:"days"`
-	Batches []string             `json:"batches"`
+	Version  int                  `json:"version"`
+	Since    string               `json:"since"`
+	ResetAt  int64                `json:"reset_at,omitempty"`
+	Revision string               `json:"revision"`
+	Days     map[string]*watchDay `json:"days"`
+	Batches  []string             `json:"batches"`
 }
 
 type watchSegment struct {
@@ -42,9 +45,10 @@ type watchSegment struct {
 }
 
 type watchBatch struct {
-	OwnerID string         `json:"owner_id"`
-	ID      string         `json:"id"`
-	Items   []watchSegment `json:"items"`
+	OwnerID  string         `json:"owner_id"`
+	ID       string         `json:"id"`
+	Revision string         `json:"revision,omitempty"`
+	Items    []watchSegment `json:"items"`
 }
 
 type watchStatisticsStore struct {
@@ -53,6 +57,7 @@ type watchStatisticsStore struct {
 }
 
 var watchBatchID = regexp.MustCompile(`^[a-zA-Z0-9_-]{8,96}$`)
+var errWatchStatisticsReset = errors.New("statistics reset")
 
 func watchDate(value string) (time.Time, bool) {
 	d, err := time.Parse("2006-01-02", value)
@@ -150,6 +155,9 @@ func (s *watchStatisticsStore) apply(batch watchBatch, today time.Time) error {
 	if err != nil {
 		return err
 	}
+	if batch.Revision != data.Revision {
+		return errWatchStatisticsReset
+	}
 	for _, id := range data.Batches {
 		if id == batch.ID {
 			return nil // A lost HTTP response must not count the same batch twice.
@@ -181,11 +189,30 @@ func (s *watchStatisticsStore) apply(batch watchBatch, today time.Time) error {
 	}
 	data.Batches = append(data.Batches, batch.ID)
 	pruneWatchStatistics(&data, today)
+	return s.persist(batch.OwnerID, data)
+}
+
+func (s *watchStatisticsStore) reset(owner string, today time.Time, now time.Time) (watchStatisticsData, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	data := newWatchStatistics()
+	var revision [16]byte
+	if _, err := rand.Read(revision[:]); err != nil {
+		return data, err
+	}
+	data.Since = today.Format("2006-01-02")
+	data.ResetAt = now.UnixMilli()
+	data.Revision = hex.EncodeToString(revision[:])
+	return data, s.persist(owner, data)
+}
+
+// The caller holds mu for both normal saves and resets.
+func (s *watchStatisticsStore) persist(owner string, data watchStatisticsData) error {
 	body, err := json.Marshal(data)
 	if err != nil {
 		return err
 	}
-	file := s.file(batch.OwnerID)
+	file := s.file(owner)
 	if err = os.MkdirAll(filepath.Dir(file), 0700); err != nil {
 		return err
 	}
@@ -250,10 +277,22 @@ func (s *server) watchStatistics(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.watchStatisticsStore.apply(batch, today); err != nil {
+			if errors.Is(err, errWatchStatisticsReset) {
+				writeError(w, 409, "统计已重置，请重新记录")
+				return
+			}
 			writeError(w, 503, "观看统计暂不可用")
 			return
 		}
 		writeJSON(w, 200, map[string]any{"ok": true})
+	case http.MethodDelete:
+		data, err := s.watchStatisticsStore.reset(owner, today, time.Now())
+		if err != nil {
+			writeError(w, 503, "重置统计失败，请重试")
+			return
+		}
+		data.Batches = nil
+		writeJSON(w, 200, map[string]any{"ok": true, "data": data})
 	default:
 		writeError(w, 405, "method not allowed")
 	}

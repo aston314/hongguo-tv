@@ -31,6 +31,43 @@ test('failed delivery retries the same id, while new playback is independent',as
   const f=collector();f.c.observe();f.step(1000);f.setFail({status:503});assert.equal(await f.c.flush(),false);
   f.step(1000);f.c.stop(true);f.setFail(null);await f.c.flush();assert.equal(f.sent[0].id,f.sent[1].id);assert.notEqual(f.sent[1].id,f.sent[2].id);
 });
+
+test('reset discards only the current owner queue, then resumes with the persisted revision',async()=>{
+ const f=collector();f.c.observe();f.step(1000);f.setFail({status:503});await f.c.flush();
+ f.step(1000);f.c.stop(true);
+ f.state.owner='other';f.c.observe();f.step(1000);f.c.stop(true);
+ f.setFail(null);await f.c.reset('',async()=>({revision:'new-revision'}));await f.c.flush();
+ assert.equal(f.sent.filter(b=>b.owner_id==='').length,1,'old failed batch never retries after reset');
+ assert.equal(f.sent.filter(b=>b.owner_id==='other').length,1,'other account pending time is preserved');
+ f.state.owner='';f.c.observe();f.step(1000);f.c.stop(true);await f.c.flush();
+ assert.equal(f.sent.at(-1).revision,'new-revision');assert.equal(f.sent.at(-1).items[0].ms,1000);
+});
+
+test('reset waits for metadata/POST work and concurrent flush waits for reset completion',async()=>{
+ let releasePost,releaseReset,mono=0,position=0;
+ const events=[],batchGate=new Promise(r=>releasePost=r),resetGate=new Promise(r=>releaseReset=r);
+ const c=stats.createCollector({monotonic:()=>mono,clock:()=>Date.UTC(2026,10,11)+mono,snapshot:()=>({key:'a',owner:'',eligible:true,position}),setTimeout:()=>1,clearTimeout:()=>{},
+ revision:async()=>{events.push('revision');return 'saved-revision';},request:async b=>{events.push('post:'+b.revision);await batchGate;events.push('post-done');}});
+ c.observe();mono=1000;position=1;c.observe();const flushed=c.flush();
+ await new Promise(r=>setImmediate(r));
+ const resetting=c.reset('',async()=>{events.push('reset');await resetGate;return {revision:'fresh'};});
+ let concurrentDone=false;const concurrent=c.flush().then(()=>{concurrentDone=true;});
+ await new Promise(r=>setImmediate(r));assert.deepEqual(events,['revision','post:saved-revision']);
+ releasePost();await flushed;await new Promise(r=>setImmediate(r));
+ assert.deepEqual(events,['revision','post:saved-revision','post-done','reset']);assert.equal(concurrentDone,false);
+ releaseReset();await resetting;await concurrent;
+});
+
+test('failed reset preserves pending statistics and revision initialization retries safely',async()=>{
+ const f=collector();f.c.observe();f.step(1000);
+ await assert.rejects(f.c.reset('',async()=>{throw Error('disk full');}));
+ f.c.stop(true);await f.c.flush();assert.equal(f.total(),1000);
+ let mono=0,position=0,reads=0;const sent=[];
+ const c=stats.createCollector({monotonic:()=>mono,clock:()=>Date.UTC(2026,10,11)+mono,snapshot:()=>({key:'a',owner:'',eligible:true,position}),setTimeout:()=>1,clearTimeout:()=>{},
+ revision:async()=>{reads++;return 'persisted';},request:async b=>{sent.push(b.revision);}});
+ c.observe();for(let i=0;i<2;i++){mono+=1000;position++;c.observe();await c.flush();}
+ assert.deepEqual(sent,['persisted','persisted']);assert.equal(reads,1,'no per-frame or per-batch revision read');
+});
 test('daily totals respect Monday weeks/month boundaries and exclude future dates',()=>{
   const row=ms=>({ms,types:{real:ms},genres:{悬疑:ms}});
   const s=stats.summary({days:{'2026-10-31':row(1),'2026-11-01':row(2),'2026-11-08':row(4),'2026-11-09':row(8),'2026-11-10':row(16),'2026-11-11':row(32)}},'2026-11-10');
@@ -45,8 +82,9 @@ test('recommended first-episode statistics enrich genre from details in the back
  let calls=0;
  const context=vm.createContext({Promise,AbortController,setTimeout,clearTimeout,window:{HongguoWatchStatistics:stats},dramaType:()=>'',getDetail:async item=>{calls++;assert.equal(item.series_id,'123');return {tags:['恋爱','乡村']};}});
  vm.runInContext(source.slice(source.indexOf('  var watchStatisticsObserved ='),source.indexOf('  function watchStatisticsRequest(')),context);
- const batch={owner_id:'',id:'test-background-1',items:[{day:'2026-11-10',ms:30000,type:'real',genre:'',series_id:'123'}]};
+ const batch={owner_id:'',id:'test-background-1',revision:'after-reset',items:[{day:'2026-11-10',ms:30000,type:'real',genre:'',series_id:'123'}]};
  const enriched=await context.enrichWatchStatisticsBatch(batch);assert.equal(enriched.items[0].genre,'恋爱');assert.equal(enriched.items[0].type,'real');assert.equal(enriched.items[0].series_id,undefined);
+ assert.equal(enriched.revision,'after-reset','metadata enrichment preserves reset fencing');
  assert.equal(batch.items[0].genre,'');await context.enrichWatchStatisticsBatch(batch);assert.equal(calls,1);
  const nativeTags=await context.enrichWatchStatisticsBatch({...batch,items:[{...batch.items[0],series_id:'789',genre:'爱情'}]});
  assert.equal(nativeTags.items[0].genre,'爱情');assert.equal(calls,1,'existing recommendation tags never fetch details');

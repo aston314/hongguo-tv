@@ -19,3 +19,30 @@ test('webOS statistics are atomic, idempotent, bounded and separated by owner',a
  batch.items[0].genre='__proto__';assert.equal(create.validate(batch,'2026-11-10'),false);
  }finally{fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('webOS reset persists its timestamp/revision and isolates late writes and other owners', async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'hg-stat-reset-'));
+ try {
+ let now=Date.UTC(2026,10,11,14,30);
+ let service=create({dataDir:dir,now:()=>now});
+ const batch={owner_id:'',id:'before-reset-001',items:[{day:'2026-11-11',ms:30000,type:'real',genre:'悬疑'}]};
+ await service.request('POST','','2026-11-11',batch);
+ await service.request('POST','other','2026-11-11',{...batch,owner_id:'other'});
+ const other=await service.request('GET','other','2026-11-11');
+ const fresh=await service.request('DELETE','','2026-11-11');
+ assert.equal(fresh.reset_at,now);assert.equal(fresh.since,'2026-11-11');assert.match(fresh.revision,/^[a-f0-9]{32}$/);assert.deepEqual(fresh.days,{});assert.equal(fresh.batches,undefined);
+ service=create({dataDir:dir,now:()=>now});
+ assert.deepEqual(await service.request('GET','','2026-11-11'),fresh,'start survives reopening before playback');
+ await assert.rejects(service.request('POST','','2026-11-11',batch),e=>e.status===409);
+ await service.request('POST','','2026-11-11',{...batch,revision:fresh.revision});
+ assert.equal((await service.request('GET','','2026-11-11')).days['2026-11-11'].ms,30000);
+ now+=60000;const second=await service.request('DELETE','','2026-11-11');
+ assert.notEqual(second.revision,fresh.revision);assert.equal(second.reset_at,now);
+ await assert.rejects(service.request('POST','','2026-11-11',{...batch,revision:fresh.revision}),e=>e.status===409);
+ assert.deepEqual(await service.request('GET','other','2026-11-11'),other);
+ assert.equal(fs.existsSync(path.join(dir,'library.json')),false);
+ const blocked=path.join(dir,'blocked');fs.writeFileSync(blocked,'not a directory');
+ await assert.rejects(create({dataDir:blocked,now:()=>now}).request('DELETE','','2026-11-11'));
+ assert.deepEqual(await service.request('GET','','2026-11-11'),second);
+ }finally{fs.rmSync(dir,{recursive:true,force:true});}
+});

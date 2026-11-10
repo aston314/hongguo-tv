@@ -22,6 +22,7 @@
   }
   function createCollector(options) {
     var anchor = null, pending = [], queued = [], inFlight = null, scheduled = null, retry = null;
+    var revisions = Object.create(null), resetting = null;
     var serial = 0, seed = Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
     var mono = options.monotonic || function () { return typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now(); };
     var clock = options.clock || Date.now;
@@ -60,14 +61,27 @@
       }
     }
     function drain() {
+      if (resetting) return Promise.resolve(false);
       if (inFlight) return inFlight;
       if (!queued.length) return Promise.resolve(true);
       var batch = queued[0];
-      inFlight = Promise.resolve().then(function () { return options.request(batch); }).then(function () {
+      inFlight = Promise.resolve().then(function () {
+        if (typeof batch.revision === 'string') return;
+        if (Object.prototype.hasOwnProperty.call(revisions, batch.owner_id)) { batch.revision = revisions[batch.owner_id]; return; }
+        return Promise.resolve(options.revision ? options.revision(batch.owner_id) : '').then(function (value) {
+          batch.revision = revisions[batch.owner_id] = value || '';
+        });
+      }).then(function () { return options.request(batch); }).then(function () {
         if (queued[0] === batch) queued.shift();
         return true;
       }, function (error) {
         if (error && (error.status === 400 || error.status === 409)) { if (queued[0] === batch) queued.shift(); }
+        if (error && error.status === 409) {
+          delete revisions[batch.owner_id];
+          pending = pending.filter(function (row) { return row.owner !== batch.owner_id; });
+          queued = queued.filter(function (row) { return row.owner_id !== batch.owner_id; });
+          if (anchor && anchor.owner === batch.owner_id) anchor = null;
+        }
         if (!retry) retry = later(function () { retry = null; drain(); }, 30000);
         return false;
       }).then(function (ok) {
@@ -78,6 +92,7 @@
       return inFlight;
     }
     function flush() {
+      if (resetting) return resetting.promise.then(flush, flush);
       if (scheduled) { cancel(scheduled); scheduled = null; }
       if (pending.length) {
         var groups = Object.create(null);
@@ -98,6 +113,7 @@
     function scheduleFlush() { if (!scheduled) scheduled = later(function () { scheduled = null; flush(); }, 0); }
     function observe() {
       var next = capture();
+      if (resetting && next && next.owner === resetting.owner) { anchor = null; return; }
       if (!next || !next.eligible) { stop(true); return; }
       measure(next);
       if (!anchor || next.key !== anchor.key || next.owner !== anchor.owner || next.position !== anchor.position || next.at - anchor.at > 5000) anchor = next;
@@ -109,6 +125,26 @@
       anchor = null;
       if (pending.length) scheduleFlush();
     }
+    function reset(owner, request) {
+      if (resetting) return resetting.promise;
+      if (anchor && anchor.owner === owner) anchor = null;
+      var state = { owner: owner };
+      resetting = state;
+      // Finish the current metadata/POST chain before resetting. The server
+      // revision also rejects a timed-out POST that arrives after the reset.
+      state.promise = (inFlight || Promise.resolve()).then(request).then(function (value) {
+        pending = pending.filter(function (row) { return row.owner !== owner; });
+        queued = queued.filter(function (batch) { return batch.owner_id !== owner; });
+        revisions[owner] = value.revision || '';
+        if (retry) { cancel(retry); retry = null; }
+        return value;
+      }).then(function (value) {
+        resetting = null; drain(); return value;
+      }, function (error) {
+        resetting = null; drain(); throw error;
+      });
+      return state.promise;
+    }
     function bind(media, host) {
       media.addEventListener('timeupdate', observe);
       ['playing', 'canplay'].forEach(function (name) { media.addEventListener(name, observe); });
@@ -118,7 +154,7 @@
       media.addEventListener('ratechange', function () { stop(true); observe(); });
       if (host) host.addEventListener('pagehide', function () { stop(true); flush(); });
     }
-    return { observe: observe, stop: stop, flush: flush, bind: bind };
+    return { observe: observe, stop: stop, flush: flush, reset: reset, bind: bind };
   }
   function summary(data, today) {
     var days = data.days || {}, date = localDate(today), week = new Date(date.getTime());
@@ -143,6 +179,7 @@
   }
   function createView(options) {
     var root = options.root, t = options.text, generation = 0, open = false, data = null, current = null, kind = 'types', selected = 6;
+    var resetting = false;
     var buttons = root.querySelectorAll('[data-stat-kind]');
     function q(selector) { return root.querySelector(selector); }
     function visible(el, value) { el.classList.toggle('is-hidden', !value); }
@@ -185,7 +222,10 @@
       current = summary(data, dayKey(Date.now()));
       ['today','week','month'].forEach(function (key) { q('[data-stat-value="' + key + '"]').textContent = duration(current[key]); });
       q('[data-stat-date]').textContent = shortDate(dayKey(Date.now()));
-      q('[data-stat-since]').textContent = data.since ? t('stats.since', '从 {date} 开始记录', { date: data.since }) : t('stats.sinceToday', '从今天开始记录');
+      var start = Number(data.reset_at), date = start > 0 ? new Date(start) : null;
+      var pad = function (n) { return n < 10 ? '0' + n : String(n); };
+      var since = date && isFinite(date.getTime()) ? dayKey(start) + ' ' + pad(date.getHours()) + ':' + pad(date.getMinutes()) : data.since;
+      q('[data-stat-since]').textContent = since ? t('stats.since', '开始记录：{date}', { date: since }) : t('stats.sinceToday', '从今天开始记录');
       var total = 0, max = 0;
       current.recent.forEach(function (row) { total += row.ms; max = Math.max(max, row.ms); });
       var ceiling = Math.max(10, Math.ceil(max / 60000 / 30) * 30);
@@ -209,14 +249,32 @@
     function load() {
       var token = ++generation, owner = options.owner();
       data = null; current = null;
+      q('[data-stat-reset]').disabled = true;
       q('[data-stat-message]').textContent = t('common.loading', '加载中…');
       visible(q('[data-stat-message]'), true); visible(q('[data-stat-content]'), false); visible(q('[data-stat-retry]'), false);
       Promise.resolve().then(function () { return options.flush(); }).then(function () { return options.request(owner); }).then(function (value) {
         if (!open || token !== generation || owner !== options.owner()) return;
+        q('[data-stat-reset]').disabled = resetting;
         data = value; render(); visible(q('[data-stat-message]'), false); visible(q('[data-stat-content]'), true);
       }).catch(function () {
         if (!open || token !== generation || owner !== options.owner()) return;
+        q('[data-stat-reset]').disabled = resetting;
         q('[data-stat-message]').textContent = t('stats.loadFailed', '观看统计暂不可用，请重试'); visible(q('[data-stat-retry]'), true);
+      });
+    }
+    function reset(owner) {
+      if (!open || resetting || owner !== options.owner()) return Promise.resolve(false);
+      var token = ++generation;
+      resetting = true; q('[data-stat-reset]').disabled = true;
+      return Promise.resolve().then(function () { return options.reset(owner); }).then(function (value) {
+        resetting = false; q('[data-stat-reset]').disabled = false;
+        if (!open || token !== generation || owner !== options.owner()) return false;
+        data = value; selected = 6; render();
+        visible(q('[data-stat-message]'), false); visible(q('[data-stat-content]'), true); visible(q('[data-stat-retry]'), false);
+        return true;
+      }, function (error) {
+        resetting = false; q('[data-stat-reset]').disabled = false;
+        throw error;
       });
     }
     root.addEventListener('click', function (event) {
@@ -225,9 +283,10 @@
       if (button.hasAttribute('data-stat-kind')) { kind = button.dataset.statKind; renderPreferences(); }
       if (button.hasAttribute('data-stat-retry')) load();
       if (button.hasAttribute('data-stat-back')) options.close();
+      if (button.hasAttribute('data-stat-reset') && !button.disabled) options.confirmReset();
     });
     root.addEventListener('focusin', function (event) { if (event.target.hasAttribute('data-stat-day')) selectDay(Number(event.target.dataset.statDay)); });
-    return { show: function () { open = true; selected = 6; load(); }, hide: function () { open = false; ++generation; }, isOpen: function () { return open; }, reload: load, render: render };
+    return { show: function () { open = true; selected = 6; load(); }, hide: function () { open = false; ++generation; }, isOpen: function () { return open; }, reload: load, render: render, reset: reset };
   }
   return { dayKey: dayKey, summary: summary, genreFor: genreFor, createCollector: createCollector, createView: createView };
 }));
