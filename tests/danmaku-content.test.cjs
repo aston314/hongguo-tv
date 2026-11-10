@@ -1,5 +1,7 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const {createLine} = require('../core/cmd/hongguotv/ui/danmaku-content.js');
 const {countText} = require('../core/cmd/hongguotv/ui/engagement.js');
 
@@ -15,10 +17,12 @@ const document = {createElement: element, createElementNS: (_, tag) => element(t
 const textOf = node => node.tag === '#text' ? node.value : node.children.map(textOf).join('');
 const descendants = node => [node, ...node.children.flatMap(descendants)];
 
-test('bracket codes stay as text alongside Unicode emoji, while likes remain safe and unfocusable', () => {
+test('mixed bracket codes, Unicode emoji, unknown codes and HTML remain safe and readable', () => {
   const line = createLine(document, {text: '笑死了😂[捂脸][笑哭][新表情]<img src=x onerror=alert(1)>', likes: 128}, countText);
-  assert.equal(descendants(line).filter(n => n.tag === 'img').length, 0);
-  assert.equal(textOf(line), '笑死了😂[捂脸][笑哭][新表情]<img src=x onerror=alert(1)>128');
+  const images = descendants(line).filter(n => n.tag === 'img');
+  assert.deepEqual(images.map(n => n.alt), ['[捂脸]', '[笑哭]']);
+  assert.deepEqual(images.map(n => n.src), ['emoji/noto/1fae3.png', 'emoji/noto/1f602.png']);
+  assert.equal(textOf(line), '笑死了😂[新表情]<img src=x onerror=alert(1)>128');
   const badge = line.children.at(-1);
   assert.equal(badge.className, 'danmaku-likes');
   assert.equal(badge.children[0].tag, 'svg');
@@ -35,8 +39,31 @@ test('zero, missing and malformed likes never produce an empty or invented badge
   assert.equal(textOf(createLine(document, {text: '高赞', likes: 12800}, countText)), '高赞1.2万');
 });
 
+test('a failed bundled image restores the original code without retrying or losing adjacent text', () => {
+  const line = createLine(document, {text: '前[捂脸]后', likes: 37}, countText);
+  const image = line.children[1];
+  image.events.error(); image.events.error();
+  assert.equal(textOf(line), '前[捂脸]后37');
+  assert.equal(descendants(line).filter(n => n.tag === 'img').length, 0);
+});
+
 test('the existing text limit does not leave a broken emoji surrogate', () => {
   assert.equal(textOf(createLine(document, {text: '字'.repeat(119) + '😂', likes: 0})), '字'.repeat(119));
   assert.equal(textOf(createLine(document, {text: '字'.repeat(118) + '😂剩余', likes: 0})), '字'.repeat(118) + '😂');
   assert.equal(textOf(createLine(document, {text: null, likes: 0})), '');
+});
+
+test('all mapped images ship offline at a fixed 128px size with attribution, before the shared app starts', () => {
+  const ui = path.resolve(__dirname, '../core/cmd/hongguotv/ui');
+  const source = fs.readFileSync(path.join(ui, 'danmaku-content.js'), 'utf8');
+  const codes = [...source.matchAll(/'\[[^']+\]': '([a-f0-9-]+)'/g)].map(m => m[1]);
+  assert.ok(codes.length >= 40);
+  for (const code of new Set(codes)) {
+    const png = fs.readFileSync(path.join(ui, 'emoji/noto', code + '.png'));
+    assert.equal(png.subarray(1, 4).toString(), 'PNG');
+    assert.equal(png.readUInt32BE(16), 128); assert.equal(png.readUInt32BE(20), 128);
+  }
+  assert.match(fs.readFileSync(path.join(ui, 'emoji/noto/README.txt'), 'utf8'), /Apache.*2\.0/);
+  const html = fs.readFileSync(path.join(ui, 'index.html'), 'utf8');
+  assert.ok(html.indexOf('src="/danmaku-content.js"') < html.indexOf('src="/app.js"'));
 });
