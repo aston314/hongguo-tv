@@ -1752,7 +1752,13 @@
     if (zone === 'watchStatistics') {
       if (current.hasAttribute('data-stat-back')) {
         if (direction === 'left') return activeSidebar();
-        if (direction === 'down' || direction === 'right') return firstVisible('[data-stat-retry]') || firstVisible('[data-stat-day][aria-pressed="true"]') || firstVisible('[data-stat-kind]');
+        if (direction === 'right') return firstVisible('[data-stat-reset]');
+        if (direction === 'down') return firstVisible('[data-stat-retry]') || firstVisible('[data-stat-day][aria-pressed="true"]') || firstVisible('[data-stat-kind]');
+        return null;
+      }
+      if (current.hasAttribute('data-stat-reset')) {
+        if (direction === 'left') return firstVisible('[data-stat-back]');
+        if (direction === 'down') return firstVisible('[data-stat-retry]') || firstVisible('[data-stat-kind][aria-pressed="true"]');
         return null;
       }
       if (current.hasAttribute('data-stat-day')) {
@@ -1762,7 +1768,7 @@
         return days[dayIndex + (direction === 'left' ? -1 : 1)] || (direction === 'left' ? activeSidebar() : firstVisible('[data-stat-kind]'));
       }
       if (current.hasAttribute('data-stat-kind')) {
-        if (direction === 'up') return firstVisible('[data-stat-back]');
+        if (direction === 'up') return firstVisible('[data-stat-reset]') || firstVisible('[data-stat-back]');
         if (direction === 'down') return firstVisible('[data-stat-preference]');
         if (direction === 'left') return current.dataset.statKind === 'genres' ? firstVisible('[data-stat-kind="types"]') : firstVisible('[data-stat-day][aria-pressed="true"]') || activeSidebar();
         if (direction === 'right') return firstVisible('[data-stat-kind="genres"]');
@@ -8749,7 +8755,7 @@
     var ids = [];
     items.forEach(function (item) { if (item.series_id && (!item.genre || item.type === 'unknown') && ids.indexOf(item.series_id) < 0) ids.push(item.series_id); });
     return Promise.all(ids.map(watchStatisticsMetadataFor)).then(function (details) {
-      return { owner_id: batch.owner_id, id: batch.id, items: items.map(function (item) {
+      return { owner_id: batch.owner_id, id: batch.id, revision: batch.revision, items: items.map(function (item) {
         var index = ids.indexOf(item.series_id), detail = index >= 0 && details[index];
         return { day: item.day, ms: item.ms, type: item.type === 'unknown' && detail ? dramaType(detail) || 'unknown' : item.type,
           genre: item.genre || window.HongguoWatchStatistics.genreFor(detail && detail.tags || []) };
@@ -8784,6 +8790,32 @@
     document.getElementById('watch-statistics').classList.add('is-hidden');
     if (focus !== false && pageMode() === 'history') goFocus(document.getElementById('library-statistics'));
   }
+  function confirmResetWatchStatistics() {
+    if (confirmOpen || !watchStatisticsView.isOpen()) return;
+    var owner = watchStatisticsOwner(), epoch = accountEpoch;
+    var generation = ++confirmationGeneration;
+    confirmReturnFocus = document.querySelector('[data-stat-reset]');
+    confirmOpen = true;
+    document.getElementById('confirm-title').textContent = uiText('stats.resetTitle', '重置观看统计？');
+    document.getElementById('confirm-copy').textContent = uiText('stats.resetCopy', '清空当前用户在本设备的观看时长、内容类型和题材偏好，从现在重新记录。观看历史和播放进度不受影响。');
+    document.getElementById('confirm-cancel').textContent = uiText('common.cancel', '取消');
+    var accept = document.getElementById('confirm-accept');
+    accept.textContent = uiText('stats.reset', '重置统计');
+    accept.classList.remove('confirm-reserve'); accept.classList.add('confirm-danger');
+    confirmOperation = function () {
+      if (owner !== watchStatisticsOwner() || epoch !== accountEpoch || !watchStatisticsView.isOpen()) return Promise.resolve(true);
+      return watchStatisticsView.reset(owner).then(function (ok) {
+        if (ok) showNotice(uiText('stats.resetDone', '统计已重置，从现在重新记录'));
+        return true;
+      }, function () {
+        if (confirmOpen && generation === confirmationGeneration) document.getElementById('confirm-copy').textContent = uiText('stats.resetFailed', '重置失败，请重试。');
+        return false;
+      });
+    };
+    document.getElementById('confirm-modal').classList.remove('is-hidden');
+    document.getElementById('confirm-modal').setAttribute('aria-hidden', 'false');
+    goFocus(document.getElementById('confirm-cancel'));
+  }
   var watchStatisticsCollector = window.HongguoWatchStatistics.createCollector({
     snapshot: function () {
       var p = activePlayback, video = document.getElementById('hero-video');
@@ -8794,12 +8826,17 @@
           !video.paused && !video.ended && !video.seeking && !video.error && video.readyState >= 2 && !(p.presentation && p.presentation.waiting),
         position: Number(video.currentTime) || 0, rate: Number(video.playbackRate) || 1, type: observedType === 'ai' ? 'ai' : dramaType(item) || observedType, tags: item.tags && item.tags.length ? item.tags : metadata.tags || [], series_id: item.series_id || '' };
     },
+    revision: function (owner) { return watchStatisticsRequest('GET', owner).then(function (data) { return data.revision || ''; }); },
     request: function (batch) { return enrichWatchStatisticsBatch(batch).then(function (payload) { return watchStatisticsRequest('POST', payload.owner_id, payload); }); }
   });
   var watchStatisticsView = window.HongguoWatchStatistics.createView({
     root: document.getElementById('watch-statistics'), text: uiText, owner: watchStatisticsOwner,
     flush: function () { return watchStatisticsCollector.flush(); },
-    request: function (owner) { return watchStatisticsRequest('GET', owner); }, close: closeWatchStatistics
+    request: function (owner) { return watchStatisticsRequest('GET', owner); }, close: closeWatchStatistics,
+    confirmReset: confirmResetWatchStatistics,
+    reset: function (owner) { return watchStatisticsCollector.reset(owner, function () {
+      return watchStatisticsRequest('DELETE', owner);
+    }); }
   });
   document.getElementById('library-statistics').addEventListener('click', openWatchStatistics);
   if (window.HongguoI18n && typeof window.HongguoI18n.onChange === 'function') window.HongguoI18n.onChange(function () { watchStatisticsView.render(); });
