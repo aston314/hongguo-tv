@@ -1,4 +1,15 @@
-# 红果短剧 TV
+<p align="center">
+  <img src="assets/branding/hongguo-icon-circle.svg" width="88" height="88" alt="红果短剧 TV">
+</p>
+
+<h1 align="center">红果短剧 TV</h1>
+
+<p align="center">Android TV · webOS · macOS · Windows · Linux</p>
+
+<p align="center">
+  <a href="https://github.com/aston314/hongguo-tv-releases/releases/latest"><img src="https://img.shields.io/github/v/release/aston314/hongguo-tv-releases?filter=v*&amp;sort=semver&amp;display_name=tag&amp;label=%E6%9C%80%E6%96%B0%E6%AD%A3%E5%BC%8F%E7%89%88&amp;style=flat&amp;color=DB411E" alt="最新正式版"></a>
+  <a href="https://github.com/aston314/hongguo-tv-releases/issues/new/choose"><img src="https://img.shields.io/badge/%E9%97%AE%E9%A2%98%E5%8F%8D%E9%A6%88-%E6%8F%90%E4%BA%A4%E5%BB%BA%E8%AE%AE-555?style=flat&amp;logo=github&amp;logoColor=white" alt="问题反馈 / 功能建议"></a>
+</p>
 
 独立 Android TV 客户端项目，采用 Android 壳与 Go 核心的实现方式。
 
