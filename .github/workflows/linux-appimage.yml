@@ -105,8 +105,11 @@ jobs:
             -v "$PWD:/work:ro" -v "$RUNNER_TEMP/linux-appimage-candidate:/candidate" -v "$RUNNER_TEMP/linux-appimage-evidence:/evidence" \
             -e HONGGUO_PROBE_OUTPUT=/evidence -w /candidate '${{ matrix.image }}' bash -c '
               set -e
-              apt-get update -qq
-              DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ca-certificates libwebkit2gtk-4.1-0 gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-pulseaudio gstreamer1.0-tools bubblewrap xdg-dbus-proxy xvfb xauth dbus-x11 pulseaudio pulseaudio-utils ffmpeg imagemagick python3-pil fonts-noto-cjk openbox xdotool
+              if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then
+                sed -i "s|http://archive.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g;s|http://security.ubuntu.com/ubuntu|http://azure.archive.ubuntu.com/ubuntu|g" /etc/apt/sources.list.d/ubuntu.sources
+              fi
+              apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update -qq
+              DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends ca-certificates libwebkit2gtk-4.1-0 gstreamer1.0-libav gstreamer1.0-plugins-good gstreamer1.0-plugins-bad gstreamer1.0-pulseaudio gstreamer1.0-tools bubblewrap xdg-dbus-proxy xvfb xauth dbus-x11 pulseaudio pulseaudio-utils ffmpeg imagemagick python3-pil fonts-noto-cjk openbox xdotool
               python3 -m unittest discover -s /work/tests -p test_linux_playback_pictures.py
               useradd -m -u 1100 probe
               chown -R probe:probe /evidence /candidate
