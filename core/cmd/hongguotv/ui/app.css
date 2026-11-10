@@ -926,9 +926,9 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
   .account-keypad-value { padding: 8px 12px; }
 }
 .account-form-actions { display: flex; flex-wrap: wrap; gap: .8rem; margin-top: 1.5rem; }
-.account-action { padding: .9rem 1.3rem; font: inherit; font-size: 1.15rem; color: #fff; border: 2px solid transparent; border-radius: .6rem; background: #333340; cursor: pointer; }
+.account-action, .recommended-app-action { padding: .9rem 1.3rem; font: inherit; font-size: 1.15rem; color: #fff; border: 2px solid transparent; border-radius: .6rem; background: #333340; cursor: pointer; }
 .account-primary { background: #e64254; }
-.account-action:focus:not(.pointer-focus-muted), .account-action.is-focused { outline: none; border-color: #fff; background: #484856; box-shadow: 0 0 0 3px rgba(255,255,255,.25); }
+.account-action:focus:not(.pointer-focus-muted), .account-action.is-focused, .recommended-app-action:focus:not(.pointer-focus-muted), .recommended-app-action.is-focused { outline: none; border-color: #fff; background: #484856; box-shadow: 0 0 0 3px rgba(255,255,255,.25); }
 .account-action:disabled { opacity: .45; cursor: default; }
 .account-message { min-height: 1.5em; margin-bottom: 0; color: #f3b6bf !important; word-wrap: break-word; overflow-wrap: anywhere; }
 .account-sync-state { font-size: 1.25rem; color: #fff !important; }

@@ -79,6 +79,7 @@ jobs:
           node --check core/cmd/hongguotv/ui/playback-recovery.js
           node --check core/cmd/hongguotv/ui/end-recommendations.js
           node --check core/cmd/hongguotv/ui/updates.js
+          node --check core/cmd/hongguotv/ui/recommended-apps.js
           node --check core/cmd/hongguotv/ui/engagement.js
           node --check core/cmd/hongguotv/ui/sms-verification.js
           node --check core/cmd/hongguotv/ui/account-scan.js

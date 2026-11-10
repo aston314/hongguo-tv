@@ -109,6 +109,7 @@ dependencies {
     // LGPL native libraries remain isolated to src/mpv/jniLibs.
     // Standard uses platform decoders and does not bundle NextLib/FFmpeg.
     testImplementation "junit:junit:4.13.2"
+    testImplementation "org.json:json:20240303"
 }
 
 // Check resolved artifacts, not just declared versions: a transitive dependency
