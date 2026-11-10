@@ -10,9 +10,9 @@
   function read(storage) {
     try {
       var value = storage && storage.getItem(KEY);
-      return valid(value) ? value : EXPANDED;
+      return valid(value) ? value : ICONS;
     } catch (ignored) {
-      return EXPANDED;
+      return ICONS;
     }
   }
 
