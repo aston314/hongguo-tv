@@ -524,26 +524,28 @@ async function run() {
     function codecModel(codec, id, duration) {
       return { video_id: id || 'same-video', video_duration: duration || 90, video_list: [{ codec_type: codec, main_url: 'https://media.example.test/compatible.mp4', vheight: 1080 }] };
     }
-    for (var scenario of ['inline', 'mixed', 'original', 'hevc', 'h264', 'mismatch-id', 'mismatch-duration', 'unusable', 'all-bytevc2']) {
+    for (var scenario of ['inline', 'mixed', 'original', 'hevc', 'h264', 'bytevc1', 'mismatch-id', 'mismatch-duration', 'unusable', 'all-bytevc2']) {
       videoModelFallback = 'https://api.fqnovel.com/playback/fallback?sig=a%2fb%2BC&same=1&same=2&codec_type=4&force_codec=old&token=x%3D';
       videoModelInline = codecModel(scenario === 'inline' ? 'h265' : 'bytevc2');
       if (scenario === 'mixed') videoModelInline.video_list.push(codecModel('h264').video_list[0]);
       var calls = [];
+      var successAt = { original: 1, hevc: 2, h264: 3, bytevc1: 4, 'mismatch-id': 2, 'mismatch-duration': 2, unusable: 2 }[scenario];
       fallbackResponseForPath = function (target) {
         calls.push(target);
         var candidate = codecModel('bvc2');
-        if (scenario === 'original' || calls.length === 2 && scenario !== 'h264' && scenario !== 'all-bytevc2' || calls.length === 3 && scenario === 'h264') candidate = codecModel('h265');
+        if (calls.length === successAt) candidate = codecModel(scenario === 'bytevc1' ? 'bytevc1' : 'h265');
         if (calls.length >= 2 && scenario === 'mismatch-id') candidate.video_id = 'other-video';
         if (calls.length >= 2 && scenario === 'mismatch-duration') candidate.video_duration = 91;
         if (calls.length >= 2 && scenario === 'unusable') candidate.video_list[0].main_url = 'invalid';
         return JSON.stringify({ code: 0, video_info: { code: 0, data: candidate } });
       };
       var probe = await provider.inspectVideoModel('1434567890123456789');
-      var expected = { inline: 0, mixed: 0, original: 1, hevc: 2 }[scenario];
-      assert.strictEqual(calls.length, expected == null ? 3 : expected, scenario + ' bounded request count');
+      var expected = { inline: 0, mixed: 0, original: 1, hevc: 2, h264: 3 }[scenario];
+      assert.strictEqual(calls.length, expected == null ? 4 : expected, scenario + ' bounded request count');
       assert.strictEqual(probe.ok, ['mismatch-id', 'mismatch-duration', 'unusable', 'all-bytevc2'].indexOf(scenario) < 0, scenario + ' result');
       if (calls.length >= 2) assert.strictEqual(calls[1], '/playback/fallback?sig=a%2fb%2BC&same=1&same=2&token=x%3D&codec_type=1', 'raw query is preserved');
       if (calls.length >= 3) assert.strictEqual(calls[2], '/playback/fallback?sig=a%2fb%2BC&same=1&same=2&token=x%3D&codec_type=0&force_codec=h264');
+      if (calls.length >= 4) assert.strictEqual(calls[3], '/playback/fallback?sig=a%2fb%2BC&same=1&same=2&token=x%3D&codec_type=3');
     }
     videoModelInline = codecModel('bytevc2');
     fallbackResponseForPath = function () { return JSON.stringify({code:0,video_info:{code:0,data:codecModel('h265','wrong-video')}}); };

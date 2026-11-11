@@ -101,7 +101,7 @@ func miniReelSameFallbackVideo(reference, candidate map[string]any) bool {
 }
 
 // A healthy inline model never makes an extra request. Only an empty list or
-// ByteVC2-only model follows fallback_api; codec variants are bounded to two
+// ByteVC2-only model follows fallback_api; codec variants are bounded to three
 // and share the caller's existing provider deadline and cancellation.
 func miniReelCompatibleModel(ctx context.Context, model map[string]any, client *http.Client) (map[string]any, error) {
 	if len(miniReelMapsFromAny(model["video_list"])) > 0 && !miniReelOnlyByteVC2(model) {
@@ -132,7 +132,7 @@ func miniReelCompatibleModel(ctx context.Context, model map[string]any, client *
 	if !miniReelOnlyByteVC2(original) {
 		return original, nil
 	}
-	for _, codec := range []string{"codec_type=1", "codec_type=0&force_codec=h264"} {
+	for _, codec := range []string{"codec_type=1", "codec_type=0&force_codec=h264", "codec_type=3"} {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
