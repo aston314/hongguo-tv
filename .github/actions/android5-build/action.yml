@@ -37,14 +37,14 @@ runs:
     - name: Fetch the original signed API21 test package for covering install
       if: inputs.build-type == 'release'
       shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
       run: |
-        if [ -n "${GH_TOKEN:-}" ] && gh release download android5-compat-0.2.136-test.1 \
-          --repo aston314/hongguo-tv-releases --pattern hongguo-tv-android5-test.1.apk \
-          --output "$RUNNER_TEMP/android5-verification/previous.apk" --clobber; then
-          echo 'Fetched the original test package through the official asset API'
-        else
-          curl --fail --location --retry 3 --output "$RUNNER_TEMP/android5-verification/previous.apk" 'https://github.com/aston314/hongguo-tv-releases/releases/download/android5-compat-0.2.136-test.1/hongguo-tv-android5-test.1.apk'
-        fi
+        # The public download repository keeps only current releases. Preserve
+        # the original upgrade baseline in the private source release instead.
+        gh release download android5-compat-0.2.136-test.1 \
+          --repo "$GITHUB_REPOSITORY" --pattern hongguo-tv-android5-test.1.apk \
+          --output "$RUNNER_TEMP/android5-verification/previous.apk" --clobber
         echo "5b8a97677d150a5150debd230c7db7359aeefa5c9e80668d195f6a0d19ed2e03  $RUNNER_TEMP/android5-verification/previous.apk" | sha256sum --check
     - name: Enable emulator acceleration
       shell: bash
