@@ -57,7 +57,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p desktop/wasm-runtime
-          gh release download "${{ inputs.decoder_tag || needs.decoder.outputs.tag }}" --dir desktop/wasm-runtime
+          gh release download "${{ inputs.decoder_tag || needs.decoder.outputs.tag }}" --dir desktop/wasm-runtime --clobber
       - name: Verify and build Windows test application
         shell: bash
         env:

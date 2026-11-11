@@ -36,5 +36,8 @@ NOTICE
 # Preserve the exact source, wrapper and linkable objects for redistribution/relinking.
 cp "$ROOT_DIR/desktop/wasm/decoder.c" "$WASM_BUILD_DIR/decoder.c"
 emcc -c "$WASM_BUILD_DIR/decoder.c" -I"$WASM_BUILD_DIR/install/include" -O3 -msimd128 -o "$WASM_BUILD_DIR/decoder.o"
-tar -czf "$WASM_BUILD_DIR/lgpl-relink.tar.gz" -C "$WASM_BUILD_DIR" ffmpeg.tar.gz decoder.c decoder.o install/lib
+cp "$ROOT_DIR/scripts/build_windows_wasm.sh" "$WASM_BUILD_DIR/build_windows_wasm.sh"
+cp "$ROOT_DIR/desktop/wasm/README.md" "$WASM_BUILD_DIR/README.md"
+tar -czf "$WASM_BUILD_DIR/lgpl-relink.tar.gz" -C "$WASM_BUILD_DIR" ffmpeg.tar.gz decoder.c decoder.o build_windows_wasm.sh README.md install/lib
+cp "$WASM_BUILD_DIR/lgpl-relink.tar.gz" "$WASM_OUT/lgpl-relink.tar.gz"
 sha256sum "$WASM_OUT/decoder.js" "$WASM_OUT/decoder.wasm"
