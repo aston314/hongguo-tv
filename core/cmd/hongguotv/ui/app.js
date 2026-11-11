@@ -926,6 +926,21 @@
     var lanes = Math.max(0, Math.min(maximum, Math.floor((height - occupied) / step) + 1));
     return { count: lanes, step: step, font: font };
   }
+  function availableDanmakuLane(layer, layout) {
+    // At most eight live comments are checked, only when a comment is due
+    // and the existing 700ms emission throttle allows it. Keep CSS motion;
+    // do not introduce a frame loop or change playback timing.
+    var blocked = [], edge = layer.getBoundingClientRect().right - Math.max(12, layout.font / 2);
+    for (var i = 0; i < layer.children.length; i += 1) {
+      var line = layer.children[i];
+      if (line.getBoundingClientRect().right > edge) blocked[Math.round(parseFloat(line.style.top) / layout.step)] = true;
+    }
+    for (var offset = 0; offset < layout.count; offset += 1) {
+      var lane = (danmakuLane + offset) % layout.count;
+      if (!blocked[lane]) return lane;
+    }
+    return -1;
+  }
   function resetDanmaku() {
     ++danmakuGeneration; if (danmakuRequest) danmakuRequest.abort(); danmakuRequest = null;
     danmakuRows = []; danmakuWindow = -1; danmakuBusy = false; danmakuLast = -1;
@@ -966,13 +981,17 @@
     var layer = document.getElementById('danmaku-layer'); var last = danmakuLast;
     var layout = danmakuLaneLayout(layer);
     if (!layout.count) return;
+    var lane = -2;
     danmakuRows.forEach(function (item) {
       if (item.shown || item.offset_ms > now || now - last < 700 || layer.children.length >= 8) return;
+      if (item.offset_ms < now - 2000) { item.shown = true; return; }
+      if (lane === -2) lane = availableDanmakuLane(layer, layout);
+      if (lane < 0) return;
       item.shown = true; last = now; danmakuLast = now;
-      if (item.offset_ms < now - 2000) return;
       var line = HongguoDanmakuContent.createLine(document, item, HongguoEngagement.countText);
       line.style.fontSize = layout.font + 'px';
-      line.style.top = (danmakuLane++ % layout.count) * layout.step + 'px';
+      line.style.top = lane * layout.step + 'px';
+      danmakuLane = lane + 1;
       line.addEventListener('animationend', function () { line.remove(); }); layer.appendChild(line);
     });
   }

@@ -140,7 +140,7 @@ test('remote paths enter and leave the new card, including wrapped rows and hidd
 
 test('the live emitter uses the chosen size and waits when a complete line cannot fit',()=>{
   const f=fixture({saved:{danmaku_size:200,danmaku_region:'quarter'}});
-  const layer=f.nodes['danmaku-layer'];layer.clientHeight=60;
+  const layer=f.nodes['danmaku-layer'];layer.clientHeight=60;layer.getBoundingClientRect=()=>({right:960});
   f.video.paused=false;f.video.currentTime=10;f.video.duration=60;
   Object.assign(f.c,{
     danmakuEnabled:true,activePlayback:{vid:'video',item:{series_id:'series'}},
@@ -159,4 +159,41 @@ test('the live emitter uses the chosen size and waits when a complete line canno
   assert.equal(layer.children[0].style.top,'0px');
   assert.equal(f.c.danmakuRows[0].shown,true);
   assert.equal(f.c.danmakuLast,10000);
+  layer.clientHeight=135;
+  layer.children[0].getBoundingClientRect=()=>({right:1200});
+  f.video.currentTime=11;
+  for(let i=0;i<100;i++)f.c.danmakuRows.push({text:'后续弹幕',offset_ms:11000});
+  let entranceChecks=0;
+  const available=f.c.availableDanmakuLane;
+  f.c.availableDanmakuLane=(...args)=>{entranceChecks++;return available(...args);};
+  f.c.tickDanmaku();
+  assert.equal(layer.children.length,1);
+  assert.equal(entranceChecks,1,'a crowded comment window checks geometry once per tick');
+  layer.children[0].getBoundingClientRect=()=>({right:900});
+  f.c.tickDanmaku();
+  assert.equal(layer.children.length,2);
+  assert.equal(entranceChecks,2);
+});
+
+
+test('large text waits for a clear lane entrance, then resumes with spacing without changing CSS motion',()=>{
+  const f=fixture({saved:{danmaku_size:200,danmaku_region:'quarter'}});
+  f.c.danmakuLane=0;
+  const layer=f.nodes['danmaku-layer'];layer.clientHeight=135;
+  layer.getBoundingClientRect=()=>({right:960});
+  const layout=f.c.danmakuLaneLayout(layer);
+  assert.equal(layout.count,1);
+  let right=1200;
+  const previous={style:{top:'0px'},getBoundingClientRect:()=>({right})};
+  layer.children=[previous];
+  assert.equal(f.c.availableDanmakuLane(layer,layout),-1,'long comment still spans the entrance');
+  right=940;
+  assert.equal(f.c.availableDanmakuLane(layer,layout),-1,'keep a gap after the previous comment');
+  right=920;
+  assert.equal(f.c.availableDanmakuLane(layer,layout),0,'same lane becomes reusable after the tail clears');
+  layer.clientHeight=270;right=1200;
+  const taller=f.c.danmakuLaneLayout(layer);
+  assert.equal(f.c.availableDanmakuLane(layer,taller),1,'an occupied lane does not block free rows');
+  layer.children=[];
+  assert.equal(f.c.availableDanmakuLane(layer,taller),0,'clearing comments releases lane occupancy');
 });
