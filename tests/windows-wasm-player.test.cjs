@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {supported,preference,choose,install}=require('../core/cmd/hongguotv/ui/windows-wasm-player.js');
 function fixture(platform='windows'){
  const map=new Map(), events={},workers=[],nodes=[];
- const gl=new Proxy({COMPILE_STATUS:1,LINK_STATUS:2,getShaderParameter:()=>true,getProgramParameter:()=>true,getAttribLocation:()=>0,getUniformLocation:()=>({})},{get(o,k){return k in o?o[k]:()=>({})}});
+ const gl=new Proxy({COMPILE_STATUS:1,LINK_STATUS:2,getShaderParameter:()=>true,getProgramParameter:()=>true,getAttribLocation:()=>0,getUniformLocation:()=>({}),getExtension:()=>null},{get(o,k){return k in o?o[k]:()=>({})}});
  const classes=new Set(),attrs={};
  const dom={className:'hero-video',classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)},style:{removeProperty(){}},volume:.7,muted:false,playbackRate:1,currentTime:0,paused:true,readyState:0,
   addEventListener:(name,fn)=>(events[name]||(events[name]=[])).push(fn),getAttribute:n=>attrs[n]||null,setAttribute:(n,v)=>attrs[n]=v,removeAttribute:n=>{delete attrs[n];if(n==='src')dom.src=''},load(){},play(){dom.paused=false;return Promise.resolve()},pause(){dom.paused=true},
@@ -51,4 +51,17 @@ test('ByteVC2 is explicitly unsupported and switching back restores the HTML5 pa
  const f=fixture();f.settings.choose('wasm');f.proxy.src='one';f.proxy.load();f.proxy.setSourceCodec('bytevc2');
  assert.equal(f.proxy.error.code,4);assert.equal(f.settings.diagnostics().workers,0);
  f.settings.choose('default');f.proxy.src='two';f.proxy.load();assert.equal(f.proxy.error,undefined);assert.equal(f.settings.current(),'default');assert.equal(f.proxy.src,'two');
+});
+test('an early resume cannot decode until asynchronous WASM initialization has finished',async()=>{
+ const vm=require('node:vm'),fs=require('node:fs');let finish,steps=0;const timers=[],messages=[];
+ const self={postMessage:v=>messages.push(v)};
+ const context=vm.createContext({self,URL,Uint8Array,Number,Math,Error,performance:{now:()=>0},setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout(){},importScripts(){},
+  XMLHttpRequest:class {open(){}setRequestHeader(){}send(){this.status=206;this.response=new ArrayBuffer(8)}getResponseHeader(){return 'bytes 0-7/8'}},
+  HongguoWasmDecoder:()=>new Promise(resolve=>{finish=()=>resolve({_hg_open:()=>0,_hg_width:()=>1280,_hg_height:()=>720,_hg_duration:()=>10,_hg_audio:()=>1,_hg_step:()=>{steps++;return 0}})})});
+ vm.runInContext(fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/windows-wasm-worker.js'),'utf8'),context);
+ const opening=self.onmessage({data:{type:'open',generation:1,url:'http://127.0.0.1:12345/minireel-proxy/media/a.mp4'}});
+ await self.onmessage({data:{type:'resume',generation:1}});
+ assert.equal(timers.length,0);assert.equal(steps,0);
+ finish();await opening;assert.equal(messages[0].type,'meta');assert.equal(timers.length,1);
+ timers.shift()();assert.equal(steps,1);assert.equal(messages.at(-1).type,'end');
 });
