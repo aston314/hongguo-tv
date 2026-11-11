@@ -490,7 +490,7 @@
         throw fail('fallback_api 分集或时长不匹配', 502, 'FALLBACK_API_MISMATCH', 'fallback_api');
       }
       if (!onlyByteVC2(original)) return original;
-      var codecs = ['codec_type=1', 'codec_type=0&force_codec=h264'];
+      var codecs = ['codec_type=1', 'codec_type=0&force_codec=h264', 'codec_type=3'];
       function next(index) {
         if (signal && signal.aborted) throw preparationCancelled();
         if (index >= codecs.length) return original;

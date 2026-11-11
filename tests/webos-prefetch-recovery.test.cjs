@@ -752,21 +752,52 @@ test('an unprepared model must not become a same-series preference after disk fa
 
 test('ByteVC2 compatible fallback stops outstanding request and later codecs after cancel or service close', async () => {
   const model = { video_id: 'same-video', video_duration: 90, fallback_api: 'https://api.fqnovel.com/playback/fallback?codec_type=4&sig=keep', video_list: [{codec_type: 'bytevc2'}] };
-  for (const phase of ['original', 'codec', 'close']) {
+  for (const phase of ['original', 'codec', 'codec3', 'close', 'close-codec3']) {
+    const heldIndex = phase === 'original' ? 0 : phase.includes('codec3') ? 3 : 1;
     const f = fixture([{body: JSON.stringify({data:{456:{video_model:model}}})}], null, [], {code:100103}, [], {fallback(options, index) {
-      return {hold: phase === 'original' || index === 1, body:{code:0,video_info:{code:0,data:model}}};
+      return {hold: index === heldIndex, body:{code:0,video_info:{code:0,data:model}}};
     }});
     const controller = new AbortController();
     try {
       const pending = observe(f.prepare(false, controller.signal));
-      await until(() => f.fallbackRequests.length === (phase === 'original' ? 1 : 2));
-      if (phase === 'close') f.provider.closeCache(); else controller.abort();
+      await until(() => f.fallbackRequests.length === heldIndex + 1);
+      if (phase.startsWith('close')) f.provider.closeCache(); else controller.abort();
       const {error} = await pending;
       assert(error && error.name === 'AbortError', phase);
       assert(f.fallbackRequests.at(-1).destroyed, phase + ' request cancelled');
       await tick();
-      assert.equal(f.fallbackRequests.length, phase === 'original' ? 1 : 2, phase + ' no later codec request');
+      assert.equal(f.fallbackRequests.length, heldIndex + 1, phase + ' no later codec request');
       assert.equal(f.rangeOpens, 0);
+    } finally { f.close(); }
+  }
+});
+
+test('final codec fallback prepares compatible media or preserves remaining providers and business rejection', async () => {
+  const model = { video_id: 'same-video', video_duration: 90, fallback_api: 'https://api.fqnovel.com/playback/fallback?codec_type=4&sig=keep', video_list: [{codec_type: 'bytevc2'}] };
+  for (const outcome of ['compatible', 'http-error', 'mismatch', 'business-rejection']) {
+    const f = fixture([{body: JSON.stringify({data:{456:{video_model:model}}})}], null, [], {code:100103}, [{}], {fallback(options, index) {
+      if (index < 3) return {body:{code:0,video_info:{code:0,data:model}}};
+      const candidate = {
+        video_id: outcome === 'mismatch' ? 'other-video' : 'same-video',
+        video_duration: 90,
+        video_list: [{codec_type:'bytevc1', main_url:'https://media.example.test/codec3.mp4', vheight:1080, encrypt_info:{spade_a:spade()}}]
+      };
+      return {status:outcome === 'http-error' ? 503 : 200,body:{code:0,video_info:{code:outcome === 'business-rejection' ? 110001 : 0,data:candidate}}};
+    }});
+    try {
+      const result = await observe(f.prepare(false));
+      assert.equal(f.fallbackRequests.length, 4, outcome + ' bounded requests');
+      assert.equal(f.fallbackRequests[3].options.path, '/playback/fallback?sig=keep&codec_type=3');
+      if (outcome === 'business-rejection') {
+        assert.equal(result.error.code, 'FALLBACK_API_REJECTED');
+        assert.equal(f.singleRequests.length, 0);
+        assert.equal(f.rangeOpens, 0);
+      } else {
+        assert.equal(result.error, undefined, outcome);
+        assert.equal(result.value.mode, 'range');
+        assert.equal(f.singleRequests.length, outcome === 'compatible' ? 0 : 1);
+        assert.equal(f.rangeOpens, 1);
+      }
     } finally { f.close(); }
   }
 });

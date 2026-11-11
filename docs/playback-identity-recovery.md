@@ -37,7 +37,7 @@ Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取�
 参考 [LiuWQ0809/hongguo-android](https://github.com/LiuWQ0809/hongguo-android)
 （`0814ffa2`）的同集兼容编码回退协议，只有内联列表为空或全部为 ByteVC2 / bvc2 时，
 才跟随原 `fallback_api`。原 fallback 仍全部为 ByteVC2 时，再依次尝试
-`codec_type=1`、`codec_type=0&force_codec=h264`，取得可解析候选即停止。
+`codec_type=1`、`codec_type=0&force_codec=h264`、`codec_type=3`，取得可解析候选即停止。
 正常内联候选不增加请求，指定清晰度不足不触发这组探测。
 
 - 只替换 codec 参数，保留原 signed query 的其他字节、顺序、重复字段及转义。
@@ -45,7 +45,7 @@ Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取�
   已报告的正时长差超过 0.5 秒均拒绝，不将业务 VID 与底层转码 video_id 混为一谈。
 - fallback 的 `key_seed` 仅解密媒体 URL；嵌套或顶层 `spade_a` 仍供既有 CENC 内容解密。
   声明加密却缺少可用内容密钥的候选被排除，不能当成明文。
-- 最多原 fallback 加两个 codec 变体，共享 provider 截止时间、取消与前台/预取任务；
+- 最多原 fallback 加三个 codec 变体，共享 provider 截止时间、取消与前台/预取任务；
   保留 HTTPS 主机白名单、重定向次数和响应大小限制。原始带签名 URL 不进入错误诊断。
   全部不可用时仍进入现有剩余 provider，不把 ByteVC2 当成可播放的 HEVC。
 
@@ -55,6 +55,13 @@ ByteVC2，经 `codec_type=1` 得到 1080P HEVC。Go 与 webOS 均实际读取、
 浏览器真实推荐验证第 1 → 17 → 18 集、自动下一集，以及切换不同剧目、快速连续切剧，
 均有画面、`readyState=4` 与推进的播放时钟。
 本机样本不保证所有剧都有兼容编码，也不替代 Android / LG 实机解码验证。
+
+`codec_type=3` 补充参考 [miaoxiaohu/hongguoTV kotlin-v0.9.93](https://github.com/miaoxiaohu/hongguoTV/releases/tag/kotlin-v0.9.93)
+（源码 `1240f494`）。2026-11-11 本机对《重生后我给emo修士当狗》首集
+`7703473857562151961` 与上述真人剧第 17 集 `7702841953875938328` 实测：原备用模型
+全部为 ByteVC2，`codec_type=3` 均给出 1920×1080 HEVC / bytevc1；完整媒体下载、解密和
+FFmpeg 音视频解码通过。相同样本的 `codec_type=1` 当时也可用，不能将参数 3 视为
+所有剧唯一有效的取法；它仅放在已有两个 codec 变体之后，已有成功路径不增加请求。
 
 ### 同剧成功路径记忆
 
