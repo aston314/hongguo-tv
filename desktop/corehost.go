@@ -271,6 +271,9 @@ func (h *coreHost) proxy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Cache-Control", "no-store")
+	if serveDesktopWasm(w, r) {
+		return
+	}
 	switch r.URL.Path {
 	case "/desktop/status":
 		if r.Method != http.MethodGet {
@@ -340,7 +343,7 @@ func (h *coreHost) proxy(w http.ResponseWriter, r *http.Request) {
 	_, _ = io.Copy(w, resp.Body)
 }
 func (h *coreHost) writePage(w http.ResponseWriter, html string) {
-	config, _ := json.Marshal(map[string]string{"platform": runtime.GOOS, "version": desktopVersion, "mediaBase": h.target()})
+	config, _ := json.Marshal(map[string]interface{}{"platform": runtime.GOOS, "version": desktopVersion, "mediaBase": h.target(), "wasmDecoder": desktopWasmAvailable()})
 	html = strings.Replace(html, "<head>", "<head><script>window.HongguoDesktop="+string(config)+";</script>", 1)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	_, _ = fmt.Fprint(w, html)

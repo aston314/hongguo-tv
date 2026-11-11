@@ -4,7 +4,7 @@ set -euo pipefail
 : "${GITHUB_ACTIONS:?Build decoder in GitHub Actions}"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WASM_BUILD_DIR="${RUNNER_TEMP:?}/hongguo-hevc-wasm"
-WASM_OUT="$ROOT_DIR/core/cmd/hongguotv/ui/windows-wasm"
+WASM_OUT="$ROOT_DIR/desktop/wasm-runtime"
 FFMPEG_COMMIT=894da5ca7d742e4429ffb2af534fcda0103ef593
 mkdir -p "$WASM_BUILD_DIR" "$WASM_OUT"
 cd "$WASM_BUILD_DIR"

@@ -14,7 +14,7 @@
     controls: '.playback-buttons .control-button, #player-retry, #player-failure-diagnostics',
     timeline: '#control-progress',
     miniPlayer: '.mini-player-button, .mini-player-overlay input',
-    miniPlayerSettings: '.desktop-mini-titlebar-action',
+    miniPlayerSettings: '.desktop-mini-titlebar-action, .windows-playback-action',
     searchInput: '#search-input',
     searchSuggestions: '.search-suggestion',
     searchActions: '.search-action',
@@ -9322,6 +9322,25 @@
   document.querySelectorAll('.playback-mode-action').forEach(function (button) {
     button.addEventListener('click', function () { playbackSettings.choose(button.getAttribute('data-mode')); });
   });
+  if (window.HongguoWindowsDecoder) {
+    var windowsDecoder = window.HongguoWindowsDecoder;
+    document.getElementById('windows-playback-settings').classList.remove('is-hidden');
+    function renderWindowsDecoder() {
+      document.querySelectorAll('.windows-playback-action').forEach(function (button) {
+        var selected = button.getAttribute('data-mode') === windowsDecoder.mode();
+        button.classList.toggle('account-primary', selected);
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      });
+    }
+    renderWindowsDecoder();
+    document.querySelectorAll('.windows-playback-action').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var saved = windowsDecoder.choose(button.getAttribute('data-mode'));
+        renderWindowsDecoder();
+        document.getElementById('windows-decode-state').textContent = saved ? uiText('settings.windowsDecoderApplied', '已保存，下次播放或切集时生效。') : uiText('settings.saveFailed', '设置未能保存，请重试。');
+      });
+    });
+  }
   function renderPlaybackCustomDevice(data, message) {
     var value = data && data.data ? data.data : data || {};
     var did = document.getElementById('playback-custom-device-did');

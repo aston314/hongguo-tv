@@ -25,7 +25,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="windows-wasm-test-$GITHUB_RUN_ID"
-          gh release create "$tag" core/cmd/hongguotv/ui/windows-wasm/* "$RUNNER_TEMP/hongguo-hevc-wasm/lgpl-relink.tar.gz" --draft --target "$GITHUB_SHA" --title "Windows WASM test $GITHUB_RUN_ID" --notes "Isolated Windows HEVC software playback validation. Not a production release."
+          gh release create "$tag" desktop/wasm-runtime/* "$RUNNER_TEMP/hongguo-hevc-wasm/lgpl-relink.tar.gz" --draft --target "$GITHUB_SHA" --title "Windows WASM test $GITHUB_RUN_ID" --notes "Isolated Windows HEVC software playback validation. Not a production release."
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
   windows:
     needs: decoder
@@ -46,8 +46,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir -p core/cmd/hongguotv/ui/windows-wasm
-          gh release download "${{ needs.decoder.outputs.tag }}" --dir core/cmd/hongguotv/ui/windows-wasm
+          mkdir -p desktop/wasm-runtime
+          gh release download "${{ needs.decoder.outputs.tag }}" --dir desktop/wasm-runtime
       - name: Verify and build Windows test application
         shell: bash
         env:
