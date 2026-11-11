@@ -1,0 +1,105 @@
+{
+  "code": 0,
+  "data": {
+    "album_data": {
+      "album_id_str": "7699818221737610265",
+      "episode_cnt": 15,
+      "title": "《反相之地》续集",
+      "intro": "台风夜，临海大学全校紧急疏散，而三名不守规则的大学生留守宿舍却意外坠入和现实校园重叠的永夜异空间:“反相之地”。\n黑藤蔓延、灯笼怪游荡，神秘校园守则准时播报。虚实边界逐渐模糊，他们必须破解空间规则，找到回到现实世界的路。",
+      "series_status": 0,
+      "cover": "https://cover.example/album.jpg",
+      "video_detail_list": [
+        {
+          "series_id_str": "7699812380099742744",
+          "content_type": 1001,
+          "series_title": "反相之地7-1",
+          "duration": 361
+        },
+        {
+          "series_id_str": "7699818218021473342",
+          "content_type": 1001,
+          "series_title": "反相之地7-2",
+          "duration": 370
+        },
+        {
+          "series_id_str": "7699812379890027544",
+          "content_type": 1001,
+          "series_title": "反相之地7-3",
+          "duration": 418
+        },
+        {
+          "series_id_str": "7701259475268668440",
+          "content_type": 1001,
+          "series_title": "反相之地7-4",
+          "duration": 624
+        },
+        {
+          "series_id_str": "7704592124968176664",
+          "content_type": 1001,
+          "series_title": "反相之地8-1",
+          "duration": 337
+        },
+        {
+          "series_id_str": "7704592124154481688",
+          "content_type": 1001,
+          "series_title": "反相之地8-2",
+          "duration": 322
+        },
+        {
+          "series_id_str": "7704592124733295640",
+          "content_type": 1001,
+          "series_title": "反相之地8-3",
+          "duration": 313
+        },
+        {
+          "series_id_str": "7704592124418722840",
+          "content_type": 1001,
+          "series_title": "反相之地8-4",
+          "duration": 323
+        },
+        {
+          "series_id_str": "7704592124817181720",
+          "content_type": 1001,
+          "series_title": "反相之地8-5",
+          "duration": 451
+        },
+        {
+          "series_id_str": "7704677415041109016",
+          "content_type": 1001,
+          "series_title": "反相之地9-1",
+          "duration": 344
+        },
+        {
+          "series_id_str": "7704677414839798808",
+          "content_type": 1001,
+          "series_title": "反相之地9-2",
+          "duration": 341
+        },
+        {
+          "series_id_str": "7704677415347293208",
+          "content_type": 1001,
+          "series_title": "反相之地9-3",
+          "duration": 732
+        },
+        {
+          "series_id_str": "7704677415569591320",
+          "content_type": 1001,
+          "series_title": "反相之地9-1",
+          "duration": 453
+        },
+        {
+          "series_id_str": "7704677415389252632",
+          "content_type": 1001,
+          "series_title": "反相之地9-5",
+          "duration": 283
+        },
+        {
+          "series_id_str": "7704677415305350168",
+          "content_type": 1001,
+          "series_title": "反相之地9-6",
+          "duration": 433
+        }
+      ]
+    }
+  }
+}

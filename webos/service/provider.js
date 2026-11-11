@@ -13,6 +13,7 @@
   var URLConstructor = typeof URL === 'function' ? URL : url.URL;
   var querystring = require('querystring');
   var createAccount = require('./account');
+  var creatorAlbum = require('./creator-album');
   var passportSign = require('./passport-sign');
   var createPlaybackIdentity = require('./playback-identity');
   var singleProfile = require('./single-playback-profile');
@@ -701,9 +702,10 @@
       return identity().then(function (device) {
         check();
         var stamp = Date.now(), params = playbackQuery(device, stamp);
+        var mixedIDs = {}; mixedIDs[retry.contentType || '1004'] = [String(vid)];
         var body = Buffer.from(JSON.stringify({
           biz_param: { detail_page_version: 0, device_level: 3, disable_digg_stat: false, need_all_video_definition: true, need_mp4_align: false, use_os_player: false, use_server_dns: false, video_platform: 1024 },
-          mixed_video_id_map: { '1004': [String(vid)] }
+          mixed_video_id_map: mixedIDs
         }));
         var signed;
         try { signed = passportSign.signPlayback(params, body, stamp, device.deviceID); }
@@ -893,10 +895,11 @@
     return candidates.sort(function (a, b) { return a.height - b.height; })[candidates.length - 1];
   }
 
-  function mediaToken(seriesID, vid, quality, fallback, mode) {
+  function mediaToken(seriesID, vid, quality, fallback, mode, contentType) {
     quality = String(quality || '').trim().toUpperCase();
     if (quality === 'AUTO') quality = '';
     var suffix = quality ? ':' + quality + ':' + String(!!fallback) : '';
+    if (contentType && contentType !== '1004') suffix += ':content_type=' + contentType;
     var token = crypto.createHash('sha256').update(String(seriesID) + ':' + String(vid) + suffix).digest('hex').slice(0, 24);
     return mode === 'range' ? crypto.createHash('sha256').update(token + ':range').digest('hex').slice(0, 24) : token;
   }
@@ -1031,14 +1034,16 @@
     });
   }
 
-  function prepare(seriesID, vid, quality, fallback, mode, prefetch, signal) {
+  function prepare(seriesID, vid, quality, fallback, mode, prefetch, signal, contentType) {
     if (signal && signal.aborted) return Promise.reject(preparationCancelled());
     if (!validID(seriesID) || !validID(vid)) return Promise.reject(fail('播放参数无效'));
+    contentType = String(contentType || '1004');
+    if (!/^[0-9]{1,16}$/.test(contentType)) return Promise.reject(fail('播放类型无效'));
     quality = String(quality || '').trim().toUpperCase();
     if (quality === 'AUTO') quality = '';
     var wantsRange = String(mode || '') === 'range';
-    var fullToken = mediaToken(seriesID, vid, quality, fallback, 'full');
-    var token = wantsRange ? mediaToken(seriesID, vid, quality, fallback, 'range') : fullToken;
+    var fullToken = mediaToken(seriesID, vid, quality, fallback, 'full', contentType);
+    var token = wantsRange ? mediaToken(seriesID, vid, quality, fallback, 'range', contentType) : fullToken;
     var jobKey = token;
     var root = ensureCacheRoot(); var dir = path.join(root, token); var file = path.join(dir, token + '.mp4');
     mediaCache.prune(false);
@@ -1115,7 +1120,7 @@
       return Promise.resolve(resultWithReport({ path: '/minireel-proxy/media/' + token + '.mp4', quality: quality || '', qualities: [], vid: vid, mode: 'full' }, preparationReports[token] || { media_mode: 'full', media_preparation_stage: 'ready' }, false, true));
     }
     var record = { users: 0, foregroundUsers: 0, speculative: !!prefetch, settled: false, resolveCancel: audioCancel.create(),
-      identityState: { plan: sourceMemory.plan([seriesID, 'default', '1004', quality, String(!!fallback)].join('\x00')) },
+      identityState: { plan: sourceMemory.plan([seriesID, 'default', contentType, quality, String(!!fallback)].join('\x00')) },
       report: { media_mode: wantsRange ? 'range' : 'full', media_preparation_stage: 'resolve' } };
     rememberPreparation(token, record.report);
     var resolveStartedAt = Date.now();
@@ -1129,7 +1134,7 @@
     function identityRefreshing() { record.recoveryCancel = record.resolveCancel; }
     var job = measurePreparation(record.report, 'resolve', 'media_resolve_ms', function () {
       return videoOptions(vid, record.resolveCancel.signal, {
-        identityState: record.identityState, maxAttempts: prefetch ? 1 : 4,
+        identityState: record.identityState, contentType: contentType, maxAttempts: prefetch ? 1 : 4,
         startedAt: resolveStartedAt, onRetry: retried, onDiagnostic: diagnostic, onIdentityRefresh: identityRefreshing, allowRetry: foregroundWaiting
       }).catch(function (error) {
         if (!record.speculative || !record.foregroundUsers || record.identityState.attempts >= 4 || !freshPlaybackRetryable(error)) throw error;
@@ -1140,7 +1145,7 @@
         return recoveryDelay(record.recoveryCancel.signal).then(function () {
           if (!record.foregroundUsers || record.recoveryCancel.signal.aborted) throw preparationCancelled();
           return videoOptions(vid, record.recoveryCancel.signal, {
-            identityState: record.identityState, maxAttempts: 4 - record.identityState.attempts,
+            identityState: record.identityState, contentType: contentType, maxAttempts: 4 - record.identityState.attempts,
             startedAt: resolveStartedAt, onRetry: retried, onDiagnostic: diagnostic, onIdentityRefresh: identityRefreshing, allowRetry: foregroundWaiting
           });
         });
@@ -1221,7 +1226,7 @@
       }).then(function (source) {
         source.quality = selected.quality;
         source.refresh = function () {
-          return videoOptions(vid).then(function (freshOptions) {
+          return videoOptions(vid, null, { contentType: contentType }).then(function (freshOptions) {
             var fresh = choose(freshOptions, selected.quality, false);
             return { url: fresh.url, key: fresh.key };
           });
@@ -1242,7 +1247,7 @@
       record.identityState.plan.observe(record.identityState.source,false);
       if (record.identityState.cursor >= record.identityState.plan.order.length && !record.identityState.singleLegacyPending) throw error;
       record.identityState.lastError = fail('原片源媒体不可用',502,'VIDEO_MODEL_MISSING');
-      return videoOptions(vid,record.resolveCancel.signal,{identityState:record.identityState,startedAt:resolveStartedAt,onDiagnostic:diagnostic,allowRetry:foregroundWaiting}).then(prepareOptions);
+      return videoOptions(vid,record.resolveCancel.signal,{identityState:record.identityState,contentType:contentType,startedAt:resolveStartedAt,onDiagnostic:diagnostic,allowRetry:foregroundWaiting}).then(prepareOptions);
     }
     job = job.then(function (result) {
       record.settled = true;
@@ -1434,6 +1439,11 @@
   function normalize(value) {
     if (!value || typeof value !== 'object') return null;
     var object = value.video_data && typeof value.video_data === 'object' ? value.video_data : value;
+    if (first(object.content_type, object.contentType) === '1003') {
+      var album = creatorAlbum.normalize(object.album_info, object);
+      if (album) { album.tags = dramaTags(object.album_info || {}); var albumCoverFallback = browserCoverFallback(album.cover); if (albumCoverFallback) album.cover_fallback = albumCoverFallback; }
+      return album;
+    }
     var id = first(object.series_id_str, object.series_id, object.seriesId, object.book_id, object.id);
     if (!id) return null;
     var vids = stringArray(object.vid_list); if (!vids.length) vids = stringArray(object.episodeVids);
@@ -1801,7 +1811,18 @@
       });
     });
   }
-  function detail(seriesID) { return fetchHTML(WEB_BASE + '/detail?series_id=' + encodeURIComponent(seriesID)).then(function (html) { var router = routerData(html); var raw = findObject(router, 'seriesDetail'); var drama = normalize(raw); if (!drama || drama.series_id !== seriesID) throw fail('详情响应缺少剧集信息'); drama.episodes = (drama.vid_list || []).map(function (vid, index) { var inferredLocked = index >= drama.accessible_episode_cnt; return { index: index + 1, video_id: vid, title: '第' + (index + 1) + '集', locked: inferredLocked, locked_inferred: inferredLocked }; }); var actors = normalizeSeriesActors(raw); if (!actors.length) actors = normalizeSeriesActors(router); return { series_id: drama.series_id, title: drama.title, cover: drama.cover, cover_fallback: drama.cover_fallback, intro: drama.intro, score: drama.score, play_count: drama.play_count, episode_count: drama.episode_count, accessible_episode_cnt: drama.accessible_episode_cnt, vid: drama.vid, vid_list: drama.vid_list, episodes: drama.episodes, tags: drama.tags, actors: actors, related: normalizeRelatedDramas(router, seriesID), reviews: normalizeSeriesReviews(router) }; }); }
+  function detail(seriesID, contentType) {
+    if (!validID(seriesID)) return Promise.reject(fail('series_id 无效'));
+    if (String(contentType) === '1003') {
+      return signedJSON('/novel/player/album_detail/v1/', 'POST', {}, { album_id: seriesID, series_ids: [], need_video_detail_info: true, biz_param: { video_platform: 3 } }).then(function (payload) {
+        var item = creatorAlbum.parse(payload, seriesID);
+        item.tags = dramaTags(payload.data.album_data);
+        var fallback = browserCoverFallback(item.cover); if (fallback) item.cover_fallback = fallback;
+        return item;
+      });
+    }
+    return fetchHTML(WEB_BASE + '/detail?series_id=' + encodeURIComponent(seriesID)).then(function (html) { var router = routerData(html); var raw = findObject(router, 'seriesDetail'); var drama = normalize(raw); if (!drama || drama.series_id !== seriesID) throw fail('详情响应缺少剧集信息'); drama.episodes = (drama.vid_list || []).map(function (vid, index) { var inferredLocked = index >= drama.accessible_episode_cnt; return { index: index + 1, video_id: vid, title: '第' + (index + 1) + '集', locked: inferredLocked, locked_inferred: inferredLocked }; }); var actors = normalizeSeriesActors(raw); if (!actors.length) actors = normalizeSeriesActors(router); return { series_id: drama.series_id, title: drama.title, cover: drama.cover, cover_fallback: drama.cover_fallback, intro: drama.intro, score: drama.score, play_count: drama.play_count, episode_count: drama.episode_count, accessible_episode_cnt: drama.accessible_episode_cnt, vid: drama.vid, vid_list: drama.vid_list, episodes: drama.episodes, tags: drama.tags, actors: actors, related: normalizeRelatedDramas(router, seriesID), reviews: normalizeSeriesReviews(router) }; });
+  }
 
   function fallbackSeason(seriesID, error) {
     return detail(seriesID).then(function (item) {

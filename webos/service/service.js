@@ -170,7 +170,7 @@
         function stopPreparation() { preparationAbort.abort('PLAYBACK_PREPARATION_CANCELLED'); }
         function detachPreparation() { req.removeListener('aborted', stopPreparation); res.removeListener('close', stopPreparation); }
         req.once('aborted', stopPreparation); res.once('close', stopPreparation);
-        return provider.prepare(seriesID, vid, String(q.quality || ''), String(q.fallback || '') === '1', String(q.mode || ''), String(q.prefetch || '') === '1', preparationAbort.signal).then(function (result) {
+        return provider.prepare(seriesID, vid, String(q.quality || ''), String(q.fallback || '') === '1', String(q.mode || ''), String(q.prefetch || '') === '1', preparationAbort.signal, String(q.content_type || '')).then(function (result) {
           detachPreparation(); if (!res.destroyed && !preparationAbort.signal.aborted) data(req, res, result);
         }, function (error) {
           detachPreparation(); if (!res.destroyed && !preparationAbort.signal.aborted) failure(req, res, error);
@@ -225,7 +225,7 @@
         return provider.calendar(q).then(function (result) { data(req, res, result); }, function (error) { failure(req, res, error); });
       }
       if (pathName === '/api/v1/series/detail' || pathName === '/api/v1/SeriesDetail') {
-        return provider.detail(String(q.series_id || '')).then(function (result) { data(req, res, result); }, function (error) { failure(req, res, error); });
+        return provider.detail(String(q.series_id || ''), String(q.content_type || '')).then(function (result) { data(req, res, result); }, function (error) { failure(req, res, error); });
       }
       if (pathName === '/api/v1/series/seasons') {
         return provider.seasons(String(q.series_id || '')).then(function (result) { data(req, res, result); }, function (error) { failure(req, res, error); });

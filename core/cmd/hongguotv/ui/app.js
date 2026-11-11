@@ -453,6 +453,9 @@
   var playbackRecovery = HongguoPlaybackRecovery.create({ maxAttempts: 1 });
   function playbackContentType(item) {
     var value = item && item.content_type;
+    // Preserve the album's 1003 identity for details/history; its individual
+    // creator uploads are resolved with the official playback type 1001.
+    if (String(value) === '1003') return '1001';
     return /^[0-9]{1,16}$/.test(String(value || '')) ? String(value) : '';
   }
   // webOS can leave the first local Range response waiting on an upstream
@@ -4548,7 +4551,8 @@
 
   function getDetail(item, signal) {
     if (detailCache[item.series_id]) return Promise.resolve(detailCache[item.series_id]);
-    return fetch('/api/v1/series/detail?series_id=' + encodeURIComponent(item.series_id), signal ? { signal: signal } : undefined)
+    var contentType = String(item.content_type || '') === '1003' ? '&content_type=1003' : '';
+    return fetch('/api/v1/series/detail?series_id=' + encodeURIComponent(item.series_id) + contentType, signal ? { signal: signal } : undefined)
       .then(function (response) { if (!response.ok) throw new Error(uiText('ui.detailHttp', '详情 HTTP {status}', { status: response.status })); return response.json(); })
       .then(function (payload) {
         if (!payload.ok || !payload.data) throw new Error(apiError(payload, 200, 'ui.detailInvalid', '详情响应无效'));
@@ -5799,7 +5803,7 @@
       playbackRequest.episode = episode; playbackRequest.position = position;
       setFeatured(Object.assign({}, item, { start_episode: episode }), false, 'refresh');
       setPlayerStatus(episodeLoadingText(episode));
-      var source = episode === 1 && firstVid(item) ? Promise.resolve(item) : getDetail(item, request.signal);
+      var source = episode === 1 && firstVid(item) && String(item.content_type) !== '1003' ? Promise.resolve(item) : getDetail(item, request.signal);
       return source.then(function (detail) {
         if (generation !== feedGeneration || request.signal.aborted) return null;
         var vid = episode === 1 ? firstVid(detail) : detail.vid_list && detail.vid_list[episode - 1];
