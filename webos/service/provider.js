@@ -485,7 +485,10 @@
     var fallback = fallbackAPI(model.fallback_api);
     if (!fallback) return Promise.resolve(model);
     return fallbackModel(fallback, signal, 0).then(function (original) {
-      if (!sameFallbackVideo(model, original)) throw fail('fallback_api 分集或时长不匹配', 502, 'FALLBACK_API_MISMATCH', 'fallback_api');
+      if (!sameFallbackVideo(model, original)) {
+        if (onlyByteVC2(model)) return model;
+        throw fail('fallback_api 分集或时长不匹配', 502, 'FALLBACK_API_MISMATCH', 'fallback_api');
+      }
       if (!onlyByteVC2(original)) return original;
       var codecs = ['codec_type=1', 'codec_type=0&force_codec=h264'];
       function next(index) {
@@ -497,10 +500,16 @@
           return next(index + 1);
         }, function (error) {
           if (signal && signal.aborted || error && error.name === 'AbortError') throw preparationCancelled();
+          if (error && error.code === 'FALLBACK_API_REJECTED') throw error;
           return next(index + 1);
         });
       }
       return next(0);
+    }, function (error) {
+      // Failure of the extra ByteVC2 fallback must leave the original source
+      // sequence available. Business rejection and cancellation still stop.
+      if (signal && signal.aborted || error && (error.name === 'AbortError' || error.code === 'FALLBACK_API_REJECTED') || !onlyByteVC2(model)) throw error;
+      return model;
     });
   }
 

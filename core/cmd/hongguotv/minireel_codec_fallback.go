@@ -116,9 +116,17 @@ func miniReelCompatibleModel(ctx context.Context, model map[string]any, client *
 	}
 	original, err := miniReelFetchFallbackModelWithClient(ctx, fallback, client)
 	if err != nil {
+		// This is an extra opportunity for a ByteVC2-only inline model.
+		// A failed opportunity must not block the remaining original providers.
+		if ctx.Err() == nil && miniReelOnlyByteVC2(model) && playbackPreparationDetails(err).BusinessCode == "" {
+			return model, nil
+		}
 		return nil, err
 	}
 	if !miniReelSameFallbackVideo(model, original) {
+		if miniReelOnlyByteVC2(model) {
+			return model, nil
+		}
 		return nil, errors.New("fallback_api video identity or duration mismatch")
 	}
 	if !miniReelOnlyByteVC2(original) {
@@ -131,6 +139,9 @@ func miniReelCompatibleModel(ctx context.Context, model map[string]any, client *
 		candidate, err := miniReelFetchFallbackModelWithClient(ctx, miniReelFallbackCodecURL(fallback, codec), client)
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
+		}
+		if err != nil && playbackPreparationDetails(err).BusinessCode != "" {
+			return nil, err
 		}
 		if err != nil || !miniReelSameFallbackVideo(model, candidate) || !miniReelSameFallbackVideo(original, candidate) {
 			continue

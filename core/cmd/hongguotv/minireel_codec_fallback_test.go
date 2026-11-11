@@ -54,7 +54,7 @@ func codecFallbackModel(codec, id string, duration float64) map[string]any {
 }
 
 func TestMiniReelCompatibleFallbackOrderAndIdentity(t *testing.T) {
-	for _, mode := range []string{"inline", "mixed", "original", "hevc", "h264", "mismatch-id", "mismatch-duration", "unusable", "all-bytevc2", "cancel"} {
+	for _, mode := range []string{"inline", "mixed", "original", "hevc", "h264", "mismatch-id", "mismatch-duration", "unusable", "all-bytevc2", "original-error", "original-mismatch", "cancel"} {
 		t.Run(mode, func(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
@@ -71,6 +71,9 @@ func TestMiniReelCompatibleFallbackOrderAndIdentity(t *testing.T) {
 			calls := 0
 			client := &http.Client{Transport: miniReelTestRoundTripper(func(r *http.Request) (*http.Response, error) {
 				calls++
+				if mode == "original-error" {
+					return nil, errors.New("upstream temporarily unavailable")
+				}
 				if r.Header.Get("Cookie") != "" || r.Header.Get("X-Argus") != "" {
 					t.Error("fallback leaked identity or signature headers")
 				}
@@ -85,6 +88,9 @@ func TestMiniReelCompatibleFallbackOrderAndIdentity(t *testing.T) {
 					t.Errorf("signed raw query changed: %s", r.URL.RawQuery)
 				}
 				candidate := codecFallbackModel("bvc2", "same-video", 90)
+				if mode == "original-mismatch" {
+					candidate["video_id"] = "other-video"
+				}
 				if mode == "cancel" {
 					cancel()
 					return nil, context.Canceled
@@ -110,7 +116,7 @@ func TestMiniReelCompatibleFallbackOrderAndIdentity(t *testing.T) {
 			switch mode {
 			case "inline", "mixed":
 				wantCalls = 0
-			case "original", "cancel":
+			case "original", "original-error", "original-mismatch", "cancel":
 				wantCalls = 1
 			case "hevc":
 				wantCalls = 2
@@ -128,7 +134,7 @@ func TestMiniReelCompatibleFallbackOrderAndIdentity(t *testing.T) {
 				t.Fatal(err)
 			}
 			wantOptions := 1
-			if strings.HasPrefix(mode, "mismatch") || mode == "all-bytevc2" || mode == "unusable" {
+			if strings.HasPrefix(mode, "mismatch") || mode == "all-bytevc2" || mode == "unusable" || mode == "original-error" || mode == "original-mismatch" {
 				wantOptions = 0
 			}
 			if len(opts) != wantOptions {
@@ -165,5 +171,26 @@ func TestMiniReelCompatibleFallbackMetadataBounds(t *testing.T) {
 	})})
 	if err == nil || !errors.Is(err, context.DeadlineExceeded) || strings.Contains(err.Error(), "private") {
 		t.Fatal("transport classification/privacy failed")
+	}
+}
+
+func TestMiniReelCompatibleFallbackBusinessRejectionStops(t *testing.T) {
+	for _, rejectedAttempt := range []int{1, 2} {
+		model := codecFallbackModel("bytevc2", "id", 90)
+		model["fallback_api"] = "https://api.fqnovel.com/playback/fallback?codec_type=4"
+		calls := 0
+		client := &http.Client{Transport: miniReelTestRoundTripper(func(r *http.Request) (*http.Response, error) {
+			calls++
+			var payload any = map[string]any{"code": 0, "video_info": map[string]any{"code": 0, "data": model}}
+			if calls == rejectedAttempt {
+				payload = map[string]any{"code": 0, "video_info": map[string]any{"code": 110001}}
+			}
+			body, _ := json.Marshal(payload)
+			return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(string(body))), Request: r}, nil
+		})}
+		_, err := miniReelCompatibleModel(context.Background(), model, client)
+		if err == nil || playbackPreparationDetails(err).BusinessCode != "110001" || calls != rejectedAttempt {
+			t.Fatalf("business rejection lost or retried: calls=%d err=%v", calls, err)
+		}
 	}
 }

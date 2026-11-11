@@ -1910,6 +1910,8 @@ func miniReelFetchFallbackModelWithClient(ctx context.Context, raw string, clien
 		return nil, errors.New("fallback_api response has no video_info")
 	}
 	if code := firstNonEmpty(miniReelToString(videoInfo["Code"]), miniReelToString(videoInfo["code"])); code != "" && code != "0" {
+		diagnostic.Code = "FALLBACK_API_BUSINESS"
+		diagnostic.BusinessCode = safePlaybackBusinessCode(code)
 		return nil, fmt.Errorf("fallback_api video_info rejected request (code %s)", code)
 	}
 	model, ok := videoInfo["data"].(map[string]any)

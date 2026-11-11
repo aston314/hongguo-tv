@@ -545,6 +545,20 @@ async function run() {
       if (calls.length >= 2) assert.strictEqual(calls[1], '/playback/fallback?sig=a%2fb%2BC&same=1&same=2&token=x%3D&codec_type=1', 'raw query is preserved');
       if (calls.length >= 3) assert.strictEqual(calls[2], '/playback/fallback?sig=a%2fb%2BC&same=1&same=2&token=x%3D&codec_type=0&force_codec=h264');
     }
+    videoModelInline = codecModel('bytevc2');
+    fallbackResponseForPath = function () { return JSON.stringify({code:0,video_info:{code:0,data:codecModel('h265','wrong-video')}}); };
+    assert.strictEqual((await provider.inspectVideoModel('1434567890123456789')).error.code, 'VIDEO_MODEL_MISSING', 'mismatched extra fallback reaches the remaining single-model provider');
+    fallbackResponseForPath = null; fallbackStatus = 503;
+    assert.strictEqual((await provider.inspectVideoModel('1434567890123456789')).error.code, 'VIDEO_MODEL_MISSING', 'failed extra fallback reaches the remaining single-model provider');
+    fallbackStatus = 200;
+    var businessCalls = 0;
+    fallbackResponseForPath = function () {
+      businessCalls++;
+      return JSON.stringify({code:0,video_info:{code:businessCalls === 1 ? 0 : 110001,data:codecModel('bytevc2')}});
+    };
+    assert.strictEqual((await provider.inspectVideoModel('1434567890123456789')).error.code, 'FALLBACK_API_REJECTED', 'business rejection stops compatible codec probes');
+    assert.strictEqual(businessCalls, 2);
+    fallbackResponseForPath = null;
     var urlVector = require('../../core/cmd/hongguotv/testdata/playback-url-vector.json');
     videoModelInline = codecModel('h265'); videoModelInline.key_seed = urlVector.seed;
     videoModelInline.video_list[0].main_url = urlVector.encoded;
