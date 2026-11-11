@@ -43,8 +43,8 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
     if (options.path.startsWith('/service/2/device_register/')) {
       registrations++;
       const index = registrations, reply = registrationReplies[index - 1] || {};
-      const registration = {destroyed:false, respond:null}; registrationRequests.push(registration);
-      req.write = () => {};
+      const registration = {options,body:[],destroyed:false, respond:null}; registrationRequests.push(registration);
+      req.write = data => registration.body.push(Buffer.from(data));
       req.destroy = error => { registration.destroyed = true; if (error) process.nextTick(() => req.emit('error', error)); };
       registration.respond = () => {
         if (registration.destroyed) return;
@@ -270,7 +270,7 @@ test('shared empty responses use one replacement and stop at four requests with 
   try {
     const b = observe(f.prepare(true)); await tick(); const p = observe(f.prepare(false)); f.requests[0].respond();
     const { error } = await p;
-    assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); await b; assert.equal(f.requests.length, 4); assert.equal(f.registrations,5); assert.equal(f.singleRequests.length,2); assert.equal(f.rangeOpens, 0);
+    assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); await b; assert.equal(f.requests.length, 4); assert.equal(f.registrations,7); assert.equal(f.singleRequests.length,4); assert.equal(f.rangeOpens, 0);
     assert.equal(error.recoveryComplete, true);
     assert.equal(error.upstreamStatus, 200, 'HTTP 200 upstream is distinct from the local 502 failure response');
     assert.equal(error.videoModel.attempt, 2);
@@ -314,7 +314,7 @@ test('mixed empty and HTTP failures share the same four-request maximum', async 
     const { error } = await observe(f.prepare(false));
     assert.equal(error.code, 'VIDEO_MODEL_EMPTY'); assert.equal(error.recoveryComplete, true);
     assert.equal(f.requests.length, 4); assert.equal(error.videoModel.attempt, 2);
-    assert.equal(f.registrations, 5, 'two legacy identities plus two single-provider identities and the cached tab identity');
+    assert.equal(f.registrations, 7, 'two legacy, two registered-profile, two old single-profile identities and the cached tab identity');
     assert.equal(f.rangeOpens, 0); assert.equal(f.downloads, 0);
   } finally { f.close(); }
 });
@@ -574,7 +574,7 @@ test('foreground cancellation during second-round registration aborts that job w
 test('business and non-200 empty stop; malformed and missing models advance to the separate provider', async () => {
   for(const reply of [{status:204,empty:true},{body:'invalid JSON'},{body:'{"code":101000}'},{body:'{}'}]) {
     const f=fixture([reply]);
-    try {assert((await observe(f.prepare(false))).error);assert.equal(f.registrations, reply.body === 'invalid JSON' || reply.body === '{}' ? 3 : 2);assert.equal(f.requests.length,1);}
+    try {assert((await observe(f.prepare(false))).error);assert.equal(f.registrations, reply.body === 'invalid JSON' || reply.body === '{}' ? 4 : 2);assert.equal(f.requests.length,1);}
     finally {f.close();}
   }
   const whitespace=fixture([{body:' \n\t '},{body:' '},{body:'\r\n'},{}]);
@@ -619,9 +619,9 @@ test('incompatible legacy model advances once to signed single-episode model', a
     assert.equal(result.mode,'range');assert.equal(f.requests.length,1);assert.equal(f.singleRequests.length,1);
     assert.equal(f.registrations,3);assert.equal(result.preparation_timing.media_video_model.stage,'video_model');
     const call=f.singleRequests[0], q=new URL('https://fixture.test'+call.options.path).searchParams;
-    assert.equal(q.get('version_name'),'7.3.9.32');assert.equal(q.get('device_type'),'23127PN0CC');assert(q.get('openudid'));
-    assert.deepEqual(JSON.parse(Buffer.concat(call.body)),{video_id:'456',biz_param:{video_id_type:0,need_all_video_definition:true,video_platform:3}});
-    for(const key of ['X-Argus','X-Gorgon','X-Khronos','X-Ladon','X-Helios'])assert(call.options.headers[key],key);
+    assert.equal(q.get('version_name'),'7.3.5.32');assert.equal(q.get('device_type'),'25053RT47C');assert.equal(q.get('openudid'),null);
+    assert.deepEqual(JSON.parse(Buffer.concat(call.body)),{video_id:'456',content_type:1,biz_param:{need_all_video_definition:true,video_platform:3}});
+    for(const key of ['X-Argus','X-Gorgon','X-Khronos','X-Ladon'])assert(call.options.headers[key],key);
     assert.equal(call.options.headers['Content-Encoding'],undefined);
     assert.equal(call.options.headers['X-SS-STUB'],require('crypto').createHash('md5').update(Buffer.concat(call.body)).digest('hex').toUpperCase());
   }finally{f.close();}
@@ -630,7 +630,7 @@ test('incompatible legacy model advances once to signed single-episode model', a
 test('all incompatible models stop without rotating single-provider identity', async () => {
   const bad={body:JSON.stringify({data:{video_model:{video_list:[{main_url:'https://media.example.test/unsafe.mp4',codec_type:'bytevc2'}]}}})};
   const f=fixture([bad],null,[],{code:100103},[bad]);
-  try {const {error}=await observe(f.prepare(false));assert.equal(error.code,'VIDEO_MODEL_NO_QUALITY');assert.equal(f.singleRequests.length,1);assert.equal(f.registrations,3);assert.equal(f.rangeOpens,0);}
+  try {const {error}=await observe(f.prepare(false));assert.equal(error.code,'VIDEO_MODEL_NO_QUALITY');assert.equal(f.singleRequests.length,2);assert.equal(f.registrations,4);assert.equal(f.rangeOpens,0);}
   finally{f.close();}
 });
 
@@ -699,9 +699,12 @@ test('same-series success prefers the single provider; other series and quality 
   } finally {f.close();}
 });
 
-test('a remembered single route failure falls back once and remembers the new successful legacy route', async () => {
+test('a remembered single route retains the old profile before advancing to other providers', async () => {
   for (const kind of ['model','media']) {
-    const f=fixture([incompatibleLegacy('456'),{}],null,[],{code:100103},[{}, {empty:kind==='model'}, {empty:kind==='model'}],{
+    const singleReplies = kind === 'model'
+      ? [{}, {empty:true}, {empty:true}, {body:JSON.stringify({data:{video_model:{video_list:[]}}})}]
+      : [{}, {}, {}, {}];
+    const f=fixture([incompatibleLegacy('456'),{}],null,[],{code:100103},singleReplies,{
       open(count) {
         if(kind==='media' && count===2)return Promise.reject(Object.assign(Error('Range unsupported'),{code:'RANGE_UNAVAILABLE'}));
         return Promise.resolve({prefix:Buffer.alloc(16),samples:[],key:Buffer.alloc(16),length:128,etag:'"fixture"'});
@@ -711,11 +714,18 @@ test('a remembered single route failure falls back once and remembers the new su
     try {
       await f.prepare(false);
       await f.provider.prepare('123','457','',true,'range',false);
-      assert.equal(f.tabRequests.length,2);assert.equal(f.requests.length,2);
-      assert.equal(f.singleRequests.length,kind==='model'?3:2);
-      await f.provider.prepare('123','458','',true,'range',false);
-      assert.equal(f.tabRequests.length,2,'remembered legacy must not repeat video_tab');
-      assert.equal(f.requests.length,3);assert.equal(f.singleRequests.length,kind==='model'?3:2);
+      if(kind==='media') {
+        assert.equal(f.tabRequests.length,1);assert.equal(f.requests.length,1);
+        assert.equal(f.singleRequests.length,3,'old single profile can recover a failed media candidate');
+        assert.equal(new URL('https://fixture.test'+f.singleRequests[2].options.path).searchParams.get('version_name'),'7.3.9.32');
+        await f.provider.prepare('123','458','',true,'range',false);
+        assert.equal(f.singleRequests.length,4);assert.equal(f.tabRequests.length,1);
+        assert.equal(new URL('https://fixture.test'+f.singleRequests[3].options.path).searchParams.get('version_name'),'7.3.5.32');
+      } else {
+        assert.equal(f.tabRequests.length,2);assert.equal(f.requests.length,2);assert.equal(f.singleRequests.length,4);
+        await f.provider.prepare('123','458','',true,'range',false);
+        assert.equal(f.tabRequests.length,2,'remembered legacy must not repeat video_tab');assert.equal(f.requests.length,3);assert.equal(f.singleRequests.length,4);
+      }
     } finally {f.close();}
   }
 });
@@ -800,4 +810,50 @@ test('final codec fallback prepares compatible media or preserves remaining prov
       }
     } finally { f.close(); }
   }
+});
+
+test('registered single identity is shared across episodes with a JSON bootstrap', async () => {
+  const f=fixture([incompatibleLegacy('456')],null,[],{code:100103},[{},{}]);
+  try {
+    await f.prepare(false);
+    await f.provider.prepare('123','457','',true,'range',false);
+    assert.equal(f.registrations,3);assert.equal(f.singleRequests.length,2);
+    const ids=f.singleRequests.map(call=>new URL('https://fixture.test'+call.options.path).searchParams.get('device_id'));
+    assert.equal(ids[0],ids[1]);
+    const registration=f.registrationRequests[2];
+    assert.equal(registration.options.headers['Content-Type'],'application/json; charset=utf-8');
+    const payload=JSON.parse(Buffer.concat(registration.body));
+    assert.equal(payload.header.app_version,'7.3.5.32');assert.equal(payload.header.device_model,'25053RT47C');
+    for(const call of f.singleRequests)for(const name of ['Cookie','X-Medusa','X-Helios'])assert.equal(call.options.headers[name],undefined);
+  } finally {f.close();}
+});
+
+test('registered profile empty body refreshes once, then old single protocol remains available', async () => {
+  const f=fixture([incompatibleLegacy('456')],null,[],{code:100103},[{empty:true},{empty:true},{}]);
+  try {
+    await f.prepare(false);assert.equal(f.singleRequests.length,3);assert.equal(f.registrations,5);
+    const versions=f.singleRequests.map(call=>new URL('https://fixture.test'+call.options.path).searchParams.get('version_name'));
+    assert.deepEqual(versions,['7.3.5.32','7.3.5.32','7.3.9.32']);
+  } finally {f.close();}
+});
+
+test('invalid registered single responses fall back without refreshing its identity', async () => {
+  for (const body of ['null', '[]', 'invalid']) {
+    const f=fixture([incompatibleLegacy('456')],null,[],{code:100103},[{body},{}]);
+    try {
+      assert.equal((await f.prepare(false)).mode,'range');
+      assert.equal(f.singleRequests.length,2);assert.equal(f.registrations,4);
+      const versions=f.singleRequests.map(call=>new URL('https://fixture.test'+call.options.path).searchParams.get('version_name'));
+      assert.deepEqual(versions,['7.3.5.32','7.3.9.32']);
+    } finally {f.close();}
+  }
+});
+
+test('registered profile bootstrap failure retains the original single registration protocol', async () => {
+  const f=fixture([incompatibleLegacy('456')],null,[{},{},{network:'ENOTFOUND'},{}],{code:100103},[{}]);
+  try {
+    assert.equal((await f.prepare(false)).mode,'range');
+    assert.equal(f.singleRequests.length,1);assert.equal(f.registrations,4);
+    assert.equal(new URL('https://fixture.test'+f.singleRequests[0].options.path).searchParams.get('version_name'),'7.3.9.32');
+  } finally {f.close();}
 });

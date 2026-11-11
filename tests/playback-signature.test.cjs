@@ -64,3 +64,15 @@ test('complete playback envelopes match independent protocol vectors', () => {
     }
   }
 });
+
+test('registered single profile matches independent 0.1.51 signatures', () => {
+  const v = require('../core/cmd/hongguotv/testdata/single-registered-sign-vector.json');
+  const body = Buffer.from(v.body);
+  assert.equal(signer.playbackArgus(v.query, body, v.ts, v.nonce, true), v.argus);
+  const signed = signer.signSingleRegistered(Object.fromEntries(new URLSearchParams(v.query)), body, 1800000000123);
+  assert.equal(signed.query, v.query);
+  assert.equal(signed.headers['X-Gorgon'], v.gorgon);
+  assert.equal(signer.playbackLadon(v.ts, '8662', 0x04030201), v.ladon);
+  assert.equal(Buffer.from(signed.headers['X-Argus'], 'base64').subarray(0,2).toString('hex'), '3ccc');
+  for (const header of ['X-Medusa','X-Helios','Cookie']) assert.equal(signed.headers[header], undefined);
+});

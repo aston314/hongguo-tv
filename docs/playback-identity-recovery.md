@@ -12,11 +12,53 @@ Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取�
    `api5-normal-hl.fqnovel.com`，每次独立计算签名。备用主机使用新连接。
 4. 第一轮仍为空或出现适用的临时错误，最多再注册一次、重复两个主机。
    旧接口合计最多两轮、四次 HTTP 请求；得到兼容候选后进入原有媒体准备。
-5. 前两路仍不可用时才进入 `POST /novel/player/video_model/v1/`。该单集协议使用独立的
-   `7.3.9.32` / Xiaomi Android 14 匿名注册身份，不接触账号和已有缓存。请求体为
+5. 前两路仍不可用时才进入 `POST /novel/player/video_model/v1/`。先用独立的
+   `7.3.5.32` / Redmi Android 16 注册与播放签名组合，失败后保留原 `7.3.9.32` 协议。
+   两套身份与 `video_tab`、账号隔离；兼容编码与媒体准备继续共用原有实现。
+   原 `7.3.9.32` / Xiaomi Android 14 协议请求体为
    `video_id` + `biz_param={video_id_type:0,need_all_video_definition:true,video_platform:3}`；
    未压缩 JSON 与 query 使用当前播放签名实现。空响应或临时网络失败最多两次，
    明确返回不兼容模型时不反复换身份。
+
+### 单集注册与签名组合（2026-11-11）
+
+参考 [HongguoTV-Phone-TV-NoAds 正式版 app-v0.1.51-87](https://github.com/qq294716498/HongguoTV-Phone-TV-NoAds/tree/5221ff5c3fefa2b23887b87c4ae175f307534736/native/core)
+的实际取源链，新增第三路内部的优先协议；前两路及 provider 排序机制不变。
+
+- `device_register` 发送普通 JSON，版本 `7.3.5.32`、设备 `25053RT47C`、Android 16、
+  channel `update_64`；注册返回的大整数身份不经过浮点转换。
+- 单集 body 为 `video_id`、`content_type:1` 与
+  `biz_param:{need_all_video_definition:true,video_platform:3}`。
+  query 带 `_rticket`，不额外增加 `ts`、`cdid`。
+- 专用 Argus `v04.07.01-ml-android`（外壳 `3ccc`）、Gorgon、Ladon、Khronos、
+  SS-STUB 与请求票据绑定最终 query、实际 body 和时间；不带 Cookie、Medusa 或 Helios。
+  本项目原账号、旧 multi 与原单集签名向量保持不变。新增固定向量由参考仓库原函数生成，
+  Go 与 webOS 均对照相同向量。
+- 新协议身份只在当前进程内复用；仅确认 HTTP 200 空正文后刷新一次。
+  并发空体恢复合并注册，迟到失败不能换掉已更新的身份；刷新沿用 30 秒冷却。
+  不兼容模型、业务拒绝和清晰度限制不触发刷新。
+- 新协议最多占用 4 秒，为原单集保留时间；两套协议合计仍受第三路 8 秒与总取源 30 秒限制。
+  新协议候选媒体失败后仍可尝试原单集，再进入尚未尝试的其他 provider。
+  用户取消、业务拒绝、存储或指定清晰度限制继续停止，不借机扩大重试。
+- webOS 同步新协议、独立身份、取消和关闭/唤醒流程；保留 `codec_type=1 → 0 → 3`
+  兼容源兜底，未把公开 10 秒试看片段接进生产播放。
+
+真实验证：Go 与 webOS 各自通过新协议取得漫剧 `7703473857562151961`、
+真人剧 `7702841946812714008` / `7702841953875938328` 的 1080P bytevc1，
+实际整集下载、解密，分别约 14.4 / 23.5 / 6.5 MB；六个文件均经本机 FFmpeg 完整音视频解码。
+同一新协议身份可供这些样本跨集复用；这只是当前实测，不视为上游长期承诺。
+浏览器生产应用另验证了推荐播放、手动第 1 → 17 → 2 集、自动第 17 → 18 集、
+连续及快速切换多部剧，均有真实画面、`readyState=4` 和推进的播放时钟。
+该结果不替代 Android / LG 硬件解码检查。
+
+可复现的新协议实网检查（普通 CI 跳过）：
+
+```sh
+HONGGUO_LIVE_SINGLE_REGISTERED=1 go test ./core/cmd/hongguotv -run '^TestMiniReelSingleRegisteredLiveMedia$' -count=1 -v
+```
+
+可用 `HONGGUO_LIVE_MINIREEL_VIDEO_ID` 指定单集。该检查验证整集下载与解密；
+完整音视频解码另用 FFmpeg 检查，不把 MP4 头存在等同于解码成功。
 
 ### 完整播放签名与兼容编码（2026-11-11）
 
@@ -134,10 +176,10 @@ webOS 同三集取源约 1.56 / 0.39 / 0.38 秒，均实际读取、解密并经
 - webOS 每次注册有 8 秒总时限，旧接口网络请求使用 8 秒 socket 超时。
   三路共享 30 秒取源预算，前两路至多 22 秒，为单集协议保留至多 8 秒。
   纯预取最多一次旧接口请求；前台接管继续同一个任务的主机位置、身份及剩余预算，
-  不重试 `video_tab`，不重置四次总预算。
+  不重试 `video_tab`，不重置旧 multi 四次总预算。
 - 同一媒体任务的前台与预取继续共享结果和取消路径。不同剧集不共享一次性旧接口身份。
 - 切剧、退出、Service 关闭会中止不再需要的注册与取源；迟到响应不能复活旧任务。
-  Service 重新唤醒时重建原有 `video_tab` 身份缓存。
+  Service 重新唤醒时重建 `video_tab` 与新单集协议各自的身份缓存。
 - 诊断只保留阶段、次数、状态和响应长度；不写账号凭据、设备三元组、签名或完整媒体 URL。
 
 ## 验证与限度

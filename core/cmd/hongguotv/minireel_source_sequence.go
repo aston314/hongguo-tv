@@ -9,9 +9,10 @@ import (
 func miniReelProductionSources() miniReelPlaybackSources {
 	return miniReelPlaybackSources{
 		tabEndpoint: miniReelVideoTabBase + miniReelVideoTabPath, tabIdentity: miniReelPlaybackRouteIdentities[2],
-		legacyEndpoints: []string{"https://api5-normal-sinfonlineb.fqnovel.com" + miniReelAPIPath, "https://api5-normal-hl.fqnovel.com" + miniReelAPIPath},
-		register:        registerMiniReelPlaybackDeviceContext,
-		singleEndpoint:  miniReelSingleEndpoint, registerSingle: registerMiniReelSingleDevice,
+		legacyEndpoints:  []string{"https://api5-normal-sinfonlineb.fqnovel.com" + miniReelAPIPath, "https://api5-normal-hl.fqnovel.com" + miniReelAPIPath},
+		register:         registerMiniReelPlaybackDeviceContext,
+		registeredSingle: productionSingleRegistered,
+		singleEndpoint:   miniReelSingleEndpoint, registerSingle: registerMiniReelSingleDevice,
 		memory: miniReelSourceMemory,
 	}
 }
@@ -28,6 +29,8 @@ type miniReelSourceSequence struct {
 	lastErr                     error
 	plan                        miniReelSourcePlan
 	provider                    miniReelProvider
+	singleLegacyPending         bool
+	singleSpent                 time.Duration
 }
 
 func newMiniReelSourceSequence(sources miniReelPlaybackSources, vid, codecMode, contentType, key string) miniReelSourceSequence {
@@ -62,18 +65,32 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 	if _, err := normalizeMiniReelContentType(s.contentType); err != nil {
 		return nil, err
 	}
-	for s.stage < 3 {
+	for s.stage < 3 || s.singleLegacyPending {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		stage := s.stage
-		s.stage++
-		provider := s.plan.order[stage]
+		legacyOnly := s.singleLegacyPending
+		var provider miniReelProvider
+		if legacyOnly {
+			provider = miniReelSingleProvider
+			s.singleLegacyPending = false
+		} else {
+			s.stage++
+			provider = s.plan.order[stage]
+		}
 		s.provider = provider
 		// Reserve time for later sources when an earlier upstream stalls.
 		limit := 8 * time.Second
 		if provider == miniReelLegacyProvider {
 			limit = 14 * time.Second
+		}
+		if provider == miniReelSingleProvider {
+			limit -= s.singleSpent
+			if limit <= 0 {
+				s.lastErr = context.DeadlineExceeded
+				continue
+			}
 		}
 		remaining := miniReelPlaybackRaceTimeout - s.spent
 		if remaining <= 0 {
@@ -104,6 +121,20 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 			}
 			options, err = miniReelRegisteredFallbackOptions(requestCtx, s.vid, s.codecMode, s.contentType, s.sources)
 		case miniReelSingleProvider:
+			if !legacyOnly && s.sources.registeredSingle != nil {
+				// Reserve half of the existing single-provider budget for the old profile.
+				variantCtx, stop := context.WithTimeout(requestCtx, 4*time.Second)
+				options, err = s.sources.registeredSingle.options(variantCtx, s.vid, s.codecMode)
+				expired := variantCtx.Err() != nil
+				stop()
+				if err == nil && len(options) > 0 {
+					s.singleLegacyPending = true
+					break
+				}
+				if requestCtx.Err() != nil || !expired && !miniReelSourceFallbackAllowed(err) {
+					break
+				}
+			}
 			if s.sources.registerSingle == nil || s.sources.singleEndpoint == "" {
 				cancel()
 				continue
@@ -121,7 +152,11 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 		}
 		timedOut := requestCtx.Err() != nil
 		cancel()
-		s.spent += time.Since(started)
+		elapsed := time.Since(started)
+		s.spent += elapsed
+		if provider == miniReelSingleProvider {
+			s.singleSpent += elapsed
+		}
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
@@ -214,7 +249,7 @@ func prepareMiniReelWithSources(ctx context.Context, job *miniReelMediaJob, seri
 			return
 		}
 		sequence.plan.observe(sequence.provider, false)
-		if sequence.stage >= 3 {
+		if sequence.stage >= 3 && !sequence.singleLegacyPending {
 			job.Err = err
 			return
 		}

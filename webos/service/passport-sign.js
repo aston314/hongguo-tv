@@ -123,8 +123,8 @@
     Array.prototype.push.apply(out, value);
   }
   function playbackText(out, field, value) { playbackBlob(out, field, Buffer.from(value)); }
-  function playbackSimonKeys() {
-    var raw = Buffer.from('fc78e0a9657a0c748ce51559903ccf03510e51d3cff232d71343e88a321c5304', 'hex');
+  function playbackSimonKeys(seed) {
+    var raw = seed || Buffer.from('fc78e0a9657a0c748ce51559903ccf03510e51d3cff232d71343e88a321c5304', 'hex');
     var sequence = pair(0x046d678b, 0x3dc94c3a), keys = [];
     for (var i = 0; i < 4; i++) keys.push(pairReadLE(raw, i * 8));
     for (i = 4; i < 72; i++) {
@@ -134,25 +134,27 @@
     }
     return keys;
   }
-  function playbackArgus(query, body, ts, nonce) {
+  function playbackArgus(query, body, ts, nonce, registered) {
     var p = [], counters = [], device = [];
-    playbackVarint(p, 1, 1077940818); playbackVarint(p, 2, 2); playbackVarint(p, 3, nonce);
+    playbackVarint(p, 1, 1077940818); playbackVarint(p, 2, 2); playbackVarint(p, 3, registered ? nonce & 0x7fffffff : nonce);
     playbackText(p, 4, playbackParam(query, 'aid') || '1967');
     playbackText(p, 5, playbackParam(query, 'device_id'));
     playbackText(p, 6, '1611921764');
     playbackText(p, 7, playbackParam(query, 'version_name'));
-    playbackText(p, 8, 'v04.04.05-ov-android');
-    playbackVarint(p, 9, 134744640); playbackBlob(p, 10, Buffer.alloc(8));
+    playbackText(p, 8, registered ? 'v04.07.01-ml-android' : 'v04.04.05-ov-android');
+    playbackVarint(p, 9, registered ? 135135744 : 134744640); playbackBlob(p, 10, Buffer.alloc(8));
     playbackVarint(p, 11, 0); playbackVarint(p, 12, ts << 1);
     playbackBlob(p, 13, sm3(body.length ? md5(body) : Buffer.alloc(16)).slice(0, 6));
     playbackBlob(p, 14, sm3(query ? Buffer.from(query) : Buffer.alloc(16)).slice(0, 6));
     playbackVarint(counters, 1, 1); playbackVarint(counters, 2, 1);
     playbackVarint(counters, 3, 1); playbackVarint(counters, 7, 0xc792eccc);
-    playbackBlob(p, 15, Buffer.from(counters)); playbackText(p, 16, playbackParam(query, 'iid'));
+    playbackBlob(p, 15, Buffer.from(counters)); playbackText(p, 16, registered ? '' : playbackParam(query, 'iid'));
     playbackText(p, 20, 'none'); playbackVarint(p, 21, 738);
-    playbackText(device, 1, 'NX551J'); playbackVarint(device, 2, 8196); playbackVarint(device, 4, 0x80e0d800);
+    if (registered) { playbackText(device, 1, '25053RT47C'); playbackText(device, 2, '16'); playbackText(device, 3, 'update_64'); playbackVarint(device, 4, 2147483648); }
+    else { playbackText(device, 1, 'NX551J'); playbackVarint(device, 2, 8196); playbackVarint(device, 4, 0x80e0d800); }
     playbackBlob(p, 23, Buffer.from(device)); playbackVarint(p, 25, 2);
-    var plain = playbackPad(Buffer.from(p)), keys = playbackSimonKeys();
+    var registeredKey = Buffer.from('ac1adaae95a7af94a5114ab3b3a97dd80050aa0a39314c40528caec95256c28c', 'hex');
+    var plain = playbackPad(Buffer.from(p)), keys = playbackSimonKeys(registered ? sm3(Buffer.concat([registeredKey, Buffer.from('3ccc567b','hex'), registeredKey])) : null);
     for (var at = 0; at < plain.length; at += 16) {
       var a = pairReadLE(plain, at), b = pairReadLE(plain, at + 8);
       for (var i = 0; i < keys.length; i++) {
@@ -161,6 +163,14 @@
         a = b; b = next;
       }
       pairWriteLE(plain, at, a); pairWriteLE(plain, at + 8, b);
+    }
+    if (registered) {
+      var registeredMask = Buffer.from('d04ffdffd04ffdff','hex');
+      for (i = 0; i < plain.length; i++) plain[i] ^= registeredMask[i % 8];
+      var registeredFrame = Buffer.concat([registeredMask, plain]); registeredFrame.reverse();
+      registeredFrame = playbackPad(Buffer.concat([Buffer.from('a6e783ee7001100918','hex'), registeredFrame, Buffer.from('567b','hex')]));
+      var registeredCipher = crypto.createCipheriv('aes-128-cbc', md5(registeredKey.slice(0,16)), md5(registeredKey.slice(16))); registeredCipher.setAutoPadding(false);
+      return Buffer.concat([Buffer.from('3ccc','hex'), registeredCipher.update(registeredFrame), registeredCipher.final()]).toString('base64');
     }
     var mask = Buffer.from('f2f7fcfff2f7fcff', 'hex');
     var frame = Buffer.concat([mask, plain, Buffer.from('eafb2cfe8568519154', 'hex')]);
@@ -206,9 +216,25 @@
     });
     return result;
   }
+  function signSingleRegistered(values, body, stamp) {
+    var params = Object.assign({}, values, { _rticket: String(stamp) });
+    function escape(value) { return encodeURIComponent(String(value)).replace(/[!'()*]/g, function (c) { return '%' + c.charCodeAt(0).toString(16).toUpperCase(); }).replace(/%20/g, '+'); }
+    var query = Object.keys(params).sort().map(function (key) { return escape(key) + '=' + escape(params[key]); }).join('&');
+    var ts = Math.floor(stamp / 1000) >>> 0, payload = Buffer.alloc(20);
+    md5(Buffer.from(query)).copy(payload,0,0,4); if (body.length) md5(body).copy(payload,4,0,4);
+    Buffer.from([0,6,11,28]).copy(payload,12); payload.writeUInt32BE(ts,16);
+    var key = Buffer.from('44b9b9d9a4aef9fca493aa757ca3c2c4a496938f','hex');
+    for (var i=0;i<20;i++) payload[i] ^= key[i];
+    for (i=0;i<20;i++) payload[i] = reverse8(rol8(payload[i],4) ^ payload[(i+1)%20]) ^ 255 ^ 20;
+    return { query:query, headers:{
+      'X-Argus':playbackArgus(query,body,ts,random32(),true), 'X-Ladon':playbackLadon(ts,'8662',random32()),
+      'X-Gorgon':Buffer.concat([Buffer.from('8404401c0000','hex'),payload]).toString('hex'),
+      'X-Khronos':String(ts), 'X-SS-Req-Ticket':String(stamp), 'X-SS-STUB':md5(body).toString('hex').toUpperCase()
+    } };
+  }
   function internationalGorgon(query,body,ts,nonce){var q=md5(Buffer.from(query)),m=body.length?md5(body):Buffer.alloc(16),data=Buffer.alloc(20);q.copy(data,0,0,4);m.copy(data,4,0,4);data.writeUInt32LE(67503104,12);data.writeUInt32BE(ts>>>0,16);var key=[0x4a,0x40,0x16,(nonce>>>8)&255,0x47,0x6c,1,nonce&255],s=new Array(256);for(var i=0;i<256;i++)s[i]=i;var j=0;for(i=0;i<256;i++){j=(j+s[i]+key[i%8])&255;var swap=s[i];s[i]=s[j];s[j]=swap;}var ii=0; j=0;for(i=0;i<data.length;i++){ii=(ii+1)&255;j=(j+s[ii])&255;swap=s[ii];s[ii]=s[j];s[j]=swap;data[i]^=s[(s[ii]+s[j])&255];}for(i=0;i<data.length;i++){data[i]=rol8(data[i],4);var next=i<19?data[i+1]:data[0];data[i]=~(reverse8(data[i]^next)^20)&255;}return Buffer.concat([Buffer.from([0x84,4,nonce&255,(nonce>>>8)&255,0x40,1]),data]).toString('hex');}
   function signInternational(values,bodyBytes,stamp){var tuned=tune(values,bodyBytes,stamp),query=tuned.query,ts=Math.floor(tuned.stamp/1000)>>>0,raw=crypto.randomBytes(14),be=Buffer.alloc(4);be.writeUInt32BE(ts,0);var trace=(tun32(tuned.stamp).toString(16).padStart(8,'0')+'10'+raw.slice(6).toString('hex'));var h={'X-Khronos':String(ts),'X-SS-Req-Ticket':String(values._rticket),'X-Argus':le32(ts).toString('base64'),'X-Ladon':be.toString('base64'),'X-Helios':helios(ts,raw.readUInt32LE(2)),'X-Gorgon':internationalGorgon(query,bodyBytes,ts,raw.readUInt16LE(0)),'X-TT-Trace-Id':'00-'+trace+'-'+trace.slice(0,16)+'-01'};if(bodyBytes.length)h['X-SS-STUB']=md5(bodyBytes).toString('hex').toUpperCase();return {query:query,headers:h};}
   function tun32(value){return value>>>0;}
   function le32(value){var b=Buffer.alloc(4);b.writeUInt32LE(value>>>0,0);return b;}
-  module.exports={playbackArgus:playbackArgus,playbackLadon:playbackLadon,signPlayback:signPlayback,sign:sign,signInternational:signInternational,sm3:sm3,branch:branch,passportF13:passportF13,passportProto:passportProto,helios:helios,gorgon:gorgon,medusa:medusa,aesV3:aesV3,internationalGorgon:internationalGorgon};
+  module.exports={signSingleRegistered:signSingleRegistered,playbackArgus:playbackArgus,playbackLadon:playbackLadon,signPlayback:signPlayback,sign:sign,signInternational:signInternational,sm3:sm3,branch:branch,passportF13:passportF13,passportProto:passportProto,helios:helios,gorgon:gorgon,medusa:medusa,aesV3:aesV3,internationalGorgon:internationalGorgon};
 }());
