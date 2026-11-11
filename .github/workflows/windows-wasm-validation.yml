@@ -1,6 +1,9 @@
 name: Windows WASM playback validation
 on:
   workflow_dispatch:
+  push:
+    branches: [codex/windows-wasm-decoder]
+    paths: [desktop/wasm/**, scripts/build_windows_wasm.sh, .github/workflows/windows-wasm-validation.yml]
 permissions:
   contents: write
 jobs:
@@ -28,6 +31,7 @@ jobs:
           gh release create "$tag" desktop/wasm-runtime/* "$RUNNER_TEMP/hongguo-hevc-wasm/lgpl-relink.tar.gz" --draft --target "$GITHUB_SHA" --title "Windows WASM test $GITHUB_RUN_ID" --notes "Isolated Windows HEVC software playback validation. Not a production release."
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
   windows:
+    if: github.event_name == 'workflow_dispatch'
     needs: decoder
     runs-on: windows-2022
     steps:
