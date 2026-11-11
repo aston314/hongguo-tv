@@ -216,16 +216,16 @@
         },
         set: function (value) {
           if (!isWasm()) { dom[name] = value; return; }
-          if (name === 'currentTime') { var next = Number(value); if (!Number.isFinite(next) || next < 0) return; state.seeking = true; seekTarget = next; emit('seeking'); open(next); }
+          if (name === 'currentTime') { var next = Number(value); if (!Number.isFinite(next) || next < 0 || first && Math.abs(next - seekTarget) < .001) return; state.seeking = true; seekTarget = next; emit('seeking'); open(next); }
           else if (name === 'volume' || name === 'muted') { state[name] = name === 'volume' ? Math.max(0, Math.min(1, Number(value))) : !!value; dom[name] = state[name]; audioVolume(); emit('volumechange'); }
-          else if (name === 'playbackRate' || name === 'defaultPlaybackRate') { var rate = Number(value); if (!Number.isFinite(rate) || rate <= 0) return; state.currentTime = time(); state.playbackRate = rate; dom.playbackRate = rate; if (worker) open(state.currentTime); emit('ratechange'); }
+          else if (name === 'playbackRate' || name === 'defaultPlaybackRate') { var rate = Number(value); if (!Number.isFinite(rate) || rate <= 0 || rate === state.playbackRate) return; state.currentTime = time(); state.playbackRate = rate; dom.playbackRate = rate; if (worker) open(state.currentTime); emit('ratechange'); }
         }
       });
     });
     ['loadstart','loadedmetadata','durationchange','loadeddata','canplay','canplaythrough','play','playing','pause','waiting','stalled','progress','timeupdate','seeking','seeked','ended','error','emptied','volumechange','ratechange'].forEach(function (name) { dom.addEventListener(name, function () { if (!isWasm()) emit(name); }); });
     doc.getElementById = function (id) { return id === 'hero-video' ? proxy : originalLookup(id); };
     win.HongguoNativePlaybackAdapter = {
-      enabled: true, engine: 'windows', video: function () { return proxy; }, domVideo: function () { return isWasm() && canvas ? canvas : dom; }, isNative: function () { return false; },
+      enabled: true, engine: 'windows', startPositionApplied: function () { return isWasm(); }, video: function () { return proxy; }, domVideo: function () { return isWasm() && canvas ? canvas : dom; }, isNative: function () { return false; },
       setStartPosition: function (value) { if (isWasm()) seekTarget = Math.max(0, Number(value) || 0); },
       diagnostics: function () { return isWasm() ? { preferred_path: 'WASM', active_path: 'WASM', final_path: first ? '' : 'WASM', final_first_frame: !first, outcome: state.error ? 'failed' : first ? 'preparing' : 'playing' } : null; },
       nativeDiagnostics: function () { return isWasm() ? { engine: 'wasm', video_codec: sourceCodec, video_width: state.videoWidth, video_height: state.videoHeight, frame_drop_count: stats.dropped, avsync: stats.avsync } : {}; }

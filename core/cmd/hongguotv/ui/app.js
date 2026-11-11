@@ -1244,7 +1244,7 @@
     if (element.classList.contains('playback-custom-device-input') || element.classList.contains('playback-custom-device-action')) return 'playbackCustomDevice';
     if (element.classList.contains('account-input')) return 'accountInputs';
     if (element.classList.contains('app-update-action')) return 'appUpdates';
-    if (element.classList.contains('desktop-mini-titlebar-action')) return 'miniPlayerSettings';
+    if (element.classList.contains('desktop-mini-titlebar-action') || element.classList.contains('windows-playback-action')) return 'miniPlayerSettings';
     if (element.classList.contains('webos-update-notes')) return 'webosUpdateNotes';
     if (element.classList.contains('locale-action')) return 'localeActions';
     if (element.classList.contains('recommendation-direction-action')) return 'recommendationDirection';
@@ -8876,7 +8876,7 @@
     if (typeof maybeSkipRecommendationOrientation === 'function' && maybeSkipRecommendationOrientation(activePlayback, media.videoWidth, media.videoHeight)) return;
     var position = activePlayback.position;
     var adapter = typeof window !== 'undefined' ? window.HongguoNativePlaybackAdapter : null;
-    var nativeStartPosition = adapter && typeof adapter.isNative === 'function' && adapter.isNative();
+    var nativeStartPosition = adapter && (typeof adapter.isNative === 'function' && adapter.isNative() || typeof adapter.startPositionApplied === 'function' && adapter.startPositionApplied());
     if (!nativeStartPosition && position > 0 && Number.isFinite(media.duration)) media.currentTime = Math.min(position, Math.max(0, media.duration - .25));
     media.playbackRate = playbackPreferences.speed;
     updatePlaybackControls();
