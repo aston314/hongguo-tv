@@ -12,6 +12,7 @@ function fixture(platform='windows'){
   Worker:class {constructor(){this.sent=[];this.terminated=false;workers.push(this)}postMessage(v){this.sent.push(v)}terminate(){this.terminated=true}},
   AudioContext:class {constructor(){this.currentTime=0;this.state='running';this.destination={}}createGain(){return {gain:{value:1},connect(){}}}resume(){this.state='running';return Promise.resolve()}suspend(){this.state='suspended';return Promise.resolve()}close(){this.state='closed';return Promise.resolve()}}
  };
+ win.setTimeout=setTimeout;win.clearTimeout=clearTimeout;
  const settings=install(win);return {win,dom,workers,settings,nodes,proxy:win.document.getElementById('hero-video')};
 }
 test('Windows WASM is opt-in, saved separately, and never installs on Android/macOS/Linux/preview',()=>{
@@ -51,6 +52,17 @@ test('ByteVC2 is explicitly unsupported and switching back restores the HTML5 pa
  const f=fixture();f.settings.choose('wasm');f.proxy.src='one';f.proxy.load();f.proxy.setSourceCodec('bytevc2');
  assert.equal(f.proxy.error.code,4);assert.equal(f.settings.diagnostics().workers,0);
  f.settings.choose('default');f.proxy.src='two';f.proxy.load();assert.equal(f.proxy.error,undefined);assert.equal(f.settings.current(),'default');assert.equal(f.proxy.src,'two');
+});
+test('blocked Web Audio rejects autoplay and allows a subsequent user-initiated play',async()=>{
+ const f=fixture();f.settings.choose('wasm');f.proxy.src='one';
+ let allow=false;
+ const original=f.win.AudioContext.prototype.resume;
+ f.win.AudioContext.prototype.resume=function(){if(allow)return original.call(this);this.state='suspended';return new Promise(()=>{})};
+ f.proxy.load();
+ await assert.rejects(f.proxy.play(),{name:'NotAllowedError'});
+ assert.equal(f.proxy.paused,true);assert.equal(f.workers[0].sent.at(-1).type,'pause');
+ allow=true;await f.proxy.play();assert.equal(f.proxy.paused,false);
+ f.proxy.removeAttribute('src');
 });
 test('an early resume cannot decode until asynchronous WASM initialization has finished',async()=>{
  const vm=require('node:vm'),fs=require('node:fs');let finish,steps=0;const timers=[],messages=[];

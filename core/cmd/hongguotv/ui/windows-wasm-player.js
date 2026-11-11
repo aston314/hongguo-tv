@@ -187,7 +187,18 @@
         requestedPlay = true; state.paused = false; state.ended = false;
         if (!worker) open(state.currentTime);
         if (!context) return Promise.reject(Error('WASM unavailable'));
-        return context.resume().then(function () { send({ type: 'resume' }); emit('play'); if (!first && state.readyState >= 2) emit('playing'); if (!frameLoop) frameLoop = win.requestAnimationFrame(draw); });
+        var observed = generation, audio = context, timeout;
+        var resumed = audio.resume().then(function () { return true; });
+        var blocked = new Promise(function (resolve) { timeout = win.setTimeout(function () { resolve(false); }, 500); });
+        return Promise.race([resumed, blocked]).then(function (running) {
+          win.clearTimeout(timeout);
+          if (observed !== generation || !requestedPlay) { var aborted = Error('Playback replaced or paused'); aborted.name = 'AbortError'; throw aborted; }
+          if (!running || audio.state !== 'running') {
+            state.paused = true; requestedPlay = false; send({ type: 'pause' }); emit('pause');
+            var denied = Error('Playback requires a user gesture'); denied.name = 'NotAllowedError'; throw denied;
+          }
+          send({ type: 'resume' }); emit('play'); if (!first && state.readyState >= 2) emit('playing'); if (!frameLoop) frameLoop = win.requestAnimationFrame(draw);
+        }, function (error) { win.clearTimeout(timeout); throw error; });
       },
       pause: function () { if (!isWasm()) return dom.pause(); state.currentTime = time(); state.paused = true; requestedPlay = false; if (context) context.suspend().catch(function () {}); send({ type: 'pause' }); emit('pause'); },
       setSourceCodec: function (value) { sourceCodec = String(value || ''); if (isWasm() && /^(bytevc2|bvc2)$/i.test(sourceCodec)) error('codec'); },
