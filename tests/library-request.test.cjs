@@ -65,6 +65,47 @@ test('normal record metadata and schema types remain unchanged', () => {
   assert.notEqual(result.tags, drama.tags, 'record snapshot must not alias the detail tag array');
 });
 
+test('radar numeric scores survive detail merging and save as string ratings for every record action', async () => {
+  for (const owner of ['', '1234567890123456789']) {
+    const {c, requests, notices} = fixture(owner);
+    vm.runInContext(fn('radarOfficialModel'), c);
+    const growth = {id: '7690163276214176792', title: '真人剧集', type: 'real', score: 9.5};
+    const detail = {series_id: growth.id, title: growth.title, episode_count: 13}; // score is omitted by Go when empty
+    const official = c.radarOfficialModel({id: growth.id, title: growth.title}, 0, 'real', {[growth.id]: growth});
+    const sources = [official, {...growth, series_id: growth.id}]; // official and growth radar launch paths
+    for (const source of sources) {
+      const playing = {...source, ...detail};
+      const before = JSON.stringify(playing);
+      c.activePlayback = {item: playing, started: true, lastWrite: 0, episode: 3, vid: '7654933376318589977'};
+      assert.equal(await c.saveProgress(true, false), true);
+      for (const action of ['favorite', 'like']) {
+        assert.equal(await c.changeLibrary({action, drama: c.basicDrama(playing), value: true, episode: 3, video_id: c.activePlayback.vid}), true);
+      }
+      assert.equal(JSON.stringify(playing), before, 'record conversion must not mutate player or radar data');
+    }
+    assert.equal(requests.length, 6);
+    for (const {request} of requests) {
+      assert.equal(request.drama.score, '9.5');
+      assert.equal(request.owner_id, owner);
+      assert.equal(request.episode, 3);
+      assert.equal(request.video_id, '7654933376318589977');
+    }
+    assert.equal(notices.length, 0);
+    assert.equal(c.basicDrama({...official, score: '9.8'}).score, '9.8', 'detail string rating still wins');
+  }
+});
+
+test('missing or malformed optional ratings cannot invalidate a progress record', async () => {
+  for (const score of [undefined, null, true, false, {}, {value: 9.5}, [], ['9.5'], NaN, Infinity, -Infinity, 0]) {
+    const {c, requests} = fixture();
+    const item = {series_id: '7690163276214176792', title: '记录测试', score};
+    c.activePlayback = {item, started: true, lastWrite: 0, episode: 1, vid: '7654933376318589977'};
+    assert.equal(await c.saveProgress(true, false), true);
+    assert.equal(requests[0].request.drama.score, score === 0 ? '0' : undefined);
+    assert.equal(item.score, score, 'leave source metadata untouched');
+  }
+});
+
 test('server validation failures stay visible and later progress writes can recover', async () => {
   const {c, notices} = fixture();
   c.activePlayback = {item: {series_id: '123', title: 'fixture'}, started: true, lastWrite: 0, episode: 1, vid: '456'};

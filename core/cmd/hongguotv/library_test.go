@@ -182,6 +182,8 @@ func TestLibraryRequestDecodeErrorsAreSpecificAndPrivate(t *testing.T) {
 		{"oversized detail", `{"action":"progress","drama":{"intro":"` + strings.Repeat("剧", libraryRequestLimit) + `"}}`, "LIBRARY_REQUEST_TOO_LARGE", "", 413},
 		{"oversized trailing whitespace", `{"action":"clear","kind":"history"}` + strings.Repeat(" ", libraryRequestLimit), "LIBRARY_REQUEST_TOO_LARGE", "", 413},
 		{"wrong nested type", `{"action":"progress","drama":{"tags":"private-value"}}`, "LIBRARY_FIELD_TYPE", "drama.tags", 400},
+		{"numeric score", `{"action":"progress","drama":{"score":9.5}}`, "LIBRARY_FIELD_TYPE", "drama.score", 400},
+		{"object score", `{"action":"progress","drama":{"score":{"private-field":"private-value"}}}`, "LIBRARY_FIELD_TYPE", "drama.score", 400},
 		{"wrong episode type", `{"action":"progress","episode":"private-value"}`, "LIBRARY_FIELD_TYPE", "episode", 400},
 		{"unknown nested field", `{"action":"progress","drama":{"private-field":"private-value"}}`, "LIBRARY_FIELD_UNKNOWN", "", 400},
 		{"unknown root field", `{"action":"progress","private-field":"private-value"}`, "LIBRARY_FIELD_UNKNOWN", "", 400},

@@ -3559,6 +3559,11 @@
     // Keep the full detail and its episode arrays untouched for the player.
     if (typeof result.intro === 'string') result.intro = Array.from(result.intro).slice(0, 1000).join('');
     if (Array.isArray(result.tags)) result.tags = result.tags.slice(0, 8);
+    // Radar ratings are numeric and can survive a detail merge when the
+    // detail has no score. The library schema stores this optional field as
+    // text; malformed ratings must not prevent saving playback progress.
+    if (typeof result.score === 'number' && isFinite(result.score)) result.score = String(result.score);
+    else if (typeof result.score !== 'string') delete result.score;
     return result;
   }
   function followState(item) {
