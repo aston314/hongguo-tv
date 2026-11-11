@@ -915,3 +915,24 @@ test('preparation messages cannot attach late errors to another generation or ac
     assert.equal(old.preparationError,undefined);
   }
 });
+
+test('creator albums use per-upload IDs and type 1001 for first play, manual switches, auto-next and reverse selection',async()=>{
+  for(const automatic of [false,true]) {
+    const f=fixture();f.gate.resolve();
+    const albumID='7699818221737610265';
+    const card={series_id:albumID,title:'合集测试',content_type:'1003',episode_count:3,vid:'stale-preview'};
+    const detail={...card,vid:'7699812380099742744',vid_list:['7699812380099742744','7699818218021473342','7699812379890027544']};
+    f.c.feedItems=[card];f.c.activePlayback=null;
+    let details=0;f.c.getDetail=async()=>{details++;return detail;};f.c.firstVid=x=>x.vid||x.vid_list[0];
+    vm.runInContext(source.match(/  function playbackContentType\([^]*?\n  \}/)[0],f.c);
+    for(const episode of [1,2,3,1]) {
+      const old=f.c.activePlayback;if(old){old.started=true;old.completed=automatic;}
+      f.c.playFeedItem(0,episode,0,automatic&&old?old:null);await settlePlayback(f,30);
+      assert.equal(f.c.activePlayback.vid,detail.vid_list[episode-1]);
+      assert.equal(f.c.activePlayback.item.series_id,albumID);assert.equal(f.c.activePlayback.item.content_type,'1003');
+      const q=new URL('http://fixture'+f.resolverURLs.at(-1)).searchParams;
+      assert.equal(q.get('vid'),detail.vid_list[episode-1]);assert.equal(q.get('content_type'),'1001');
+    }
+    assert.equal(details,4,'even a first-episode preview must load the complete album directory');
+  }
+});

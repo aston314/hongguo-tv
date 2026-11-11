@@ -4,6 +4,7 @@ import (
 	"context"
 	"embed"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io/fs"
@@ -279,7 +280,17 @@ func (s *server) seriesDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	seriesID := r.URL.Query().Get("series_id")
-	result, err := s.hongguo.SeriesDetail(r.Context(), seriesID)
+	var result SeriesDetailResult
+	var err error
+	if r.URL.Query().Get("content_type") == creatorAlbumContentType {
+		result, err = s.accounts.CreatorAlbumDetail(r.Context(), seriesID)
+	} else {
+		result, err = s.hongguo.SeriesDetail(r.Context(), seriesID)
+	}
+	if errors.Is(err, errAccountChanged) {
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	}
 	if err != nil {
 		writeError(w, http.StatusBadGateway, err.Error())
 		return

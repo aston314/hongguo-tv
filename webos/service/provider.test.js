@@ -40,6 +40,8 @@ var fallbackResponseBody = '';
 var mediaDownloadRequests = 0;
 var videoSpade = '';
 var videoModelStatus = 200;
+var albumFixture = require('../../core/cmd/hongguotv/testdata/creator-album.json');
+var albumRequests = [];
 var html = '<script>window._ROUTER_DATA=' + JSON.stringify({ loaderData: { detail_page: {
   seriesDetail: {
     series_id: seriesID,
@@ -74,6 +76,10 @@ https.request = function (options) {
     var body = html;
     var responseStatus = 200;
     var responseHeaders = {};
+    if (options.path.indexOf('/novel/player/album_detail/v1/') >= 0) {
+      albumRequests.push({ options: options, body: JSON.parse(Buffer.concat(requestChunks).toString('utf8')) });
+      body = JSON.stringify(albumFixture);
+    }
     if (options.path.indexOf('/service/2/device_register/') >= 0) {
       deviceRegisterRequests++;
       deviceRegistration = { options: options, query: Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams), body: Buffer.concat(requestChunks) };
@@ -99,7 +105,8 @@ https.request = function (options) {
       var playbackQuery = Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams);
       var playbackBody = JSON.parse(Buffer.concat(requestChunks).toString('utf8'));
       playbackRequests.push({ options: options, query: playbackQuery, body: playbackBody });
-      var videoID = playbackBody.mixed_video_id_map['1004'][0], entry = {};
+      var playbackType = Object.keys(playbackBody.mixed_video_id_map)[0];
+      var videoID = playbackBody.mixed_video_id_map[playbackType][0], entry = {};
       if (videoModelFallback) entry[videoID] = { video_model: Object.assign({}, videoModelInline || {}, { fallback_api: videoModelFallback }) };
       else entry[videoID] = { video_model: { video_list: [{ main_url: 'https://media.example.test/episode.mp4', video_meta: { vheight: 720, definition: '720P' }, encrypt_info: videoSpade ? { spade_a: videoSpade } : {} }] } };
       if (videoModelEmptyResponses > 0) { videoModelEmptyResponses--; body = ''; }
@@ -250,6 +257,12 @@ async function run() {
     assert.strictEqual(detail.related[0].series_id, '4234567890123456789');
     assert.strictEqual(detail.reviews[0].content, '真实剧评');
     assert.strictEqual(detail.reviews[0].rating, 9);
+    var albumDetail = await provider.detail(albumFixture.data.album_data.album_id_str, '1003');
+    assert.strictEqual(albumDetail.episodes.length, 15);
+    assert.strictEqual(albumDetail.vid_list[14], '7704677415305350168');
+    assert.strictEqual(albumDetail.content_type, '1003');
+    assert.deepStrictEqual(albumRequests[0].body, { album_id: albumDetail.series_id, series_ids: [], need_video_detail_info: true, biz_param: { video_platform: 3 } });
+    assert(albumRequests[0].options.headers['X-Gorgon'], 'album directory is signed');
 
     var recommendation = await provider.recommend({channel:'16'});
     assert.strictEqual(recommendation.items[0].vid, '2234567890123456789', 'first episode retains its direct playback path');
@@ -593,6 +606,15 @@ async function run() {
     assert.strictEqual(blockedHost.error.code, 'FALLBACK_API_BLOCKED');
     assert.strictEqual(fallbackRequests.length, 2, 'untrusted fallback URL is never requested');
     videoModelFallback = '';
+    videoModelInline = null; videoSpade = ''; videoModelStatus = 200; videoModelEmptyResponses = 0; videoTabEnabled = false;
+    var albumStart = playbackRequests.length;
+    var albumFirst = await provider.prepare(albumDetail.series_id, albumDetail.vid, '', true, 'full', false, null, '1001');
+    var albumCached = await provider.prepare(albumDetail.series_id, albumDetail.vid, '', true, 'full', false, null, '1001');
+    assert.strictEqual(albumFirst.path, albumCached.path, 'creator prefetch/foreground share their own cache');
+    assert.deepStrictEqual(playbackRequests[albumStart].body.mixed_video_id_map, { '1001': [albumDetail.vid] });
+    var defaultSource = await provider.prepare(albumDetail.series_id, albumDetail.vid, '', true, 'full', false);
+    assert.notStrictEqual(defaultSource.path, albumFirst.path, 'different content types never share cache entries');
+    assert.deepStrictEqual(playbackRequests[playbackRequests.length - 1].body.mixed_video_id_map, { '1004': [albumDetail.vid] });
     console.log('webOS provider registered playback, map-shaped video lists, safe fallback_api and registration retry: PASS');
   } finally {
     provider.closeCache();

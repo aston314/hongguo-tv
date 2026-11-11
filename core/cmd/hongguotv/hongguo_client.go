@@ -1204,6 +1204,10 @@ func normalizeDrama(value any) (Drama, bool) {
 			object = nestedObject
 		}
 	}
+	if firstNonEmpty(object["content_type"], object["contentType"]) == creatorAlbumContentType {
+		album, _ := asMap(object["album_info"])
+		return normalizeCreatorAlbum(album, object)
+	}
 	id := firstNonEmpty(asString(object["series_id_str"]), asString(object["series_id"]), asString(object["seriesId"]), asString(object["book_id"]), asString(object["id"]))
 	title := firstNonEmpty(asString(object["series_title"]), asString(object["series_name"]), asString(object["title"]), "未命名短剧")
 	if id == "" {
