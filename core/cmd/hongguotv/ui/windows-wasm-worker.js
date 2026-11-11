@@ -1,6 +1,6 @@
 /* Application-owned decoder worker. Never logs media URLs or raw codec errors. */
 'use strict';
-let decoder, generation = 0, clock = 0, credits = 0, timer = null, paused = true, eof = false;
+let decoder, opened = false, generation = 0, clock = 0, credits = 0, timer = null, paused = true, eof = false;
 let source = '', length = 0, position = 0, block = null, blockStart = 0, latest = 0;
 const BLOCK = 1024 * 1024;
 function message(value, transfers) { self.postMessage(value, transfers || []); }
@@ -33,7 +33,7 @@ function seek(offset, whence) {
   position = next; return position;
 }
 function schedule() {
-  if (timer !== null || paused || eof) return;
+  if (timer !== null || !opened || !decoder || paused || eof) return;
   timer = setTimeout(pump, 0);
 }
 function pump() {
@@ -67,7 +67,7 @@ function pump() {
 self.onmessage = async function (event) {
   const value = event.data;
   if (value.type === 'open') {
-    generation = value.generation; paused = true; eof = false; credits = 8; clock = value.at || 0; latest = clock;
+    generation = value.generation; opened = false; paused = false; eof = false; credits = 8; clock = value.at || 0; latest = clock;
     clearTimeout(timer); timer = null; source = value.url; block = null; position = 0;
     try {
       const url = new URL(source);
@@ -81,7 +81,7 @@ self.onmessage = async function (event) {
       const result = decoder._hg_open(clock);
       if (result < 0) { fail(result === -4 ? 'codec' : 'open'); return; }
       message({ type: 'meta', generation, width: decoder._hg_width(), height: decoder._hg_height(), duration: decoder._hg_duration(), audio: !!decoder._hg_audio() });
-      paused = false; schedule();
+      opened = true; schedule();
     } catch (_) { fail('open'); }
   } else if (value.generation === generation) {
     if (value.type === 'clock') { clock = value.at; schedule(); }

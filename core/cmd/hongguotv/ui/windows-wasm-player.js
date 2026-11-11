@@ -45,7 +45,7 @@
         gl.uniform2f(gl.getUniformLocation(program, 'range'), frame.fullrange ? 0 : 16 / 255, frame.fullrange ? 1 : 255 / 219);
         gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
       },
-      close: function () { textures.forEach(function (texture) { gl.deleteTexture(texture); }); gl.deleteBuffer(buffer); gl.deleteProgram(program); gl.deleteShader(vertex); gl.deleteShader(fragment); }
+      close: function () { textures.forEach(function (texture) { gl.deleteTexture(texture); }); gl.deleteBuffer(buffer); gl.deleteProgram(program); gl.deleteShader(vertex); gl.deleteShader(fragment); var lose = gl.getExtension('WEBGL_lose_context'); if (lose) lose.loseContext(); }
     };
   }
   function install(win) {
