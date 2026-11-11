@@ -9325,13 +9325,13 @@
   if (window.HongguoWindowsDecoder) {
     var windowsDecoder = window.HongguoWindowsDecoder;
     document.getElementById('windows-playback-settings').classList.remove('is-hidden');
-    function renderWindowsDecoder() {
+    var renderWindowsDecoder = function () {
       document.querySelectorAll('.windows-playback-action').forEach(function (button) {
         var selected = button.getAttribute('data-mode') === windowsDecoder.mode();
         button.classList.toggle('account-primary', selected);
         button.setAttribute('aria-pressed', selected ? 'true' : 'false');
       });
-    }
+    };
     renderWindowsDecoder();
     document.querySelectorAll('.windows-playback-action').forEach(function (button) {
       button.addEventListener('click', function () {
