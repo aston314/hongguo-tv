@@ -1,6 +1,11 @@
 name: Windows WASM playback validation
 on:
   workflow_dispatch:
+    inputs:
+      decoder_tag:
+        description: Existing private source-built decoder test tag (empty rebuilds it)
+        type: string
+        default: ""
   push:
     branches: [codex/windows-wasm-decoder]
     paths: [desktop/wasm/**, scripts/build_windows_wasm.sh, .github/workflows/windows-wasm-validation.yml]
@@ -8,6 +13,7 @@ permissions:
   contents: write
 jobs:
   decoder:
+    if: inputs.decoder_tag == ''
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.release.outputs.tag }}
@@ -31,7 +37,7 @@ jobs:
           gh release create "$tag" desktop/wasm-runtime/* "$RUNNER_TEMP/hongguo-hevc-wasm/lgpl-relink.tar.gz" --draft --target "$GITHUB_SHA" --title "Windows WASM test $GITHUB_RUN_ID" --notes "Isolated Windows HEVC software playback validation. Not a production release."
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
   windows:
-    if: github.event_name == 'workflow_dispatch'
+    if: always() && github.event_name == 'workflow_dispatch' && (needs.decoder.result == 'success' || inputs.decoder_tag != '')
     needs: decoder
     runs-on: windows-2022
     steps:
@@ -51,7 +57,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p desktop/wasm-runtime
-          gh release download "${{ needs.decoder.outputs.tag }}" --dir desktop/wasm-runtime
+          gh release download "${{ inputs.decoder_tag || needs.decoder.outputs.tag }}" --dir desktop/wasm-runtime
       - name: Verify and build Windows test application
         shell: bash
         env:
@@ -77,4 +83,4 @@ jobs:
         run: |
           shopt -s nullglob
           files=(desktop/dist/*.zip desktop/dist/*.sha256 desktop/dist/wasm-validation*.json)
-          if ((${#files[@]})); then gh release upload --clobber "${{ needs.decoder.outputs.tag }}" "${files[@]}"; fi
+          if ((${#files[@]})); then gh release upload --clobber "${{ inputs.decoder_tag || needs.decoder.outputs.tag }}" "${files[@]}"; fi
