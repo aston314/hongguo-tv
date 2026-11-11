@@ -52,7 +52,7 @@ func runWindowsWasmProbe() error {
 			return
 		}
 		name := strings.TrimPrefix(r.URL.Path, "/minireel-proxy/media/")
-		if r.URL.Path != "/minireel-proxy/media/"+name || name != "hevc720.mp4" && name != "hevc1080.mp4" && name != "h264.mp4" {
+		if r.URL.Path != "/minireel-proxy/media/"+name || name != "hevc720.mp4" && name != "hevc1080.mp4" && name != "h264.mp4" && name != "real720.mp4" && name != "real1080.mp4" {
 			http.NotFound(w, r)
 			return
 		}
@@ -92,7 +92,8 @@ func runWindowsWasmProbe() error {
 		}
 		if r.URL.Path == "/wasm-probe.html" {
 			config, _ := json.Marshal(map[string]interface{}{"platform": "windows", "wasmDecoder": true, "mediaBase": server.URL})
-			fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><script>window.HongguoDesktop=%s;</script></head><body style="background:#111;color:white"><video id="hero-video" style="width:960px;height:540px"></video><pre id="results"></pre><script src="/windows-wasm-player.js"></script><script src="/__wasm_probe.js"></script></body></html>`, config)
+			_, sampleError := os.Stat(filepath.Join(media, "real1080.mp4"))
+			fmt.Fprintf(w, `<!doctype html><html><head><meta charset="utf-8"><script>window.HongguoDesktop=%s;window.HongguoWasmProbeReal=%t;</script></head><body style="background:#111;color:white"><video id="hero-video" style="width:960px;height:540px"></video><pre id="results"></pre><script src="/windows-wasm-player.js"></script><script src="/__wasm_probe.js"></script></body></html>`, config, sampleError == nil)
 			return
 		}
 		host.proxy(w, r)

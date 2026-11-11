@@ -6,6 +6,10 @@ on:
         description: Existing private source-built decoder test tag (empty rebuilds it)
         type: string
         default: ""
+      sample_tag:
+        description: Optional private draft containing real720.mp4 and real1080.mp4 test clips
+        type: string
+        default: ""
   push:
     branches: [codex/windows-wasm-decoder]
     paths: [desktop/wasm/**, scripts/build_windows_wasm.sh, .github/workflows/windows-wasm-validation.yml]
@@ -59,7 +63,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p desktop/wasm-runtime
-          gh release download "${{ inputs.decoder_tag || needs.decoder.outputs.tag }}" --dir desktop/wasm-runtime --clobber
+          gh release download "${{ inputs.decoder_tag || needs.decoder.outputs.tag }}" --pattern 'decoder.*' --pattern '*.txt' --pattern 'lgpl-relink.tar.gz' --dir desktop/wasm-runtime --clobber
+      - name: Get optional private real-media fixtures
+        if: inputs.sample_tag != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SAMPLE_TAG: ${{ inputs.sample_tag }}
+        run: |
+          gh release download "$SAMPLE_TAG" --pattern 'real720.mp4' --pattern 'real1080.mp4' --dir "$RUNNER_TEMP/wasm-real-media"
+          echo "HONGGUO_WASM_REAL_MEDIA=$RUNNER_TEMP/wasm-real-media" >> "$GITHUB_ENV"
       - name: Verify and build Windows test application
         shell: bash
         env:

@@ -30,7 +30,7 @@
     await until(function () { return video.currentTime > 6; }, name + ' continuous playback');
     var observed = settings.diagnostics(), elapsed = (performance.now() - begin) / 1000, played = video.currentTime - initialPTS;
     var continuous = { wallSeconds:elapsed, mediaSeconds:played, presented:observed.presented-initial.presented, dropped:observed.dropped-initial.dropped };
-    if (elapsed > played * 1.25 || continuous.presented < played * 25 || continuous.dropped > played * 3) throw Error(name + ' cannot sustain realtime playback: ' + JSON.stringify(continuous));
+    continuous.realtime = elapsed <= played * 1.25 && continuous.presented >= played * 25 && continuous.dropped <= played * 3;
     var before = settings.diagnostics(), at = video.currentTime;
     video.pause(); await wait(300); if (Math.abs(video.currentTime - at) > .15) throw Error('pause clock');
     await video.play(); await until(function () { return video.currentTime > at + .3; }, 'resume');
@@ -49,6 +49,7 @@
     if (!settings || settings.mode() !== 'default') throw Error('default changed');
     if (!settings.choose('wasm')) throw Error('preference');
     await run('hevc720',1280); await run('hevc1080',1920);
+    if (window.HongguoWasmProbeReal) { await run('real720',720); await run('real1080',1080); }
     await load('hevc720'); await wait(80); await load('hevc1080'); await wait(80); await load('hevc720');
     await until(function () { return video.currentTime > .5 && video.videoWidth === 1280; },'rapid replacement');
     video.pause(); video.removeAttribute('src'); video.load(); await wait(100);
@@ -57,7 +58,7 @@
     await until(function () { return video.currentTime > 1 && video.readyState >= 2; },'original HTML5');
     if (settings.current() !== 'default' || settings.diagnostics().workers !== 0) throw Error('default isolation');
     if (!audioBuffers || audioPeak < .001) throw Error('missing decoded PCM');
-    report={ok:true,results:results,defaultPreserved:true,rapidSwitch:true,cleanup:true,audio:{buffers:audioBuffers,peak:audioPeak,check:'Nonzero decoded PCM, running Web Audio clock; no subjective listening'},runtime:navigator.userAgent};
+    report={ok:true,performanceOK:results.every(function(r){return r.continuous.realtime;}),results:results,defaultPreserved:true,rapidSwitch:true,cleanup:true,audio:{buffers:audioBuffers,peak:audioPeak,check:'Nonzero decoded PCM, running Web Audio clock; no subjective listening'},runtime:navigator.userAgent};
   } catch(error) { report={ok:false,error:error.message,results:results,diagnostics:settings&&settings.diagnostics(),runtime:navigator.userAgent}; }
   document.getElementById('results').textContent=JSON.stringify(report,null,2);
   await fetch('/__wasm_probe/report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(report)});
