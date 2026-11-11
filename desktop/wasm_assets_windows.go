@@ -5,21 +5,27 @@ package main
 import (
 	"bytes"
 	"embed"
+	"io"
 	"net/http"
-	"runtime"
 	"strings"
 	"time"
 )
 
-//go:embed wasm-runtime/*
+// Keep source/relink archives outside the executable; packaging ships them
+// alongside it. README.txt also permits development without generated assets.
+//
+//go:embed wasm-runtime/[dFNR]*
 var wasmAssets embed.FS
 
 func desktopWasmAvailable() bool {
-	if runtime.GOOS != "windows" {
+	f, err := wasmAssets.Open("wasm-runtime/decoder.wasm")
+	if err != nil {
 		return false
 	}
-	b, err := wasmAssets.ReadFile("wasm-runtime/decoder.wasm")
-	return err == nil && len(b) > 8 && bytes.Equal(b[:4], []byte{0, 'a', 's', 'm'})
+	defer f.Close()
+	var header [8]byte
+	_, err = io.ReadFull(f, header[:])
+	return err == nil && bytes.Equal(header[:], []byte{0, 'a', 's', 'm', 1, 0, 0, 0})
 }
 func serveDesktopWasm(w http.ResponseWriter, r *http.Request) bool {
 	if !strings.HasPrefix(r.URL.Path, "/windows-wasm/") {

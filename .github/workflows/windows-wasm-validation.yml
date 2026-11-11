@@ -11,6 +11,8 @@ on:
     paths: [desktop/wasm/**, scripts/build_windows_wasm.sh, .github/workflows/windows-wasm-validation.yml]
 permissions:
   contents: write
+env:
+  PYTHONUTF8: "1"
 jobs:
   decoder:
     if: inputs.decoder_tag == ''
@@ -66,6 +68,8 @@ jobs:
           python3 scripts/desktop_metadata.py --github-env "$GITHUB_ENV"
           node --test tests/*.test.cjs
           go test ./core/...
+          node desktop/frontend/build.mjs
+          (cd desktop && go test ./... && go vet ./...)
           go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
       - name: Package private Windows test application
         shell: bash
