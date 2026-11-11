@@ -99,15 +99,108 @@
   function sign(values,bodyBytes,stamp,deviceID,version){var tuned=tune(values,bodyBytes,stamp),query=tuned.query,b=tuned.branch,ts=Math.floor(stamp/1000)>>>0,n=[random32(),random32(),random32(),random32()],med=medusa(query,ts,n[0],n[1],n[2],deviceID,b.iv,b.q,b.m,version),h={
     'X-Khronos':String(ts),'X-SS-Req-Ticket':String(values._rticket),'X-Helios':helios(ts,n[3]),'X-Medusa':med.toString('base64'),'X-Gorgon':gorgon(query,bodyBytes,ts,n[0]&65535)
   };if(bodyBytes.length)h['X-SS-STUB']=b.m.toString('hex').toUpperCase();return {query:query,headers:h};}
+  // Playback 551 protocol uses the existing SM3 and 32-bit-pair arithmetic so
+  // this service also runs on webOS Node versions without native 64-bit integers.
+  function playbackPad(data) {
+    var n = 16 - data.length % 16;
+    return Buffer.concat([data, Buffer.alloc(n, n)]);
+  }
+  function playbackParam(query, name) {
+    var parts = query.split('&');
+    for (var i = 0; i < parts.length; i++) {
+      var at = parts[i].indexOf('='), key = at < 0 ? parts[i] : parts[i].slice(0, at);
+      try {
+        if (decodeURIComponent(key.replace(/\+/g, ' ')) === name) return decodeURIComponent((at < 0 ? '' : parts[i].slice(at + 1)).replace(/\+/g, ' '));
+      } catch (ignored) {}
+    }
+    return '';
+  }
+  function playbackVarint(out, field, value) {
+    appendVarint(out, field * 8); appendVarint(out, value >>> 0);
+  }
+  function playbackBlob(out, field, value) {
+    appendVarint(out, field * 8 + 2); appendVarint(out, value.length);
+    Array.prototype.push.apply(out, value);
+  }
+  function playbackText(out, field, value) { playbackBlob(out, field, Buffer.from(value)); }
+  function playbackSimonKeys() {
+    var raw = Buffer.from('fc78e0a9657a0c748ce51559903ccf03510e51d3cff232d71343e88a321c5304', 'hex');
+    var sequence = pair(0x046d678b, 0x3dc94c3a), keys = [];
+    for (var i = 0; i < 4; i++) keys.push(pairReadLE(raw, i * 8));
+    for (i = 4; i < 72; i++) {
+      var x = pairXor(pairRotr(keys[i - 1], 3), keys[i - 3]);
+      var bit = pairRotr(sequence, (i - 4) % 62).lo & 1;
+      keys.push(pairXor(pairXor(pairXor(pair(~keys[i - 4].lo, ~keys[i - 4].hi), x), pairRotr(x, 1)), pair(bit ^ 3, 0)));
+    }
+    return keys;
+  }
+  function playbackArgus(query, body, ts, nonce) {
+    var p = [], counters = [], device = [];
+    playbackVarint(p, 1, 1077940818); playbackVarint(p, 2, 2); playbackVarint(p, 3, nonce);
+    playbackText(p, 4, playbackParam(query, 'aid') || '1967');
+    playbackText(p, 5, playbackParam(query, 'device_id'));
+    playbackText(p, 6, '1611921764');
+    playbackText(p, 7, playbackParam(query, 'version_name'));
+    playbackText(p, 8, 'v04.04.05-ov-android');
+    playbackVarint(p, 9, 134744640); playbackBlob(p, 10, Buffer.alloc(8));
+    playbackVarint(p, 11, 0); playbackVarint(p, 12, ts << 1);
+    playbackBlob(p, 13, sm3(body.length ? md5(body) : Buffer.alloc(16)).slice(0, 6));
+    playbackBlob(p, 14, sm3(query ? Buffer.from(query) : Buffer.alloc(16)).slice(0, 6));
+    playbackVarint(counters, 1, 1); playbackVarint(counters, 2, 1);
+    playbackVarint(counters, 3, 1); playbackVarint(counters, 7, 0xc792eccc);
+    playbackBlob(p, 15, Buffer.from(counters)); playbackText(p, 16, playbackParam(query, 'iid'));
+    playbackText(p, 20, 'none'); playbackVarint(p, 21, 738);
+    playbackText(device, 1, 'NX551J'); playbackVarint(device, 2, 8196); playbackVarint(device, 4, 0x80e0d800);
+    playbackBlob(p, 23, Buffer.from(device)); playbackVarint(p, 25, 2);
+    var plain = playbackPad(Buffer.from(p)), keys = playbackSimonKeys();
+    for (var at = 0; at < plain.length; at += 16) {
+      var a = pairReadLE(plain, at), b = pairReadLE(plain, at + 8);
+      for (var i = 0; i < keys.length; i++) {
+        var r1 = pairRotl(b, 1), r8 = pairRotl(b, 8);
+        var next = pairXor(pairXor(pairXor(a, pair(r1.lo & r8.lo, r1.hi & r8.hi)), pairRotl(b, 2)), keys[i]);
+        a = b; b = next;
+      }
+      pairWriteLE(plain, at, a); pairWriteLE(plain, at + 8, b);
+    }
+    var mask = Buffer.from('f2f7fcfff2f7fcff', 'hex');
+    var frame = Buffer.concat([mask, plain, Buffer.from('eafb2cfe8568519154', 'hex')]);
+    for (i = 8; i < frame.length; i++) frame[i] ^= mask[i % 8];
+    frame.reverse();
+    frame = playbackPad(Buffer.concat([frame, Buffer.from([0x61, 0x6f])]));
+    var cipher = crypto.createCipheriv('aes-128-cbc', Buffer.from('d31e3718288a1027baab59f146a09a9c', 'hex'), Buffer.from('ea180a0336ed352fcd24e4d50018ae54', 'hex'));
+    cipher.setAutoPadding(false);
+    return Buffer.concat([Buffer.from([0xf2, 0x81]), cipher.update(frame), cipher.final()]).toString('base64');
+  }
+  function playbackLadon(ts, aid, nonce) {
+    var seed = le32(nonce), raw = Buffer.from(md5(Buffer.concat([seed, Buffer.from(aid)])).toString('hex'));
+    var k = pairReadLE(raw, 0), pending = [pairReadLE(raw, 8), pairReadLE(raw, 16), pairReadLE(raw, 24)], keys = [];
+    for (var i = 0; i < 34; i++) {
+      keys.push(k);
+      var x = pairXor(pairAdd(pairRotr(pending[0], 8), k), pair(i, 0));
+      pending = [pending[1], pending[2], x]; k = pairXor(x, pairRotl(k, 3));
+    }
+    var plain = playbackPad(Buffer.from(String(ts) + '-1611921764-' + aid));
+    for (var at = 0; at < plain.length; at += 16) {
+      var a = pairReadLE(plain, at), b = pairReadLE(plain, at + 8);
+      for (i = 0; i < keys.length; i++) {
+        b = pairXor(keys[i], pairAdd(a, pairRotr(b, 8))); a = pairXor(b, pairRotl(a, 3));
+      }
+      pairWriteLE(plain, at, a); pairWriteLE(plain, at + 8, b);
+    }
+    return Buffer.concat([seed, plain]).toString('base64');
+  }
   // Playback shares the verified branch-2 primitives, but its version and
   // timestamps belong to this request, never to a logged-in account.
   function signPlayback(values,bodyBytes,stamp,deviceID) {
     values=Object.assign({},values,{ts:String(Math.floor(stamp/1000))});
     var result=sign(values,bodyBytes,stamp,deviceID,values.version_name);
-    var ts=Math.floor(stamp/1000)>>>0, be=Buffer.alloc(4);
-    be.writeUInt32BE(ts,0);
+    // Account Medusa and playback 551 are different profiles; sending both
+    // causes HTTP 200 / empty body. Account sign() remains unchanged.
+    delete result.headers['X-Medusa'];
+    var ts=Math.floor(stamp/1000)>>>0;
     Object.assign(result.headers,{
-      'X-Argus':le32(ts).toString('base64'),'X-Ladon':be.toString('base64'),
+      'X-Argus':playbackArgus(result.query,bodyBytes,ts,random32()),
+      'X-Ladon':playbackLadon(ts,values.aid || '1967',random32()),
       'Sdk-Version':'2','X-Xs-From-Web':'0','X-Tt-Dt':'',
       'X-Tt-Store-Region':'cn','X-Tt-Store-Region-Src':'did'
     });
@@ -117,5 +210,5 @@
   function signInternational(values,bodyBytes,stamp){var tuned=tune(values,bodyBytes,stamp),query=tuned.query,ts=Math.floor(tuned.stamp/1000)>>>0,raw=crypto.randomBytes(14),be=Buffer.alloc(4);be.writeUInt32BE(ts,0);var trace=(tun32(tuned.stamp).toString(16).padStart(8,'0')+'10'+raw.slice(6).toString('hex'));var h={'X-Khronos':String(ts),'X-SS-Req-Ticket':String(values._rticket),'X-Argus':le32(ts).toString('base64'),'X-Ladon':be.toString('base64'),'X-Helios':helios(ts,raw.readUInt32LE(2)),'X-Gorgon':internationalGorgon(query,bodyBytes,ts,raw.readUInt16LE(0)),'X-TT-Trace-Id':'00-'+trace+'-'+trace.slice(0,16)+'-01'};if(bodyBytes.length)h['X-SS-STUB']=md5(bodyBytes).toString('hex').toUpperCase();return {query:query,headers:h};}
   function tun32(value){return value>>>0;}
   function le32(value){var b=Buffer.alloc(4);b.writeUInt32LE(value>>>0,0);return b;}
-  module.exports={signPlayback:signPlayback,sign:sign,signInternational:signInternational,sm3:sm3,branch:branch,passportF13:passportF13,passportProto:passportProto,helios:helios,gorgon:gorgon,medusa:medusa,aesV3:aesV3,internationalGorgon:internationalGorgon};
+  module.exports={playbackArgus:playbackArgus,playbackLadon:playbackLadon,signPlayback:signPlayback,sign:sign,signInternational:signInternational,sm3:sm3,branch:branch,passportF13:passportF13,passportProto:passportProto,helios:helios,gorgon:gorgon,medusa:medusa,aesV3:aesV3,internationalGorgon:internationalGorgon};
 }());

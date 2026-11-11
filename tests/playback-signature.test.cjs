@@ -17,8 +17,11 @@ test('playback signs the transmitted query and body with an isolated version pro
     assert.equal(params.get('ts'), String(ts));
     assert.equal(signed.headers['X-Khronos'], String(ts));
     assert.equal(signed.headers['X-SS-Req-Ticket'], params.get('_rticket'));
-    assert.equal(Buffer.from(signed.headers['X-Argus'], 'base64').readUInt32LE(), ts);
-    assert.equal(Buffer.from(signed.headers['X-Ladon'], 'base64').readUInt32BE(), ts);
+    const argus = Buffer.from(signed.headers['X-Argus'], 'base64'), ladon = Buffer.from(signed.headers['X-Ladon'], 'base64');
+    assert.equal(argus.slice(0, 2).toString('hex'), 'f281');
+    assert.equal((argus.length - 2) % 16, 0);
+    assert.equal(signed.headers['X-Ladon'], signer.playbackLadon(ts, identity.aid, ladon.readUInt32LE(0)));
+    assert.ok(ladon.length > 4);
     assert.equal(signed.headers['X-SS-STUB'], crypto.createHash('md5').update(body).digest('hex').toUpperCase());
     assert.equal(signed.headers.Cookie, undefined);
     assert.equal(signed.headers['X-Tt-Token'], undefined);
@@ -44,5 +47,20 @@ test('playback retry regenerates signatures and preserves the established accoun
   const params = { aid: '8662', device_id: '7000000000000000001', version_name: '7.1.3.32' };
   const one = signer.signPlayback(params, body, vector.ts * 1000, params.device_id);
   const two = signer.signPlayback(params, body, vector.ts * 1000, params.device_id);
-  assert.notEqual(one.headers['X-Medusa'], two.headers['X-Medusa']);
+  assert.equal(one.headers['X-Medusa'], undefined);
+  assert.notEqual(one.headers['X-Argus'], two.headers['X-Argus']);
+  assert.notEqual(one.headers['X-Ladon'], two.headers['X-Ladon']);
+});
+
+
+test('complete playback envelopes match independent protocol vectors', () => {
+  const vectors = require('../core/cmd/hongguotv/testdata/playback-sign-vectors.json');
+  for (const v of vectors) {
+    const body = Buffer.from(v.body);
+    assert.equal(signer.playbackArgus(v.query, body, v.ts, v.nonce), v.argus);
+    assert.equal(signer.playbackLadon(v.ts, new URLSearchParams(v.query).get('aid') || '1967', 0x04030201), v.ladon);
+    for (const [query, bytes, ts, nonce] of [[v.query + '&iid=changed', body, v.ts, v.nonce], [v.query, Buffer.concat([body, Buffer.from(' ')]), v.ts, v.nonce], [v.query, body, v.ts + 1, v.nonce], [v.query, body, v.ts, v.nonce ^ 1]]) {
+      assert.notEqual(signer.playbackArgus(query, bytes, ts, nonce), v.argus);
+    }
+  }
 });

@@ -1,8 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
-	"encoding/binary"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -32,12 +30,20 @@ func miniReelSignPlaybackRequest(params url.Values, body []byte, stamp int64, de
 		return "", nil, err
 	}
 	ts := uint32(stamp / 1000)
-	var be [4]byte
-	binary.BigEndian.PutUint32(be[:], ts)
-	// These two fields are this profile's timestamp envelopes, not general
-	// implementations of the platform's Argus/Ladon algorithms.
-	headers.Set("X-Argus", base64.StdEncoding.EncodeToString(protocolLE(ts)))
-	headers.Set("X-Ladon", base64.StdEncoding.EncodeToString(be[:]))
+	argusNonce, err := protocolRandom()
+	if err != nil {
+		return "", nil, err
+	}
+	ladonNonce, err := protocolRandom()
+	if err != nil {
+		return "", nil, err
+	}
+	headers.Set("X-Argus", playbackArgus(query, body, ts, argusNonce))
+	headers.Set("X-Ladon", playbackLadon(ts, firstNonEmpty(params.Get("aid"), "1967"), ladonNonce))
+	// The account Medusa profile conflicts with the playback 551 envelope:
+	// same-request live comparisons return an empty body when it is included.
+	// Keep account signing intact, but do not send that header to playback APIs.
+	headers.Del("X-Medusa")
 	headers.Set("Sdk-Version", "2")
 	headers.Set("X-Xs-From-Web", "0")
 	headers.Set("X-Tt-Dt", "")

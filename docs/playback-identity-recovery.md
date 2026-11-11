@@ -1,6 +1,6 @@
 # 匿名播放身份与空响应恢复
 
-## 当前生产流程（2026-11-07）
+## 当前生产流程（2026-11-11）
 
 Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取源顺序：
 
@@ -15,8 +15,46 @@ Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取�
 5. 前两路仍不可用时才进入 `POST /novel/player/video_model/v1/`。该单集协议使用独立的
    `7.3.9.32` / Xiaomi Android 14 匿名注册身份，不接触账号和已有缓存。请求体为
    `video_id` + `biz_param={video_id_type:0,need_all_video_definition:true,video_platform:3}`；
-   未压缩 JSON 与 query 使用既有六签名头实现。空响应或临时网络失败最多两次，
+   未压缩 JSON 与 query 使用当前播放签名实现。空响应或临时网络失败最多两次，
    明确返回不兼容模型时不反复换身份。
+
+### 完整播放签名与兼容编码（2026-11-11）
+
+本轮实网复核发现原 `Argus` / `Ladon` 的四字节时间戳占位已无法取得模型。
+根据 [hongguo-open-player PR #92](https://github.com/zfdang/hongguo-open-player/pull/92)
+（`3f687c5b`）的协议与固定向量，独立补齐 551 Protobuf / Simon / AES Argus 和
+34 轮 Ladon。两端使用同一组固定向量；webOS 使用现有 32 位对运算，未引入新依赖。
+账号签名及其固定向量保持原样，不使用参考项目内置身份。
+
+- Argus 绑定最终 query、实际发送 body 的 MD5/SM3、注册设备 / 安装 ID、版本及时间戳；
+  每个请求生成新的随机字段。Ladon 绑定时间戳、license ID 与 aid，并生成独立随机数。
+- 播放层移除账号 profile 的 `X-Medusa`，保留完整 `X-Argus` / `X-Ladon` 及原
+  Gorgon / Helios / Khronos。逐项实网对照表明：带账号 Medusa 时 HTTP 200 / 0 字节，
+  只去掉 Medusa 后相同旧接口配置返回完整模型。账号和其他 API 的 Medusa 不受影响。
+- 不调整 provider 顺序、版本 profile、注册/主备重试次数、总预算和媒体准备策略。
+  `video_tab` 可用时仍优先直接返回；其 GET 认证方式不改。
+
+参考 [LiuWQ0809/hongguo-android](https://github.com/LiuWQ0809/hongguo-android)
+（`0814ffa2`）的同集兼容编码回退协议，只有内联列表为空或全部为 ByteVC2 / bvc2 时，
+才跟随原 `fallback_api`。原 fallback 仍全部为 ByteVC2 时，再依次尝试
+`codec_type=1`、`codec_type=0&force_codec=h264`，取得可解析候选即停止。
+正常内联候选不增加请求，指定清晰度不足不触发这组探测。
+
+- 只替换 codec 参数，保留原 signed query 的其他字节、顺序、重复字段及转义。
+- 比较原始、原 fallback 与每个候选的 `video_id` 和 `video_duration`：已报告的编号不符、
+  已报告的正时长差超过 0.5 秒均拒绝，不将业务 VID 与底层转码 video_id 混为一谈。
+- fallback 的 `key_seed` 仅解密媒体 URL；嵌套或顶层 `spade_a` 仍供既有 CENC 内容解密。
+  声明加密却缺少可用内容密钥的候选被排除，不能当成明文。
+- 最多原 fallback 加两个 codec 变体，共享 provider 截止时间、取消与前台/预取任务；
+  保留 HTTPS 主机白名单、重定向次数和响应大小限制。原始带签名 URL 不进入错误诊断。
+  全部不可用时仍进入现有剩余 provider，不把 ByteVC2 当成可播放的 HEVC。
+
+实网样本为《我都元婴期了，你跟我说开学第四季》第 1 / 17 / 18 集：原模型全部为
+ByteVC2，经 `codec_type=1` 得到 1080P HEVC。Go 与 webOS 均实际读取、解密每集 1 MiB，
+通过 FFmpeg 音视频解码检查。CDN 没有强 ETag 时仍走原有整集下载回退。
+浏览器真实推荐验证第 1 → 17 → 18 集、自动下一集，以及切换不同剧目、快速连续切剧，
+均有画面、`readyState=4` 与推进的播放时钟。
+本机样本不保证所有剧都有兼容编码，也不替代 Android / LG 实机解码验证。
 
 ### 同剧成功路径记忆
 
@@ -65,8 +103,8 @@ webOS 同三集取源约 1.56 / 0.39 / 0.38 秒，均实际读取、解密并经
 调整旧接口的请求流程，不引入其代码、外部签名服务或新依赖：
 
 - 发送未压缩 JSON，`device_level=3`；对最终发送的字节签名。
-- 每次请求包含 `X-Argus`、`X-Gorgon`、`X-Medusa`、`X-Khronos`、
-  `X-Ladon`、`X-Helios`。query 的 `ts` / `_rticket` 与签名时间及请求票据一致。
+- 每次播放请求包含 `X-Argus`、`X-Gorgon`、`X-Khronos`、`X-Ladon`、`X-Helios`；
+  不发送账号 profile 的 `X-Medusa`。query 的 `ts` / `_rticket` 与签名时间及请求票据一致。
 - 换主机、重试都重新签名；不复用上一次请求的签名头。
 - 复用本项目已有的第一方 F13 branch 2 实现；参考仓库使用 branch 0，
   因此不宣称签名实现逐字相同。本项目的 branch 2 已通过本次旧接口实网取源和媒体解密验证。
@@ -98,7 +136,7 @@ webOS 同三集取源约 1.56 / 0.39 / 0.38 秒，均实际读取、解密并经
 ## 验证与限度
 
 本地受控测试覆盖：主接口成功不注册回退身份、主备顺序、每轮新身份、
-六个签名头与发送字节/时间戳绑定、四次上限、跨集隔离、`content_type=1003`、
+播放签名头与发送字节/时间戳绑定、四次上限、跨集隔离、`content_type=1003`、
 codec 无可用源进入下一协议但不刷新当前身份、取消注册与永久错误停止、
 媒体下载/解密失败后顺序换源、磁盘与指定清晰度错误不换源。webOS 另覆盖预取接管不重置预算、
 不同剧集并发、迟到响应、Service 关闭及重新唤醒。
