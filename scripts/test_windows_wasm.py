@@ -20,4 +20,4 @@ with tempfile.TemporaryDirectory(prefix='hongguo-wasm-check-') as directory:
     process=subprocess.run([str(app/'红果短剧.exe'),'--windows-wasm-self-test'],env=env,timeout=220,capture_output=True,text=True)
     if process.returncode:
         print(process.stdout); print(process.stderr); raise SystemExit(process.returncode)
-    print((out/'wasm-validation.json').read_text())
+    print((out/'wasm-validation.json').read_text(encoding='utf-8'))
