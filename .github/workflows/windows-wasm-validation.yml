@@ -1,0 +1,103 @@
+name: Windows WASM playback validation
+on:
+  workflow_dispatch:
+    inputs:
+      decoder_tag:
+        description: Existing private source-built decoder test tag (empty rebuilds it)
+        type: string
+        default: ""
+      sample_tag:
+        description: Optional private draft containing real720.mp4 and real1080.mp4 test clips
+        type: string
+        default: ""
+  push:
+    branches: [codex/windows-wasm-decoder]
+    paths: [desktop/wasm/**, scripts/build_windows_wasm.sh, .github/workflows/windows-wasm-validation.yml]
+permissions:
+  contents: write
+env:
+  PYTHONUTF8: "1"
+jobs:
+  decoder:
+    if: inputs.decoder_tag == ''
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Emscripten
+        run: |
+          git clone --depth 1 --branch 4.0.19 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install 4.0.19
+          "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.19
+      - name: Build decoder from source
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          bash scripts/build_windows_wasm.sh
+      - name: Attach private test files
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="windows-wasm-test-$GITHUB_RUN_ID"
+          gh release create "$tag" desktop/wasm-runtime/* --draft --target "$GITHUB_SHA" --title "Windows WASM test $GITHUB_RUN_ID" --notes "Isolated Windows HEVC software playback validation. Not a production release."
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+  windows:
+    if: always() && github.event_name == 'workflow_dispatch' && (needs.decoder.result == 'success' || inputs.decoder_tag != '')
+    needs: decoder
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.25.x
+          cache-dependency-path: |
+            go.sum
+            desktop/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Get exact source-built decoder
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p desktop/wasm-runtime
+          gh release download "${{ inputs.decoder_tag || needs.decoder.outputs.tag }}" --pattern 'decoder.*' --pattern '*.txt' --pattern 'lgpl-relink.tar.gz' --dir desktop/wasm-runtime --clobber
+      - name: Get optional private real-media fixtures
+        if: inputs.sample_tag != ''
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SAMPLE_TAG: ${{ inputs.sample_tag }}
+        run: |
+          gh release download "$SAMPLE_TAG" --pattern 'real720.mp4' --pattern 'real1080.mp4' --dir "$RUNNER_TEMP/wasm-real-media"
+          echo "HONGGUO_WASM_REAL_MEDIA=$RUNNER_TEMP/wasm-real-media" >> "$GITHUB_ENV"
+      - name: Verify and build Windows test application
+        shell: bash
+        env:
+          DESKTOP_PLATFORM: windows/amd64
+        run: |
+          python3 scripts/desktop_metadata.py --github-env "$GITHUB_ENV"
+          node --test tests/*.test.cjs
+          go test ./core/...
+          node desktop/frontend/build.mjs
+          (cd desktop && go test ./... && go vet ./...)
+          go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
+      - name: Package private Windows test application
+        shell: bash
+        env:
+          DESKTOP_PLATFORM: windows/amd64
+        run: bash scripts/build_desktop.sh
+      - name: Run packaged WebView2 playback checks
+        shell: bash
+        run: python3 scripts/test_windows_wasm.py desktop/build/bin
+      - name: Attach test evidence and ZIP
+        if: always()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(desktop/dist/*.zip desktop/dist/*.sha256 desktop/dist/wasm-validation*.json)
+          if ((${#files[@]})); then gh release upload --clobber "${{ inputs.decoder_tag || needs.decoder.outputs.tag }}" "${files[@]}"; fi

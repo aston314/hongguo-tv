@@ -429,6 +429,12 @@
           <div class="app-update-actions"><button class="playback-mode-action account-action" id="mpv-decode-auto" data-mode="mpv_auto" data-focus="mpv-decode-auto" aria-pressed="false">自动解码</button><button class="playback-mode-action account-action" id="mpv-decode-software" data-mode="mpv_software" data-focus="mpv-decode-software" aria-pressed="false">软件解码</button></div>
           <p id="mpv-decode-state" role="status" aria-live="polite"></p>
         </div>
+        <div class="settings-card app-update-card is-hidden" id="windows-playback-settings">
+          <h2 data-i18n="settings.playback">播放解码</h2>
+          <p data-i18n="settings.windowsDecoderDescription">默认保持原有播放方式；无法播放 HEVC 时，可尝试 CPU 软解。下次播放或切集时生效，软解会增加处理器占用。</p>
+          <div class="app-update-actions"><button class="windows-playback-action account-action" data-mode="default" data-focus="windows-decode-default" aria-pressed="true" data-i18n="settings.windowsDefault">默认播放</button><button class="windows-playback-action account-action" data-mode="wasm" data-focus="windows-decode-wasm" aria-pressed="false" data-i18n="settings.windowsWasm">CPU 软解（WASM）</button></div>
+          <p id="windows-decode-state" role="status" aria-live="polite"></p>
+        </div>
         <div class="settings-card app-update-card" id="playback-custom-device-settings">
           <h2 data-i18n="settings.customPlaybackDevice">播放地址兜底设备</h2>
           <p data-i18n="settings.customPlaybackDeviceDescription">默认播放地址获取失败时，使用手机红果设备号再次尝试。只用于播放地址，不影响登录、历史、收藏、点赞或评论。</p>
@@ -679,6 +685,7 @@
   <script src="/desktop.js"></script>
   <script src="/watch-statistics.js"></script>
   <script src="/recommended-apps.js"></script>
+  <script src="/windows-wasm-player.js"></script>
   <script src="/app.js"></script>
 </body>
 </html>

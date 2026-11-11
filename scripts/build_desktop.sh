@@ -18,8 +18,8 @@ fi
 python3 - <<'PY'
 import json, os
 from pathlib import Path
-path=Path('desktop/wails.json'); config=json.loads(path.read_text())
-config['info']['productVersion']=os.environ['APP_VERSION']; path.write_text(json.dumps(config,ensure_ascii=False,indent=2))
+path=Path('desktop/wails.json'); config=json.loads(path.read_text(encoding='utf-8'))
+config['info']['productVersion']=os.environ['APP_VERSION']; path.write_text(json.dumps(config,ensure_ascii=False,indent=2),encoding='utf-8')
 PY
 if [[ "$DESKTOP_PLATFORM" == darwin/universal ]]; then
   for arch in amd64 arm64; do
@@ -53,7 +53,11 @@ else
   cp build/sidecar/hongguo-tv-core.exe build/bin/
   python3 ../scripts/verify_desktop_ui.py build/bin/hongguo-tv-core.exe
   cp ../docs/desktop-install-windows.txt build/bin/README.txt
-  (cd build/bin && 7z a "../../dist/hongguo-desktop-$APP_VERSION-windows-x64.zip" 红果短剧.exe hongguo-tv-core.exe README.txt)
+  test -s wasm-runtime/decoder.wasm
+  test -s wasm-runtime/lgpl-relink.tar.gz
+  mkdir -p build/bin/Licenses/FFmpeg
+  cp wasm-runtime/FFmpeg-LICENSE.txt wasm-runtime/NOTICE.txt wasm-runtime/lgpl-relink.tar.gz build/bin/Licenses/FFmpeg/
+  (cd build/bin && 7z a "../../dist/hongguo-desktop-$APP_VERSION-windows-x64.zip" 红果短剧.exe hongguo-tv-core.exe README.txt Licenses)
 fi
 python3 - <<'PY'
 import hashlib

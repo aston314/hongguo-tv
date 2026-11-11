@@ -27,3 +27,12 @@ __pycache__/
 *.dmg
 *.exe
 desktop/frontend/wailsjs/
+# Generated from pinned LGPL sources in the Windows WASM build job.
+core/cmd/hongguotv/ui/windows-wasm/
+
+# CI-generated desktop-only WASM assets.
+desktop/wasm-runtime/decoder.js
+desktop/wasm-runtime/decoder.wasm
+desktop/wasm-runtime/FFmpeg-LICENSE.txt
+desktop/wasm-runtime/NOTICE.txt
+desktop/wasm-runtime/lgpl-relink.tar.gz

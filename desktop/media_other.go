@@ -2,5 +2,4 @@
 
 package main
 
-func configureDesktopMedia()         {}
-func runDesktopDiagnosticMode() bool { return false }
+func configureDesktopMedia() {}

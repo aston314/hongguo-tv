@@ -14,7 +14,7 @@
     controls: '.playback-buttons .control-button, #player-retry, #player-failure-diagnostics',
     timeline: '#control-progress',
     miniPlayer: '.mini-player-button, .mini-player-overlay input',
-    miniPlayerSettings: '.desktop-mini-titlebar-action',
+    miniPlayerSettings: '.desktop-mini-titlebar-action, .windows-playback-action',
     searchInput: '#search-input',
     searchSuggestions: '.search-suggestion',
     searchActions: '.search-action',
@@ -1244,7 +1244,7 @@
     if (element.classList.contains('playback-custom-device-input') || element.classList.contains('playback-custom-device-action')) return 'playbackCustomDevice';
     if (element.classList.contains('account-input')) return 'accountInputs';
     if (element.classList.contains('app-update-action')) return 'appUpdates';
-    if (element.classList.contains('desktop-mini-titlebar-action')) return 'miniPlayerSettings';
+    if (element.classList.contains('desktop-mini-titlebar-action') || element.classList.contains('windows-playback-action')) return 'miniPlayerSettings';
     if (element.classList.contains('webos-update-notes')) return 'webosUpdateNotes';
     if (element.classList.contains('locale-action')) return 'localeActions';
     if (element.classList.contains('recommendation-direction-action')) return 'recommendationDirection';
@@ -8876,7 +8876,7 @@
     if (typeof maybeSkipRecommendationOrientation === 'function' && maybeSkipRecommendationOrientation(activePlayback, media.videoWidth, media.videoHeight)) return;
     var position = activePlayback.position;
     var adapter = typeof window !== 'undefined' ? window.HongguoNativePlaybackAdapter : null;
-    var nativeStartPosition = adapter && typeof adapter.isNative === 'function' && adapter.isNative();
+    var nativeStartPosition = adapter && (typeof adapter.isNative === 'function' && adapter.isNative() || typeof adapter.startPositionApplied === 'function' && adapter.startPositionApplied());
     if (!nativeStartPosition && position > 0 && Number.isFinite(media.duration)) media.currentTime = Math.min(position, Math.max(0, media.duration - .25));
     media.playbackRate = playbackPreferences.speed;
     updatePlaybackControls();
@@ -9322,6 +9322,25 @@
   document.querySelectorAll('.playback-mode-action').forEach(function (button) {
     button.addEventListener('click', function () { playbackSettings.choose(button.getAttribute('data-mode')); });
   });
+  if (window.HongguoWindowsDecoder) {
+    var windowsDecoder = window.HongguoWindowsDecoder;
+    document.getElementById('windows-playback-settings').classList.remove('is-hidden');
+    function renderWindowsDecoder() {
+      document.querySelectorAll('.windows-playback-action').forEach(function (button) {
+        var selected = button.getAttribute('data-mode') === windowsDecoder.mode();
+        button.classList.toggle('account-primary', selected);
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      });
+    }
+    renderWindowsDecoder();
+    document.querySelectorAll('.windows-playback-action').forEach(function (button) {
+      button.addEventListener('click', function () {
+        var saved = windowsDecoder.choose(button.getAttribute('data-mode'));
+        renderWindowsDecoder();
+        document.getElementById('windows-decode-state').textContent = saved ? uiText('settings.windowsDecoderApplied', '已保存，下次播放或切集时生效。') : uiText('settings.saveFailed', '设置未能保存，请重试。');
+      });
+    });
+  }
   function renderPlaybackCustomDevice(data, message) {
     var value = data && data.data ? data.data : data || {};
     var did = document.getElementById('playback-custom-device-did');

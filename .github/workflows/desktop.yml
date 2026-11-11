@@ -70,8 +70,27 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "source_commit=$release_commit" >> "$GITHUB_OUTPUT"
 
+  wasm-decoder:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Emscripten
+        run: |
+          git clone --depth 1 --branch 4.0.19 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install 4.0.19
+          "$RUNNER_TEMP/emsdk/emsdk" activate 4.0.19
+      - name: Build Windows software decoder from source
+        run: |
+          source "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          bash scripts/build_windows_wasm.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-wasm-runtime
+          path: desktop/wasm-runtime/*
+          retention-days: 1
+          compression-level: 0
   build:
-    needs: prepare
+    needs: [prepare, wasm-decoder]
     strategy:
       fail-fast: false
       matrix:
@@ -94,6 +113,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - uses: actions/download-artifact@v4
+        if: matrix.platform == 'windows/amd64'
+        with:
+          name: windows-wasm-runtime
+          path: desktop/wasm-runtime
       - name: Read shared version
         shell: bash
         env:
