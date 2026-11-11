@@ -36,7 +36,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="windows-wasm-test-$GITHUB_RUN_ID"
-          gh release create "$tag" desktop/wasm-runtime/* "$RUNNER_TEMP/hongguo-hevc-wasm/lgpl-relink.tar.gz" --draft --target "$GITHUB_SHA" --title "Windows WASM test $GITHUB_RUN_ID" --notes "Isolated Windows HEVC software playback validation. Not a production release."
+          gh release create "$tag" desktop/wasm-runtime/* --draft --target "$GITHUB_SHA" --title "Windows WASM test $GITHUB_RUN_ID" --notes "Isolated Windows HEVC software playback validation. Not a production release."
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
   windows:
     if: always() && github.event_name == 'workflow_dispatch' && (needs.decoder.result == 'success' || inputs.decoder_tag != '')
