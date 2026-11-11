@@ -447,7 +447,7 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
 .danmaku-layer { position: absolute; z-index: 3; top: 12%; right: 0; bottom: 20%; left: 0; overflow: hidden; pointer-events: none; }
 .danmaku-layer.is-region-half { top: 8%; bottom: 42%; }
 .danmaku-layer.is-region-quarter { top: 8%; bottom: 67%; }
-.danmaku-line { position: absolute; left: 100%; white-space: nowrap; color: #fff; font-size: 22px; font-weight: 600; text-shadow: 1px 1px 3px #000, -1px -1px 2px #000; animation: danmaku-travel 9s linear forwards; }
+.danmaku-line { position: absolute; left: 100%; white-space: nowrap; color: #fff; font-size: 22px; line-height: 1.4; font-weight: 600; text-shadow: 1px 1px 3px #000, -1px -1px 2px #000; animation: danmaku-travel 9s linear forwards; }
 .danmaku-emoji { display: inline-block; width: 1.15em; height: 1.15em; margin: 0 0.08em; vertical-align: -0.22em; }
 .danmaku-likes { display: inline-block; margin-left: 0.55em; padding: 0.12em 0.45em; border-radius: 1em; background: rgba(255, 255, 255, 0.12); color: #fff; font-size: 0.72em; line-height: 1.25; vertical-align: 0.05em; }
 .danmaku-likes svg { display: inline-block; width: 1em; height: 1em; margin-right: 0.25em; vertical-align: -0.15em; }
@@ -864,6 +864,9 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
 .app-update-card { max-width: 70rem; margin-top: 1.5rem; }
 .app-update-actions { display: flex; flex-wrap: wrap; }
 .app-update-actions button { margin: 0 .8rem .6rem 0; }
+.danmaku-size-preview { display: flex; align-items: center; min-height: 88px; padding: 8px 16px; margin: 1rem 0 1.2rem; border: 1px solid #30303a; border-radius: .6rem; background: #101015; overflow: hidden; }
+.danmaku-size-preview .danmaku-line { position: static; left: auto; animation: none; }
+.danmaku-size-actions button { white-space: nowrap; }
 .playback-custom-device-fields { display: flex; flex-wrap: wrap; margin: 1rem 0 .8rem; }
 .playback-custom-device-fields label { display: flex; flex: 1 1 18rem; flex-direction: column; margin: 0 1rem .8rem 0; color: #b0afba; font-size: .95rem; }
 .playback-custom-device-input { width: 100%; min-height: 3rem; padding: .75rem .9rem; box-sizing: border-box; border: 2px solid #41414c; border-radius: .6rem; background: #101016; color: #fff; font: inherit; font-size: 1.15rem; }

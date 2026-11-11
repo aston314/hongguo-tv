@@ -411,6 +411,19 @@
           <div class="app-update-actions"><button class="danmaku-region-action account-action" data-mode="current" data-focus="danmaku-region-current" aria-pressed="true" data-i18n="settings.danmakuRegionDefault">当前区域（保持现状）</button><button class="danmaku-region-action account-action" data-mode="half" data-focus="danmaku-region-half" aria-pressed="false" data-i18n="settings.danmakuRegionHalf">顶部 1/2</button><button class="danmaku-region-action account-action" data-mode="quarter" data-focus="danmaku-region-quarter" aria-pressed="false" data-i18n="settings.danmakuRegionQuarter">顶部 1/4</button></div>
           <p id="danmaku-region-state" role="status" aria-live="polite"></p>
         </div>
+        <div class="settings-card app-update-card" id="danmaku-size-settings">
+          <h2 data-i18n="settings.danmakuSize">弹幕字号</h2>
+          <p data-i18n="settings.danmakuSizeDescription">默认保持原有大小，最大可放大至 200%。表情与点赞数同步放大。</p>
+          <div class="danmaku-size-preview" id="danmaku-size-preview" role="img" data-i18n-aria-label="settings.danmakuSizePreview" aria-label="弹幕字号预览"></div>
+          <div class="app-update-actions danmaku-size-actions">
+            <button class="danmaku-size-action account-action" data-size="100" data-focus="danmaku-size-100" aria-pressed="true" data-i18n="settings.danmakuSize100">100% 默认</button>
+            <button class="danmaku-size-action account-action" data-size="125" data-focus="danmaku-size-125" aria-pressed="false" data-i18n="settings.danmakuSize125">125% 较大</button>
+            <button class="danmaku-size-action account-action" data-size="150" data-focus="danmaku-size-150" aria-pressed="false" data-i18n="settings.danmakuSize150">150% 大</button>
+            <button class="danmaku-size-action account-action" data-size="175" data-focus="danmaku-size-175" aria-pressed="false" data-i18n="settings.danmakuSize175">175% 很大</button>
+            <button class="danmaku-size-action account-action" data-size="200" data-focus="danmaku-size-200" aria-pressed="false" data-i18n="settings.danmakuSize200">200% 特大</button>
+          </div>
+          <p id="danmaku-size-state" role="status" aria-live="polite"></p>
+        </div>
         <div class="settings-card app-update-card is-hidden" id="episode-prefetch-settings">
           <h2 data-i18n="settings.episodePrefetch">下一集预取方式</h2>
           <p data-i18n="settings.episodePrefetchDescription">选择切集前的准备方式。边播边下占用较少；整集预下载切集更快，但会增加网络、存储和处理器占用。</p>
