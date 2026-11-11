@@ -19,7 +19,7 @@ import (
 
 func assertMiniReelPlaybackSignature(t *testing.T, r *http.Request) {
 	t.Helper()
-	for _, name := range []string{"X-Gorgon", "X-Medusa", "X-Helios", "X-Khronos", "X-SS-Req-Ticket", "X-Argus", "X-Ladon"} {
+	for _, name := range []string{"X-Gorgon", "X-Helios", "X-Khronos", "X-SS-Req-Ticket", "X-Argus", "X-Ladon"} {
 		if r.Header.Get(name) == "" {
 			t.Errorf("playback signature header missing: %s", name)
 		}
@@ -27,26 +27,24 @@ func assertMiniReelPlaybackSignature(t *testing.T, r *http.Request) {
 	if r.Header.Get("Cookie") != "" || r.Header.Get("X-Tt-Token") != "" {
 		t.Error("playback signature must not use account credentials")
 	}
+	if r.Header.Get("X-Medusa") != "" {
+		t.Error("playback must not send the conflicting account Medusa profile")
+	}
 	query := r.URL.Query()
 	if query.Get("ts") != r.Header.Get("X-Khronos") || query.Get("_rticket") != r.Header.Get("X-SS-Req-Ticket") {
 		t.Error("playback query and header timestamps diverged")
 	}
 	stamp, _ := strconv.ParseUint(query.Get("ts"), 10, 32)
-	for _, header := range []string{"X-Argus", "X-Ladon"} {
-		decoded, err := base64.StdEncoding.DecodeString(r.Header.Get(header))
-		if err != nil || len(decoded) != 4 {
-			t.Errorf("invalid %s timestamp", header)
-			continue
-		}
-		var value uint32
-		if header == "X-Argus" {
-			value = binary.LittleEndian.Uint32(decoded)
-		} else {
-			value = binary.BigEndian.Uint32(decoded)
-		}
-		if value != uint32(stamp) {
-			t.Errorf("%s differs from signed timestamp", header)
-		}
+	argus, argusErr := base64.StdEncoding.DecodeString(r.Header.Get("X-Argus"))
+	ladon, ladonErr := base64.StdEncoding.DecodeString(r.Header.Get("X-Ladon"))
+	if argusErr != nil || len(argus) < 34 || argus[0] != 0xf2 || argus[1] != 0x81 || (len(argus)-2)%16 != 0 {
+		t.Fatal("invalid complete Argus envelope")
+	}
+	if ladonErr != nil || len(ladon) < 20 || (len(ladon)-4)%16 != 0 {
+		t.Fatal("invalid complete Ladon envelope")
+	}
+	if r.Header.Get("X-Ladon") != playbackLadon(uint32(stamp), firstNonEmpty(query.Get("aid"), "1967"), binary.LittleEndian.Uint32(ladon)) {
+		t.Error("Ladon differs from signed timestamp/aid")
 	}
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -89,10 +87,10 @@ func TestMiniReelPlaybackSignedWireAndCompatibilityFallback(t *testing.T) {
 				connections[r.RemoteAddr] = true
 				if calls < 3 {
 					assertMiniReelPlaybackSignature(t, r)
-					if seen[r.Header.Get("X-Medusa")] {
+					if seen[r.Header.Get("X-Argus")] {
 						t.Error("retry reused a signature")
 					}
-					seen[r.Header.Get("X-Medusa")] = true
+					seen[r.Header.Get("X-Argus")] = true
 				} else if r.Header.Get("X-Medusa") != "" || r.URL.Query().Get("ts") != "" {
 					t.Error("compatibility retry did not restore the original request")
 				}

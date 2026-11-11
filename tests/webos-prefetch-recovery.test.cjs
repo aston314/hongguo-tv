@@ -35,7 +35,7 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
   const cache = fs.mkdtempSync(path.join(os.tmpdir(), 'hongguo-prefetch-recovery-'));
   const before = process.env.HONGGUO_WEBOS_CACHE_DIR;
   process.env.HONGGUO_WEBOS_CACHE_DIR = cache;
-  const requests = [], registrationRequests = [], tabRequests = [], singleRequests = [];
+  const requests = [], registrationRequests = [], tabRequests = [], singleRequests = [], fallbackRequests = [];
   let registrations = 0;
   let rangeOpens = 0, downloads = 0, headWarms = 0;
   const transport = { request(options) {
@@ -81,6 +81,19 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
       };
       req.end = () => {if(!reply.hold)process.nextTick(item.respond);};return req;
     }
+    if (options.path.startsWith('/playback/fallback')) {
+      const reply = mediaHooks.fallback ? mediaHooks.fallback(options, fallbackRequests.length) : {};
+      const item = { options, destroyed: false, respond: null }; fallbackRequests.push(item);
+      req.write = () => {};
+      req.destroy = error => { item.destroyed = true; if (error) process.nextTick(() => req.emit('error', error)); };
+      item.respond = () => {
+        if (item.destroyed) return;
+        const res = new PassThrough(); res.statusCode = reply.status || 200; res.headers = {}; req.emit('response', res);
+        res.end(JSON.stringify(reply.body));
+      };
+      req.end = () => { if (!reply.hold) process.nextTick(item.respond); };
+      return req;
+    }
     assert(options.path.startsWith('/novel/player/multi_video_model/v1/'));
     const index = requests.length, reply = replies[index] || {};
     const item = { options, destroyed: false, body: [], respond: null, at: Date.now(), device: new URL('https://fixture.test'+options.path).searchParams.get('device_id') };
@@ -113,7 +126,7 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
   provider.prepare = function (...args) {
     consumers.push({ prefetch: args[5], signal: args[6] }); return prepare.apply(provider, args);
   };
-  return { provider, requests, registrationRequests, tabRequests, singleRequests, consumers, get registrations() { return registrations; }, get rangeOpens() { return rangeOpens; }, get downloads() { return downloads; },
+  return { provider, requests, registrationRequests, tabRequests, singleRequests, fallbackRequests, consumers, get registrations() { return registrations; }, get rangeOpens() { return rangeOpens; }, get downloads() { return downloads; },
     get headWarms() { return headWarms; },
     prepare(prefetch, signal) { return provider.prepare('123', '456', '', true, 'range', prefetch, signal); },
     close() { provider.closeCache(); if (before === undefined) delete process.env.HONGGUO_WEBOS_CACHE_DIR; else process.env.HONGGUO_WEBOS_CACHE_DIR = before; fs.rmSync(cache, { recursive: true }); }
@@ -493,7 +506,7 @@ test('new rounds and subsequent episodes use fresh legacy identities while video
     assert.equal(f.requests.length,4);assert.equal(f.registrations,3);assert.equal(value.mode,'range');assert.equal(f.downloads,0);
     assert.deepEqual(f.requests.map(r=>r.device),['1234567890123456782','1234567890123456782','1234567890123456783','1234567890123456783']);
     assert.deepEqual(f.requests.map(r=>r.options.hostname),['api5-normal-sinfonlineb.fqnovel.com','api5-normal-hl.fqnovel.com','api5-normal-sinfonlineb.fqnovel.com','api5-normal-hl.fqnovel.com']);
-    assert(f.requests.every(r=>r.options.headers['X-Medusa'] && r.options.headers['X-Argus']));
+    assert(f.requests.every(r=>!r.options.headers['X-Medusa'] && r.options.headers['X-Argus']));
     assert.equal(value.preparation_timing.media_video_model.attempt,4);
     await f.provider.prepare('123','789','',true,'range',false);
     assert.equal(f.requests[4].device,'1234567890123456784');assert.equal(f.registrations,4);
@@ -608,7 +621,7 @@ test('incompatible legacy model advances once to signed single-episode model', a
     const call=f.singleRequests[0], q=new URL('https://fixture.test'+call.options.path).searchParams;
     assert.equal(q.get('version_name'),'7.3.9.32');assert.equal(q.get('device_type'),'23127PN0CC');assert(q.get('openudid'));
     assert.deepEqual(JSON.parse(Buffer.concat(call.body)),{video_id:'456',biz_param:{video_id_type:0,need_all_video_definition:true,video_platform:3}});
-    for(const key of ['X-Argus','X-Gorgon','X-Medusa','X-Khronos','X-Ladon','X-Helios'])assert(call.options.headers[key],key);
+    for(const key of ['X-Argus','X-Gorgon','X-Khronos','X-Ladon','X-Helios'])assert(call.options.headers[key],key);
     assert.equal(call.options.headers['Content-Encoding'],undefined);
     assert.equal(call.options.headers['X-SS-STUB'],require('crypto').createHash('md5').update(Buffer.concat(call.body)).digest('hex').toUpperCase());
   }finally{f.close();}
@@ -734,4 +747,26 @@ test('an unprepared model must not become a same-series preference after disk fa
     assert((await observe(f.provider.prepare('123','457','',true,'range',false))).error);
     assert.equal(f.tabRequests.length,2);assert.equal(f.requests.length,2);assert.equal(f.singleRequests.length,1);
   } finally {f.close();}
+});
+
+
+test('ByteVC2 compatible fallback stops outstanding request and later codecs after cancel or service close', async () => {
+  const model = { video_id: 'same-video', video_duration: 90, fallback_api: 'https://api.fqnovel.com/playback/fallback?codec_type=4&sig=keep', video_list: [{codec_type: 'bytevc2'}] };
+  for (const phase of ['original', 'codec', 'close']) {
+    const f = fixture([{body: JSON.stringify({data:{456:{video_model:model}}})}], null, [], {code:100103}, [], {fallback(options, index) {
+      return {hold: phase === 'original' || index === 1, body:{code:0,video_info:{code:0,data:model}}};
+    }});
+    const controller = new AbortController();
+    try {
+      const pending = observe(f.prepare(false, controller.signal));
+      await until(() => f.fallbackRequests.length === (phase === 'original' ? 1 : 2));
+      if (phase === 'close') f.provider.closeCache(); else controller.abort();
+      const {error} = await pending;
+      assert(error && error.name === 'AbortError', phase);
+      assert(f.fallbackRequests.at(-1).destroyed, phase + ' request cancelled');
+      await tick();
+      assert.equal(f.fallbackRequests.length, phase === 'original' ? 1 : 2, phase + ' no later codec request');
+      assert.equal(f.rangeOpens, 0);
+    } finally { f.close(); }
+  }
 });

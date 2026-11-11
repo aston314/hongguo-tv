@@ -1533,23 +1533,20 @@ func miniReelOptionsFromEnvelope(ctx context.Context, vid string, envelope map[s
 		diagnostic.Code = "VIDEO_MODEL_MISSING"
 		return nil, &miniReelStreamMissError{cause: errMiniReelVideoModelMissing}
 	}
-	optionModel := model
-	rows := miniReelMapsFromAny(optionModel["video_list"])
-	if len(rows) == 0 {
-		fallbackAPI := miniReelFallbackAPI(model["fallback_api"])
-		if fallbackAPI != "" {
-			optionModel, err = miniReelFetchFallbackModelWithClient(ctx, fallbackAPI, client)
-			if err != nil {
-				return nil, fmt.Errorf("MiniReel fallback_api failed: %w", err)
-			}
-			rows = miniReelMapsFromAny(optionModel["video_list"])
-		}
+	optionModel, err := miniReelCompatibleModel(ctx, model, client)
+	if err != nil {
+		return nil, err
 	}
-	if len(rows) == 0 {
+	if len(miniReelMapsFromAny(optionModel["video_list"])) == 0 {
 		diagnostic.Code = "VIDEO_MODEL_LIST_EMPTY"
 		return nil, &miniReelStreamMissError{cause: errMiniReelVideoListEmpty}
 	}
-	options = make([]miniReelOption, 0, len(rows))
+	return miniReelOptionsFromModel(optionModel), nil
+}
+
+func miniReelOptionsFromModel(optionModel map[string]any) []miniReelOption {
+	rows := miniReelMapsFromAny(optionModel["video_list"])
+	options := make([]miniReelOption, 0, len(rows))
 	for _, row := range rows {
 		meta, _ := row["video_meta"].(map[string]any)
 		encryption, _ := row["encrypt_info"].(map[string]any)
@@ -1557,7 +1554,7 @@ func miniReelOptionsFromEnvelope(ctx context.Context, vid string, envelope map[s
 		// bytevc1 is ordinary HEVC and can use MPV's hwdec=no software decoder.
 		// Keep bytevc2 excluded in every mode: an hvc1 entry with bv2C data is
 		// not evidence of HEVC compatibility and has stalled vendor decoders.
-		if strings.EqualFold(codec, "bytevc2") {
+		if miniReelIsByteVC2(codec) {
 			continue
 		}
 		rawURL := firstNonEmpty(miniReelToString(row["main_url"]), miniReelToString(row["backup_url"]))
@@ -1575,26 +1572,20 @@ func miniReelOptionsFromEnvelope(ctx context.Context, vid string, envelope map[s
 				}
 			}
 		}
-		mediaURL := rawURL
-		if !strings.HasPrefix(mediaURL, "http") {
-			decoded, decodeErr := base64.StdEncoding.DecodeString(rawURL)
-			if decodeErr != nil {
-				decoded, decodeErr = base64.RawStdEncoding.DecodeString(rawURL)
-			}
-			if decodeErr != nil {
-				continue
-			}
-			mediaURL = string(decoded)
-		}
+		mediaURL := miniReelModelURL(rawURL, optionModel)
 		if !strings.HasPrefix(mediaURL, "https://") {
 			continue
 		}
 		key := []byte(nil)
-		if spade := miniReelToString(encryption["spade_a"]); spade != "" {
+		if spade := firstNonEmpty(miniReelToString(encryption["spade_a"]), miniReelToString(row["spade_a"])); spade != "" {
+			var err error
 			key, err = miniReelDecodeContentKey(spade)
 			if err != nil {
 				continue
 			}
+		}
+		if len(key) == 0 && (row["encrypt"] == true || meta["encrypt"] == true) {
+			continue
 		}
 		width := miniReelIntFromAny(row["vwidth"])
 		if width == 0 {
@@ -1626,7 +1617,7 @@ func miniReelOptionsFromEnvelope(ctx context.Context, vid string, envelope map[s
 		}
 		options = append(options, miniReelOption{URL: mediaURL, Key: key, Codec: codec, Width: width, Height: height, Quality: quality, Duration: miniReelIntFromAny(optionModel["video_duration"])})
 	}
-	return options, nil
+	return options
 }
 
 // The official video_tab API returns the model under data.video_model_data.
@@ -1882,6 +1873,11 @@ func miniReelFetchFallbackModelWithClient(ctx context.Context, raw string, clien
 	req.Header.Set("Accept", "application/json; charset=utf-8,application/x-protobuf")
 	resp, err := requestClient.Do(req)
 	if err != nil {
+		// url.Error includes the signed fallback URL; retain only its cause.
+		var transport *url.Error
+		for errors.As(err, &transport) {
+			err = transport.Err
+		}
 		return nil, fmt.Errorf("fallback_api request failed: %w", err)
 	}
 	defer resp.Body.Close()
@@ -1914,6 +1910,8 @@ func miniReelFetchFallbackModelWithClient(ctx context.Context, raw string, clien
 		return nil, errors.New("fallback_api response has no video_info")
 	}
 	if code := firstNonEmpty(miniReelToString(videoInfo["Code"]), miniReelToString(videoInfo["code"])); code != "" && code != "0" {
+		diagnostic.Code = "FALLBACK_API_BUSINESS"
+		diagnostic.BusinessCode = safePlaybackBusinessCode(code)
 		return nil, fmt.Errorf("fallback_api video_info rejected request (code %s)", code)
 	}
 	model, ok := videoInfo["data"].(map[string]any)

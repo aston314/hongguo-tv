@@ -172,7 +172,7 @@ func TestMiniReelMultiVideoModelUsesRegisteredIdentityAndDirectModel(t *testing.
 		if got := r.URL.Query().Get("cdid"); got != device.cdid {
 			t.Errorf("cdid = %q", got)
 		}
-		if r.Header.Get("X-Medusa") != "" {
+		if r.Header.Get("X-Argus") != "" {
 			assertMiniReelPlaybackSignature(t, r)
 		}
 		var body map[string]any
@@ -193,10 +193,10 @@ func TestMiniReelMultiVideoModelUsesRegisteredIdentityAndDirectModel(t *testing.
 		identities = append(identities, r.URL.Query().Get("device_id"), r.URL.Query().Get("iid"))
 		mu.Unlock()
 		if requestNumber < 3 {
-			if r.Header.Get("X-Medusa") == "" {
+			if r.Header.Get("X-Argus") == "" {
 				t.Error("first two requests must be signed")
 			}
-		} else if r.Header.Get("X-Medusa") != "" || r.Header.Get("X-Gorgon") != "" {
+		} else if r.Header.Get("X-Argus") != "" || r.Header.Get("X-Gorgon") != "" {
 			t.Error("last empty-response retry must preserve the unsigned compatibility path")
 		}
 		if requestNumber < 3 {

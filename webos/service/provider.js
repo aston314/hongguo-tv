@@ -415,42 +415,113 @@
     return { code: 0, data: (function () { var out = {}; out[String(vid)] = { video_model: model }; return out; }()) };
   }
 
+  function modelURL(raw, model) {
+    if (!modelString(model.key_seed)) {
+      if (/^https:\/\//i.test(raw)) return raw;
+      try { return Buffer.from(raw, 'base64').toString(); } catch (ignored) { return ''; }
+    }
+    try {
+      var seed = Buffer.from(modelString(model.key_seed), 'base64'), bytes = Buffer.from(raw, 'base64');
+      if (!seed.length || bytes.length < 20 || bytes[0] !== 0xa8 || bytes[2] !== 1 || bytes[3] !== 0 || (bytes.length - 4) % 16) return '';
+      var hash = crypto.createHash('sha512').update(seed).digest();
+      var key = crypto.createHash('sha512').update(Buffer.concat([hash, Buffer.from('4dd4c2e6b83162090e52b3c7a6733ba41cb2462b829ab58a196b39db57177524f49baf7f08e8d68d26a72e37c1a95a2f1f05a51892aef2949732b62a38aadd58', 'hex')])).digest();
+      var decipher = crypto.createDecipheriv('aes-128-cbc', key.slice(0, 16), key.slice(16, 32));
+      decipher.setAutoPadding(false);
+      var plain = Buffer.concat([decipher.update(bytes.slice(4)), decipher.final()]);
+      var pad = plain[plain.length - 1];
+      if (pad >= 1 && pad <= 16 && pad <= plain.length) {
+        for (var i = plain.length - pad; i < plain.length; i++) if (plain[i] !== pad) return '';
+        plain = plain.slice(0, plain.length - pad);
+      }
+      return plain.toString().replace(/\x00+$/, '');
+    } catch (ignoredKeySeed) { return ''; }
+  }
+  function modelOptions(optionModel) {
+    var options = [];
+    modelRows(optionModel.video_list).forEach(function (row) {
+      var meta = row && row.video_meta || {};
+      var encryption = row && row.encrypt_info || {};
+      if (isByteVC2(row && row.codec_type || meta.codec_type)) return;
+      var backup = row && row.backup_url_list;
+      var raw = modelString(row && (row.main_url || row.backup_url || (Array.isArray(backup) && backup[0])));
+      var mediaURL = modelURL(raw, optionModel);
+      if (!/^https:\/\//i.test(mediaURL)) return;
+      var key = null;
+      var spade = modelString(encryption.spade_a || row.spade_a);
+      if (spade) {
+        try { key = decodeSpade(spade); } catch (ignoredKey) { return; }
+      }
+      if (!key && (row.encrypt === true || meta.encrypt === true)) return;
+      var height = number(row && (row.vheight || row.height) || meta.vheight || meta.height);
+      var definition = modelString(row && (row.quality_desc || row.definition) || meta.definition).match(/(\d{3,4})/);
+      if (definition) height = Number(definition[1]);
+      options.push({ url: mediaURL, key: key, height: height, quality: height > 0 ? String(height) + 'P' : '', duration: number(optionModel.video_duration) });
+    });
+    return options;
+  }
+
+  function isByteVC2(codec) { return /^(bytevc2|bvc2)$/i.test(String(codec || '')); }
+  function onlyByteVC2(model) {
+    var rows = modelRows(model.video_list);
+    return rows.length > 0 && rows.every(function (row) { return isByteVC2(row && row.codec_type || row && row.video_meta && row.video_meta.codec_type); });
+  }
+  function sameFallbackVideo(reference, candidate) {
+    var a = modelString(reference.video_id), b = modelString(candidate.video_id);
+    var x = Number(reference.video_duration), y = Number(candidate.video_duration);
+    return !(a && b && a !== b) && !(x > 0 && y > 0 && Math.abs(x - y) > 0.5);
+  }
+  function fallbackCodecURL(raw, codec) {
+    var at = raw.indexOf('?'), base = at < 0 ? raw : raw.slice(0, at), query = at < 0 ? '' : raw.slice(at + 1);
+    var parts = query ? query.split('&').filter(function (part) {
+      var key = part.split('=')[0];
+      try { key = decodeURIComponent(key.replace(/\+/g, ' ')); } catch (ignored) {}
+      return key !== 'codec_type' && key !== 'force_codec';
+    }) : [];
+    // Preserve the raw signed query, including encoding and parameter order.
+    return base + '?' + parts.concat([codec]).join('&');
+  }
+  function compatibleModel(model, signal) {
+    if (modelRows(model.video_list).length && !onlyByteVC2(model)) return Promise.resolve(model);
+    var fallback = fallbackAPI(model.fallback_api);
+    if (!fallback) return Promise.resolve(model);
+    return fallbackModel(fallback, signal, 0).then(function (original) {
+      if (!sameFallbackVideo(model, original)) {
+        if (onlyByteVC2(model)) return model;
+        throw fail('fallback_api 分集或时长不匹配', 502, 'FALLBACK_API_MISMATCH', 'fallback_api');
+      }
+      if (!onlyByteVC2(original)) return original;
+      var codecs = ['codec_type=1', 'codec_type=0&force_codec=h264'];
+      function next(index) {
+        if (signal && signal.aborted) throw preparationCancelled();
+        if (index >= codecs.length) return original;
+        return fallbackModel(fallbackCodecURL(fallback, codecs[index]), signal, 0).then(function (candidate) {
+          if (signal && signal.aborted) throw preparationCancelled();
+          if (sameFallbackVideo(model, candidate) && sameFallbackVideo(original, candidate) && modelOptions(candidate).length) return candidate;
+          return next(index + 1);
+        }, function (error) {
+          if (signal && signal.aborted || error && error.name === 'AbortError') throw preparationCancelled();
+          if (error && error.code === 'FALLBACK_API_REJECTED') throw error;
+          return next(index + 1);
+        });
+      }
+      return next(0);
+    }, function (error) {
+      // Failure of the extra ByteVC2 fallback must leave the original source
+      // sequence available. Business rejection and cancellation still stop.
+      if (signal && signal.aborted || error && (error.name === 'AbortError' || error.code === 'FALLBACK_API_REJECTED') || !onlyByteVC2(model)) throw error;
+      return model;
+    });
+  }
+
   function optionsFromVideoModel(vid, model, signal, stage, recordDiagnostic) {
     var label = stage === 'video_tab' ? 'video_tab' : 'multi_video_model';
     model = decodeModel(model);
     if (!model || typeof model !== 'object') throw fail(label + ' 未返回所选分集的视频数据', 502, 'VIDEO_MODEL_MISSING', label);
-    var rows = modelRows(model.video_list);
-    var resolvedModel = Promise.resolve(model);
-    if (!rows.length) {
-      var fallback = fallbackAPI(model.fallback_api);
-      if (!fallback) throw fail(label + ' 未返回本集片源地址', 502, 'VIDEO_MODEL_MISSING', label);
-      resolvedModel = fallbackModel(fallback, signal, 0).catch(function (error) {
-        if (typeof recordDiagnostic === 'function') recordDiagnostic({ stage: 'fallback_api', code: error && error.code || 'FALLBACK_API_ERROR' });
-        throw error;
-      });
-    }
-    return resolvedModel.then(function (optionModel) {
-      var options = [];
-      modelRows(optionModel.video_list).forEach(function (row) {
-        var meta = row && row.video_meta || {};
-        var encryption = row && row.encrypt_info || {};
-        if (String(row && row.codec_type || meta.codec_type || '').toLowerCase() === 'bytevc2') return;
-        var backup = row && row.backup_url_list;
-        var raw = modelString(row && (row.main_url || row.backup_url || (Array.isArray(backup) && backup[0])));
-        var mediaURL = raw;
-        if (!/^https?:\/\//i.test(mediaURL)) {
-          try { mediaURL = Buffer.from(raw, 'base64').toString(); } catch (ignored) {}
-        }
-        if (!/^https:\/\//i.test(mediaURL)) return;
-        var key = null;
-        if (modelString(encryption.spade_a)) {
-          try { key = decodeSpade(modelString(encryption.spade_a)); } catch (ignoredKey) { return; }
-        }
-        var height = number(row && (row.vheight || row.height) || meta.vheight || meta.height);
-        var definition = modelString(row && (row.quality_desc || row.definition) || meta.definition).match(/(\d{3,4})/);
-        if (definition) height = Number(definition[1]);
-        options.push({ url: mediaURL, key: key, height: height, quality: height > 0 ? String(height) + 'P' : '', duration: number(optionModel.video_duration) });
-      });
+    return compatibleModel(model, signal).catch(function (error) {
+      if (typeof recordDiagnostic === 'function') recordDiagnostic({ stage: 'fallback_api', code: error && error.code || 'FALLBACK_API_ERROR' });
+      throw error;
+    }).then(function (optionModel) {
+      var options = modelOptions(optionModel);
       if (!options.length) throw fail(label + ' 没有可播放清晰度', 502, 'VIDEO_MODEL_NO_QUALITY', label);
       if (typeof recordDiagnostic === 'function') recordDiagnostic({
         code: stage === 'video_tab' ? 'VIDEO_TAB_OK' : 'VIDEO_MODEL_OK',

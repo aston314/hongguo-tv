@@ -31,6 +31,8 @@ var deviceRegisterFailures = 0;
 var deviceRegistration = null;
 var videoModelEmptyResponses = 0;
 var videoModelFallback = '';
+var videoModelInline = null;
+var fallbackResponseForPath = null;
 var fallbackRequests = [];
 var fallbackStatus = 200;
 var fallbackLocation = '';
@@ -98,7 +100,7 @@ https.request = function (options) {
       var playbackBody = JSON.parse(Buffer.concat(requestChunks).toString('utf8'));
       playbackRequests.push({ options: options, query: playbackQuery, body: playbackBody });
       var videoID = playbackBody.mixed_video_id_map['1004'][0], entry = {};
-      if (videoModelFallback) entry[videoID] = { video_model: { fallback_api: videoModelFallback } };
+      if (videoModelFallback) entry[videoID] = { video_model: Object.assign({}, videoModelInline || {}, { fallback_api: videoModelFallback }) };
       else entry[videoID] = { video_model: { video_list: [{ main_url: 'https://media.example.test/episode.mp4', video_meta: { vheight: 720, definition: '720P' }, encrypt_info: videoSpade ? { spade_a: videoSpade } : {} }] } };
       if (videoModelEmptyResponses > 0) { videoModelEmptyResponses--; body = ''; }
       else body = JSON.stringify({ code: 0, data: entry });
@@ -110,7 +112,7 @@ https.request = function (options) {
     if (options.path.indexOf('/playback/fallback') >= 0) {
       fallbackRequests.push({ options: options, headers: options.headers, path: options.path });
       responseStatus = fallbackStatus;
-      body = fallbackResponseBody;
+      body = fallbackResponseForPath ? fallbackResponseForPath(options.path) : fallbackResponseBody;
     }
     if (options.path.indexOf('/reading/bookapi/plan/v') >= 0) body = '{"code":0,"data":[]}';
     if (options.path.indexOf('/reading/bookapi/bookmall/cell/change/v') >= 0) {
@@ -486,7 +488,8 @@ async function run() {
         assert.notStrictEqual(call.query.cdid, playbackIdentity.cdid, 'the second round registers a new identity');
       }
       {
-        assert(call.options.headers['X-Medusa'], 'playback request includes its own signature');
+        assert(call.options.headers['X-Argus'], 'playback request includes its own signature');
+        assert.strictEqual(call.options.headers['X-Medusa'], undefined, 'account profile is absent');
         assert.strictEqual(call.query.ts, call.options.headers['X-Khronos']);
         assert.strictEqual(call.query._rticket, call.options.headers['X-SS-Req-Ticket']);
         var stamp = Number(call.query.ts), gorgon = Buffer.from(call.options.headers['X-Gorgon'], 'hex');
@@ -505,7 +508,7 @@ async function run() {
       assert.strictEqual(call.body.mixed_video_id_map['1004'].length, 1);
       assert(/^\d+$/.test(call.body.mixed_video_id_map['1004'][0]), 'playback request targets an exact video ID');
     });
-    assert.notStrictEqual(playbackRequests[beforePlaybackRequests].options.headers['X-Medusa'], playbackRequests[beforePlaybackRequests + 1].options.headers['X-Medusa'], 'retry signs again');
+    assert.notStrictEqual(playbackRequests[beforePlaybackRequests].options.headers['X-Argus'], playbackRequests[beforePlaybackRequests + 1].options.headers['X-Argus'], 'retry signs again');
 
     videoModelFallback = 'https://api5-normal-sinfonlineb.fqnovel.com/playback/fallback';
     fallbackResponseBody = JSON.stringify({ code: 0, video_info: { code: 0, data: { video_list: { '720': { backup_url_list: ['https://media.example.test/fallback.mp4'], codec_type: 'h264', vheight: 720, quality_desc: '720P' } }, video_duration: 91 } } });
@@ -516,6 +519,61 @@ async function run() {
     assert.strictEqual(fallbackRequests.length, 1);
     assert.strictEqual(fallbackRequests[0].options.method, 'GET');
     assert.strictEqual(fallbackRequests[0].options.headers.Cookie || '', '', 'fallback request sends no account cookies');
+
+    var beforeCodecFallback = fallbackRequests.length;
+    function codecModel(codec, id, duration) {
+      return { video_id: id || 'same-video', video_duration: duration || 90, video_list: [{ codec_type: codec, main_url: 'https://media.example.test/compatible.mp4', vheight: 1080 }] };
+    }
+    for (var scenario of ['inline', 'mixed', 'original', 'hevc', 'h264', 'mismatch-id', 'mismatch-duration', 'unusable', 'all-bytevc2']) {
+      videoModelFallback = 'https://api.fqnovel.com/playback/fallback?sig=a%2fb%2BC&same=1&same=2&codec_type=4&force_codec=old&token=x%3D';
+      videoModelInline = codecModel(scenario === 'inline' ? 'h265' : 'bytevc2');
+      if (scenario === 'mixed') videoModelInline.video_list.push(codecModel('h264').video_list[0]);
+      var calls = [];
+      fallbackResponseForPath = function (target) {
+        calls.push(target);
+        var candidate = codecModel('bvc2');
+        if (scenario === 'original' || calls.length === 2 && scenario !== 'h264' && scenario !== 'all-bytevc2' || calls.length === 3 && scenario === 'h264') candidate = codecModel('h265');
+        if (calls.length >= 2 && scenario === 'mismatch-id') candidate.video_id = 'other-video';
+        if (calls.length >= 2 && scenario === 'mismatch-duration') candidate.video_duration = 91;
+        if (calls.length >= 2 && scenario === 'unusable') candidate.video_list[0].main_url = 'invalid';
+        return JSON.stringify({ code: 0, video_info: { code: 0, data: candidate } });
+      };
+      var probe = await provider.inspectVideoModel('1434567890123456789');
+      var expected = { inline: 0, mixed: 0, original: 1, hevc: 2 }[scenario];
+      assert.strictEqual(calls.length, expected == null ? 3 : expected, scenario + ' bounded request count');
+      assert.strictEqual(probe.ok, ['mismatch-id', 'mismatch-duration', 'unusable', 'all-bytevc2'].indexOf(scenario) < 0, scenario + ' result');
+      if (calls.length >= 2) assert.strictEqual(calls[1], '/playback/fallback?sig=a%2fb%2BC&same=1&same=2&token=x%3D&codec_type=1', 'raw query is preserved');
+      if (calls.length >= 3) assert.strictEqual(calls[2], '/playback/fallback?sig=a%2fb%2BC&same=1&same=2&token=x%3D&codec_type=0&force_codec=h264');
+    }
+    videoModelInline = codecModel('bytevc2');
+    fallbackResponseForPath = function () { return JSON.stringify({code:0,video_info:{code:0,data:codecModel('h265','wrong-video')}}); };
+    assert.strictEqual((await provider.inspectVideoModel('1434567890123456789')).error.code, 'VIDEO_MODEL_MISSING', 'mismatched extra fallback reaches the remaining single-model provider');
+    fallbackResponseForPath = null; fallbackStatus = 503;
+    assert.strictEqual((await provider.inspectVideoModel('1434567890123456789')).error.code, 'VIDEO_MODEL_MISSING', 'failed extra fallback reaches the remaining single-model provider');
+    fallbackStatus = 200;
+    var businessCalls = 0;
+    fallbackResponseForPath = function () {
+      businessCalls++;
+      return JSON.stringify({code:0,video_info:{code:businessCalls === 1 ? 0 : 110001,data:codecModel('bytevc2')}});
+    };
+    assert.strictEqual((await provider.inspectVideoModel('1434567890123456789')).error.code, 'FALLBACK_API_REJECTED', 'business rejection stops compatible codec probes');
+    assert.strictEqual(businessCalls, 2);
+    fallbackResponseForPath = null;
+    var urlVector = require('../../core/cmd/hongguotv/testdata/playback-url-vector.json');
+    videoModelInline = codecModel('h265'); videoModelInline.key_seed = urlVector.seed;
+    videoModelInline.video_list[0].main_url = urlVector.encoded;
+    var beforeEncryptedURL = fallbackRequests.length;
+    assert.strictEqual((await provider.inspectVideoModel('1434567890123456789')).ok, true, 'key_seed URL is decoded without a fallback request');
+    assert.strictEqual(fallbackRequests.length, beforeEncryptedURL);
+    videoModelInline.video_list[0].encrypt = true;
+    assert.strictEqual((await provider.inspectVideoModel('1434567890123456789')).ok, false, 'encrypted media with no content key cannot be accepted');
+    delete videoModelInline.video_list[0].encrypt;
+    for (var malformed of ['', '!bad', urlVector.encoded.slice(0, -8)]) {
+      videoModelInline.video_list[0].main_url = malformed;
+      assert.strictEqual((await provider.inspectVideoModel('1434567890123456789')).ok, false, 'malformed encrypted URL rejected');
+    }
+    fallbackRequests.splice(beforeCodecFallback);
+    videoModelInline = null; fallbackResponseForPath = null;
 
     videoModelFallback = 'https://api.fqnovel.com/playback/fallback';
     fallbackStatus = 302;
