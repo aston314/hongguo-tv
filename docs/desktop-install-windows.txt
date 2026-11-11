@@ -6,6 +6,6 @@
    https://developer.microsoft.com/microsoft-edge/webview2/
 4. 当前测试版未用 Windows 代码签名证书签名，系统可能提示未知发布者。
 5. 账号和记录保存在系统用户配置目录 HongguoDesktop，替换程序文件不会删除记录。
-6. 使用键盘输入和粘贴，不提供扫码输入。当前只使用 HTML5 播放，HEVC 支持仍取决于系统与 WebView2。
+6. 默认使用 HTML5 播放，HEVC 支持取决于系统与 WebView2。无法播放时，可在设置 → 播放解码中选择“CPU 软解（WASM）”，下次播放或切集时生效。软解支持 HEVC/H.264，不依赖系统 HEVC 扩展，但会增加 CPU 占用，倍速暂时会改变音调；不支持 ByteVC2。
 
 7. 设置 → 版本更新可下载并校验新版 ZIP。下载后退出应用，将 ZIP 完整解压后替换整个程序文件夹，账号和观看记录保留。
