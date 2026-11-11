@@ -201,7 +201,7 @@
         stop(); dom.pause(); dom.removeAttribute('src'); dom.load();
         mode = preference(win.localStorage); source = String(value || ''); sourceCodec = ''; seekTarget = 0;
         state.volume = dom.volume; state.muted = dom.muted; state.playbackRate = dom.playbackRate || 1;
-        state.paused = true; state.ended = false; state.seeking = false; state.currentTime = 0; state.duration = NaN; state.readyState = 0; state.error = null;
+        state.paused = true; state.ended = false; state.seeking = false; state.currentTime = 0; state.duration = NaN; state.videoWidth = state.videoHeight = 0; state.readyState = 0; state.error = null;
         if (!isWasm()) dom.src = source;
       }
     });

@@ -25,7 +25,7 @@ emcc "$ROOT_DIR/desktop/wasm/decoder.c" -I"$WASM_BUILD_DIR/install/include" \
   -L"$WASM_BUILD_DIR/install/lib" -lavformat -lavcodec -lswscale -lswresample -lavutil -lm \
   -O3 -msimd128 -sMODULARIZE=1 -sEXPORT_NAME=HongguoWasmDecoder -sENVIRONMENT=worker \
   -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=67108864 -sMAXIMUM_MEMORY=536870912 \
-  -sFILESYSTEM=0 -sASSERTIONS=0 -sINVOKE_RUN=0 -o "$WASM_OUT/decoder.js"
+  -sEXPORTED_RUNTIME_METHODS=HEAPU8 -sFILESYSTEM=0 -sASSERTIONS=0 -sINVOKE_RUN=0 -o "$WASM_OUT/decoder.js"
 cp COPYING.LGPLv2.1 "$WASM_OUT/FFmpeg-LICENSE.txt"
 cat > "$WASM_OUT/NOTICE.txt" <<NOTICE
 FFmpeg n8.0.1, commit $FFMPEG_COMMIT, LGPL-2.1-or-later.

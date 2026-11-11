@@ -34,7 +34,7 @@ test('the chosen mode applies to the next source; obsolete worker callbacks cann
  assert.equal(f.proxy.videoWidth,1920);
  f.proxy.src='http://127.0.0.1:12345/minireel-proxy/media/b.mp4';f.proxy.load();
  assert.equal(first.terminated,true);first.onmessage({data:{type:'meta',generation:id,width:10,height:20,duration:50,audio:false}});
- assert.equal(f.proxy.videoWidth,1920); // old callbacks never overwrite the active source
+ assert.equal(f.proxy.videoWidth,0); // old callbacks never overwrite the active source
  const next=f.workers.at(-1),nextId=next.sent[0].generation;
  next.onmessage({data:{type:'meta',generation:nextId,width:1280,height:720,duration:12,audio:false}});assert.equal(f.proxy.videoWidth,1280);
  f.proxy.removeAttribute('src');f.proxy.load();assert.equal(f.settings.diagnostics().workers,0);assert.equal(next.terminated,true);
