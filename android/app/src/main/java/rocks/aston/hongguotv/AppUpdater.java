@@ -68,7 +68,7 @@ final class AppUpdater {
     private boolean installResultReceiverRegistered;
     private boolean savingApk;
     private volatile boolean saveCancelled;
-    private Manifest pendingSavePermission;
+    private Manifest pendingSavePermission, pendingSaveResume;
     private final BroadcastReceiver installResultReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) { handleInstallResult(intent); }
     };
@@ -163,7 +163,7 @@ final class AppUpdater {
     }
 
     private void checkNow(boolean manual) {
-        if (destroyed || downloading || checking || savingApk || pendingSavePermission != null || "installing".equals(state) || BuildConfig.DEBUG
+        if (destroyed || downloading || checking || savingApk || pendingSavePermission != null || pendingSaveResume != null || "installing".equals(state) || BuildConfig.DEBUG
                 || preferences.getBoolean("waiting_permission", false)
                 || preferences.getBoolean("waiting_installer", false)) return;
         checking = true; manualPrompt = manual; state = "checking"; message = "正在检查更新…"; publish();
@@ -276,7 +276,7 @@ final class AppUpdater {
     private void beginDownload(Manifest target) {
         // The confirmation is dismissed by Android after its click listener returns.
         activity.getWindow().getDecorView().post(() -> {
-            if (destroyed || downloading || savingApk || pendingSavePermission != null) return;
+            if (destroyed || downloading || savingApk || pendingSavePermission != null || pendingSaveResume != null) return;
             if (dialog != null) { AlertDialog old = dialog; dialog = null; old.dismiss(); }
             downloading = true; downloaded = 0; state = "downloading"; message = "正在下载 " + target.name; publish();
             final int epoch = generation.incrementAndGet();
@@ -404,7 +404,7 @@ final class AppUpdater {
 
     private void launchInstaller(Manifest target) {
         if (!apk.isFile() || apk.length() != target.bytes || verifiedApkCode != target.code || destroyed
-                || savingApk || pendingSavePermission != null) return;
+                || savingApk || pendingSavePermission != null || pendingSaveResume != null) return;
         boolean canRequestInstalls = Build.VERSION.SDK_INT < 26 || activity.getPackageManager().canRequestPackageInstalls();
         String failure = "";
         for (String route : UpdateInstallPolicy.routes(
@@ -460,6 +460,10 @@ final class AppUpdater {
 
     void resume() {
         if (destroyed) return;
+        if (pendingSaveResume != null) {
+            completeSavePermission();
+            return;
+        }
         int targetCode = preferences.getInt("install_target_code", 0);
         if (targetCode <= 0) { publish(); return; }
         if (BuildConfig.VERSION_CODE >= targetCode) {
@@ -661,13 +665,22 @@ final class AppUpdater {
         Manifest target = pendingSavePermission;
         pendingSavePermission = null;
         if (destroyed || target == null) return true;
+        // Permission results may precede Activity.onResume on older Android.
+        pendingSaveResume = target;
+        if (host.foreground()) completeSavePermission();
+        return true;
+    }
+
+    private void completeSavePermission() {
+        Manifest target = pendingSaveResume;
+        pendingSaveResume = null;
+        if (target == null || destroyed) return;
         if (hasSavePermission()) {
             saveApk(target);
         } else {
             message = "未获得存储权限，安装包未保存"; publish();
             showSaveResult("安装包未保存", "未获得存储权限，无法保存到下载目录。原安装包仍保留，您可以稍后重试。");
         }
-        return true;
     }
 
     private boolean hasSavePermission() {
