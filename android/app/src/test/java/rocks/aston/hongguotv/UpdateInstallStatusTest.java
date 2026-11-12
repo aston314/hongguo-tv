@@ -19,4 +19,12 @@ public class UpdateInstallStatusTest {
         assertEquals("系统未能识别此安装包（bad signature）",
                 UpdateInstallStatus.message(PackageInstaller.STATUS_FAILURE_INVALID, " bad signature "));
     }
+
+    @Test public void userRestrictionIsNotMisreportedAsAnIncompatibleApk() {
+        String detail = "INSTALL_FAILED_USER_RESTRICTED: Failed INSTALL_CANCELED_BY_USER";
+        assertEquals("系统限制了本次安装，可保存安装包后自行安装（" + detail + "）",
+                UpdateInstallStatus.message(PackageInstaller.STATUS_FAILURE_INCOMPATIBLE, detail));
+        assertEquals("安装包与此设备不兼容（INSTALL_FAILED_NO_MATCHING_ABIS）",
+                UpdateInstallStatus.message(PackageInstaller.STATUS_FAILURE_INCOMPATIBLE, "INSTALL_FAILED_NO_MATCHING_ABIS"));
+    }
 }

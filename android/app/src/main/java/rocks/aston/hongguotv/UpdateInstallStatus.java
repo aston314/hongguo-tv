@@ -11,6 +11,11 @@ final class UpdateInstallStatus {
 
     static String message(int status, String detail) {
         String reason;
+        // Some Android 6 ROMs map a user restriction to STATUS_FAILURE_INCOMPATIBLE.
+        // The legacy detail distinguishes it from actual ABI/SDK incompatibility.
+        if (detail != null && detail.contains("INSTALL_FAILED_USER_RESTRICTED")) {
+            return "系统限制了本次安装，可保存安装包后自行安装（" + detail.trim() + "）";
+        }
         switch (status) {
             case PackageInstaller.STATUS_FAILURE_ABORTED:
                 reason = "安装已取消";

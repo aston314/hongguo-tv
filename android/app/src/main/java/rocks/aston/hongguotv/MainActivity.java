@@ -809,6 +809,12 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (appUpdater != null) appUpdater.onRequestPermissionsResult(requestCode);
+    }
+
+    @Override
     protected void onDestroy() {
         destroyed = true;
         pageReady = false;

@@ -25,6 +25,7 @@ android {
         targetSdk 35
         versionCode 168
         versionName appVersion
+        testInstrumentationRunner "rocks.aston.hongguotv.UpdateApkSaverInstrumentation"
         buildConfigField "String", "CORE_VERSION", "\"${coreVersion}\""
         buildConfigField "boolean", "ANDROID5_COMPAT", android5Compat.toString()
         manifestPlaceholders = [deepLinkScheme: android5Compat ? "hongguo-android5-test" : "hongguo"]

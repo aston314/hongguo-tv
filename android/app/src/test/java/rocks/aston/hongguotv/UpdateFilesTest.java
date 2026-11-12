@@ -54,5 +54,55 @@ public class UpdateFilesTest {
             assertArrayEquals(content, Files.readAllBytes(file.toPath()));
         } finally { file.delete(); }
     }
+
+    @Test public void savingToDownloadsKeepsTheExistingFileAndUsesASeparateName() throws Exception {
+        File downloads = Files.createTempDirectory("downloads").toFile();
+        File existing = new File(downloads, "hongguo-tv-0.2.169.apk");
+        byte[] original = new byte[]{7, 8, 9};
+        Files.write(existing.toPath(), original);
+        try {
+            File saved = UpdateFiles.saveVerified(new ByteArrayInputStream(content), downloads, existing.getName(),
+                    content.length, digest(content), normal);
+            assertNotEquals(existing, saved);
+            assertArrayEquals(original, Files.readAllBytes(existing.toPath()));
+            assertArrayEquals(content, Files.readAllBytes(saved.toPath()));
+            assertTrue(saved.getName().endsWith(".apk"));
+            assertEquals(2, downloads.listFiles().length);
+        } finally { for (File file : downloads.listFiles()) file.delete(); downloads.delete(); }
+    }
+
+    @Test public void failedAndCancelledExportsLeaveNoApkOrTemporaryFile() throws Exception {
+        File downloads = Files.createTempDirectory("downloads").toFile();
+        try {
+            for (int scenario = 0; scenario < 3; scenario++) {
+                UpdateFiles.Monitor monitor = scenario == 2 ? new UpdateFiles.Monitor() {
+                    public void check() throws IOException { throw new IOException("cancelled"); }
+                    public void progress(long bytes) { }
+                } : normal;
+                try {
+                    UpdateFiles.saveVerified(new ByteArrayInputStream(content), downloads, "update.apk",
+                            scenario == 0 ? content.length + 1 : content.length,
+                            scenario == 1 ? digest(new byte[]{0}) : digest(content), monitor);
+                    fail("invalid export accepted");
+                } catch (IOException expected) { assertEquals(0, downloads.listFiles().length); }
+            }
+        } finally { downloads.delete(); }
+    }
+
+    @Test public void exportRejectsUnavailableDirectoryAndNamesOutsideDownloads() throws Exception {
+        File unavailable = File.createTempFile("not-a-directory", ".tmp");
+        try {
+            try {
+                UpdateFiles.saveVerified(new ByteArrayInputStream(content), unavailable, "update.apk", content.length, digest(content), normal);
+                fail("unavailable directory accepted");
+            } catch (IOException expected) { assertTrue(unavailable.isFile()); }
+            for (String name : new String[]{"../update.apk", "/update.apk", "update.txt"}) {
+                try {
+                    UpdateFiles.saveVerified(new ByteArrayInputStream(content), unavailable, name, content.length, digest(content), normal);
+                    fail("unsafe name accepted");
+                } catch (IOException expected) { assertTrue(unavailable.isFile()); }
+            }
+        } finally { unavailable.delete(); }
+    }
     private String digest(byte[] bytes) throws Exception { return UpdatePolicy.hex(MessageDigest.getInstance("SHA-256").digest(bytes)); }
 }
