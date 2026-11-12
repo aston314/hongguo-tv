@@ -603,11 +603,11 @@ final class AppUpdater {
             showFailure("已下载的安装包不可用，请重新检查更新。");
             return;
         }
-        if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT <= 28
-                && ContextCompat.checkSelfPermission(activity, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+        if (!hasSavePermission()) {
             pendingSavePermission = target;
             try {
-                activity.requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, SAVE_APK_PERMISSION);
+                activity.requestPermissions(new String[]{android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, SAVE_APK_PERMISSION);
             } catch (RuntimeException failure) {
                 pendingSavePermission = null;
                 showSaveResult("安装包未保存", "无法申请存储权限，请允许存储权限后重试。原安装包仍保留。");
@@ -661,13 +661,20 @@ final class AppUpdater {
         Manifest target = pendingSavePermission;
         pendingSavePermission = null;
         if (destroyed || target == null) return true;
-        if (ContextCompat.checkSelfPermission(activity, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+        if (hasSavePermission()) {
             saveApk(target);
         } else {
             message = "未获得存储权限，安装包未保存"; publish();
             showSaveResult("安装包未保存", "未获得存储权限，无法保存到下载目录。原安装包仍保留，您可以稍后重试。");
         }
         return true;
+    }
+
+    private boolean hasSavePermission() {
+        // Android 6 requires read access even for a write-only public storage operation.
+        return Build.VERSION.SDK_INT < 23 || Build.VERSION.SDK_INT >= 29
+                || ContextCompat.checkSelfPermission(activity, android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                && ContextCompat.checkSelfPermission(activity, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED;
     }
 
     private void showSaveResult(String title, String text) {

@@ -2,9 +2,9 @@ name: Android update export checks
 
 on:
   push:
-    paths: ['android/app/src/main/java/rocks/aston/hongguotv/Update*.java', 'android/app/src/main/java/rocks/aston/hongguotv/AppUpdater.java', 'android/app/src/main/java/rocks/aston/hongguotv/MainActivity.java', 'android/app/src/main/AndroidManifest.xml', 'android/app/src/androidTest/**', '.github/workflows/update-export-checks.yml']
+    paths: ['android/app/src/main/java/rocks/aston/hongguotv/Update*.java', 'android/app/src/main/java/rocks/aston/hongguotv/AppUpdater.java', 'android/app/src/main/java/rocks/aston/hongguotv/MainActivity.java', 'android/app/src/main/AndroidManifest.xml', 'android/app/src/androidTest/**', 'scripts/check_android_update_export.sh', '.github/workflows/update-export-checks.yml']
   pull_request:
-    paths: ['android/app/src/main/java/rocks/aston/hongguotv/Update*.java', 'android/app/src/main/java/rocks/aston/hongguotv/AppUpdater.java', 'android/app/src/main/java/rocks/aston/hongguotv/MainActivity.java', 'android/app/src/main/AndroidManifest.xml', 'android/app/src/androidTest/**', '.github/workflows/update-export-checks.yml']
+    paths: ['android/app/src/main/java/rocks/aston/hongguotv/Update*.java', 'android/app/src/main/java/rocks/aston/hongguotv/AppUpdater.java', 'android/app/src/main/java/rocks/aston/hongguotv/MainActivity.java', 'android/app/src/main/AndroidManifest.xml', 'android/app/src/androidTest/**', 'scripts/check_android_update_export.sh', '.github/workflows/update-export-checks.yml']
   workflow_dispatch:
 
 permissions:
@@ -46,9 +46,4 @@ jobs:
           target: default
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
-          script: |
-            adb install android/app/build/outputs/apk/standard/debug/app-standard-debug.apk
-            adb install android/app/build/outputs/apk/androidTest/standard/debug/app-standard-debug-androidTest.apk
-            if [ '${{ matrix.api }}' = 23 ]; then adb shell am instrument -w -e mode denied rocks.aston.hongguotv.debug.test/rocks.aston.hongguotv.UpdateApkSaverInstrumentation | tee /tmp/export-denied.log; grep -q 'UPDATE_EXPORT_OK sdk=23 mode=denied' /tmp/export-denied.log; adb shell pm grant rocks.aston.hongguotv.debug android.permission.WRITE_EXTERNAL_STORAGE; fi
-            adb shell am instrument -w -e mode save rocks.aston.hongguotv.debug.test/rocks.aston.hongguotv.UpdateApkSaverInstrumentation | tee /tmp/export-save.log
-            grep -q 'UPDATE_EXPORT_OK sdk=${{ matrix.api }} mode=save' /tmp/export-save.log
+          script: bash scripts/check_android_update_export.sh '${{ matrix.api }}'
