@@ -20,6 +20,7 @@ import android.webkit.JavascriptInterface;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Button;
 import androidx.core.content.ContextCompat;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -38,6 +39,7 @@ import org.json.JSONObject;
 
 /** Native update transport and installation. No repository credentials enter the APK. */
 final class AppUpdater {
+    private static final int SAVE_APK_PERMISSION = 20401;
     interface Host {
         boolean trusted();
         boolean foreground();
@@ -64,6 +66,9 @@ final class AppUpdater {
     private volatile int verifiedApkCode;
     private boolean cacheCheckComplete, pendingInstallResume;
     private boolean installResultReceiverRegistered;
+    private boolean savingApk;
+    private volatile boolean saveCancelled;
+    private Manifest pendingSavePermission;
     private final BroadcastReceiver installResultReceiver = new BroadcastReceiver() {
         @Override public void onReceive(Context context, Intent intent) { handleInstallResult(intent); }
     };
@@ -158,7 +163,7 @@ final class AppUpdater {
     }
 
     private void checkNow(boolean manual) {
-        if (destroyed || downloading || checking || "installing".equals(state) || BuildConfig.DEBUG
+        if (destroyed || downloading || checking || savingApk || pendingSavePermission != null || "installing".equals(state) || BuildConfig.DEBUG
                 || preferences.getBoolean("waiting_permission", false)
                 || preferences.getBoolean("waiting_installer", false)) return;
         checking = true; manualPrompt = manual; state = "checking"; message = "正在检查更新…"; publish();
@@ -271,7 +276,7 @@ final class AppUpdater {
     private void beginDownload(Manifest target) {
         // The confirmation is dismissed by Android after its click listener returns.
         activity.getWindow().getDecorView().post(() -> {
-            if (destroyed || downloading) return;
+            if (destroyed || downloading || savingApk || pendingSavePermission != null) return;
             if (dialog != null) { AlertDialog old = dialog; dialog = null; old.dismiss(); }
             downloading = true; downloaded = 0; state = "downloading"; message = "正在下载 " + target.name; publish();
             final int epoch = generation.incrementAndGet();
@@ -398,7 +403,8 @@ final class AppUpdater {
     }
 
     private void launchInstaller(Manifest target) {
-        if (!apk.isFile() || apk.length() != target.bytes || verifiedApkCode != target.code || destroyed) return;
+        if (!apk.isFile() || apk.length() != target.bytes || verifiedApkCode != target.code || destroyed
+                || savingApk || pendingSavePermission != null) return;
         boolean canRequestInstalls = Build.VERSION.SDK_INT < 26 || activity.getPackageManager().canRequestPackageInstalls();
         String failure = "";
         for (String route : UpdateInstallPolicy.routes(
@@ -567,12 +573,107 @@ final class AppUpdater {
                     if (retryAlternative) launchAlternativeInstaller(target, explanation);
                     else launchInstaller(target);
                 });
+        LinearLayout exportPanel = new LinearLayout(activity);
+        exportPanel.setOrientation(LinearLayout.VERTICAL);
+        int padding = Math.round(24 * activity.getResources().getDisplayMetrics().density);
+        exportPanel.setPadding(padding, 0, padding, 0);
+        Button save = new Button(activity);
+        save.setText("保存安装包");
+        save.setOnClickListener(view -> {
+            dismissDialog();
+            activity.getWindow().getDecorView().post(() -> saveApk(target));
+        });
+        exportPanel.addView(save, new LinearLayout.LayoutParams(-1, -2));
+        TextView hint = new TextView(activity);
+        hint.setText("保存到下载目录后，请通过电视文件管理器自行安装。");
+        hint.setTextSize(15);
+        exportPanel.addView(hint);
+        retry.setView(exportPanel);
         if (Build.VERSION.SDK_INT >= 26 && !activity.getPackageManager().canRequestPackageInstalls()) {
             retry.setNeutralButton("去设置", (d, which) -> openInstallPermissionSettings(target));
         } else {
             retry.setNeutralButton("备用方式", (d, which) -> launchSessionInstaller(target, explanation));
         }
         show(retry.create(), AlertDialog.BUTTON_POSITIVE);
+    }
+
+    private void saveApk(Manifest target) {
+        if (destroyed || savingApk || pendingSavePermission != null || !host.foreground() || !host.trusted()) return;
+        if (latest != target || verifiedApkCode != target.code || !apk.isFile() || apk.length() != target.bytes) {
+            showFailure("已下载的安装包不可用，请重新检查更新。");
+            return;
+        }
+        if (Build.VERSION.SDK_INT >= 23 && Build.VERSION.SDK_INT <= 28
+                && ContextCompat.checkSelfPermission(activity, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            pendingSavePermission = target;
+            try {
+                activity.requestPermissions(new String[]{android.Manifest.permission.WRITE_EXTERNAL_STORAGE}, SAVE_APK_PERMISSION);
+            } catch (RuntimeException failure) {
+                pendingSavePermission = null;
+                showSaveResult("安装包未保存", "无法申请存储权限，请允许存储权限后重试。原安装包仍保留。");
+            }
+            return;
+        }
+        savingApk = true; saveCancelled = false;
+        message = "正在保存安装包…"; publish();
+        AlertDialog saving = new AlertDialog.Builder(activity).setTitle("保存安装包")
+                .setMessage("正在保存到下载目录…")
+                .setNegativeButton("取消", (d, which) -> saveCancelled = true).create();
+        saving.setOnCancelListener(d -> saveCancelled = true);
+        show(saving, AlertDialog.BUTTON_NEGATIVE);
+        worker.execute(() -> {
+            UpdateApkSaver.SavedApk saved = null;
+            String failure = null;
+            try {
+                verifyArchive(target, apk);
+                saved = UpdateApkSaver.save(activity, apk, Uri.parse(target.url).getLastPathSegment(),
+                        target.bytes, target.sha256, new UpdateFiles.Monitor() {
+                            public void check() throws IOException {
+                                if (destroyed || saveCancelled || Thread.currentThread().isInterrupted()) throw new IOException("已取消保存");
+                            }
+                            public void progress(long bytes) { }
+                        });
+            } catch (Exception error) {
+                failure = error instanceof SecurityException ? "无法写入下载目录，请检查存储权限" : friendly(error);
+            }
+            final UpdateApkSaver.SavedApk result = saved;
+            final String detail = failure;
+            activity.runOnUiThread(() -> {
+                savingApk = false;
+                if (destroyed) return;
+                if (dialog == saving) dismissDialog();
+                if (result != null) {
+                    message = "安装包已保存：" + result.location + "，请自行安装"; publish();
+                    showSaveResult("安装包已保存", "文件：" + result.name + "\n位置：" + result.location
+                            + "\n\n请在电视文件管理器中打开该 APK，自行完成安装。");
+                } else if (saveCancelled) {
+                    message = "已取消保存，原安装包仍保留"; publish();
+                } else {
+                    message = "安装包保存失败，原安装包仍保留"; publish();
+                    showSaveResult("安装包未保存", detail + "\n\n原安装包仍保留，可以重试保存或继续安装。");
+                }
+            });
+        });
+    }
+
+    boolean onRequestPermissionsResult(int requestCode) {
+        if (requestCode != SAVE_APK_PERMISSION) return false;
+        Manifest target = pendingSavePermission;
+        pendingSavePermission = null;
+        if (destroyed || target == null) return true;
+        if (ContextCompat.checkSelfPermission(activity, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED) {
+            saveApk(target);
+        } else {
+            message = "未获得存储权限，安装包未保存"; publish();
+            showSaveResult("安装包未保存", "未获得存储权限，无法保存到下载目录。原安装包仍保留，您可以稍后重试。");
+        }
+        return true;
+    }
+
+    private void showSaveResult(String title, String text) {
+        if (destroyed || !host.foreground() || dialog != null) return;
+        show(new AlertDialog.Builder(activity).setTitle(title).setMessage(text)
+                .setPositiveButton("知道了", null).create(), AlertDialog.BUTTON_POSITIVE);
     }
 
     private void rememberInstallHandoff(Manifest target, String mode) {
