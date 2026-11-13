@@ -48,6 +48,8 @@ function pageFixture(f,webosShell=true){
   uiText:(_,text)=>text,showNotice(){},updatePlaybackControls(){updates++;},savePlaybackPreferences(){saved++;},playbackPreferences:{speed:2,quality:'',volume:100},playbackSpeeds:[.5,.75,1,1.25,1.5,2],initRecommendationAutoCinemaSettings(){},
   playerOptionsOpen:false,isPlaybackPage:()=>true,revealControls(){},clearTimeout(){},controlsTimer:null,closePlayerOptions(){closed++;},goFocus:n=>{focus=n;},playbackAudioHold:null,playbackQuality:'',clockText:String,setControlIcon(){},shell:{classList:{contains:()=>false}},setPlaybackMuted(){},updateDanmakuButton(){},localStorage:{getItem:()=>'{"speed":2,"volume":100}'}};
  const a=source.indexOf('  function playbackSpeedAvailable(');
+ c.window.HongguoDesktop={platform:'preview'};
+ vm.runInNewContext(source.slice(source.indexOf('  function hasDesktopFullscreenWindow('),source.indexOf('  function setCinema(')),c);
  vm.runInNewContext(source.slice(a,source.indexOf('  function updatePlaybackControls(',a)),c);
  const settings=source.indexOf('  var webosAudio = webosShell');vm.runInNewContext(source.slice(settings,source.indexOf('  var licenses =',settings)),c);
  const listener=source.indexOf("  media.addEventListener('webosaudioenabledchange'");vm.runInNewContext(source.slice(listener,source.indexOf("  media.addEventListener('ratechange'",listener)),c);

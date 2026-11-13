@@ -33,7 +33,7 @@ function fixture({hidden=false,webos=false}={}) {
  const c={document:{getElementById:id=>id==='hero-video'?video:progress,
   querySelector:s=>s==='.time-label'?time:buttons[s.match(/data-action="([^"]+)"/)[1]]},
   shell:{classList:{contains:k=>classes.has(k),remove(k){calls.push(['reveal',time.textContent]);classes.delete(k);}}},
-  webosShell:webos,window:{HongguoWebOSAudio:{supported:true,isEnabled:()=>enabled,diagnostics:()=>({actual_video_rate:1.5,phase:'playing'})}},
+  desktopShell:false,nativeFullscreen:false,webosShell:webos,window:{HongguoWebOSAudio:{supported:true,isEnabled:()=>enabled,diagnostics:()=>({actual_video_rate:1.5,phase:'playing'})}},
   uiText:(_,fallback)=>fallback,clockText:n=>String(Math.floor(n)),playbackAudioHold:null,playbackQuality:'',playbackPreferences:{quality:''},
   scheduleControlsHide(){calls.push('schedule');},controlsManuallyHidden:true,
   media:{addEventListener:(k,fn)=>events[k]=fn},activePlayback:{started:true},
@@ -42,6 +42,7 @@ function fixture({hidden=false,webos=false}={}) {
   maybePrefetchNextEpisode(){calls.push('prefetch');},saveProgress(force){calls.push(['save',force]);}
  };
  const begin=source.indexOf('  function setControlIcon(');
+ vm.runInNewContext(source.slice(source.indexOf('  function hasDesktopFullscreenWindow('),source.indexOf('  function setCinema(')),c);
  vm.runInNewContext(source.slice(begin,source.indexOf('  function savePlaybackPreferences(',begin)),c);
  const reveal=source.indexOf('  function revealControls(');
  vm.runInNewContext(source.slice(reveal,source.indexOf('  function hideControls(',reveal)),c);
@@ -80,6 +81,16 @@ test('hidden timeupdate still syncs danmaku, checks playback, prefetches and sav
  assert.deepEqual(f.writes,[]);assert.deepEqual(f.calls,['danmaku','check','prefetch',['save',false]]);
  f.c.activePlayback.started=false;f.calls.length=0;f.events.timeupdate();assert.deepEqual(f.calls,['danmaku','check']);
  f.c.activePlayback=null;f.calls.length=0;f.events.timeupdate();assert.deepEqual(f.calls,['danmaku','check']);
+});
+
+test('desktop fullscreen button follows the observed native window, not a stale cinema layout',()=>{
+ const f=fixture();f.c.desktopShell=true;f.c.window.HongguoDesktop={platform:'windows'};
+ f.classes.add('is-cinema');f.c.updatePlaybackControls();
+ assert.equal(f.buttons.fullscreen.getAttribute('aria-label'),'全屏');
+ assert.equal(f.buttons.fullscreen.children.use.getAttribute('href'),'#icon-fullscreen');
+ f.c.nativeFullscreen=true;f.classes.delete('is-cinema');f.c.updatePlaybackControls();
+ assert.equal(f.buttons.fullscreen.getAttribute('aria-label'),'退出全屏');
+ assert.equal(f.buttons.fullscreen.children.use.getAttribute('href'),'#icon-fullscreen-exit');
 });
 
 test('revealing hidden controls paints latest state before they become visible; repeated pointer reveals do not repaint',()=>{

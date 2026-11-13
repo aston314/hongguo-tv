@@ -117,7 +117,8 @@ function playbackFixture(flags = {}) {
     clearTimeout() {},
     setTimeout(callback, delay) { timers.push({ callback, delay }); },
     updatePlaybackControls() { calls.push('update-controls'); },
-    syncNativePlayerBounds() { calls.push('sync-bounds'); }
+    syncNativePlayerBounds() { calls.push('sync-bounds'); },
+    enterCinema() { context.setCinema(true); }
   });
   vm.runInContext(slice('hideControls', 'clearPrefetchedEpisodeHint') + slice('setCinema', 'cancelPendingAutoCinema'), context);
   return { context, classes, state, calls, timers, video, heroClasses, pref, feed };
