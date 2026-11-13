@@ -1040,6 +1040,7 @@
   "ui.quality": "清晰度",
   "ui.exitFullscreen": "登出全屏",
   "ui.fullscreen": "全屏",
+  "ui.fullscreenFailed": "全螢幕切換失敗，請重試",
   "ui.playbackSettingsSaveFailed": "播放設定未保存",
   "ui.notObtained": "未取得",
   "ui.viewportSize": "視口尺寸",

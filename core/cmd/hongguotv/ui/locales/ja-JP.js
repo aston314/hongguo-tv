@@ -1040,6 +1040,7 @@
   "ui.quality": "画質",
   "ui.exitFullscreen": "全画面を終了",
   "ui.fullscreen": "全画面",
+  "ui.fullscreenFailed": "全画面の切り替えに失敗しました。もう一度お試しください",
   "ui.playbackSettingsSaveFailed": "処理に失敗しました",
   "ui.notObtained": "該当する内容はありません",
   "ui.viewportSize": "ビューポート尺寸",

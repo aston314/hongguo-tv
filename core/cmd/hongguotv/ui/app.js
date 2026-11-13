@@ -435,6 +435,7 @@
   var rangeStallTimer = null;
   var lastPlaybackControl = null;
   var nativeFullscreen = false;
+  var desktopFullscreenRequest = Promise.resolve();
   var fullscreenExitKeepsHidden = false;
   var playbackQuality = '';
   var playbackQualities = [];
@@ -1058,7 +1059,7 @@
     }
     var fullscreenButton = document.getElementById('player-menu-fullscreen');
     if (fullscreenButton) {
-      var full = shell.classList.contains('is-cinema');
+      var full = playbackFullscreenActive();
       var key = full ? 'ui.exitFullscreen' : 'ui.fullscreen';
       var label = fullscreenButton.querySelector('.playback-command-label');
       var icon = full ? 'icon-fullscreen-exit' : 'icon-fullscreen';
@@ -2741,7 +2742,7 @@
         menuHint && !menuHint.classList.contains('is-hidden')) return;
     // Reuse the existing fullscreen layout and native bounds synchronization.
     // Keep the clear-screen state; revealing controls would arm another timer.
-    setCinema(true);
+    enterCinema();
   }
   function clearPrefetchedEpisodeHint() {
     if (prefetchedEpisodeHint) clearTimeout(prefetchedEpisodeHint.timer);
@@ -2894,7 +2895,7 @@
     var muted = (playbackAudioHold ? playbackAudioHold.muted : video.muted) || !video.volume;
     setControlIcon('volume', muted ? uiText('ui.mute', '静音') : uiText('ui.volume', '音量') + ' ' + Math.round(video.volume * 100) + '%', muted ? 'icon-volume-muted' : 'icon-volume');
     setControlIcon('quality', playbackQuality ? (playbackPreferences.quality ? '' : uiText('diagnostic.auto', '自动') + ' · ') + playbackQuality : uiText('ui.quality', '清晰度'), 'icon-quality');
-    var cinema = shell.classList.contains('is-cinema');
+    var cinema = playbackFullscreenActive();
     setControlIcon('fullscreen', cinema ? uiText('ui.exitFullscreen', '退出全屏') : uiText('ui.fullscreen', '全屏'), cinema ? 'icon-fullscreen-exit' : 'icon-fullscreen');
   }
   function savePlaybackPreferences() {
@@ -3342,10 +3343,17 @@
     layoutLastPlaybackFrame();
     if (portraitBackdrop) portraitBackdrop.layout();
   }
+  function hasDesktopFullscreenWindow() {
+    return desktopShell && window.HongguoDesktop.platform !== 'preview';
+  }
+  function playbackFullscreenActive() {
+    return hasDesktopFullscreenWindow() ? nativeFullscreen : shell.classList.contains('is-cinema');
+  }
   function setCinema(enabled) {
     shell.classList.toggle('is-cinema', enabled);
     if (!enabled && typeof nextSeasonHint !== 'undefined' && nextSeasonHint) nextSeasonHint.reset();
     updatePlaybackControls();
+    if (typeof playbackCommandMenuOpen !== 'undefined' && playbackCommandMenuOpen) updatePlaybackCommandMenu();
     // CSS cinema mode does not resize the Android WebView. Read the new
     // layout explicitly, including after the browser fullscreen callback.
     syncNativePlayerBounds();
@@ -3356,6 +3364,35 @@
     autoCinemaCandidate = false;
     autoCinemaSession = null;
     autoCinemaGeneration = 0;
+  }
+  function requestDesktopFullscreen(enabled) {
+    // Page cleanup may request exit just before continue-watching requests
+    // entry. Wails bindings can run concurrently; preserve the user's order.
+    desktopFullscreenRequest = desktopFullscreenRequest.then(function () {
+      var app = window.go && window.go.main && window.go.main.desktopApp;
+      if (!app || typeof app.SetFullscreen !== 'function') throw new Error('Fullscreen binding unavailable');
+      return app.SetFullscreen(enabled);
+    }).catch(function () {
+      setCinema(nativeFullscreen);
+      showNotice(uiText('ui.fullscreenFailed', '全屏切换失败，请重试'));
+    });
+  }
+  function enterCinema() {
+    if (hasDesktopFullscreenWindow()) {
+      // The window monitor applies the layout and icons after native fullscreen
+      // is observed. A refused request must not leave a sidebar-free window.
+      setCinema(nativeFullscreen);
+      requestDesktopFullscreen(true);
+      return;
+    }
+    setCinema(true);
+    // TV shells already fill the display. Only a browser preview needs the
+    // browser Fullscreen API, requested synchronously from the user's action.
+    if (!androidShell && !webosShell && shell.requestFullscreen) {
+      try {
+        Promise.resolve(shell.requestFullscreen()).catch(function () { setCinema(false); });
+      } catch (error) { setCinema(false); }
+    }
   }
   function finishAutoCinema(playback) {
     if (!autoCinemaCandidate || autoCinemaSession !== playback) return false;
@@ -3371,26 +3408,20 @@
     });
     cancelPendingAutoCinema();
     if (!shouldEnter) return false;
-    setCinema(true);
+    enterCinema();
     revealControls();
     return true;
   }
   function exitCinema(keepHidden) {
     fullscreenExitKeepsHidden = !!keepHidden;
     setCinema(false);
-    if (desktopShell && window.go && window.go.main) window.go.main.desktopApp.SetFullscreen(false);
+    if (hasDesktopFullscreenWindow()) requestDesktopFullscreen(false);
     else if (document.fullscreenElement && document.exitFullscreen) Promise.resolve(document.exitFullscreen()).catch(function () {});
   }
   function toggleCinema() {
     cancelPendingAutoCinema();
-    if (shell.classList.contains('is-cinema')) exitCinema();
-    else {
-      setCinema(true);
-      // Android already fills the display. Keep the CSS layout if the browser
-      // Fullscreen API is unavailable; never fullscreen the video alone.
-      if (desktopShell && window.go && window.go.main) window.go.main.desktopApp.SetFullscreen(true);
-      else if (shell.requestFullscreen) Promise.resolve(shell.requestFullscreen()).catch(function () {});
-    }
+    if (playbackFullscreenActive()) exitCinema();
+    else enterCinema();
     revealControls();
   }
   function desktopFullscreenChanged(enabled) {
@@ -6048,7 +6079,7 @@
     if (autoCinemaCandidate) autoCinemaGeneration = feedGeneration;
     if (recommendation) settleRecommendationSave(recommendation, libraryQueue);
     goFocus(document.getElementById('hero-feed-focus'));
-    if (watchingResume) { cancelPendingAutoCinema(); setCinema(true); revealControls(); }
+    if (watchingResume) { cancelPendingAutoCinema(); enterCinema(); revealControls(); }
   }
 
   function leavePlayer() {

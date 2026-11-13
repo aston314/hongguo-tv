@@ -164,15 +164,30 @@ test('completed episode resume follows existing history semantics and does not r
   assert.deepEqual(plain(f.c.recommendationResume({ episode: 2, position: 90, completed: true, history: '' }, null, item)), { episode: 3, position: 0 });
 });
 test('sidebar continue watching survives a failed history write and resumes fullscreen through the existing player', async () => {
-  const f = fixture({failSave:true}), captured = [];
-  f.c.watchingReturn={capture:value=>captured.push(value),render(){}};
-  f.c.activatePage(f.c.pages.search); await f.flush();
-  assert.equal(captured[0].episode,2); assert.equal(captured[0].position,39);
-  f.c.setCinema=enabled=>f.c.shell.classList.toggle('is-cinema',enabled);
-  f.c.startPlayer(captured[0].item, f.c.document.getElementById('watching-return'), {watchingResume:captured[0]}); await f.flush();
-  assert.equal(f.c.activePlayback.item.series_id,'r1'); assert.equal(f.c.activePlayback.episode,2); assert.equal(f.c.activePlayback.position,39);
-  assert.equal(f.c.shell.classList.contains('is-cinema'),true);
-  f.c.leavePlayer(); await f.flush(); assert.equal(f.c.pageMode(),'search');
+  for (const platform of ['android', 'webos', 'darwin', 'windows', 'linux']) {
+    const f = fixture({failSave:true}), captured = [];
+    f.c.watchingReturn={capture:value=>captured.push(value),render(){}};
+    f.c.activatePage(f.c.pages.search); await f.flush();
+    assert.equal(captured[0].episode,2); assert.equal(captured[0].position,39);
+    f.c.setCinema=enabled=>f.c.shell.classList.toggle('is-cinema',enabled);
+    const nativeCalls = [];
+    f.c.desktopShell = ['darwin', 'windows', 'linux'].includes(platform);
+    f.c.androidShell = platform === 'android'; f.c.webosShell = platform === 'webos';
+    f.c.nativeFullscreen = false; f.c.fullscreenExitKeepsHidden = false;
+    f.c.desktopFullscreenRequest = Promise.resolve();
+    f.c.window = {HongguoDesktop: {platform}, go: {main: {desktopApp: {SetFullscreen: enabled => { nativeCalls.push(enabled); return Promise.resolve(); }}}}};
+    vm.runInContext(['hasDesktopFullscreenWindow', 'requestDesktopFullscreen', 'enterCinema', 'desktopFullscreenChanged']
+      .map(name => source.match(new RegExp('  function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n'), f.c);
+    f.c.startPlayer(captured[0].item, f.c.document.getElementById('watching-return'), {watchingResume:captured[0]}); await f.flush();
+    assert.equal(f.c.activePlayback.item.series_id,'r1'); assert.equal(f.c.activePlayback.episode,2); assert.equal(f.c.activePlayback.position,39);
+    if (f.c.desktopShell) {
+      assert.deepEqual(nativeCalls, [true], platform);
+      assert.equal(f.c.shell.classList.contains('is-cinema'), false, 'wait for actual window fullscreen');
+      f.c.desktopFullscreenChanged(true);
+    } else assert.deepEqual(nativeCalls, [], 'TV shells only change the video layout');
+    assert.equal(f.c.shell.classList.contains('is-cinema'),true);
+    f.c.leavePlayer(); await f.flush(); assert.equal(f.c.pageMode(),'search');
+  }
 });
 test('while the departure queue is pending, loading uses its requested episode rather than a partially saved older episode', () => {
   const f = fixture(); f.entry(2, 39);

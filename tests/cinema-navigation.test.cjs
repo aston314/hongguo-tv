@@ -27,7 +27,7 @@ test('card auto cinema keeps playback controls visible until the normal clear ti
     } } },
     pageMode: () => 'player',
     cancelPendingAutoCinema() { this.autoCinemaCandidate = false; calls.push('cancel'); },
-    setCinema(value) { calls.push('cinema:' + value); },
+    enterCinema() { calls.push('cinema:true'); },
     revealControls() { calls.push('reveal-controls'); },
     hideControls() { calls.push('hide-controls'); }
   });
