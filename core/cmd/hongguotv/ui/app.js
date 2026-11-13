@@ -435,6 +435,7 @@
   var rangeStallTimer = null;
   var lastPlaybackControl = null;
   var nativeFullscreen = false;
+  var desktopFullscreenRequest = Promise.resolve();
   var fullscreenExitKeepsHidden = false;
   var playbackQuality = '';
   var playbackQualities = [];
@@ -3365,15 +3366,16 @@
     autoCinemaGeneration = 0;
   }
   function requestDesktopFullscreen(enabled) {
-    function failed() {
+    // Page cleanup may request exit just before continue-watching requests
+    // entry. Wails bindings can run concurrently; preserve the user's order.
+    desktopFullscreenRequest = desktopFullscreenRequest.then(function () {
+      var app = window.go && window.go.main && window.go.main.desktopApp;
+      if (!app || typeof app.SetFullscreen !== 'function') throw new Error('Fullscreen binding unavailable');
+      return app.SetFullscreen(enabled);
+    }).catch(function () {
       setCinema(nativeFullscreen);
       showNotice(uiText('ui.fullscreenFailed', '全屏切换失败，请重试'));
-    }
-    try {
-      var app = window.go && window.go.main && window.go.main.desktopApp;
-      if (!app || typeof app.SetFullscreen !== 'function') { failed(); return; }
-      Promise.resolve(app.SetFullscreen(enabled)).catch(failed);
-    } catch (error) { failed(); }
+    });
   }
   function enterCinema() {
     if (hasDesktopFullscreenWindow()) {

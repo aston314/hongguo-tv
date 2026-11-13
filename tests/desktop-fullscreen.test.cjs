@@ -16,6 +16,7 @@ function fixture(platform = 'windows') {
   const context = vm.createContext({
     desktopShell: ['darwin', 'windows', 'linux', 'preview'].includes(platform),
     androidShell: platform === 'android', webosShell: platform === 'webos', nativeFullscreen: false,
+    desktopFullscreenRequest: Promise.resolve(),
     window: { HongguoDesktop: { platform }, go: { main: { desktopApp: {
       SetFullscreen(enabled) { calls.push(enabled); return Promise.resolve(); }
     } } }, HongguoDesktopMini: { isActive: () => state.mini, isPending: () => state.pending } },
@@ -80,6 +81,22 @@ test('a successful binding call alone cannot fabricate fullscreen, and reentry i
   f.context.desktopFullscreenChanged(false);
   assert.equal(f.classes.has('is-cinema'), false, 'OS-level Escape restores the sidebar and menu label');
   assert.equal(f.attrs['aria-label'], '全屏');
+});
+
+test('page cleanup finishes its exit binding before continue watching enters, even when native bindings are asynchronous', async () => {
+  const f = fixture(), completions = [];
+  f.context.window.go.main.desktopApp.SetFullscreen = enabled => {
+    f.calls.push(enabled);
+    return new Promise(resolve => completions.push(resolve));
+  };
+  f.context.exitCinema(); f.context.enterCinema(); await flush();
+  assert.deepEqual(f.calls, [false]);
+  completions.shift()(); await flush();
+  assert.deepEqual(f.calls, [false, true]);
+  completions.shift()(); await flush();
+  f.context.desktopFullscreenChanged(true);
+  assert.equal(f.classes.has('is-cinema'), true);
+  assert.equal(f.attrs['aria-label'], '退出全屏');
 });
 
 test('TV shells fill the playback area without calling desktop or browser fullscreen', () => {

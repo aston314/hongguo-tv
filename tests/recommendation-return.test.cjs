@@ -174,6 +174,7 @@ test('sidebar continue watching survives a failed history write and resumes full
     f.c.desktopShell = ['darwin', 'windows', 'linux'].includes(platform);
     f.c.androidShell = platform === 'android'; f.c.webosShell = platform === 'webos';
     f.c.nativeFullscreen = false; f.c.fullscreenExitKeepsHidden = false;
+    f.c.desktopFullscreenRequest = Promise.resolve();
     f.c.window = {HongguoDesktop: {platform}, go: {main: {desktopApp: {SetFullscreen: enabled => { nativeCalls.push(enabled); return Promise.resolve(); }}}}};
     vm.runInContext(['hasDesktopFullscreenWindow', 'requestDesktopFullscreen', 'enterCinema', 'desktopFullscreenChanged']
       .map(name => source.match(new RegExp('  function ' + name + '\\([^]*?\\n  \\}'))[0]).join('\n'), f.c);
