@@ -5151,7 +5151,7 @@
         applicationInBackground || applicationHidden() || !isPlaybackPage() || !error || error.name === 'AbortError' || error.recoveryComplete) return false;
     var code = error.code || '';
     var temporary = [408, 425, 429, 500, 502, 503, 504].indexOf(Number(error.status)) >= 0;
-    if (code === 'VIDEO_MODEL_HTTP' ? !temporary :
+    if (code === 'VIDEO_MODEL_HTTP' || code === 'ACCOUNT_DEVICE' ? !temporary :
         ['VIDEO_MODEL_EMPTY', 'UPSTREAM_TIMEOUT', 'ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET',
           'ECONNREFUSED', 'EPIPE', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN'].indexOf(code) < 0) return false;
     if (playbackRecovery.next({ native: playbackEngineName() }) !== 'refresh') return false;

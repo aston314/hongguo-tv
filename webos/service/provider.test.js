@@ -85,7 +85,7 @@ https.request = function (options) {
       deviceRegistration = { options: options, query: Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams), body: Buffer.concat(requestChunks) };
       body = JSON.stringify({ device_id_str: '1234567890123456789', install_id_str: '2234567890123456789' });
       responseHeaders['set-cookie'] = ['ttreq=fixture-ttreq; Path=/', 'store-region=cn-tj; Path=/', 'sessionid=private-account-cookie; Path=/'];
-      if (deviceRegisterFailures > 0) { deviceRegisterFailures--; responseStatus = 503; }
+      if (deviceRegisterFailures > 0) { deviceRegisterFailures--; responseStatus = 403; }
     }
     if (options.path.indexOf('/reading/bookapi/video_tab/multi_video_model/v1/') >= 0) {
       var tabQuery = Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams);
@@ -334,8 +334,9 @@ async function run() {
     assert.notStrictEqual(rangeToken, fullToken, 'Range and full playback use independent local media tokens');
     deviceRegisterFailures = 1;
     var registrationFailure = await provider.inspectVideoModel('1234567890123456788');
-    assert.strictEqual(registrationFailure.ok, false, 'device registration failure is reported as a playback preparation error');
+    assert.strictEqual(registrationFailure.ok, false, 'permanent device registration failure is reported without recovery');
     assert.strictEqual(registrationFailure.error.code, 'ACCOUNT_DEVICE');
+    assert.strictEqual(registrationFailure.error.status, 403);
     assert.strictEqual(deviceRegisterRequests, 1);
 
     var downloadsBeforePrefetch = mediaDownloadRequests;

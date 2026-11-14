@@ -148,6 +148,96 @@ test('registration transport diagnostics identify the actual phase without chang
   } finally { f.close(); }
 });
 
+test('a temporary video_tab registration failure advances to a fresh legacy identity', async () => {
+  for (const status of [408,425,429,500,502,503,504]) {
+    const f=fixture([{}],null,[{status},{}]);
+    try {
+      const value=await f.prepare(false);
+      assert.equal(value.mode,'range');assert.equal(f.registrations,2);
+      assert.equal(f.tabRequests.length,0);assert.equal(f.requests.length,1);
+      assert.equal(f.requests[0].device,'1234567890123456782');
+      assert.equal(f.downloads,0);
+    } finally {f.close();}
+  }
+});
+
+test('persistent registration failures consume existing rounds and providers once, then allow an explicit retry', async () => {
+  const f=fixture([{}],null,Array.from({length:6},()=>({status:503})));
+  try {
+    const {error}=await observe(f.prepare(false));
+    assert.equal(error.code,'ACCOUNT_DEVICE');assert.equal(error.status,503);
+    assert.equal(error.stage,'device_register');assert.equal(error.recoveryComplete,true);
+    assert.equal(error.videoModel.stage,'device_register');assert.equal(error.videoModel.http_status,undefined);
+    assert.equal(f.registrations,6,'tab + two legacy rounds + registered single + two old single rounds');
+    assert.equal(f.requests.length+f.tabRequests.length+f.singleRequests.length,0);
+    assert.equal(f.rangeOpens,0);assert.equal(f.downloads,0);
+    const value=await f.prepare(false);
+    assert.equal(value.mode,'range');assert.equal(f.registrations,8);
+    assert.equal(f.requests.length,1);
+  } finally {f.close();}
+});
+
+test('registered single-profile permission failures stop while temporary failures can use the old profile',async()=>{
+  for(const status of [403,503]) {
+    const f=fixture(Array.from({length:4},()=>({empty:true})),null,[{},{},{},{status},{status},{}],undefined,[{}]);
+    try {
+      const result=await observe(f.prepare(false));
+      assert.equal(f.requests.length,4,'registration recovery does not reset the legacy model budget');
+      if(status===403) {
+        assert.equal(result.error.code,'ACCOUNT_DEVICE');assert.equal(result.error.status,403);
+        assert.equal(result.error.stage,'device_register');assert.equal(result.error.recoveryComplete,true);
+        assert.equal(result.error.videoModel.http_status,undefined);
+        assert.equal(f.registrations,4);assert.equal(f.singleRequests.length,0);
+      } else {
+        assert.equal(result.value.mode,'range');assert.equal(f.registrations,6);assert.equal(f.singleRequests.length,1);
+      }
+    } finally {f.close();}
+  }
+});
+
+test('permanent registration failures stop without rotating identities or providers', async () => {
+  for(const status of [400,401,403,404]) {
+    const f=fixture([{}],null,[{status},{}]);
+    try {
+      const {error}=await observe(f.prepare(false));
+      assert.equal(error.code,'ACCOUNT_DEVICE');assert.equal(error.status,status);
+      assert.equal(f.registrations,1);assert.equal(f.requests.length,0);assert.equal(f.tabRequests.length,0);
+    } finally {f.close();}
+  }
+});
+
+test('speculative registration failures do not start another registration round', async () => {
+  const f=fixture([{}],null,[{},{status:503},{}]);
+  try {
+    const {error}=await observe(f.prepare(true));
+    assert.equal(error.code,'ACCOUNT_DEVICE');
+    await pause(300);assert.equal(f.registrations,2);assert.equal(f.requests.length,0);
+  } finally {f.close();}
+});
+
+test('foreground consumers adopting a failed registration share the remaining round', async () => {
+  const f=fixture([{}],null,[{},{status:503,hold:true},{}]);
+  try {
+    const background=observe(f.prepare(true));await until(()=>f.registrations===2);
+    const first=f.prepare(false),second=f.prepare(false);
+    f.registrationRequests[1].respond();
+    const [a,b,c]=await Promise.all([background,first,second]);
+    assert.equal(a.value.path,b.path);assert.equal(b.path,c.path);
+    assert.equal(f.registrations,3);assert.equal(f.requests.length,1);assert.equal(f.rangeOpens,1);
+  } finally {f.close();}
+});
+
+test('cancelling during registration backoff prevents another round for a speculative waiter', async () => {
+  const f=fixture([{}],null,[{},{status:503,hold:true},{}]),c=cancel.create();
+  try {
+    const background=observe(f.prepare(true));await until(()=>f.registrations===2);
+    const foreground=observe(f.prepare(false,c.signal));f.registrationRequests[1].respond();
+    await tick();c.abort();
+    assert.equal((await foreground).error.name,'AbortError');await background;
+    await pause(300);assert.equal(f.registrations,2);assert.equal(f.requests.length,0);
+  } finally {f.close();}
+});
+
 test('source preparation is available to foreground while network-only head warming is still pending', async () => {
   let finish;
   const f = fixture([{}], () => new Promise(resolve => { finish = resolve; }));
@@ -442,6 +532,19 @@ function request(s, prefetch) {
   return { promise, abort() { req.destroy(); } };
 }
 
+test('HTTP registration exhaustion retains the failure stage and prevents a new page recovery budget', async () => {
+  const f=fixture([],null,Array.from({length:6},()=>({status:503}))),s=await service(f);
+  try {
+    const result=await request(s,false).promise;
+    assert.equal(result.status,503);assert.equal(result.data.error,'ACCOUNT_DEVICE');
+    assert.equal(result.data.stage,'device_register');assert.equal(result.data.recovery_complete,true);
+    assert.equal(result.data.video_model.stage,'device_register');
+    assert.equal(result.data.video_model.http_status,undefined);assert.equal(result.data.upstream_status,undefined);
+    assert.equal(f.registrations,6);assert.equal(f.requests.length+f.tabRequests.length+f.singleRequests.length,0);
+    assert.equal(f.rangeOpens,0);assert.equal(f.downloads,0);
+  } finally {await s.shutdown();f.close();}
+});
+
 test('HTTP playback failures carry their own sanitized diagnostic after unrelated prefetch completes', async () => {
   const f = fixture([...Array.from({length:4},()=>({empty:true})),{}]);
   const prepare = f.provider.prepare;
@@ -550,13 +653,18 @@ test('a late failure from an earlier episode cannot replace another episode lega
   } finally {f.close();}
 });
 
-test('failed legacy registration does not poison video_tab or the next episode registration', async () => {
+test('legacy registration recovers within two rounds without poisoning video_tab or the next episode identity', async () => {
   const f=fixture([{}],null,[{}, {status:503}, {}]);
   try {
-    const first=await observe(f.prepare(false));assert.equal(first.error.code,'ACCOUNT_DEVICE');assert.equal(f.requests.length,0);
+    const first=await f.prepare(false);assert.equal(first.mode,'range');assert.equal(f.registrations,3);assert.equal(f.requests.length,1);
+    assert.equal(f.requests[0].device,'1234567890123456783');
     const next=await f.provider.prepare('123','789','',true,'range',false);
-    assert.equal(next.mode,'range');assert.equal(f.registrations,3);assert.equal(f.requests.length,1);
-    assert.equal(f.requests[0].device,'1234567890123456783');assert.equal(f.tabRequests.length,2);
+    assert.equal(next.mode,'range');assert.equal(f.registrations,4);assert.equal(f.requests.length,2);
+    assert.equal(f.requests[1].device,'1234567890123456784');assert.equal(f.tabRequests.length,1);
+    await f.provider.prepare('124','790','',true,'range',false);
+    assert.equal(f.tabRequests.length,2,'another series still reuses the original cached video_tab identity');
+    assert.equal(new URL('https://fixture.test'+f.tabRequests[0].path).searchParams.get('device_id'),
+      new URL('https://fixture.test'+f.tabRequests[1].path).searchParams.get('device_id'));
   } finally {f.close();}
 });
 
