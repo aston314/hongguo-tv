@@ -405,6 +405,52 @@ test('webOS consecutive source failures stop after one page refresh and show the
   assert.equal(f.resolverURLs.length, 2);
   assert(f.calls.includes('status:暂时无法播放这集'));
 });
+test('webOS retries a temporary anonymous registration error once for manual and automatic switches',async()=>{
+  for(const automatic of [false,true])for(const status of [408,425,429,500,502,503,504]) {
+    const error=Object.assign(new Error('registration unavailable'),{code:'ACCOUNT_DEVICE',stage:'device_register',status});
+    const f=fixture({webos:true,engine:'range',sourceReplies:[error,null]});
+    f.c.playbackRecovery=require('../core/cmd/hongguotv/ui/playback-recovery').create({maxAttempts:1});
+    f.gate.resolve();
+    if(automatic)f.handlers.ended();else f.c.playFeedItem(0,2,7);
+    await settlePlayback(f,30);
+    assert.equal(f.resolverURLs.length,2);assert.equal(f.c.activePlayback.episode,2);
+    assert.equal(f.c.activePlayback.position,automatic?0:7);
+    assert.equal(f.c.activePlayback.timing.automatic_next,automatic);
+    assert.equal(f.video.src,'/media/next.mp4');
+    assert(!f.calls.includes('status:暂时无法播放这集'));
+  }
+});
+test('webOS registration page recovery stops at one retry and never repeats an exhausted service budget',async()=>{
+  for(const recoveryComplete of [false,true]) {
+    const error=Object.assign(new Error('registration unavailable'),{code:'ACCOUNT_DEVICE',stage:'device_register',status:503,recoveryComplete});
+    const f=fixture({webos:true,engine:'range',sourceReplies:[error,error,error]});
+    f.c.playbackRecovery=require('../core/cmd/hongguotv/ui/playback-recovery').create({maxAttempts:1});
+    f.gate.resolve();f.handlers.ended();await settlePlayback(f,30);
+    assert.equal(f.resolverURLs.length,recoveryComplete?1:2);
+    assert(f.calls.includes('status:暂时无法播放这集'));
+  }
+});
+test('registration page recovery rejects permanent errors, cancellation and other platforms',()=>{
+  for(const webos of [false,true])for(const status of [200,400,401,403,404,408,503,504]) {
+    const f=fixture({webos,engine:'range'});
+    f.c.playbackRecovery=require('../core/cmd/hongguotv/ui/playback-recovery').create({maxAttempts:1});
+    if(webos&&[408,503,504].includes(status))continue;
+    assert.equal(f.c.recoverPlaybackPreparation(f.c.activePlayback,{code:'ACCOUNT_DEVICE',status},f.c.feedGeneration),false);
+    assert.equal(f.c.playbackRecovery.attempts(),0);
+  }
+  for(const changed of ['page','generation','account','hidden','background','abort']) {
+    const f=fixture({webos:true,engine:'range'}),error={code:'ACCOUNT_DEVICE',status:503};
+    f.c.playbackRecovery=require('../core/cmd/hongguotv/ui/playback-recovery').create({maxAttempts:1});
+    if(changed==='page')f.c.isPlaybackPage=()=>false;
+    if(changed==='generation')f.c.feedGeneration++;
+    if(changed==='account')f.c.accountEpoch++;
+    if(changed==='hidden')f.document.hidden=true;
+    if(changed==='background')f.c.applicationInBackground=true;
+    if(changed==='abort')error.name='AbortError';
+    assert.equal(f.c.recoverPlaybackPreparation(f.c.activePlayback,error,f.c.feedGeneration),false);
+    assert.equal(f.c.playbackRecovery.attempts(),0);
+  }
+});
 test('webOS provider-exhausted failures do not trigger another page recovery and retain the current failure', async () => {
   const error=Object.assign(new Error('empty response'),{code:'VIDEO_MODEL_EMPTY',stage:'multi_video_model',status:502,
     recoveryComplete:true,videoModel:{http_status:200,response_bytes:0,attempt:3,elapsed_ms:1400}});

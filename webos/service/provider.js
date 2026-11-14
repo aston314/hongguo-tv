@@ -67,7 +67,7 @@
   }
   function transientVideoModelError(error) {
     if (!error) return false;
-    if (error.code === 'VIDEO_MODEL_HTTP') return [408, 425, 429, 500, 502, 503, 504].indexOf(Number(error.status)) >= 0;
+    if (error.code === 'VIDEO_MODEL_HTTP' || error.code === 'ACCOUNT_DEVICE') return [408, 425, 429, 500, 502, 503, 504].indexOf(Number(error.status)) >= 0;
     return ['VIDEO_MODEL_EMPTY', 'UPSTREAM_TIMEOUT', 'ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET',
       'ECONNREFUSED', 'EPIPE', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN'].indexOf(error.code) >= 0;
   }
@@ -742,7 +742,9 @@
         if (diagnostic.http_status) error.upstreamStatus = diagnostic.http_status;
         state.lastError = error;
         var retryable = freshPlaybackRetryable(error);
-        if (state.attempts < 4 && attempt < maximum && allowed() && retryable && (state.host < 2 || state.rounds < 2)) {
+        // A failed registration consumes a round even before a model request.
+        // Do not retry an exhausted identity merely because its host is zero.
+        if (state.attempts < 4 && attempt < maximum && allowed() && retryable && ((state.legacyDevice && state.host < 2) || state.rounds < 2)) {
           var delay = state.attempts <= 1 ? 250 : 1000;
           if (typeof retry.onRetry === 'function') retry.onRetry(error, delay, state.attempts);
           return recoveryDelay(signal, delay).then(function () { check(); if (!allowed()) throw error; return next(); });
@@ -761,17 +763,18 @@
     var state = retry.identityState, diagnostic, attempt = 0;
     function check() { if (playbackIdentityClosed || signal && signal.aborted) throw preparationCancelled(); }
     function report(value) {
-      diagnostic = Object.assign({}, value, { stage: 'video_model', attempt: state.singleAttempts, elapsed_ms: Date.now() - retry.startedAt });
+      diagnostic = Object.assign({}, value, { stage: value.stage || 'video_model', attempt: state.singleAttempts, elapsed_ms: Date.now() - retry.startedAt });
       lastVideoModelDiagnostic = Object.assign({video_id:String(vid)}, diagnostic);
       if (retry.onDiagnostic) retry.onDiagnostic(Object.assign({}, diagnostic));
     }
     function next() {
       check(); if ((state.singleAttempts || 0) >= 2) throw state.lastError;
       state.singleAttempts = (state.singleAttempts || 0) + 1; attempt++;
-      report({code:'VIDEO_MODEL_REQUEST'});
+      report({stage:'device_register',code:'VIDEO_MODEL_REQUEST'});
       var fresh = newPlaybackIdentity(singleProfile);
       return fresh.get(signal).then(function (device) {
         fresh.close(); check();
+        report({code:'VIDEO_MODEL_REQUEST'});
         var stamp = Date.now(), body = Buffer.from(JSON.stringify({ video_id: String(vid), biz_param: { video_id_type: 0, need_all_video_definition: true, video_platform: 3 } }));
         var signed = passportSign.signPlayback(singleProfile.query(device), body, stamp, device.deviceID);
         var cookies = device.cookies || {}, cookie = Object.keys(cookies).filter(function (key) { return ['install_id','ttreq','store-region','store-region-src'].indexOf(key) >= 0; }).sort().map(function (key) { return key + '=' + cookies[key]; }).join('; ');
@@ -787,7 +790,7 @@
         return optionsFromEnvelope(vid,envelope,signal,'video_model',report);
       }).then(function (options) { state.source = 'video_model'; return options; }).catch(function (error) {
         check(); report(Object.assign({},diagnostic,{code:error.code || 'VIDEO_MODEL_NETWORK',network_reason:networkDiagnostic(error)}));
-        error.videoModel = Object.assign({},diagnostic); error.stage = 'video_model'; if (diagnostic.http_status) error.upstreamStatus = diagnostic.http_status; state.lastError = error;
+        error.videoModel = Object.assign({},diagnostic); error.stage = diagnostic.stage; if (diagnostic.http_status) error.upstreamStatus = diagnostic.http_status; state.lastError = error;
         // An answered but incompatible model must not churn identities.
         if (attempt < 2 && state.singleAttempts < 2 && (!retry.allowRetry || retry.allowRetry()) && freshPlaybackRetryable(error)) return next();
         throw error;
@@ -797,7 +800,7 @@
   }
   function singleVideoOptions(vid, signal, retry) {
     var state=retry.identityState, diagnostic={stage:'video_model',code:'VIDEO_MODEL_REQUEST'};
-    function report(value){diagnostic=Object.assign({},diagnostic,value,{stage:'video_model',elapsed_ms:Date.now()-retry.startedAt});lastVideoModelDiagnostic=Object.assign({video_id:String(vid)},diagnostic);if(retry.onDiagnostic)retry.onDiagnostic(Object.assign({},diagnostic));}
+    function report(value){diagnostic=Object.assign({},diagnostic,value,{stage:value.stage||'video_model',elapsed_ms:Date.now()-retry.startedAt});lastVideoModelDiagnostic=Object.assign({video_id:String(vid)},diagnostic);if(retry.onDiagnostic)retry.onDiagnostic(Object.assign({},diagnostic));}
     if(state.singleLegacyPending){state.singleLegacyPending=false;return legacySingleVideoOptions(vid,signal,retry);}
     var current=audioCancel.create(), expired=false, timer=setTimeout(function(){expired=true;current.abort();},4000);
     function aborted(){current.abort();} if(signal)signal.addEventListener('abort',aborted);
@@ -827,8 +830,10 @@
     }
     return registeredSingleIdentity.get(current.signal).then(function(d){return next(d,1);}).then(function(options){finish();state.singleLegacyPending=true;return options;},function(error){
       finish();if(signal&&signal.aborted||playbackIdentityClosed)throw preparationCancelled();
-      report({code:error.code||'VIDEO_MODEL_NETWORK',network_reason:networkDiagnostic(error)});error.videoModel=Object.assign({},diagnostic);
-      if(!expired && error.code!=='ACCOUNT_DEVICE' && error.code!=='PLAYBACK_IDENTITY_COOLDOWN' && !sourceFallbackAllowed(error))throw error;
+      if(error.code==='ACCOUNT_DEVICE')diagnostic={stage:'device_register'};
+      report({stage:diagnostic.stage,code:error.code||'VIDEO_MODEL_NETWORK',network_reason:networkDiagnostic(error)});error.videoModel=Object.assign({},diagnostic);
+      if(error.code==='ACCOUNT_DEVICE')error.stage='device_register';
+      if(!expired && error.code!=='PLAYBACK_IDENTITY_COOLDOWN' && !sourceFallbackAllowed(error))throw error;
       return legacySingleVideoOptions(vid,signal,retry);
     });
   }
@@ -866,8 +871,8 @@
       if (signal && signal.aborted || playbackIdentityClosed) throw preparationCancelled();
       if (expired) error = fail('播放取源超时',504,'UPSTREAM_TIMEOUT');
       var tab = provider === 'video_tab';
-      var exhausted = single || state.attempts >= 4 || !freshPlaybackRetryable(error) || expired;
-      if (tab ? error.code === 'ACCOUNT_DEVICE' || error.name === 'AbortError' : !sourceFallbackAllowed(error)) throw error;
+      var exhausted = single || state.attempts >= 4 || (!state.legacyDevice && state.rounds >= 2) || !freshPlaybackRetryable(error) || expired;
+      if (tab ? (error.code === 'ACCOUNT_DEVICE' && !transientVideoModelError(error)) || error.name === 'AbortError' : !sourceFallbackAllowed(error)) throw error;
       if (error.code !== 'VIDEO_TAB_REJECTED') state.plan.observe(provider,false);
       state.lastError = error;
       // A speculative legacy request may be resumed by its foreground users,
