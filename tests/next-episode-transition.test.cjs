@@ -8,7 +8,7 @@ const source = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'
 const slice = (a,b) => source.slice(source.indexOf('  function '+a+'('), source.indexOf('  function '+b+'('));
 const tick = () => new Promise(r=>setImmediate(r));
 function deferred(){let resolve;const promise=new Promise(r=>resolve=r);return {promise,resolve}}
-function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,detailGate=null,captureFailure=false,native=false,prefetchReady=false,webos=false,sourceReplies=null,inPlace=true}={}) {
+function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,detailGate=null,captureFailure=false,native=false,prefetchReady=false,webos=false,sourceReplies=null,inPlace=true,platform=''}={}) {
   const gate=deferred(), calls=[], resolverURLs=[], writes=[], notices=[], frames=new Map(), handlers={}, timers=[];let frameID=0;
   function classes(...initial){const names=new Set(initial);return {add(...x){x.forEach(n=>names.add(n))},remove(...x){x.forEach(n=>names.delete(n))},contains(n){return names.has(n)},toggle(n,on){if(on)names.add(n);else names.delete(n)},names}}
   const hero={classList:classes('is-feed'),style:{}};
@@ -22,6 +22,8 @@ function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,d
   const c=vm.createContext({Promise,AbortController,URLSearchParams,Date,Object,Number,Math,clearTimeout,console,
     setTimeout(fn,delay){timers.push({fn,delay});return timers.length},
     requestAnimationFrame(fn){frames.set(++frameID,fn);return frameID},cancelAnimationFrame(id){frames.delete(id)},
+    desktopShell:['linux','windows','darwin','preview'].includes(platform),
+    window:{HongguoDesktop:{platform,background:false}},
     engine,video,calls,resolverURLs,writes,notices,gate,detailGate,document,uiText,webosShell:webos,shell:{classList:classes()},
     apiError(payload,status,key,fallback){return payload&&(payload.error||payload.message)||fallback||('HTTP '+status)},
     fetch:async(url,options)=>{
@@ -31,7 +33,7 @@ function fixture({failWrite=false,ready=true,engine='standard',sourceGate=null,d
     },
     fetchData:async url=>{calls.push('source');resolverURLs.push(url);assert.match(url,/\/api\/v1\/play\/info\?/);if(sourceGate)await sourceGate.promise;if(sourceReplies&&sourceReplies.length){const reply=sourceReplies.shift();if(reply instanceof Error)throw reply;}return {path:'/media/next.mp4',quality:'720P',qualities:['720P']};}
   });
-  vm.runInContext("var desktopShell=false;" + source.match(/  function applicationHidden[^\n]+/)[0], c);
+  vm.runInContext(source.match(/  function applicationHidden[^\n]+/)[0], c);
   vm.runInContext(slice('recoverPlaybackPreparation','clearRangeTransitionHint'), c);
   vm.runInContext(`
     var accountEpoch=2,feedGeneration=1,continuationGeneration=0,seasonSwitchRequest=null;
@@ -833,6 +835,86 @@ test('sound is restored only after the cover and loading removal receive a paint
   assert.equal(f.calls.at(-1),'status:');assert.equal(f.video.muted,true);
   f.paint();await tick();assert.equal(f.video.muted,false);assert.equal(f.video.volume,.75);
   assert.equal(f.c.playbackAudioHold,null);
+});
+test('Linux restores transition audio when the final paint callback is delayed',async()=>{
+  const f=await prepared({platform:'linux'});f.handlers.playing();f.paint();f.paint();await tick();
+  assert.equal(f.hero.classList.contains('is-preparing-video'),false);
+  assert.equal(f.video.muted,true);
+  const restore=f.timers.find(t=>t.delay===250);assert.ok(restore);
+  f.video.currentTime=2;f.handlers.timeupdate();
+  assert.equal(f.video.muted,true);
+  restore.fn();
+  assert.equal(f.video.muted,false);assert.equal(f.video.volume,.75);
+  assert.equal(f.c.playbackAudioHold,null);
+  assert.equal(f.c.activePlayback.presentation.audioPending,false);
+  assert.equal(f.frames.size,0,'the fallback cancels the delayed paint callback');
+});
+test('Linux audio recovery retains user mute, zero volume and choices made during the transition',async()=>{
+  for(const [muted,volume] of [[true,.75],[false,0],[false,.25]]) {
+    const f=await prepared({platform:'linux'});f.c.setPlaybackMuted(true);
+    f.handlers.playing();f.paint();f.paint();await tick();
+    f.c.setPlaybackMuted(muted);f.video.volume=volume;
+    f.timers.find(t=>t.delay===250).fn();
+    assert.equal(f.video.muted,muted);assert.equal(f.video.volume,volume);
+  }
+});
+test('Linux audio recovery cannot unmute interrupted, covered or superseded playback',async()=>{
+  for(const guard of ['pause','background','hidden-window','owner','source','error','cover','next','waiting','seeking','page','not-ready','ended','presentation']) {
+    const f=await prepared({platform:'linux'});f.handlers.playing();f.paint();f.paint();await tick();
+    const restore=f.timers.find(t=>t.delay===250);assert.ok(restore);
+    if(guard==='pause'){f.video.paused=true;f.handlers.pause();}
+    else if(guard==='background')f.c.applicationInBackground=true;
+    else if(guard==='hidden-window')f.c.window.HongguoDesktop.background=true;
+    else if(guard==='owner')f.c.accountEpoch++;
+    else if(guard==='source')f.video.src='/other.mp4';
+    else if(guard==='error')f.handlers.error();
+    else if(guard==='cover')f.hero.classList.add('is-preparing-video');
+    else if(guard==='next')f.c.playFeedItem(0,3,0);
+    else if(guard==='waiting')f.handlers.waiting();
+    else if(guard==='seeking'){f.video.seeking=true;f.handlers.seeking();}
+    else if(guard==='page')f.c.isPlaybackPage=()=>false;
+    else if(guard==='not-ready')f.video.readyState=1;
+    else if(guard==='ended')f.video.ended=true;
+    else f.c.bindPlaybackPresentation(f.c.activePlayback,f.video.src);
+    restore.fn();assert.equal(f.video.muted,true,guard);
+  }
+});
+test('Linux paint and timeout arrivals restore audio once and cannot release a later hold',async()=>{
+  for(const first of ['frame','timeout']) {
+    const f=await prepared({platform:'linux'});f.handlers.playing();f.paint();f.paint();await tick();
+    const restore=f.timers.find(t=>t.delay===250);assert.ok(restore);
+    const lateFrame=[...f.frames.values()];
+    f.c.clearTimeout=id=>{f.timers[id-1].cancelled=true;};
+    if(first==='frame')f.paint();else restore.fn();
+    assert.equal(f.video.muted,false);
+    assert.equal(restore.cancelled,true);
+    f.c.holdPlaybackAudio(f.c.feedGeneration);
+    if(first==='frame')restore.fn();else lateFrame.forEach(fn=>fn());
+    assert.equal(f.video.muted,true);
+  }
+});
+test('an interrupted Linux recovery cannot clear the pending recovery after buffering resumes',async()=>{
+  const f=await prepared({platform:'linux'});f.handlers.playing();f.paint();f.paint();await tick();
+  const old=f.timers.find(t=>t.delay===250);f.handlers.waiting();
+  f.video.currentTime=.25;f.handlers.timeupdate();
+  const current=f.timers.filter(t=>t.delay===250).at(-1);
+  assert.notEqual(current,old);
+  old.fn();
+  assert.equal(f.video.muted,true);assert.equal(f.c.activePlayback.presentation.audioPending,true);
+  current.fn();
+  assert.equal(f.video.muted,false);assert.equal(f.c.activePlayback.presentation.audioPending,false);
+});
+test('Windows, macOS, Android, webOS and browser previews keep paint-only audio recovery',async()=>{
+  for(const options of [{platform:'windows'},{platform:'darwin'},{platform:'preview'},
+      {native:true},{engine:'mpv',native:true},{webos:true},{}]) {
+    const f=await prepared(options);f.handlers.playing();
+    if(options.engine==='mpv'){f.handlers.nativeframe({coreIdle:false});f.video.currentTime=.033;f.handlers.timeupdate();}
+    f.paint();f.paint();await tick();
+    assert.equal(f.hero.classList.contains('is-preparing-video'),false);
+    assert.equal(f.video.muted,true);
+    assert.equal(f.timers.some(t=>t.delay===250),false,JSON.stringify(options));
+    f.paint();await tick();assert.equal(f.video.muted,false);
+  }
 });
 test('temporary audio hold preserves prior mute and in-transition user choices without changing volume',async()=>{
   for(const initial of [false,true]){
