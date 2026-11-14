@@ -5494,13 +5494,24 @@
     if (!playbackAudioHold || presentation.audioPending || !playbackVideoReady(playback, presentation, video)) return;
     presentation.audioPending = true;
     var epoch = presentation.epoch;
+    var linuxFallback = desktopShell && window.HongguoDesktop.platform === 'linux';
+    var finished = false, timer = null, animation = null;
     var frame = typeof requestAnimationFrame === 'function' ? requestAnimationFrame : function (callback) { return setTimeout(callback, 16); };
-    // The cover removal must get its own paint before sound is restored.
-    frame(function () {
+    function restore() {
+      if (linuxFallback) {
+        if (finished) return;
+        finished = true;
+        clearTimeout(timer);
+        if (animation !== null && typeof cancelAnimationFrame === 'function') cancelAnimationFrame(animation);
+      }
       if (playback.presentation !== presentation || presentation.epoch !== epoch) return;
       presentation.audioPending = false;
       if (!document.getElementById('hero').classList.contains('is-preparing-video') && playbackVideoReady(playback, presentation, video)) releasePlaybackAudio(playback);
-    });
+    }
+    // Keep the paint boundary on every platform. Only Linux needs a fallback
+    // when WebKit delays that last callback after the cover has been removed.
+    if (linuxFallback) timer = setTimeout(restore, 250);
+    animation = frame(restore);
   }
   function waitForPlaybackPaint(generation, signal) {
     // The first animation callback runs before paint. The second lets the
