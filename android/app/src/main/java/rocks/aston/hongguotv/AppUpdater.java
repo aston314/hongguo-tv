@@ -494,7 +494,7 @@ final class AppUpdater {
             preferences.edit().putBoolean("waiting_installer", false).remove("install_status").remove("install_message").apply();
             String reason = status == Integer.MIN_VALUE || status == PackageInstaller.STATUS_PENDING_USER_ACTION
                     ? "系统安装尚未完成。安装包已保留，可再次打开安装界面。"
-                    : UpdateInstallStatus.message(status, detail);
+                    : UpdateInstallStatus.message(status, detail, Build.VERSION.SDK_INT);
             showInstallRecovery(target, reason);
             return;
         }
@@ -533,7 +533,8 @@ final class AppUpdater {
         state = "ready";
         message = "安装未完成，已保留验证过的安装包";
         publish();
-        if (host.foreground() && !destroyed) showInstallRecovery(latest, UpdateInstallStatus.message(status, detail));
+        if (host.foreground() && !destroyed) showInstallRecovery(latest,
+                UpdateInstallStatus.message(status, detail, Build.VERSION.SDK_INT));
     }
 
     private void showInstallPermission(Manifest target, String explanation) {
