@@ -2,6 +2,10 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['ja-JP'] = {
+    "ui.phoneSearchWaiting": "スマホのページを保存すると、次回からスキャン不要です",
+    "ui.phoneSearchHint": "スマホとテレビを同じネットワークに接続してください<br>テレビの「検索」画面で繰り返し検索できます。IP が変わった場合は再スキャンしてください",
+    "ui.phoneSearchReconnect": "再接続",
+
     "nav.apps": "アプリ",
     "apps.title": "おすすめアプリ",
     "apps.subtitle": "テレビでの使いやすさを大切にした、私のほかのアプリ。",

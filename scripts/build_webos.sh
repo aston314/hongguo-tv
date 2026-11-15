@@ -74,6 +74,7 @@ cp "$repo_dir/webos/app/webOSTVjs-1.2.13/LICENSE-2.0.txt" "$app_stage/webOSTVjs-
 cp "$repo_dir/webos/resources/icon.png" "$app_stage/icon.png"
 cp "$repo_dir/webos/resources/largeIcon.png" "$app_stage/largeIcon.png"
 cp -R "$repo_dir/webos/service/." "$service_stage/"
+cp "$repo_dir/core/cmd/hongguotv/ui/phone-search.html" "$repo_dir/core/cmd/hongguotv/ui/phone-search-page.js" "$service_stage/"
 # Test vectors and local test harnesses stay in the source tree and are
 # exercised by CI; do not ship them in the TV service package.
 find "$service_stage" -type f -name '*.test.js' -exec rm -f {} +
