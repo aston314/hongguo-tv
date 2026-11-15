@@ -244,5 +244,6 @@
     };
   }
 
+  create.searchHelpers = { privateIPv4: privateIPv4, selectIP: defaultLANAddress, makeQR: makeQR };
   module.exports = create;
 }());

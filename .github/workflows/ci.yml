@@ -63,6 +63,7 @@ jobs:
         run: |
           go test -race ./core/cmd/hongguotv -run 'Test(QR|Account|UpSMS|NewMFA|LateExpiry|TemporaryMFA)'
           go test -race ./core/cmd/hongguotv -run 'TestMiniReel(PlaybackDevice|IdentityRecovery|FreshFallback|VideoTab|SingleRegistered)|TestPlaybackPreparation|TestSearchDiscovery|TestWatchStatistics'
+          go test -race ./core/cmd/hongguotv -run 'TestPhoneSearch|TestNumberInput'
       - name: Check TV JavaScript and pagination
         run: |
           node --check core/cmd/hongguotv/ui/app.js
@@ -85,6 +86,8 @@ jobs:
           node --check core/cmd/hongguotv/ui/account-scan.js
           node --check core/cmd/hongguotv/ui/numeric-keypad.js
           node --check core/cmd/hongguotv/ui/number-input.js
+          node --check core/cmd/hongguotv/ui/phone-search.js
+          node --check core/cmd/hongguotv/ui/phone-search-page.js
           node --check core/cmd/hongguotv/ui/watch-statistics.js
           node --check core/cmd/hongguotv/ui/search-history.js
           node --check core/cmd/hongguotv/ui/search-discovery.js

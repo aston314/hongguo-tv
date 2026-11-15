@@ -17,6 +17,7 @@
     var account = options.account || require('./account')({ dataDir: provider.dataDirectory ? provider.dataDirectory() : process.env.HONGGUO_WEBOS_DATA_DIR });
     var watchStatistics = options.watchStatistics || require('./watch-statistics')({ dataDir: provider.dataDirectory ? provider.dataDirectory() : process.env.HONGGUO_WEBOS_DATA_DIR || require('os').tmpdir() });
     var numberInput = options.numberInput || require('./number-input')();
+    var phoneSearch = options.phoneSearch || require('./phone-search')({dataDir:provider.dataDirectory ? provider.dataDirectory() : process.env.HONGGUO_WEBOS_DATA_DIR});
     var updates = options.updates || require('./updates')();
     var port = options.port === undefined ? Number(process.env.HONGGUO_WEBOS_PORT) || DEFAULT_PORT : options.port;
     var bindHost = options.bindHost || process.env.HONGGUO_WEBOS_BIND_HOST || '127.0.0.1';
@@ -278,6 +279,13 @@
         if (req.method === 'DELETE') return data(req, res, numberInput.poll(String(q.session || ''), true));
         return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
       }
+      if (pathName === '/api/v1/search/phone') {
+        var origin = String(req.headers.origin || '');
+        if (origin && origin !== 'null' && origin !== 'http://'+req.headers.host) return json(res,403,{ok:false,error:'FORBIDDEN'},req);
+        if (req.method === 'POST') return phoneSearch.start().then(function (result) { data(req,res,result); },function (error) { failure(req,res,error); });
+        if (req.method === 'GET' || req.method === 'DELETE') return data(req,res,phoneSearch.poll(String(q.session || ''),Number(q.ack)||0,q.ready === '1',req.method === 'DELETE'));
+        return json(res,405,{ok:false,error:'METHOD_NOT_ALLOWED'},req);
+      }
       if (pathName === '/api/v1/search-history') {
         if (req.method === 'GET' || req.method === 'HEAD') return data(req, res, provider.searchHistory('GET', ''));
         if (req.method === 'DELETE') return data(req, res, provider.searchHistory('DELETE', ''));
@@ -467,11 +475,11 @@
     luna.register('ping', function (message) { respondWhenReady(message, false); });
     luna.register('getDiagnostics', function (message) { respondWhenReady(message, true); });
     luna.register('shutdown', function (message) {
-      numberInput.close();
+      numberInput.close(); phoneSearch.close();
       stopServer().then(completeActivity).then(function () { message.respond({ returnValue: true }); });
     });
 
-    return { ensureReady: ensureReady, status: statusPayload, address: function () { return server && server.address(); }, shutdown: function () { numberInput.close(); return stopServer().then(completeActivity); } };
+    return { ensureReady: ensureReady, status: statusPayload, address: function () { return server && server.address(); }, shutdown: function () { numberInput.close(); phoneSearch.close(); return stopServer().then(completeActivity); } };
   }
 
   if (typeof module !== 'undefined' && module.exports) module.exports = createService;

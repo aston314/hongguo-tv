@@ -220,6 +220,8 @@
   var accountCountryModalOpen = false;
   var accountCountryReturnFocus = null;
   var searchNumberScan;
+  var phoneSearch;
+  var searchScanReusable = false;
   var danmakuNumberScan;
   var searchScanOpen = false;
   var danmakuScanOpen = false;
@@ -3482,6 +3484,7 @@
     return true;
   }
   function pauseForBackground() {
+    if (typeof phoneSearch !== 'undefined' && phoneSearch) phoneSearch.stop();
     cancelSearchSuggestionActivation();
     if (accountQR && accountQR.snapshot().active) cancelAccountQR(false);
     if (typeof closePlaybackCommandMenu === 'function') closePlaybackCommandMenu(false);
@@ -3513,6 +3516,7 @@
   }
   function resumeFromBackground() {
     applicationInBackground = false;
+    if (typeof syncPhoneSearch === 'function') syncPhoneSearch();
     updatePlaybackControls();
     resumePendingContinuation(activePlayback);
     if (pageMode() === 'account' && document.activeElement && document.activeElement.closest('#account-keypad-modal')) goFocus(firstContentFocus());
@@ -6055,6 +6059,7 @@
   }
 
   function startPlayer(item, returnFocus, startOptions) {
+    if (typeof phoneSearch !== 'undefined' && phoneSearch) phoneSearch.stop();
     if (!item || !item.series_id) return;
     if (typeof closePlaybackCommandMenu === 'function') closePlaybackCommandMenu(false);
     if (typeof closePlaybackMenuHint === 'function') closePlaybackMenuHint();
@@ -7661,6 +7666,7 @@
 
   function closeSearchScan(restore) {
     searchScanOpen = false;
+    searchScanReusable = false;
     if (searchNumberScan) searchNumberScan.stop();
     document.getElementById('search-scan-modal').classList.add('is-hidden');
     document.getElementById('search-scan-modal').setAttribute('aria-hidden', 'true');
@@ -7668,6 +7674,7 @@
     document.getElementById('search-scan-copy').textContent = uiText('ui.scanSearchCopy', '手机输入或粘贴剧名，发送后在电视上搜索');
     document.getElementById('search-scan-hint').innerHTML = uiText('ui.scanHint', '手机和电视需在同一局域网<br>二维码5分钟有效，关闭后失效');
     document.getElementById('search-scan-close').textContent = uiText('ui.scanBackSearch', '返回搜索');
+    document.getElementById('search-scan-refresh').textContent = uiText('ui.scanRefresh', '刷新二维码');
     var target = searchScanReturnFocus; searchScanReturnFocus = null;
     if (restore && pageMode() === 'search') goFocus(focusables().indexOf(target) >= 0 ? target : firstVisible('#search-scan'));
   }
@@ -7683,7 +7690,10 @@
     document.getElementById('search-scan-modal').classList.remove('is-hidden');
     document.getElementById('search-scan-modal').setAttribute('aria-hidden', 'false');
     goFocus(document.getElementById('search-scan-close'));
-    searchNumberScan.start('search');
+    if (phoneSearch) {
+      searchScanReusable = true;
+      phoneSearch.start();
+    } else searchNumberScan.start('search');
   }
 
   function closeDanmakuScan(restore) {
@@ -8226,6 +8236,7 @@
   function activatePage(item, restoring) {
     cancelSearchSuggestionActivation();
     if (item.dataset.page === 'apps' && (typeof recommendedApps === 'undefined' || !recommendedApps || !recommendedApps.supported)) return;
+    if (typeof phoneSearch !== 'undefined' && phoneSearch) phoneSearch.stop();
     if (typeof watchStatisticsCollector !== 'undefined' && watchStatisticsCollector) watchStatisticsCollector.stop(true);
     if (typeof watchStatisticsView !== 'undefined' && watchStatisticsView && watchStatisticsView.isOpen()) closeWatchStatistics(false);
     if (portraitBackdrop) portraitBackdrop.reset();
@@ -8323,6 +8334,7 @@
     document.getElementById('page-placeholder-copy').textContent = uiText('ui.pageNotReady', '这个页面的数据和交互正在接入。');
     showNotice(uiText('ui.pageEntered', '{page}页面已进入，下一步接入对应数据。', { page: label ? label.textContent : uiText('ui.page', '页面') }));
     }
+    if (typeof syncPhoneSearch === 'function') syncPhoneSearch();
     if (!restoring) goFocus(firstContentFocus());
   }
 
@@ -9189,6 +9201,44 @@
       if (method === 'POST') { options.headers = { 'Content-Type': 'application/json' }; options.body = JSON.stringify({ kind: kind, country_code: meta && meta.country_code || '' }); }
       return fetchData('/api/v1/number-input' + (session ? '?session=' + encodeURIComponent(session) : ''), options);
   }
+  function canReceivePhoneSearch() {
+    return !desktopShell && pageMode() === 'search' && !applicationInBackground && !applicationHidden() &&
+      !detailModalOpen && !actorWorksOpen && !confirmOpen && !supportModalOpen && !accountKeypadOpen();
+  }
+  function syncPhoneSearch() {
+    if (!phoneSearch) return;
+    if (!desktopShell && pageMode() === 'search' && !applicationInBackground && !applicationHidden()) phoneSearch.start();
+    else phoneSearch.stop();
+  }
+  function renderPhoneSearchScan(state) {
+    if (!searchScanOpen || !searchScanReusable) return;
+    if (state.state === 'unavailable') {
+      searchScanReusable = false;
+      document.getElementById('search-scan-hint').innerHTML = uiText('ui.scanHint', '手机和电视需在同一局域网<br>二维码5分钟有效，关闭后失效');
+      document.getElementById('search-scan-refresh').textContent = uiText('ui.scanRefresh', '刷新二维码');
+      searchNumberScan.start('search'); return;
+    }
+    var image = document.getElementById('search-scan-qr');
+    image.classList.toggle('is-hidden', state.state !== 'waiting');
+    if (state.state === 'waiting') image.src = state.qr; else image.removeAttribute('src');
+    document.getElementById('search-scan-status').textContent = state.state === 'waiting' ? uiText('ui.phoneSearchWaiting', '扫码后可收藏手机页面，下次直接打开') : uiText('ui.scanCreating', '正在生成二维码…');
+    document.getElementById('search-scan-hint').innerHTML = uiText('ui.phoneSearchHint', '手机和电视需在同一局域网<br>电视停留在“找剧”页时可重复搜索；IP 变化后重新扫码');
+    document.getElementById('search-scan-refresh').textContent = uiText('ui.phoneSearchReconnect', '重新连接');
+  }
+  if (!desktopShell && (androidShell || webosShell) && window.HongguoPhoneSearch) phoneSearch = window.HongguoPhoneSearch.create({
+    request: function (method, session, ack, ready) {
+      return fetchData('/api/v1/search/phone?session=' + encodeURIComponent(session) + '&ack=' + ack + '&ready=' + (ready ? '1' : '0'),
+        method === 'POST' ? {method:method,headers:{'Content-Type':'application/json'},body:'{}'} : {method:method});
+    },
+    canReceive: canReceivePhoneSearch,
+    render: renderPhoneSearchScan,
+    complete: function (value) {
+      if (!canReceivePhoneSearch()) return;
+      if (searchScanOpen) closeSearchScan(false);
+      closeSearchSuggestions(false); searchInput.value = value;
+      goFocus(firstSearchAction()); submitSearch();
+    }
+  });
   searchDiscovery = window.HongguoSearchDiscovery.create({
     request: function () { return fetchData('/api/v1/search/discovery'); },
     render: renderSearchDiscovery
@@ -9237,7 +9287,7 @@
     }
   });
   document.getElementById('search-scan-close').addEventListener('click', function () { if (danmakuScanOpen) closeDanmakuScan(true); else closeSearchScan(true); });
-  document.getElementById('search-scan-refresh').addEventListener('click', function () { if (danmakuScanOpen) danmakuNumberScan.start('danmaku'); else if (searchScanOpen) searchNumberScan.start('search'); });
+  document.getElementById('search-scan-refresh').addEventListener('click', function () { if (danmakuScanOpen) danmakuNumberScan.start('danmaku'); else if (searchScanOpen) { if (searchScanReusable && phoneSearch) phoneSearch.restart(); else searchNumberScan.start('search'); } });
   accountNumberScan = window.HongguoNumberInput.create({
     request: requestScanInput,
     render: function (state) {

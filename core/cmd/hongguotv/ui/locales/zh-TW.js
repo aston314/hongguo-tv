@@ -2,6 +2,10 @@
   'use strict';
   root.HongguoLocales = root.HongguoLocales || {};
   root.HongguoLocales['zh-TW'] = {
+    "ui.phoneSearchWaiting": "掃碼後可收藏手機頁面，下次直接開啟",
+    "ui.phoneSearchHint": "手機與電視需在同一區域網路<br>電視停留在「找劇」頁時可重複搜尋；IP 變更後重新掃碼",
+    "ui.phoneSearchReconnect": "重新連線",
+
     "nav.apps": "應用",
     "apps.title": "應用推薦",
     "apps.subtitle": "我的其他作品，同樣為電視體驗而做。",
