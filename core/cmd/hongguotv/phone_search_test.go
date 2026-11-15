@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -76,7 +77,7 @@ func TestPhoneSearchRepeatedSearchAndAcknowledgement(t *testing.T) {
 			t.Fatal("ack not applied")
 		}
 	}
-	if info, err := os.Stat(filepath.Join(m.dir, "phone-search.json")); err != nil || info.Mode().Perm() != 0600 {
+	if info, err := os.Stat(filepath.Join(m.dir, "phone-search.json")); err != nil || runtime.GOOS != "windows" && info.Mode().Perm() != 0600 {
 		t.Fatal("unsafe persistent entry", err)
 	}
 }

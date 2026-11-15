@@ -28,7 +28,8 @@ test('webOS phone search accepts repeated Traditional Chinese queries and acknow
     assert.deepEqual(f.manager.poll(f.start.session,i,true,false),value);
     assert.equal(f.manager.poll(f.start.session,value.id,true,false).state,'waiting');
   }
-  assert.equal(fs.statSync(path.join(f.dir,'phone-search.json')).mode&0o777,0o600);
+  const savedInfo=fs.statSync(path.join(f.dir,'phone-search.json'));
+  if(process.platform!=='win32') assert.equal(savedInfo.mode&0o777,0o600);
 });
 test('webOS bookmark and port survive restart while every foreground lease gets a fresh form key',async t=>{
   const f=await fixture(t);t.after(()=>fs.rmSync(f.dir,{recursive:true,force:true}));
