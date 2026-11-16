@@ -19,6 +19,9 @@ node_bin=${NODE:-node}
 "$node_bin" --check "$repo_dir/webos/service/audio-multipart.js"
 "$node_bin" --check "$repo_dir/webos/service/audio-cancel.js"
 "$node_bin" --check "$repo_dir/webos/service/playback-identity.js"
+"$node_bin" --check "$repo_dir/webos/service/playback-v5-sign.js"
+"$node_bin" --check "$repo_dir/webos/service/playback-v5-carrier.js"
+"$node_bin" --check "$repo_dir/webos/service/mobile-playback-v5.js"
 "$node_bin" --check "$repo_dir/webos/service/network-diagnostic.js"
 "$node_bin" --check "$repo_dir/webos/service/phone-search.js"
 
@@ -81,6 +84,7 @@ console.log(JSON.stringify({ appId: app.id, version: app.version, serviceId: ser
 NODE
 
 "$node_bin" "$repo_dir/webos/service/passport-sign.test.js"
+"$node_bin" --test "$repo_dir/tests/webos-mobile-v5.test.cjs"
 "$node_bin" "$repo_dir/webos/service/provider.test.js"
 "$node_bin" "$repo_dir/webos/service/search-season.test.js"
 "$node_bin" --test "$repo_dir/webos/service/search-discovery.test.js"
