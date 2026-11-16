@@ -201,13 +201,125 @@ func TestCloudUnavailableMetadataDoesNotBlockMembershipOrUpload(t *testing.T) {
 	}
 }
 
-func TestCloudMetadataMismatchedIdentityCannotMerge(t *testing.T) {
-	c, close := listFixtureClient(func(w http.ResponseWriter, r *http.Request) {
-		ioJSON(w, `{"code":0,"data":{"7690163276214176792":{"video_data":{"series_id":"7690163276214176794","series_title":"错误身份"}}}}`)
-	})
-	defer close()
-	if _, err := c.libraryMetadata(context.Background(), []string{fixtureSeries}); err == nil {
-		t.Fatal("wrong series accepted")
+func TestCloudMetadataInvalidItemsDoNotDiscardValidCards(t *testing.T) {
+	const invalid = "7690163276214176794"
+	for _, bad := range []struct{ name, data string }{
+		{"missing_id", `{"series_title":"不可用资料"}`},
+		{"zero_id", `{"series_id_str":"0","series_title":"不可用资料"}`},
+		{"mismatched_id", `{"series_id":"7690163276214176795","series_title":"错误资料"}`},
+		{"missing_title", `{"series_id_str":"7690163276214176794"}`},
+		{"empty", `{}`},
+		{"malformed", `[]`},
+	} {
+		t.Run(bad.name, func(t *testing.T) {
+			c, close := listFixtureClient(func(w http.ResponseWriter, r *http.Request) {
+				ioJSON(w, fmt.Sprintf(`{"code":0,"data":{"7690163276214176794":{"video_data":%s},"7690163276214176792":{"video_data":{"series_id_str":"7690163276214176792","series_title":"正常资料"}}}}`, bad.data))
+			})
+			defer close()
+			// A bad first item must neither poison its card nor discard later cards.
+			cards, err := c.libraryMetadata(context.Background(), []string{invalid, fixtureSeries})
+			if err != nil || len(cards) != 1 || cards[fixtureSeries].Title != "正常资料" {
+				t.Fatalf("invalid item blocked valid metadata: cards=%v err=%v", cards, err)
+			}
+			if _, accepted := cards[invalid]; accepted {
+				t.Fatal("invalid metadata accepted")
+			}
+		})
+	}
+}
+
+func TestCloudMetadataIdentityFailuresDoNotBlockSync(t *testing.T) {
+	const good = "7690163276214176794"
+	const unavailable = "7690163276214176795"
+	for _, bad := range []struct{ name, data string }{
+		{"missing_id", `{"series_title":"异常资料","series_cover":"https://example.com/wrong.jpg"}`},
+		{"mismatched_id", `{"series_id_str":"7690163276214176792","series_title":"错误资料","series_cover":"https://example.com/wrong.jpg"}`},
+	} {
+		for _, saved := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/saved=%t", bad.name, saved), func(t *testing.T) {
+				var recovered atomic.Bool
+				var uploads atomic.Int32
+				m := loggedFixture(t, func(w http.ResponseWriter, r *http.Request) {
+					switch r.URL.Path {
+					case "/reading/bookapi/read_history/list/v":
+						ioJSON(w, `{"code":0,"data":{"data_list":[{"book_id_str":"7690163276214176792","book_name":"已有历史","vid_index":1,"read_timestamp_ms":1700000000000}],"has_more":false}}`)
+					case "/reading/bookapi/bookshelf/video/list/v":
+						ioJSON(w, `{"code":0,"data":{"video_shelf_info":[{"series_id":"7690163276214176795","collect_time":1700000000},{"series_id":"7690163276214176794","collect_time":1700000000}]}}`)
+					case "/novel/player/multi_video_detail/preload/v1":
+						data := bad.data
+						if recovered.Load() {
+							data = `{"series_id_str":"7690163276214176795","series_title":"恢复后的资料","series_cover":"https://example.com/recovered.jpg"}`
+						}
+						ioJSON(w, fmt.Sprintf(`{"code":0,"data":{"7690163276214176795":{"video_data":%s},"7690163276214176794":{"video_data":{"series_id_str":"7690163276214176794","series_title":"正常收藏"}}}}`, data))
+					case "/reading/bookapi/read_progress/get/v":
+						ioJSON(w, `{"code":0,"video_data":[]}`)
+					case "/reading/bookapi/read_history/update/v", "/reading/bookapi/read_progress/upload/v", "/reading/bookapi/bookshelf/video/update/v":
+						uploads.Add(1)
+						ioJSON(w, `{"code":0}`)
+					default:
+						t.Error("unexpected cloud route")
+					}
+				})
+				owner, yes := m.status().Profile.UID, true
+				if saved {
+					drama := Drama{SeriesID: unavailable, Title: "已保存资料", Cover: "https://example.com/saved.jpg", MetadataPending: true}
+					if _, err := m.changeLibrary(LibraryChange{OwnerID: &owner, Action: "favorite", Drama: drama, Value: &yes}); err != nil {
+						t.Fatal(err)
+					}
+				}
+				m.synchronize(context.Background())
+				entries := map[string]LibraryEntry{}
+				for _, entry := range m.librarySnapshot().Entries {
+					entries[entry.Drama.SeriesID] = entry
+				}
+				status := m.status().Sync
+				if len(entries) != 3 || status.Error != "" || status.LastSync == 0 || status.Pending != 0 {
+					t.Fatalf("bad metadata blocked synchronization: entries=%d status=%+v", len(entries), status)
+				}
+				if entries[fixtureSeries].LastPlayedAt == 0 || entries[good].FavoriteAt == 0 || entries[good].Drama.Title != "正常收藏" || entries[good].Drama.MetadataPending {
+					t.Fatal("valid history or favorite was lost")
+				}
+				card := entries[unavailable]
+				if card.FavoriteAt == 0 || !card.Drama.MetadataPending {
+					t.Fatal("invalid metadata removed authoritative favorite")
+				}
+				if saved {
+					if card.Drama.Title != "已保存资料" || card.Drama.Cover != "https://example.com/saved.jpg" {
+						t.Fatal("invalid metadata replaced saved card")
+					}
+				} else if card.Drama.Title != "剧集信息暂未加载" || card.Drama.Cover != "" {
+					t.Fatal("invalid metadata entered placeholder")
+				}
+				baseline := uploads.Load()
+				if _, err := m.changeLibrary(LibraryChange{OwnerID: &owner, Action: "progress", Drama: entries[fixtureSeries].Drama, Episode: 2, VideoID: fixtureVideo, Position: 10, Duration: 90}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := m.changeLibrary(LibraryChange{OwnerID: &owner, Action: "favorite", Drama: entries[good].Drama, Value: &yes}); err != nil {
+					t.Fatal(err)
+				}
+				m.synchronize(context.Background())
+				if uploads.Load()-baseline != 3 || m.status().Sync.Pending != 0 || m.status().Sync.Error != "" {
+					t.Fatal("invalid metadata blocked progress or favorite upload")
+				}
+				recovered.Store(true)
+				m.synchronize(context.Background())
+				final := m.librarySnapshot()
+				if len(final.Entries) != 3 {
+					t.Fatal("metadata recovery lost records")
+				}
+				for _, entry := range final.Entries {
+					if entry.Drama.SeriesID == unavailable && (entry.Drama.MetadataPending || entry.Drama.Title != "恢复后的资料" || entry.Drama.Cover != "https://example.com/recovered.jpg" || entry.FavoriteAt == 0) {
+						t.Fatal("later valid metadata did not recover favorite")
+					}
+					if entry.Drama.SeriesID == fixtureSeries && (entry.Episode != 2 || entry.Position != 10) {
+						t.Fatal("older cloud progress replaced local progress")
+					}
+				}
+				if m.status().Sync.Error != "" {
+					t.Fatal("metadata recovery failed")
+				}
+			})
+		}
 	}
 }
 
