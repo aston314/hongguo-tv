@@ -27,4 +27,18 @@ public class UpdateInstallStatusTest {
         assertEquals("安装包与此设备不兼容（INSTALL_FAILED_NO_MATCHING_ABIS）",
                 UpdateInstallStatus.message(PackageInstaller.STATUS_FAILURE_INCOMPATIBLE, "INSTALL_FAILED_NO_MATCHING_ABIS"));
     }
+
+    @Test public void ambiguousAndroidSixInstallerFailureUsesVerifiedApkFallback() {
+        assertTrue(UpdateInstallStatus.legacyInstallerFailure(
+                PackageInstaller.STATUS_FAILURE_INCOMPATIBLE, "", 23));
+        assertEquals("系统安装器未完成，可保存安装包后自行安装",
+                UpdateInstallStatus.message(PackageInstaller.STATUS_FAILURE_INCOMPATIBLE, "", 23));
+        assertFalse(UpdateInstallStatus.legacyInstallerFailure(
+                PackageInstaller.STATUS_FAILURE_INCOMPATIBLE, "INSTALL_FAILED_NO_MATCHING_ABIS", 23));
+        assertEquals("安装包与此设备不兼容（INSTALL_FAILED_NO_MATCHING_ABIS）",
+                UpdateInstallStatus.message(PackageInstaller.STATUS_FAILURE_INCOMPATIBLE,
+                        "INSTALL_FAILED_NO_MATCHING_ABIS", 23));
+        assertFalse(UpdateInstallStatus.legacyInstallerFailure(
+                PackageInstaller.STATUS_FAILURE_INCOMPATIBLE, "", 26));
+    }
 }
