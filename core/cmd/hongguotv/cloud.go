@@ -466,9 +466,6 @@ func (c *passportClient) pullLibrary(ctx context.Context, uid string, local Libr
 			if ctx.Err() != nil {
 				return nil, ctx.Err()
 			}
-			if errors.Is(err, errCloudMetadataIdentity) {
-				return nil, err
-			}
 			// Membership has already been read completely. A down/unavailable
 			// metadata endpoint must not block progress reconciliation/upload.
 			// Keep existing card data or a placeholder and retry on later sync.
@@ -574,7 +571,10 @@ func (c *passportClient) libraryMetadata(ctx context.Context, ids []string) (map
 		}
 		card, ok := normalizeDrama(v)
 		if !ok || card.SeriesID != id {
-			return nil, errCloudMetadataIdentity
+			// Reject only this card. The history/favorites lists already own
+			// membership; missing or wrong-series metadata must not poison
+			// another card or stop synchronization of the remaining records.
+			continue
 		}
 		if asString(v["series_title"]) == "" {
 			continue
