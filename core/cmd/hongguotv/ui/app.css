@@ -867,10 +867,6 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
 .danmaku-size-preview { display: flex; align-items: center; min-height: 88px; padding: 8px 16px; margin: 1rem 0 1.2rem; border: 1px solid #30303a; border-radius: .6rem; background: #101015; overflow: hidden; }
 .danmaku-size-preview .danmaku-line { position: static; left: auto; animation: none; }
 .danmaku-size-actions button { white-space: nowrap; }
-.playback-custom-device-fields { display: flex; flex-wrap: wrap; margin: 1rem 0 .8rem; }
-.playback-custom-device-fields label { display: flex; flex: 1 1 18rem; flex-direction: column; margin: 0 1rem .8rem 0; color: #b0afba; font-size: .95rem; }
-.playback-custom-device-input { width: 100%; min-height: 3rem; padding: .75rem .9rem; box-sizing: border-box; border: 2px solid #41414c; border-radius: .6rem; background: #101016; color: #fff; font: inherit; font-size: 1.15rem; }
-.playback-custom-device-input:focus, .playback-custom-device-input.is-focused { border-color: #fff; outline: none; background: #242432; box-shadow: 0 0 0 3px rgba(255,255,255,.25); }
 .account-card h2, .settings-card h2 { font-size: 1.45rem; margin: 0 0 1.3rem; }
 .account-card label { display: block; margin: 1rem 0 .6rem; color: #bbbcc8; }
 .account-phone-row { display: flex; align-items: stretch; gap: 10px; }

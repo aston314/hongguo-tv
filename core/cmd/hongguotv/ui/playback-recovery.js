@@ -2,7 +2,7 @@
   'use strict';
 
   function safePreparation(code, stage, details) {
-    if (['video_tab', 'multi_video_model', 'multi_video_model_transport', 'device_register', 'fallback_api',
+    if (['video_tab', 'video_model', 'multi_video_model', 'multi_video_model_transport', 'device_register', 'fallback_api',
         'source_select', 'range_init', 'media_download', 'media_decrypt', 'cache_write', 'playback_prepare'].indexOf(stage) < 0 ||
         typeof code !== 'string' || !/^[A-Z][A-Z0-9_]{0,63}$/.test(code)) return null;
     var result = { code: code, stage: stage };
