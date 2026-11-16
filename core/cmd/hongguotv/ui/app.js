@@ -8970,6 +8970,19 @@
   if (window.HongguoI18n && typeof window.HongguoI18n.onChange === 'function') window.HongguoI18n.onChange(function () { watchStatisticsView.render(); });
 
   var media = document.getElementById('hero-video');
+  var desktopPlaybackAwake = false;
+  function setDesktopPlaybackAwake(active) {
+    if (!desktopShell || !window.HongguoDesktop || String(window.HongguoDesktop.platform || '').indexOf('windows') !== 0 || desktopPlaybackAwake === !!active) return;
+    desktopPlaybackAwake = !!active;
+    try {
+      var app = window.go && window.go.main && window.go.main.desktopApp;
+      if (!app || typeof app.SetPlaybackAwake !== 'function') return;
+      var result = app.SetPlaybackAwake(desktopPlaybackAwake);
+      if (result && typeof result.catch === 'function') result.catch(function () {});
+    } catch (ignored) {}
+  }
+  window.HongguoDesktopPlaybackAwake = setDesktopPlaybackAwake;
+  window.addEventListener('pagehide', function () { setDesktopPlaybackAwake(false); });
   watchStatisticsCollector.bind(media, window);
   media.addEventListener('loadedmetadata', function () {
     if (!activePlayback || activePlayback.generation !== feedGeneration) return;
@@ -8986,9 +8999,11 @@
     updatePlaybackControls();
   });
   media.addEventListener('playing', function () {
+    if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(true);
     document.getElementById('danmaku-layer').classList.remove('is-paused'); tickDanmaku();
     markPlaybackStarted(activePlayback);
   });
+  media.addEventListener('play', function () { if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(true); });
   media.addEventListener('nativeframe', function (event) {
     // Media3 can report a rendered frame before WebView's `playing` callback.
     // Reveal that real frame without treating the episode as started for
@@ -9037,6 +9052,7 @@
     saveProgress(false);
   });
   media.addEventListener('pause', function () {
+    if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(false);
     resetNextSeasonHint();
     if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback);
     if (activePlayback) activePlayback.stableSince = 0;
@@ -9106,6 +9122,7 @@
     if (media.paused) setPlayerStatus('');
   });
   media.addEventListener('error', function () {
+    if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(false);
     resetNextSeasonHint();
     if (!activePlayback || !media.getAttribute('src')) return;
     clearRangeStallTimer();
@@ -9114,6 +9131,7 @@
     setPlayerStatus(uiText('ui.playbackFailed', '这集未能正常播放'), true);
   });
   media.addEventListener('ended', function () {
+    if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(false);
     resetNextSeasonHint();
     clearRangeStallTimer();
     var playback = activePlayback;

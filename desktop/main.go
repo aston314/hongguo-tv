@@ -44,7 +44,12 @@ func (a *desktopApp) startup(ctx context.Context) {
 	a.core.start()
 	go a.updater.automatic()
 }
-func (a *desktopApp) shutdown(ctx context.Context) { a.updater.close(); a.core.stop() }
+func (a *desktopApp) shutdown(ctx context.Context) {
+	desktopSetPlaybackAwake(false)
+	a.updater.close()
+	a.core.stop()
+}
+func (a *desktopApp) SetPlaybackAwake(active bool) { desktopSetPlaybackAwake(active) }
 func (a *desktopApp) SetFullscreen(enabled bool) {
 	if enabled {
 		wruntime.WindowFullscreen(a.ctx)
@@ -97,6 +102,7 @@ func (a *desktopApp) OpenUpdateFolder() {
 
 func (a *desktopApp) FinishExit() {
 	if !a.exitConfirmed.Swap(true) {
+		desktopSetPlaybackAwake(false)
 		a.mini.save(runtimeMiniWindow{a.ctx})
 		wruntime.Quit(a.ctx)
 	}
