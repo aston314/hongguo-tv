@@ -11,6 +11,7 @@ func miniReelProductionSources() miniReelPlaybackSources {
 		tabEndpoint: miniReelVideoTabBase + miniReelVideoTabPath, tabIdentity: miniReelPlaybackRouteIdentities[2],
 		legacyEndpoints:  []string{"https://api5-normal-sinfonlineb.fqnovel.com" + miniReelAPIPath, "https://api5-normal-hl.fqnovel.com" + miniReelAPIPath},
 		register:         registerMiniReelPlaybackDeviceContext,
+		mobileV5:         productionMobileV5,
 		registeredSingle: productionSingleRegistered,
 		singleEndpoint:   miniReelSingleEndpoint, registerSingle: registerMiniReelSingleDevice,
 		memory: miniReelSourceMemory,
@@ -31,6 +32,8 @@ type miniReelSourceSequence struct {
 	provider                    miniReelProvider
 	singleLegacyPending         bool
 	singleSpent                 time.Duration
+	legacyPending               bool
+	legacySpent                 time.Duration
 }
 
 func newMiniReelSourceSequence(sources miniReelPlaybackSources, vid, codecMode, contentType, key string) miniReelSourceSequence {
@@ -65,14 +68,18 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 	if _, err := normalizeMiniReelContentType(s.contentType); err != nil {
 		return nil, err
 	}
-	for s.stage < 3 || s.singleLegacyPending {
+	for s.stage < 3 || s.singleLegacyPending || s.legacyPending {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
 		stage := s.stage
 		legacyOnly := s.singleLegacyPending
+		oldMultiOnly := s.legacyPending
 		var provider miniReelProvider
-		if legacyOnly {
+		if oldMultiOnly {
+			provider = miniReelLegacyProvider
+			s.legacyPending = false
+		} else if legacyOnly {
 			provider = miniReelSingleProvider
 			s.singleLegacyPending = false
 		} else {
@@ -83,7 +90,11 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 		// Reserve time for later sources when an earlier upstream stalls.
 		limit := 8 * time.Second
 		if provider == miniReelLegacyProvider {
-			limit = 14 * time.Second
+			limit = 14*time.Second - s.legacySpent
+			if limit <= 0 {
+				s.lastErr = context.DeadlineExceeded
+				continue
+			}
 		}
 		if provider == miniReelSingleProvider {
 			limit -= s.singleSpent
@@ -115,6 +126,21 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 				options, err = miniReelVideoTabOptionsWithClient(requestCtx, s.vid, s.sources.tabEndpoint, d, s.codecMode, s.sources.client)
 			}
 		case miniReelLegacyProvider:
+			if !oldMultiOnly && s.sources.mobileV5 != nil {
+				// v5 shares the existing legacy group's 14-second ceiling.
+				// Reserve the rest for old hosts, including after a media failure.
+				variantCtx, stop := context.WithTimeout(requestCtx, 8*time.Second)
+				options, err = s.sources.mobileV5.options(variantCtx, s.vid, s.codecMode, s.contentType)
+				expired := variantCtx.Err() != nil
+				stop()
+				if err == nil && len(options) > 0 {
+					s.legacyPending = s.sources.register != nil && len(s.sources.legacyEndpoints) > 0
+					break
+				}
+				if requestCtx.Err() != nil || !expired && !miniReelSourceFallbackAllowed(err) {
+					break
+				}
+			}
 			if s.sources.register == nil || len(s.sources.legacyEndpoints) == 0 {
 				cancel()
 				continue
@@ -156,6 +182,9 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 		s.spent += elapsed
 		if provider == miniReelSingleProvider {
 			s.singleSpent += elapsed
+		}
+		if provider == miniReelLegacyProvider {
+			s.legacySpent += elapsed
 		}
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
@@ -249,7 +278,7 @@ func prepareMiniReelWithSources(ctx context.Context, job *miniReelMediaJob, seri
 			return
 		}
 		sequence.plan.observe(sequence.provider, false)
-		if sequence.stage >= 3 && !sequence.singleLegacyPending {
+		if sequence.stage >= 3 && !sequence.singleLegacyPending && !sequence.legacyPending {
 			job.Err = err
 			return
 		}

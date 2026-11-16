@@ -100,6 +100,7 @@ https.request = function (options) {
         responseStatus = 404;
       }
     }
+    if (options.path.indexOf('/novel/player/multi_video_model/player/v1') >= 0) body = '{"code":0,"data":{}}';
     if (options.path.indexOf('/novel/player/multi_video_model/v1/') >= 0) {
       videoModelRequests++;
       var playbackQuery = Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams);

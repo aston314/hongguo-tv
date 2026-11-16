@@ -14,6 +14,7 @@ type miniReelPlaybackSources struct {
 	tabIdentity      *miniReelPlaybackDeviceCache
 	legacyEndpoints  []string
 	register         func(context.Context) (miniReelDevice, error)
+	mobileV5         *miniReelMobileV5Source
 	registeredSingle *miniReelSingleRegisteredSource
 	singleEndpoint   string
 	registerSingle   func(context.Context) (miniReelDevice, error)

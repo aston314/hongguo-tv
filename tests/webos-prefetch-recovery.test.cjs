@@ -121,7 +121,13 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
     headDiagnostics() { return { media_head_cache_bytes: 128, media_head_cache_hits: 0 }; },
     downloadFile(target,destination) { downloads++; if(mediaHooks.download)return mediaHooks.download(target,destination,downloads); throw Error('Recovery must not download a complete video'); }
   } : normal(id);
-  mod._compile(fs.readFileSync(providerFile, 'utf8'), providerFile);
+  // These fixtures exercise the retained legacy protocol's exact retry counts.
+  // The mobile-v5 protocol and its integration use their own complete transport
+  // fixtures in webos-mobile-v5.test.cjs, rather than sharing legacy replies.
+  const source = fs.readFileSync(providerFile, 'utf8');
+  const selector = 'singleVideoOptions : mobileVideoOptions';
+  assert.equal(source.split(selector).length, 2);
+  mod._compile(source.replace(selector, 'singleVideoOptions : legacyVideoOptions'), providerFile);
   const provider = mod.exports, consumers = [], prepare = provider.prepare;
   provider.prepare = function (...args) {
     consumers.push({ prefetch: args[5], signal: args[6] }); return prepare.apply(provider, args);
