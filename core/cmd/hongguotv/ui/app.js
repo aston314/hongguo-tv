@@ -14,7 +14,8 @@
     controls: '.playback-buttons .control-button, #player-retry, #player-failure-diagnostics',
     timeline: '#control-progress',
     miniPlayer: '.mini-player-button, .mini-player-overlay input',
-    miniPlayerSettings: '.desktop-mini-titlebar-action, .windows-playback-action',
+    miniPlayerSettings: '.desktop-mini-titlebar-action',
+    windowsPlayback: '.windows-playback-action',
     searchInput: '#search-input',
     searchSuggestions: '.search-suggestion',
     searchActions: '.search-action',
@@ -74,7 +75,6 @@
     danmakuSize: '.danmaku-size-action',
     episodePrefetch: '.episode-prefetch-action',
     playbackModes: '.playback-mode-action',
-    playbackCustomDevice: '.playback-custom-device-input, .playback-custom-device-action',
     support: '.support-card, .support-close',
     rankModal: '.rank-filter-option, .rank-filter-close, .rank-filter-apply',
     actorWorks: '.actor-works-close, .actor-works-retry, .actor-work-card',
@@ -200,11 +200,6 @@
   var autoCinemaToggle = document.getElementById('auto-cinema-toggle');
   var recommendationAutoCinemaPreferences = null;
   var episodePrefetchSettingCard = document.getElementById('episode-prefetch-settings');
-  var playbackCustomDeviceSettingCard = document.getElementById('playback-custom-device-settings');
-  // The custom playback device fallback is implemented by the Go core for
-  // Android and desktop. webOS has its own JS provider and must not expose a
-  // setting whose endpoint it cannot persist or use.
-  if (webosShell && playbackCustomDeviceSettingCard) playbackCustomDeviceSettingCard.classList.add('is-hidden');
   var playbackMenuHintSeen = false;
   var playbackMenuHintCandidate = false;
   var playbackMenuHintTimer = 0;
@@ -1280,10 +1275,10 @@
     if (element.classList.contains('history-filter')) return 'historyFilters';
     if (element.classList.contains('library-card')) return 'libraryItems';
     if (element.classList.contains('library-remove')) return 'libraryRemovals';
-    if (element.classList.contains('playback-custom-device-input') || element.classList.contains('playback-custom-device-action')) return 'playbackCustomDevice';
     if (element.classList.contains('account-input')) return 'accountInputs';
     if (element.classList.contains('app-update-action')) return 'appUpdates';
-    if (element.classList.contains('desktop-mini-titlebar-action') || element.classList.contains('windows-playback-action')) return 'miniPlayerSettings';
+    if (element.classList.contains('desktop-mini-titlebar-action')) return 'miniPlayerSettings';
+    if (element.classList.contains('windows-playback-action')) return 'windowsPlayback';
     if (element.classList.contains('webos-update-notes')) return 'webosUpdateNotes';
     if (element.classList.contains('locale-action')) return 'localeActions';
     if (element.classList.contains('recommendation-direction-action')) return 'recommendationDirection';
@@ -1378,7 +1373,7 @@
     if (remembered && focusables().indexOf(remembered) >= 0) return remembered;
     if (pageMode() === 'search') return searchInput || document.querySelector('.search-submit');
     if (pageMode() === 'account') return firstVisible('#account-method-qr[aria-pressed="true"]') || firstVisible('#account-method-phone') || firstVisible('.account-input') || firstVisible('.account-action');
-    if (pageMode() === 'settings') return selectedSidebarDisplay() || selectedLocale() || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action') || activeSidebar();
+    if (pageMode() === 'settings') return selectedSidebarDisplay() || selectedLocale() || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action') || activeSidebar();
     if (pageMode() === 'support') return firstVisible('.support-card');
     if (pageMode() === 'apps') return firstVisible('.recommended-app-action') || activeSidebar();
     if (isLibraryPage()) return firstVisible('.library-card') || firstVisible('.history-filter.is-active') || firstVisible('[data-action="library-discover"]') || firstVisible('.library-toolbar-button');
@@ -1900,30 +1895,30 @@
     if (zone === 'startupPage') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'localeActions') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.startup-page-action[aria-pressed="true"]') || firstVisible('.startup-page-action') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'recommendationDirection') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'appUpdates') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
-      if (direction === 'up') return firstVisible('.desktop-mini-titlebar-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'up') return firstVisible('.desktop-mini-titlebar-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.webos-update-notes');
       return null;
     }
     if (zone === 'miniPlayerSettings') {
       if (direction === 'left') return activeSidebar();
-      if (direction === 'up') return firstVisible('.playback-custom-device-action') || firstVisible('.playback-mode-action') || activeSidebar();
+      if (direction === 'up') return firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('#app-check-update');
       return null;
     }
@@ -1936,56 +1931,56 @@
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down' && firstVisible('.recommendation-auto-cinema-action')) return firstVisible('.recommendation-auto-cinema-action');
-      if (direction === 'down') return firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'recommendationAutoCinema') {
       if (direction === 'left') return activeSidebar();
       if (direction === 'up') return firstVisible('.auto-cinema-action') || activeSidebar();
-      if (direction === 'down') return firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'webosAudio') {
       if (direction === 'left') return activeSidebar();
       if (direction === 'up') return firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'portraitBackground') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up' && firstVisible('.recommendation-auto-cinema-action')) return firstVisible('.recommendation-auto-cinema-action');
       if (direction === 'up') return firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'danmakuRegion') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up' && !firstVisible('.portrait-background-action') && firstVisible('.recommendation-auto-cinema-action')) return firstVisible('.recommendation-auto-cinema-action');
       if (direction === 'up') return firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'danmakuSize') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return moveGrid('.danmaku-size-action', current, direction) || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || activeSidebar();
-      if (direction === 'down') return moveGrid('.danmaku-size-action', current, direction) || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return moveGrid('.danmaku-size-action', current, direction) || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'episodePrefetch') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
     if (zone === 'playbackModes') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
-      if (direction === 'down') return firstVisible('.playback-custom-device-input') || firstVisible('.playback-custom-device-action') || firstVisible('.app-update-action');
+      if (direction === 'down') return firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
-    if (zone === 'playbackCustomDevice') {
+    if (zone === 'windowsPlayback') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
-      if (direction === 'up') return firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.danmaku-region-action');
+      if (direction === 'up') return firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
       if (direction === 'down') return firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
@@ -8970,6 +8965,19 @@
   if (window.HongguoI18n && typeof window.HongguoI18n.onChange === 'function') window.HongguoI18n.onChange(function () { watchStatisticsView.render(); });
 
   var media = document.getElementById('hero-video');
+  var desktopPlaybackAwake = false;
+  function setDesktopPlaybackAwake(active) {
+    if (!desktopShell || !window.HongguoDesktop || String(window.HongguoDesktop.platform || '').indexOf('windows') !== 0 || desktopPlaybackAwake === !!active) return;
+    desktopPlaybackAwake = !!active;
+    try {
+      var app = window.go && window.go.main && window.go.main.desktopApp;
+      if (!app || typeof app.SetPlaybackAwake !== 'function') return;
+      var result = app.SetPlaybackAwake(desktopPlaybackAwake);
+      if (result && typeof result.catch === 'function') result.catch(function () {});
+    } catch (ignored) {}
+  }
+  window.HongguoDesktopPlaybackAwake = setDesktopPlaybackAwake;
+  window.addEventListener('pagehide', function () { setDesktopPlaybackAwake(false); });
   watchStatisticsCollector.bind(media, window);
   media.addEventListener('loadedmetadata', function () {
     if (!activePlayback || activePlayback.generation !== feedGeneration) return;
@@ -8986,9 +8994,11 @@
     updatePlaybackControls();
   });
   media.addEventListener('playing', function () {
+    if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(true);
     document.getElementById('danmaku-layer').classList.remove('is-paused'); tickDanmaku();
     markPlaybackStarted(activePlayback);
   });
+  media.addEventListener('play', function () { if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(true); });
   media.addEventListener('nativeframe', function (event) {
     // Media3 can report a rendered frame before WebView's `playing` callback.
     // Reveal that real frame without treating the episode as started for
@@ -9037,6 +9047,7 @@
     saveProgress(false);
   });
   media.addEventListener('pause', function () {
+    if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(false);
     resetNextSeasonHint();
     if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback);
     if (activePlayback) activePlayback.stableSince = 0;
@@ -9106,6 +9117,7 @@
     if (media.paused) setPlayerStatus('');
   });
   media.addEventListener('error', function () {
+    if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(false);
     resetNextSeasonHint();
     if (!activePlayback || !media.getAttribute('src')) return;
     clearRangeStallTimer();
@@ -9114,6 +9126,7 @@
     setPlayerStatus(uiText('ui.playbackFailed', '这集未能正常播放'), true);
   });
   media.addEventListener('ended', function () {
+    if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(false);
     resetNextSeasonHint();
     clearRangeStallTimer();
     var playback = activePlayback;
@@ -9483,37 +9496,6 @@
       });
     });
   }
-  function renderPlaybackCustomDevice(data, message) {
-    var value = data && data.data ? data.data : data || {};
-    var did = document.getElementById('playback-custom-device-did');
-    var uid = document.getElementById('playback-custom-device-uid');
-    if (!did || !uid) return;
-    if (document.activeElement !== did) did.value = value.did || '';
-    if (document.activeElement !== uid) uid.value = value.uid || '';
-    document.getElementById('playback-custom-device-state').textContent = message || (value.did ? uiText('settings.customPlaybackDeviceConfigured', '已配置，仅在默认播放地址失败时使用') : uiText('settings.customPlaybackDeviceEmpty', '未配置，使用默认播放地址'));
-  }
-  function loadPlaybackCustomDevice() {
-    if (webosShell) return;
-    fetch('/api/v1/playback/custom-device').then(function (response) { return response.json(); }).then(function (payload) {
-      if (!payload || !payload.ok) throw new Error(payload && payload.error || '读取失败');
-      renderPlaybackCustomDevice(payload.data);
-    }).catch(function () { renderPlaybackCustomDevice({}, uiText('settings.customPlaybackDeviceLoadFailed', '播放地址兜底设备读取失败')); });
-  }
-  function savePlaybackCustomDevice(clear) {
-    var did = document.getElementById('playback-custom-device-did');
-    var uid = document.getElementById('playback-custom-device-uid');
-    var state = document.getElementById('playback-custom-device-state');
-    var value = clear ? { did: '', uid: '' } : { did: (did.value || '').replace(/[^0-9]/g, ''), uid: (uid.value || '').replace(/[^0-9]/g, '') };
-    if (!clear && !value.did) { state.textContent = uiText('settings.customPlaybackDeviceDidRequired', '请输入手机红果 did'); goFocus(did); return; }
-    fetch('/api/v1/playback/custom-device', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(value) }).then(function (response) {
-      return response.json().then(function (payload) { if (!response.ok || !payload.ok) throw new Error(payload && payload.error || '保存失败'); return payload; });
-    }).then(function (payload) {
-      renderPlaybackCustomDevice(payload.data, clear ? uiText('settings.customPlaybackDeviceCleared', '已清除播放地址兜底设备') : uiText('settings.customPlaybackDeviceSaved', '已保存，仅在默认播放地址失败时使用'));
-    }).catch(function (error) { state.textContent = localizedError(error, 'settings.customPlaybackDeviceSaveFailed', '播放地址兜底设备保存失败'); });
-  }
-  document.getElementById('playback-custom-device-save').addEventListener('click', function () { savePlaybackCustomDevice(false); });
-  document.getElementById('playback-custom-device-clear').addEventListener('click', function () { savePlaybackCustomDevice(true); });
-  if (!webosShell) loadPlaybackCustomDevice();
   autoCinemaPreferences = window.HongguoAutoCinema.create({
     platform: autoCinemaPlatform,
     bridge: window.HongguoTVPreferences,

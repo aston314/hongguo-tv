@@ -1,17 +1,20 @@
 # 匿名播放身份与空响应恢复
 
-## 当前生产流程（2026-11-11）
+## 当前生产流程（2026-11-16）
 
 Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取源顺序：
 
 1. 保留官方 `GET /reading/bookapi/video_tab/multi_video_model/v1/` 优先。
    它沿用自己的匿名注册身份与允许的注册 Cookie；候选源通过媒体准备即可返回，不预先注册后备身份。
-2. GET 失败、缺模型、没有兼容源或其媒体读取失败后才进入 `POST /novel/player/multi_video_model/v1/`。每轮通过
-   `POST /service/2/device_register/` 注册新匿名身份，取得 `device_id` / `iid`。
-3. 用该轮身份依次请求 `api5-normal-sinfonlineb.fqnovel.com` 与
-   `api5-normal-hl.fqnovel.com`，每次独立计算签名。备用主机使用新连接。
-4. 第一轮仍为空或出现适用的临时错误，最多再注册一次、重复两个主机。
-   旧接口合计最多两轮、四次 HTTP 请求；得到兼容候选后进入原有媒体准备。
+2. GET 失败、缺模型、没有兼容源或其媒体读取失败后，进入同一个 `multi_video_model`
+   provider：先请求移动端 v5 的 `POST /novel/player/multi_video_model/player/v1`。
+   用独立的注册身份缓存、gzip JSON、完整 v5 Medusa / Helios 和实际压缩字节的 SS-STUB。
+3. v5 有正常兼容源时直接进入媒体准备；仅 ByteVC2 或内联列表为空时，接现有
+   `fallback_api` 和 `codec_type=1 → 0 → 3` 兼容编码回退，取得兼容候选即停止。
+4. v5 发生可恢复的取源或媒体错误时，保留旧 `POST /novel/player/multi_video_model/v1/`：
+   每轮新注册身份，依次主域 `api5-normal-sinfonlineb`、备用域 `api5-normal-hl`，
+   最多两轮四次。v5 在 Go 至多占 8 秒，和旧 multi 合计仍受 14 秒上限；
+   webOS 延续 tab/multi 共用 22 秒、single 8 秒，总取源仍为 30 秒，不重置预算。
 5. 前两路仍不可用时才进入 `POST /novel/player/video_model/v1/`。先用独立的
    `7.3.5.32` / Redmi Android 16 注册与播放签名组合，失败后保留原 `7.3.9.32` 协议。
    两套身份与 `video_tab`、账号隔离；兼容编码与媒体准备继续共用原有实现。
@@ -19,6 +22,51 @@ Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取�
    `video_id` + `biz_param={video_id_type:0,need_all_video_definition:true,video_platform:3}`；
    未压缩 JSON 与 query 使用当前播放签名实现。空响应或临时网络失败最多两次，
    明确返回不兼容模型时不反复换身份。
+
+### 移动端 v5 恢复（2026-11-16）
+
+参考 [N3urda/hongguoTV](https://github.com/N3urda/hongguoTV/commit/18c37c2afd0567520135abcae312352542f09083)
+的已验证请求与签名，Go 核心和 webOS 使用独立的播放专用模块，不修改账号签名：
+
+- 请求主机为 `api5-normal-sinfonlinea.fqnovel.com`，POST 路径无结尾斜线，body gzip 压缩。
+  `mixed_video_id_map` 保留所选内容类型，默认 `1004`；`dr_scene=player`，
+  `biz_param` 使用验证过的 `video_platform=1024`、`device_level=3` 等字段。
+- query 按移动端顺序编码，版本 `7.4.3.32`，Android 12 / `PGT-AN10`；仅微调
+  `_rticket` 以命中 v5 branch 12，最多 1024 次。`X-Khronos` 使用同一基准时间戳。
+- 只发送 `X-Medusa` / `X-Helios` / `X-Khronos` / `X-SS-STUB`，后者为实际 gzip 字节的
+  MD5；不带账号 Cookie、Argus、Gorgon、Ladon。不使用参考代码内置的注册身份。
+- v5 匿名身份进程内复用，与 tab、旧 multi、新旧 single 和账号隔离。
+  仅确认 HTTP 200 空正文才刷新一次，沿用并发合并与 30 秒冷却；其他模型错误不轮换身份。
+- 只接受 `data[vid].video_model` 或 `data[content_type][vid].video_model`，
+  不接受别集、首条猜测或 direct-model 兜底；最大响应 2 MiB。
+- 沿用现有同剧 provider 记忆、媒体下载、Range、CENC、清晰度和播放器生命周期。
+  v5 媒体失败后仍可继续旧 multi，再进入尚未尝试的 provider。业务拒绝、取消、
+  存储错误或禁止降档继续停止。Service 关闭取消任务，唤醒重建独立身份缓存。
+- 新增代码的来源及许可证见 `THIRD_PARTY_NOTICES.md`；40 组独立 Kotlin 合成向量
+  覆盖 32 个 F13 时间旋转、4 个 carrier 分支、4 个完整 Medusa / Helios 请求。
+
+2026-11-16 本机实网验证：Go 共 6 集，webOS 共 4 集，均完整下载、CENC 解密，
+FFprobe 确认为 HEVC + 音频，FFmpeg 全片音视频解码无错误。其中 3 个样本的 v5 原模型
+全部是 ByteVC2，经原 fallback（codec 4）与 `codec_type=1` 获得 1920×1080 HEVC：
+
+| VID | 整集字节 | 时长（秒） |
+| --- | ---: | ---: |
+| 7702841946812714008 | 27,320,959 | 136.998 |
+| 7702841953875938328 | 7,522,899 | 61.887 |
+| 7703473857562151961 | 16,120,440 | 91.046 |
+
+这证明当前样本能取得兼容完整媒体，不保证所有上游内容都有 HEVC，也不等于
+Android/LG 每台设备已通过硬件解码。没有把 ByteVC2 当 HEVC，亦未加入 10 秒公开预览源。
+
+可复现实网检查（普通 CI 不依赖上游）：
+
+```sh
+HONGGUO_LIVE_MOBILE_V5=1 go test ./core/cmd/hongguotv -run '^TestMiniReelMobileV5LiveMedia$' -count=1 -v
+HONGGUO_LIVE_MOBILE_V5=1 node scripts/verify_mobile_v5_webos.cjs
+```
+
+两个检查均可用 `HONGGUO_LIVE_MINIREEL_VIDEO_ID` 逗号分隔指定分集。
+不记录原模型、身份、签名、媒体地址或内容密钥，临时媒体结束后删除。
 
 ### 单集注册与签名组合（2026-11-11）
 
@@ -179,7 +227,7 @@ webOS 同三集取源约 1.56 / 0.39 / 0.38 秒，均实际读取、解密并经
   不重试 `video_tab`，不重置旧 multi 四次总预算。
 - 同一媒体任务的前台与预取继续共享结果和取消路径。不同剧集不共享一次性旧接口身份。
 - 切剧、退出、Service 关闭会中止不再需要的注册与取源；迟到响应不能复活旧任务。
-  Service 重新唤醒时重建 `video_tab` 与新单集协议各自的身份缓存。
+  Service 重新唤醒时重建 `video_tab`、移动 v5 与新单集协议各自的身份缓存。
 - 诊断只保留阶段、次数、状态和响应长度；不写账号凭据、设备三元组、签名或完整媒体 URL。
 
 ## 验证与限度

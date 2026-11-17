@@ -57,7 +57,7 @@
     var flags = snapshot.flags || {}, video = snapshot.video || {}, core = snapshot.core || {};
     var failure = flags.failed && snapshot.preparationError;
     var code = diagnosticCode(failure && failure.code), stage = failure && failure.stage;
-    var sourceStages = ['video_tab', 'multi_video_model', 'multi_video_model_transport', 'fallback_api', 'source_select'];
+    var sourceStages = ['video_tab', 'video_model', 'multi_video_model', 'multi_video_model_transport', 'fallback_api', 'source_select'];
     function advice(category, state, actions, evidence) {
       if (['dns', 'tls', 'timeout', 'connection'].indexOf(category) >= 0)
         evidence = evidence.concat([tr('diagnostic.guide.networkEvidence', { reason: tr('diagnostic.guide.' + category) })]);
@@ -90,6 +90,10 @@
       if (failure.http_status >= 500) return advice('server', 'attention', ['waitAction', reportAction], evidence);
       if (stage === 'cache_write') return advice('storage', 'attention', ['storageAction', reportAction], evidence);
       if (stage === 'media_decrypt') return advice('decrypt', 'attention', ['retryAction', reportAction], evidence);
+      if (/^(VIDEO_MODEL|VIDEO_TAB)_EMPTY$/.test(code) && sourceStages.indexOf(stage) >= 0 && stage !== 'source_select' &&
+          failure.http_status === 200 && failure.response_bytes === 0)
+        return advice('upstreamEmpty', 'attention', ['upstreamEmptyAction', reportAction],
+          evidence.concat([tr('diagnostic.guide.upstreamEmptyEvidence')]));
       if (/^(VIDEO_MODEL|VIDEO_TAB)_EMPTY$/.test(code)) return advice('empty', 'attention', ['retryAction', reportAction], evidence);
       if (stage === 'source_select' || /NO_QUALITY|NO_COMPATIBLE/.test(code)) return advice('noQuality', 'attention', ['qualityAction', reportAction], evidence);
       if (stage === 'device_register') return advice('registration', 'attention', ['hotspotAction', reportAction], evidence);

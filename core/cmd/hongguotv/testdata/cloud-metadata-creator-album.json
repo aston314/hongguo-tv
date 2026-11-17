@@ -1,0 +1,25 @@
+{
+  "code": 0,
+  "data": {
+    "7690163276214176792": {
+      "video_data": {
+        "content_type": 1004,
+        "episode_cnt": 209,
+        "series_id": 7690163276214176792,
+        "series_id_str": "7690163276214176792",
+        "series_status": 1,
+        "series_title": "万妖图录传第十三季"
+      }
+    },
+    "7699818221737610265": {
+      "video_data": {
+        "content_type": 1003,
+        "episode_cnt": 0,
+        "series_id": 7699818221737610265,
+        "series_id_str": "7699818221737610265",
+        "series_status": 1,
+        "series_title": "《反相之地》续集"
+      }
+    }
+  }
+}

@@ -16,8 +16,22 @@ const creatorAlbumContentType = "1003"
 func normalizeCreatorAlbum(album, card map[string]any) (Drama, bool) {
 	id := firstNonEmpty(album["album_id_str"], album["album_id"])
 	cardID := firstNonEmpty(card["series_id_str"], card["series_id"])
-	if !validID(id) || cardID != "" && cardID != id {
+	if album == nil {
+		// Batch cloud metadata returns a flat 1003 video_data card, unlike
+		// search's nested album_info. Its series ID is the catalogue identity;
+		// episode_cnt may be zero and must not substitute for album_detail.
+		if _, nested := card["album_info"]; nested || firstNonEmpty(card["content_type"], card["contentType"]) != creatorAlbumContentType {
+			return Drama{}, false
+		}
+		album, id = card, cardID
+	}
+	if !validID(id) || id == "0" || cardID != "" && cardID != id {
 		return Drama{}, false
+	}
+	for _, value := range []any{album["album_id_str"], album["album_id"], card["series_id_str"], card["series_id"]} {
+		if reported := asString(value); reported != "" && reported != id {
+			return Drama{}, false
+		}
 	}
 	drama := Drama{
 		SeriesID: id, ContentType: creatorAlbumContentType,

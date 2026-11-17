@@ -23,13 +23,53 @@ test('connection guidance distinguishes typed causes without exposing private er
 });
 
 test('empty model, rate limiting, HTTP rejection and source selection have different advice',()=>{
-  for(const [code,http_status,category] of [['VIDEO_MODEL_EMPTY',200,'empty'],['VIDEO_TAB_EMPTY',200,'empty'],['VIDEO_MODEL_HTTP',429,'rateLimited'],['VIDEO_MODEL_HTTP',403,'rejected'],['VIDEO_MODEL_HTTP',503,'server'],['VIDEO_MODEL_NO_QUALITY',200,'noQuality']]) {
+  for(const [code,http_status,category] of [['VIDEO_MODEL_EMPTY',200,'upstreamEmpty'],['VIDEO_TAB_EMPTY',200,'upstreamEmpty'],['VIDEO_MODEL_HTTP',429,'rateLimited'],['VIDEO_MODEL_HTTP',403,'rejected'],['VIDEO_MODEL_HTTP',503,'server'],['VIDEO_MODEL_NO_QUALITY',200,'noQuality']]) {
     const g=failed({code,stage:'multi_video_model',http_status,response_bytes:0});
     assert.equal(g.category,category); assert.match(g.evidence.join(' '),new RegExp('HTTP '+http_status));
     assert.doesNotMatch(g.suggestions.join(' '),/软件解码|重新登录|清空数据/);
   }
   assert.equal(failed({code:'MEDIA_CACHE_WRITE_FAILED',stage:'cache_write'}).category,'storage');
   assert.equal(failed({code:'MEDIA_DECRYPT_FAILED',stage:'media_decrypt'}).category,'decrypt');
+});
+
+test('upstream-empty advice requires a current source response with confirmed HTTP 200 and zero bytes',()=>{
+  for(const code of ['VIDEO_MODEL_EMPTY','VIDEO_TAB_EMPTY']) {
+    for(const stage of ['video_tab','video_model','multi_video_model','multi_video_model_transport','fallback_api']) {
+      const safe=recovery.preparationFailure({code,stage,message:'https://private.test?token=secret',videoModel:{http_status:200,response_bytes:0,did:'private-identity'}});
+      assert.deepEqual(safe,{code,stage,http_status:200,response_bytes:0});
+      const g=failed(safe);
+      assert.equal(g.category,'upstreamEmpty');
+      assert.match(g.title,/上游播放接口返回空内容/);
+      assert.match(g.evidence.join(' '),/HTTP 200 · 响应 0 字节/);
+      assert.match(g.evidence.join(' '),/可能.*接口规则变化.*身份失效.*待确认.*尚未进入视频解码/);
+      assert.match(g.suggestions.join(' '),/稍后.*检查.*新版本/);
+      assert.doesNotMatch(JSON.stringify(g),/private|secret|软件解码|已变化|已失效/);
+    }
+  }
+  const confirmed={code:'VIDEO_MODEL_EMPTY',stage:'multi_video_model',http_status:200,response_bytes:0};
+  for(const override of [{http_status:undefined},{response_bytes:undefined},{http_status:'200'},{response_bytes:'0'},{response_bytes:1},{stage:'source_select'},{stage:'range_init'},{stage:undefined},{http_status:204}]) {
+    assert.equal(failed({...confirmed,...override}).category,'empty');
+  }
+  assert.equal(failed({...confirmed,http_status:502}).category,'server');
+  assert.equal(failed({...confirmed,network_reason:'dns'}).category,'dns');
+  assert.equal(failed({...confirmed,code:'VIDEO_MODEL_NO_QUALITY',stage:'source_select'}).category,'noQuality');
+  assert.equal(diagnostics.report({flags:{preparing:true},preparationError:confirmed}).guidance.category,'preparing');
+  assert.equal(diagnostics.report({flags:{source:true},video:{ready:4,width:720,height:1280},preparationError:confirmed}).guidance.category,'ready');
+});
+
+test('upstream-empty diagnosis and advice are translated in every supported locale',()=>{
+  const code=fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/playback-diagnostics'),'utf8');
+  for(const [locale,title] of [['zh-CN',/上游播放接口/],['zh-TW',/上游播放介面/],['ja-JP',/配信元の再生 API/]]) {
+    const localeContext={};
+    vm.runInNewContext(fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/locales/'+locale+'.js'),'utf8'),localeContext);
+    const messages=localeContext.HongguoLocales[locale];
+    const context={HongguoI18n:{t:key=>messages[key]===undefined?key:messages[key]}};
+    vm.runInNewContext(code,context);
+    const g=context.HongguoPlaybackDiagnostics.report({flags:{failed:true},preparationError:{code:'VIDEO_MODEL_EMPTY',stage:'video_tab',http_status:200,response_bytes:0}}).guidance;
+    assert.match(g.title,title);
+    assert.equal(g.suggestions.length,2);
+    assert.doesNotMatch(JSON.stringify(g),/diagnostic\.guide\./);
+  }
 });
 
 test('recovered playback and held previous-source errors do not retain failure advice',()=>{

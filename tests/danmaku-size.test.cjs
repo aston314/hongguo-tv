@@ -115,7 +115,7 @@ test('preview uses the real local emoji and likes renderer; failures roll back w
 });
 
 test('remote paths enter and leave the new card, including wrapped rows and hidden platform settings',()=>{
-  const visible=new Set(['.danmaku-region-action','.danmaku-size-action','.episode-prefetch-action','.playback-custom-device-input']);
+  const visible=new Set(['.danmaku-region-action','.danmaku-size-action','.episode-prefetch-action','.app-update-action']);
   const c=vm.createContext({
     coreConnectionModalOpen:false,endRecommendations:null,detailModalOpen:false,actorWorksOpen:false,confirmOpen:false,playerOptionsOpen:false,
     discussionOpen:false,accountCountryModalOpen:false,supportModalOpen:false,rankFilterOpen:false,
@@ -131,11 +131,36 @@ test('remote paths enter and leave the new card, including wrapped rows and hidd
   assert.equal(move('danmakuSize','left'),'sidebar');
   assert.equal(move('danmakuSize','right'),null);
   visible.delete('.episode-prefetch-action');
-  assert.equal(move('danmakuSize','down'),'.playback-custom-device-input');
-  assert.equal(move('playbackCustomDevice','up'),'.danmaku-size-action');
+  assert.equal(move('danmakuSize','down'),'.app-update-action');
+  assert.equal(move('appUpdates','up'),'.danmaku-size-action');
+  visible.add('.playback-mode-action');
+  assert.equal(move('danmakuSize','down'),'.playback-mode-action');
+  assert.equal(move('playbackModes','up'),'.danmaku-size-action');
+  assert.equal(move('playbackModes','down'),'.app-update-action');
+  assert.equal(move('appUpdates','up'),'.playback-mode-action');
+  visible.delete('.playback-mode-action');
+  visible.add('.windows-playback-action');
+  visible.add('.desktop-mini-titlebar-action');
+  assert.equal(move('danmakuSize','down'),'.windows-playback-action');
+  assert.equal(move('windowsPlayback','up'),'.danmaku-size-action');
+  assert.equal(move('windowsPlayback','down'),'.desktop-mini-titlebar-action');
+  assert.equal(move('miniPlayerSettings','up'),'.windows-playback-action');
+  assert.equal(move('miniPlayerSettings','down'),null);
+  visible.add('#app-check-update');
+  assert.equal(move('miniPlayerSettings','down'),'#app-check-update');
+  assert.equal(move('appUpdates','up'),'.desktop-mini-titlebar-action');
+  visible.delete('.windows-playback-action');
+  assert.equal(move('danmakuSize','down'),'.desktop-mini-titlebar-action');
+  assert.equal(move('miniPlayerSettings','up'),'.danmaku-size-action');
   c.moveGrid=()=> 'same-card-next-row';
   assert.equal(move('danmakuSize','down'),'same-card-next-row');
   assert.equal(move('danmakuSize','up'),'same-card-next-row');
+});
+
+test('ordinary settings no longer expose or fetch a custom playback identity',()=>{
+  const html=fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/index.html'),'utf8');
+  assert.doesNotMatch(html,/playback-custom-device/);
+  assert.doesNotMatch(source,/playback-custom-device|playbackCustomDevice|\/api\/v1\/playback\/custom-device/);
 });
 
 test('the live emitter uses the chosen size and waits when a complete line cannot fit',()=>{
