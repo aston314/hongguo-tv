@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -61,6 +62,9 @@ func waitQR(t *testing.T, m *accountManager, state string) accountStatus {
 }
 func qrFixtureStart(w http.ResponseWriter, expiry int) {
 	_ = json.NewEncoder(w).Encode(map[string]any{"message": "success", "data": map[string]any{"token": "fixture-private-qr-token", "qrcode": smsQRDataURL("1060000", "ONLY-FIXTURE"), "expire_time": expiry}})
+}
+func qrFixtureRotation(w http.ResponseWriter, token string, expiry int) {
+	_ = json.NewEncoder(w).Encode(map[string]any{"message": "success", "data": map[string]any{"status": "expired", "token": token, "qrcode": smsQRDataURL("1060000", "ROTATED-FIXTURE"), "expire_time": expiry}})
 }
 func qrFixtureProfile(w http.ResponseWriter, r *http.Request) {
 	if cookie, err := r.Cookie("sessionid"); err != nil || cookie.Value != "fixture-qr-session" {
@@ -212,6 +216,165 @@ func TestQRLoginPersistsVerifiedAccountAndUsesExistingFavoriteWrite(t *testing.T
 		t.Fatal("logout retained QR credentials")
 	}
 }
+func TestQRRotationsPreserveAttemptAndCompleteLogin(t *testing.T) {
+	m := fixtureAccount(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/service/2/device_register/" {
+			t.Error("unexpected account operation")
+			w.WriteHeader(404)
+			return
+		}
+		accountFixtureResponse(w, r.URL.Path, false)
+	})
+	var polls atomic.Int32
+	useQRFixture(t, m, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/passport/web/get_qrcode/":
+			qrFixtureStart(w, 180)
+		case "/passport/web/check_qrconnect/":
+			n := polls.Add(1)
+			expected := "fixture-private-qr-token"
+			if n > 1 {
+				expected = fmt.Sprintf("fixture-rotated-%d", n-1)
+				if status := m.status().QRLogin; status.State != "pending" || status.Image != smsQRDataURL("1060000", "ROTATED-FIXTURE") {
+					t.Error("rotation did not publish the new QR image in pending state")
+				}
+			}
+			if r.URL.Query().Get("token") != expected {
+				t.Error("poll did not use the current QR token")
+			}
+			if n <= 3 {
+				qrFixtureRotation(w, fmt.Sprintf("fixture-rotated-%d", n), 180)
+				return
+			}
+			http.SetCookie(w, &http.Cookie{Name: "sessionid", Value: "fixture-qr-session", Path: "/", Secure: true})
+			ioJSON(w, `{"message":"success","data":{"status":"confirmed"}}`)
+		case "/passport/account/info/v2/":
+			qrFixtureProfile(w, r)
+		default:
+			t.Error("unexpected website operation")
+			w.WriteHeader(404)
+		}
+	})
+	initial, err := m.startQR()
+	if err != nil {
+		t.Fatal(err)
+	}
+	status := waitQR(t, m, "signed_in")
+	if !status.LoggedIn || status.QRLogin.ID != initial.QRLogin.ID || polls.Load() != 4 {
+		t.Fatal("rotations replaced the local attempt or failed to complete login")
+	}
+	public, _ := json.Marshal(status)
+	persisted, _ := os.ReadFile(filepath.Join(m.dir, "account.json"))
+	for _, secret := range []string{"fixture-private-qr-token", "fixture-rotated-"} {
+		if bytes.Contains(public, []byte(secret)) || bytes.Contains(persisted, []byte(secret)) {
+			t.Fatal("QR token leaked into public or persisted account state")
+		}
+	}
+}
+
+func TestQRDeadlineStillProcessesUpstreamStatus(t *testing.T) {
+	for _, next := range []string{"confirmed", "scanned", "pending", "rotation"} {
+		t.Run(next, func(t *testing.T) {
+			m := fixtureAccount(t, func(w http.ResponseWriter, r *http.Request) {
+				accountFixtureResponse(w, r.URL.Path, false)
+			})
+			var polls, profiles atomic.Int32
+			useQRFixture(t, m, func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/passport/web/get_qrcode/":
+					qrFixtureStart(w, 1)
+				case "/passport/web/check_qrconnect/":
+					n := polls.Add(1)
+					if n == 1 {
+						// A valid QR's display deadline passes while a pending poll is in flight.
+						deadline := time.UnixMilli(m.status().QRLogin.ExpiresAt).Add(30 * time.Millisecond)
+						timer := time.NewTimer(time.Until(deadline))
+						defer timer.Stop()
+						select {
+						case <-timer.C:
+						case <-r.Context().Done():
+							return
+						}
+						ioJSON(w, `{"message":"success","data":{"status":"pending"}}`)
+						return
+					}
+					if n == 2 && next != "confirmed" {
+						if next == "rotation" {
+							qrFixtureRotation(w, "fixture-rotated-deadline", 180)
+						} else {
+							_ = json.NewEncoder(w).Encode(map[string]any{"message": "success", "data": map[string]any{"status": next}})
+						}
+						return
+					}
+					if next == "rotation" && r.URL.Query().Get("token") != "fixture-rotated-deadline" {
+						t.Error("deadline rotation lost the new token")
+					}
+					http.SetCookie(w, &http.Cookie{Name: "sessionid", Value: "fixture-qr-session", Path: "/", Secure: true})
+					ioJSON(w, `{"message":"success","data":{"status":3}}`)
+				case "/passport/account/info/v2/":
+					profiles.Add(1)
+					qrFixtureProfile(w, r)
+				default:
+					t.Error("unexpected website operation")
+					w.WriteHeader(404)
+				}
+			})
+			if _, err := m.startQR(); err != nil {
+				t.Fatal(err)
+			}
+			stop := time.Now().Add(5 * time.Second)
+			for time.Now().Before(stop) {
+				status := m.status()
+				switch status.QRLogin.State {
+				case "signed_in", "expired", "failed", "cancelled":
+					if status.QRLogin.State != "signed_in" || !status.LoggedIn || profiles.Load() != 1 {
+						t.Fatalf("valid upstream status was discarded: state=%s polls=%d profiles=%d", status.QRLogin.State, polls.Load(), profiles.Load())
+					}
+					return
+				}
+				time.Sleep(time.Millisecond)
+			}
+			t.Fatal("QR did not finish after the display deadline")
+		})
+	}
+}
+
+func TestQRInvalidRotationsExpireWithoutPersistingAccount(t *testing.T) {
+	for _, scenario := range []string{"missing-token", "oversized-token", "invalid-image", "zero-expiry"} {
+		t.Run(scenario, func(t *testing.T) {
+			m := fixtureAccount(t, func(w http.ResponseWriter, r *http.Request) {
+				t.Error("invalid rotation reached device registration")
+				w.WriteHeader(500)
+			})
+			useQRFixture(t, m, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/passport/web/get_qrcode/" {
+					qrFixtureStart(w, 180)
+					return
+				}
+				data := map[string]any{"status": "expired", "token": "fixture-rotated-invalid", "qrcode": smsQRDataURL("1060000", "ROTATED-FIXTURE"), "expire_time": 180}
+				switch scenario {
+				case "missing-token":
+					delete(data, "token")
+				case "oversized-token":
+					data["token"] = strings.Repeat("x", 8193)
+				case "invalid-image":
+					data["qrcode"] = "not-a-png"
+				case "zero-expiry":
+					data["expire_time"] = 0
+				}
+				_ = json.NewEncoder(w).Encode(map[string]any{"message": "success", "data": data})
+			})
+			if _, err := m.startQR(); err != nil {
+				t.Fatal(err)
+			}
+			status := waitQR(t, m, "expired")
+			if status.LoggedIn || status.QRLogin.Image != "" {
+				t.Fatal("invalid replacement QR retained an image or logged in")
+			}
+		})
+	}
+}
+
 func TestQRRefreshAndCancelRejectLateCompletions(t *testing.T) {
 	entered, release, finished := make(chan struct{}), make(chan struct{}), make(chan struct{})
 	var registrations atomic.Int32
@@ -373,6 +536,16 @@ func TestQRRedirectPolicyAndImageValidation(t *testing.T) {
 	for _, value := range []any{nil, json.Number("180"), json.Number("1800000180"), json.Number("1800000180000")} {
 		if got := qrExpiry(value, now).Sub(now); got != 180*time.Second {
 			t.Fatalf("incorrect QR deadline: %v %s", value, got)
+		}
+	}
+	for _, value := range []any{json.Number("1799999999"), json.Number("1799999999000")} {
+		if got := qrExpiry(value, now).Sub(now); got != 120*time.Second {
+			t.Fatalf("past timestamp did not use the clock-skew display window: %s", got)
+		}
+	}
+	for _, value := range []any{0, "0", -1, "-1"} {
+		if got := qrExpiry(value, now).Sub(now); got != 0 {
+			t.Fatalf("explicit expired duration became usable: %s", got)
 		}
 	}
 }
