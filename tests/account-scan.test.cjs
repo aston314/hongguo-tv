@@ -40,6 +40,19 @@ test('confirmation stops polling and reports the common account status once',asy
   assert.equal(f.controller.snapshot().state,'signed_in');assert.equal(f.controller.snapshot().active,false);
   assert.equal(f.completed(),1);assert.equal(f.timers.size,0);assert.equal(f.statuses[1].profile.uid,'123');
 });
+test('rotated QR replaces the image in the same attempt and a display deadline does not override successful status polls',async()=>{
+  let polls=0;
+  const f=fixture(action=>{
+    if(action==='start')return data('same-attempt','pending',{qr_login:{id:'same-attempt',state:'pending',image:'data:image/png;base64,old',expires_at:1}});
+    if(action==='status'&&++polls===1)return data('same-attempt','pending',{qr_login:{id:'same-attempt',state:'pending',image:'data:image/png;base64,rotated',expires_at:Date.now()+60000}});
+    return data('same-attempt','signed_in',{logged_in:true});
+  });
+  f.controller.start();await tick();await f.poll();
+  assert.equal(f.controller.snapshot().id,'same-attempt');assert.equal(f.controller.snapshot().image,'data:image/png;base64,rotated');
+  assert.equal(f.controller.snapshot().state,'pending');assert.equal(f.timers.size,1);
+  await f.poll();assert.equal(f.controller.snapshot().state,'signed_in');assert.equal(f.completed(),1);assert.equal(f.timers.size,0);
+  assert.ok(!f.calls.some(([action])=>action==='cancel'));
+});
 test('transient errors retry; expired codes stay visible for refresh, while processing may finish after expiry',async()=>{
   const f=fixture(action=>{if(action==='status')throw Error('offline');return data('id');});
   f.controller.start();await tick();await f.poll();assert.equal(f.controller.snapshot().error,'network');assert.equal(f.timers.size,1);

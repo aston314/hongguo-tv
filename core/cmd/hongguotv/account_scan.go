@@ -125,8 +125,14 @@ func qrExpiry(value any, now time.Time) time.Time {
 	if seconds == 0 && (value == nil || asString(value) == "") {
 		seconds = 180
 	}
-	if seconds < 0 {
-		seconds = 0
+	if seconds <= 0 {
+		if accountEpoch(value) > 1_000_000_000 {
+			// 本机时钟偏快时，服务端时间戳可能已经落在本地过去。
+			// 给倒计时一个保守展示窗口，真实有效期仍由上游 status 判定。
+			seconds = 120
+		} else {
+			seconds = 0
+		}
 	}
 	if seconds > 600 {
 		seconds = 600
@@ -230,8 +236,14 @@ func (m *accountManager) runQR(ctx context.Context, a *qrLoginAttempt) {
 	if !m.updateQR(a, func(s *qrLoginStatus) { s.State = "pending"; s.Image = image; s.ExpiresAt = expires.UnixMilli() }) {
 		return
 	}
-	pollCtx, cancel := context.WithDeadline(ctx, expires)
-	defer cancel()
+	// Explicit zero/negative durations still expire without accepting a login.
+	if !time.Now().Before(expires) {
+		m.qrFailure(a, "expired", "")
+		return
+	}
+	// A QR's deadline is a display hint: upstream may rotate it or confirm a scan
+	// at the boundary. Process every response through the same status switch;
+	// the parent context still bounds the entire attempt to ten minutes.
 	interval := m.qrPollEvery
 	if interval <= 0 {
 		interval = qrPollInterval
@@ -239,7 +251,7 @@ func (m *accountManager) runQR(ctx context.Context, a *qrLoginAttempt) {
 	for {
 		timer := time.NewTimer(interval)
 		select {
-		case <-pollCtx.Done():
+		case <-ctx.Done():
 			timer.Stop()
 			// Cancellation/refresh are rejected by updateQR; an overall deadline
 			// must also leave a terminal state instead of a permanently pending QR.
@@ -247,7 +259,7 @@ func (m *accountManager) runQR(ctx context.Context, a *qrLoginAttempt) {
 			return
 		case <-timer.C:
 		}
-		data, err = client.json(pollCtx, "/passport/web/check_qrconnect/", url.Values{"next": {qrPassportBase + "/"}, "token": {token}})
+		data, err = client.json(ctx, "/passport/web/check_qrconnect/", url.Values{"next": {qrPassportBase + "/"}, "token": {token}})
 		if err != nil {
 			if !m.updateQR(a, func(s *qrLoginStatus) { s.Error = "连接暂时中断，正在重试" }) {
 				return
@@ -265,6 +277,20 @@ func (m *accountManager) runQR(ctx context.Context, a *qrLoginAttempt) {
 			m.qrFailure(a, "cancelled", "")
 			return
 		case "5", "expired":
+			// 上游换码：同时给了新 token 和新二维码图，继续留在 pending 让用户扫新码。
+			rotated := qrExpiry(data["expire_time"], time.Now())
+			if nextToken, nextImage := asString(data["token"]), qrImage(asString(data["qrcode"])); nextToken != "" && len(nextToken) <= 8192 && nextImage != "" && time.Now().Before(rotated) {
+				token = nextToken
+				if m.updateQR(a, func(s *qrLoginStatus) {
+					s.State = "pending"
+					s.Image = nextImage
+					s.Error = ""
+					s.ExpiresAt = rotated.UnixMilli()
+				}) {
+					continue
+				}
+				return
+			}
 			m.qrFailure(a, "expired", "")
 			return
 		case "3", "confirmed":
