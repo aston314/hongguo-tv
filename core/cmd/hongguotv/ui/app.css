@@ -343,13 +343,21 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
 .player-option { min-height: 44px; padding: 8px 12px; color: #dddde6; background: #343540; border-radius: 8px; text-align: center; }
 .player-option.is-selected { color: #fff; background: #f35d7b; }
 .player-option.is-focused { outline: none; box-shadow: 0 0 0 3px #fff; }
-.player-options.is-diagnostics { position: fixed; z-index: 151; top: 50%; right: auto; bottom: auto; left: 50%; width: calc(100% - 48px); max-width: 900px; max-height: calc(100% - 40px); padding: 20px 24px; box-sizing: border-box; overflow: hidden; transform: translate(-50%,-50%); background: #20212b; }
-.player-options.is-diagnostics .player-options-heading { margin-bottom: 8px; }
+.player-options.is-diagnostics { position: fixed; z-index: 151; top: 50%; right: auto; bottom: auto; left: 50%; display: flex; flex-direction: column; width: calc(100% - 48px); max-width: 900px; max-height: calc(100% - 40px); padding: 20px 24px; box-sizing: border-box; overflow: hidden; transform: translate(-50%,-50%); background: #20212b; }
+.player-options.is-diagnostics .player-options-heading { flex: 0 0 auto; margin-bottom: 8px; }
 .player-options.is-diagnostics #player-options-close, .player-options.is-diagnostics #player-options-message { display: none; }
+#player-diagnostics { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; }
+.diagnostic-support { display: flex; flex: 0 0 auto; align-items: center; margin: 4px 0 12px; padding: 16px 18px; color: #fff1f5; background: #352630; border: 1px solid #754151; border-radius: 10px; }
+.diagnostic-support-icon { display: flex; flex: 0 0 42px; align-items: center; justify-content: center; width: 42px; height: 42px; margin-right: 14px; color: #fa8ba4; background: #51313e; border-radius: 12px; }
+.diagnostic-support-icon svg { display: block; width: 24px; height: 24px; fill: none; }
+.diagnostic-support-copy { flex: 1 1 auto; min-width: 0; }
+.diagnostic-support-copy h3 { margin: 0 0 5px; font-size: 18px; line-height: 1.35; font-weight: 600; }
+.diagnostic-support-copy p { max-width: 500px; margin: 0; color: #e2c8d1; font-size: 14px; line-height: 1.55; }
+.diagnostic-support-action { flex: 0 0 auto; margin-left: 20px; padding: 10px 18px; color: #fff1f5; background: #83394e; border: 1px solid #be647b; }
+.diagnostic-support-action.is-focused, .diagnostic-support-action:focus:not(.pointer-focus-muted) { background: #9b455e; }
 .diagnostic-shade { position: fixed; z-index: 150; top: 0; right: 0; bottom: 0; left: 0; background: rgba(0,0,0,.72); }
-.diagnostic-scroll { max-height: calc(100vh - 180px); padding: 8px 10px; box-sizing: border-box; overflow-y: auto; border: 2px solid transparent; border-radius: 8px; }
+.diagnostic-scroll { flex: 1 1 auto; min-height: 0; max-height: 520px; padding: 8px 10px; box-sizing: border-box; overflow-y: auto; border: 2px solid transparent; border-radius: 8px; }
 .diagnostic-scroll:focus:not(.pointer-focus-muted), .diagnostic-scroll.is-focused { outline: none; border-color: #fff; }
-@media (min-height: 700px) { .diagnostic-scroll { max-height: 520px; } }
 /* Static, compact cards: no animation/filter work on older TV WebViews. */
 .diagnostic-guidance { margin-bottom: 18px; }
 .diagnostic-guidance h3 { margin: 0; font-size: 14px; line-height: 1.4; color: #d9dbe6; font-weight: 600; }
@@ -376,6 +384,9 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
   .player-options.is-diagnostics .diagnostic-row { flex-basis: 100%; width: 100%; }
 }
 @media (max-height: 600px) {
+  .diagnostic-support { padding: 10px 14px; margin-bottom: 8px; }
+  .diagnostic-support-copy h3 { font-size: 16px; margin-bottom: 3px; }
+  .diagnostic-support-copy p { font-size: 13px; }
   .diagnostic-assessment { padding: 10px 12px; }
   #player-diagnostics-summary { font-size: 18px; }
   .diagnostic-suggestions, .diagnostic-evidence { padding: 10px 12px; }
@@ -386,7 +397,7 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
 .diagnostic-value { display: block; flex: 1 1 auto; min-width: 0; color: #f2f2f7; word-wrap: break-word; }
 .diagnostic-row-wide { flex-basis: 100%; width: 100%; }
 .diagnostic-row-wide .diagnostic-value { word-break: break-all; }
-.diagnostic-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 16px; }
+.diagnostic-footer { display: flex; flex: 0 0 auto; align-items: center; justify-content: space-between; margin-top: 16px; }
 #player-diagnostics-time { color: #aeb0bf; font-size: 13px; }
 .diagnostic-action { margin-left: 12px; min-width: 82px; }
 .diagnostic-action:focus:not(.pointer-focus-muted), .diagnostic-action.is-focused { outline: none; box-shadow: 0 0 0 3px #fff; }
@@ -1010,6 +1021,14 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
 .support-card > p { margin: 16px 0 0; color: #d0d1dc; font-size: 15px; }
 .support-thanks { margin: 24px 0 0; color: #9395a5; font-size: 14px; }
 .support-modal { position: absolute; z-index: 25; top: 0; right: 0; bottom: 0; left: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.86); padding: 18px; }
+.support-modal.is-diagnostic-support { position: fixed; z-index: 152; }
+.support-modal.is-diagnostic-support .support-modal-panel { min-width: 360px; max-width: 100%; }
+.support-modal-methods { display: flex; margin: 0 0 14px; padding: 4px; }
+.support-method-option { flex: 1 1 0; min-height: 42px; padding: 8px 14px; border: 1px solid #4a4b57; border-radius: 8px; color: #dddde6; background: #343540; }
+.support-method-option + .support-method-option { margin-left: 12px; }
+.support-method-option.is-selected { color: #fff; background: #73364b; border-color: #be647b; }
+.support-method-option.is-focused, .support-method-option:focus:not(.pointer-focus-muted) { outline: none; box-shadow: 0 0 0 3px #fff; }
+.support-modal.is-diagnostic-support .support-modal-panel > img { height: calc(100vh - 240px); }
 .support-modal-panel { max-height: 100%; padding: 18px 22px; background: #1d1e27; border: 1px solid #3c3d49; border-radius: 20px; }
 .support-modal-heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .support-modal-heading h2 { margin: 0 35px 0 0; font-size: 22px; }
