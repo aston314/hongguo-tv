@@ -75,7 +75,7 @@
     danmakuSize: '.danmaku-size-action',
     episodePrefetch: '.episode-prefetch-action',
     playbackModes: '.playback-mode-action',
-    support: '.support-card, .support-close',
+    support: '.support-card, .support-close, .support-method-option',
     rankModal: '.rank-filter-option, .rank-filter-close, .rank-filter-apply',
     actorWorks: '.actor-works-close, .actor-works-retry, .actor-work-card',
     detailHeaderActions: '.detail-header-action, #detail-close, .detail-cast-more',
@@ -1226,7 +1226,7 @@
     if (element.classList.contains('account-keypad-key')) return 'accountKeypad';
     if (element.classList.contains('account-country-button')) return 'accountCountry';
     if (element.classList.contains('account-country-item') || element.classList.contains('account-country-close')) return 'accountCountryItems';
-    if (element.classList.contains('support-card') || element.classList.contains('support-close')) return 'support';
+    if (element.classList.contains('support-card') || element.classList.contains('support-close') || element.classList.contains('support-method-option')) return 'support';
     if (element.classList.contains('recommended-app-action')) return 'recommendedApps';
     if (element.classList.contains('discussion-item') || element.classList.contains('discussion-close')) return 'discussion';
     if (element.classList.contains('side-item') || element.classList.contains('watching-return')) return 'sidebar';
@@ -1613,7 +1613,7 @@
       if (direction === 'down') return moveWithinZone('accountCountryItems', current, direction) || current;
       return null;
     }
-    if (supportModalOpen) return document.getElementById('support-close');
+    if (supportModalOpen) return moveSupportFocus(current, direction);
     if (confirmOpen) return direction === 'left' || direction === 'right' ? moveWithinZone('confirmation', current, direction) : null;
     if (typeof playbackCommandMenuOpen !== 'undefined' && playbackCommandMenuOpen) return moveWithinZone('playbackCommandMenu', current, direction);
     if (rankFilterOpen) return moveModalFrom(current, direction);
@@ -2991,10 +2991,13 @@
   }
   function moveDiagnosticFocus(current, direction) {
     var scroll = document.getElementById('player-diagnostics-scroll');
+    var support = document.getElementById('player-diagnostics-support');
     var refresh = document.getElementById('player-diagnostics-refresh');
     var close = document.getElementById('player-diagnostics-close');
+    if (current === support) return direction === 'down' ? scroll : direction === 'right' ? refresh : null;
     if (current === scroll) {
       if (direction === 'right') return refresh;
+      if (direction === 'up' && scroll.scrollTop <= 1) return support;
       var bottom = Math.max(0, scroll.scrollHeight - scroll.clientHeight);
       if (direction === 'down' && scroll.scrollTop >= bottom - 1) return refresh;
       if (direction === 'up' || direction === 'down') {
@@ -8673,6 +8676,7 @@
   document.getElementById('player-options-close').addEventListener('click', function () { closePlayerOptions(); });
   document.getElementById('player-diagnostics-close').addEventListener('click', function () { closePlayerOptions(); });
   document.getElementById('player-diagnostics-refresh').addEventListener('click', refreshPlaybackDiagnostics);
+  document.getElementById('player-diagnostics-support').addEventListener('click', openDiagnosticSupport);
   document.getElementById('control-progress').addEventListener('click', function (event) {
     if (!event.detail) return;
     var rect = this.getBoundingClientRect();
@@ -9146,8 +9150,45 @@
   });
   document.addEventListener('visibilitychange', function () { if (applicationHidden()) watchStatisticsCollector.stop(true); if (desktopShell) return; if (applicationHidden()) pauseForBackground(); else resumeFromBackground(); });
 
+  function moveSupportFocus(current, direction) {
+    var close = document.getElementById('support-close');
+    if (document.getElementById('support-modal-methods').classList.contains('is-hidden')) return close;
+    var wechat = document.getElementById('support-method-wechat');
+    var alipay = document.getElementById('support-method-alipay');
+    if (current === close) return direction === 'down' ? document.querySelector('.support-method-option.is-selected') || wechat : close;
+    if (direction === 'up') return close;
+    if (direction === 'left') return wechat;
+    if (direction === 'right') return alipay;
+    return current;
+  }
+  function selectDiagnosticSupportMethod(method) {
+    if (method !== 'wechat' && method !== 'alipay') return;
+    var card = document.querySelector('.support-card[data-focus="support-' + method + '"]');
+    if (!card) return;
+    var image = card.querySelector('img');
+    document.getElementById('support-modal-title').textContent = card.querySelector('h2').textContent;
+    document.getElementById('support-large-qr').src = image.getAttribute('src');
+    document.getElementById('support-large-qr').alt = image.alt;
+    ['wechat', 'alipay'].forEach(function (value) {
+      var button = document.getElementById('support-method-' + value);
+      button.classList.toggle('is-selected', value === method);
+      button.setAttribute('aria-pressed', value === method ? 'true' : 'false');
+    });
+  }
+  function openDiagnosticSupport() {
+    if (!playerOptionsOpen || !document.getElementById('player-options').classList.contains('is-diagnostics') || supportModalOpen) return;
+    var card = document.querySelector('.support-card[data-focus="support-wechat"]');
+    if (!card) return;
+    openQRCode(document.getElementById('player-diagnostics-support'), card.querySelector('img'), card.querySelector('h2').textContent);
+    document.getElementById('support-modal').classList.add('is-diagnostic-support');
+    document.getElementById('support-modal-methods').classList.remove('is-hidden');
+    selectDiagnosticSupportMethod('wechat');
+    goFocus(document.getElementById('support-method-wechat'));
+  }
   function openQRCode(card, image, title) {
     supportReturnFocus = card; supportModalOpen = true;
+    document.getElementById('support-modal-methods').classList.add('is-hidden');
+    document.getElementById('support-modal').classList.remove('is-diagnostic-support');
     document.getElementById('support-modal-title').textContent = title;
     document.getElementById('support-large-qr').src = image.getAttribute('src');
     document.getElementById('support-large-qr').alt = image.alt;
@@ -9159,10 +9200,13 @@
     supportModalOpen = false;
     document.getElementById('support-modal').classList.add('is-hidden');
     document.getElementById('support-modal').setAttribute('aria-hidden', 'true');
+    document.getElementById('support-modal').classList.remove('is-diagnostic-support');
+    document.getElementById('support-modal-methods').classList.add('is-hidden');
     document.getElementById('support-large-qr').removeAttribute('src');
     goFocus(focusables().indexOf(supportReturnFocus) >= 0 ? supportReturnFocus : firstContentFocus());
   }
   document.querySelectorAll('.support-card').forEach(function (card) { card.addEventListener('click', function () { openQRCode(card, card.querySelector('img'), card.querySelector('h2').textContent); }); });
+  document.querySelectorAll('.support-method-option').forEach(function (button) { button.addEventListener('click', function () { selectDiagnosticSupportMethod(this.getAttribute('data-support-method')); }); });
   document.getElementById('account-sms-qr').addEventListener('click', function () {
     var image = document.getElementById('account-sms-qr-image');
     if (image.getAttribute('src')) openQRCode(this, image, uiText('ui.scanSmsTitle', '扫码填写短信 · 请手动发送'));

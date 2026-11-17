@@ -47,16 +47,17 @@ test('fullscreen remains usable in a browser or standard edition without a nativ
 
 function focusFixture(height = 1000) {
   const scroll = { id: 'player-diagnostics-scroll', clientHeight: 300, scrollHeight: height, scrollTop: 0 };
+  const support = { id: 'player-diagnostics-support' };
   const refresh = { id: 'player-diagnostics-refresh' }, close = { id: 'player-diagnostics-close' };
-  const nodes = { [scroll.id]: scroll, [refresh.id]: refresh, [close.id]: close };
+  const nodes = { [scroll.id]: scroll, [support.id]: support, [refresh.id]: refresh, [close.id]: close };
   const c = vm.createContext({ document: { getElementById: id => nodes[id] } });
   vm.runInContext(slice('moveDiagnosticFocus', 'renderPlaybackDiagnostics'), c);
-  return { c, scroll, refresh, close };
+  return { c, scroll, support, refresh, close };
 }
 
 test('diagnostics remote scroll is bounded and reaches footer actions at the bottom', () => {
   const f = focusFixture();
-  assert.equal(f.c.moveDiagnosticFocus(f.scroll, 'up'), null);
+  assert.equal(f.c.moveDiagnosticFocus(f.scroll, 'up'), f.support);
   assert.equal(f.scroll.scrollTop, 0);
   for (let i = 0; i < 4; i++) assert.equal(f.c.moveDiagnosticFocus(f.scroll, 'down'), null);
   assert.equal(f.scroll.scrollTop, 700);
@@ -67,6 +68,18 @@ test('diagnostics remote scroll is bounded and reaches footer actions at the bot
   assert.equal(f.scroll.scrollTop, 700);
   f.c.moveDiagnosticFocus(f.scroll, 'up');
   assert.equal(f.scroll.scrollTop, 490);
+});
+
+test('diagnostics support is optional in the remote route and returns to the reading region', () => {
+  const f = focusFixture();
+  assert.equal(f.c.moveDiagnosticFocus(f.support, 'down'), f.scroll);
+  assert.equal(f.c.moveDiagnosticFocus(f.support, 'right'), f.refresh);
+  assert.equal(f.c.moveDiagnosticFocus(f.support, 'up'), null);
+  assert.equal(f.c.moveDiagnosticFocus(f.support, 'left'), null);
+  f.scroll.scrollTop = 210;
+  assert.equal(f.c.moveDiagnosticFocus(f.scroll, 'up'), null);
+  assert.equal(f.scroll.scrollTop, 0);
+  assert.equal(f.c.moveDiagnosticFocus(f.scroll, 'up'), f.support);
 });
 
 test('diagnostics footer is reachable immediately for short reports or with Right for long reports', () => {
