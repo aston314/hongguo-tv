@@ -59,11 +59,20 @@ jobs:
             go.sum
             desktop/go.sum
       - name: Build in Debian 12 for an older Linux ABI baseline
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           mkdir -p "$RUNNER_TEMP/linux-appimage-candidate"
+          # Authenticate only api.github.com. Keep the tagged packaging script,
+          # immutable runtime asset ID and both checksum pins unchanged.
+          umask 077
+          mkdir -p "$RUNNER_TEMP/appimage-github-auth"
+          printf 'machine api.github.com\nlogin x-access-token\npassword %s\n' "$GH_TOKEN" > "$RUNNER_TEMP/appimage-github-auth/.netrc"
+          printf 'netrc-optional\nnetrc-file = "/run/appimage-github-auth/.netrc"\n' > "$RUNNER_TEMP/appimage-github-auth/.curlrc"
           linux_version="$(python3 -c 'import json; print(json.load(open("desktop/release.json"))["version_name"])')"
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then test "$GITHUB_REF_NAME" = "v$linux_version"; fi
           docker run --rm -v "$PWD:/work" -v "$(go env GOROOT):/opt/go:ro" -v "$(go env GOMODCACHE):/go/pkg/mod" -v "$RUNNER_TEMP/linux-appimage-candidate:/out" \
+            -v "$RUNNER_TEMP/appimage-github-auth:/run/appimage-github-auth:ro" -e CURL_HOME=/run/appimage-github-auth \
             -e GITHUB_ACTIONS=true -e GITHUB_SHA="${HONGGUO_LINUX_SOURCE_COMMIT:-$GITHUB_SHA}" -e HONGGUO_CORE_VERSION="$linux_version-${HONGGUO_LINUX_SOURCE_COMMIT:-$GITHUB_SHA}" \
             -e HONGGUO_LINUX_VERSION="$linux_version" -e HONGGUO_LINUX_OUT=/out -w /work debian:12 bash -c '
               set -e
@@ -79,6 +88,9 @@ jobs:
           path: ${{ runner.temp }}/linux-appimage-candidate/*
           retention-days: 1
           if-no-files-found: error
+      - name: Remove temporary GitHub download credentials
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/appimage-github-auth"
 
   playback:
     needs: build
