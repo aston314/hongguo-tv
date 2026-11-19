@@ -38,8 +38,10 @@ jobs:
         run: bash scripts/build_android_binaries.sh
         env:
           VERSION: ${{ env.HONGGUO_CORE_VERSION }}
-      - name: Prepare MPV libraries
-        run: python3 scripts/prepare_mpv.py
+      - name: Prepare MPV libraries, notices and corresponding source kit
+        run: |
+          python3 scripts/prepare_mpv.py
+          python3 scripts/package_mpv_sources.py --out "$RUNNER_TEMP/hongguo-tv-mpv-library-source-$APP_VERSION-preview.zip"
       - name: Verify player dependency isolation
         run: gradle --no-daemon --max-workers=1 -p android :app:verifyPlayerDependencyIsolation
       - name: Build and lint standard debug APK
@@ -62,6 +64,7 @@ jobs:
           mkdir -p "$preview_dir"
           cp android/app/build/outputs/apk/standard/debug/app-standard-debug.apk "$preview_dir/hongguo-tv-$APP_VERSION-preview-standard.apk"
           cp android/app/build/outputs/apk/mpv/debug/app-mpv-debug.apk "$preview_dir/hongguo-tv-$APP_VERSION-preview-mpv.apk"
+          cp "$RUNNER_TEMP/hongguo-tv-mpv-library-source-$APP_VERSION-preview.zip" "$preview_dir/"
           git rev-parse HEAD > "$preview_dir/COMMIT.txt"
           (cd "$preview_dir" && sha256sum *.apk > SHA256SUMS.txt)
           cat > "$RUNNER_TEMP/device-preview-notes.md" <<'NOTES'
