@@ -50,6 +50,10 @@ func TestWASMPlaybackResolverLiveMedia(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer closePlaybackResolver(context.Background(), resolver)
+	runPlaybackResolverLiveMedia(t, ctx, resolver)
+}
+
+func runPlaybackResolverLiveMedia(t *testing.T, ctx context.Context, resolver playbackResolver) {
 	ids := []string{"7706514645208534041", "7706514815799282713", "7706514627462433817", "7702841946812714008", "7702841953875938328", "7703473857562151961"}
 	if raw := os.Getenv("HONGGUO_LIVE_MINIREEL_VIDEO_ID"); raw != "" {
 		ids = strings.Split(raw, ",")
@@ -62,7 +66,7 @@ func TestWASMPlaybackResolverLiveMedia(t *testing.T) {
 			stop()
 			if err != nil {
 				d := playbackPreparationDetails(err)
-				t.Fatalf("WASM model stage=%s code=%s", d.Stage, d.Code)
+				t.Fatalf("resolver=%s model stage=%s code=%s", resolver.Metadata().Name, d.Stage, d.Code)
 			}
 			resolveMS := time.Since(start).Milliseconds()
 			option, err := selectMiniReelQuality(options, "1080P", true)
@@ -106,7 +110,7 @@ func TestWASMPlaybackResolverLiveMedia(t *testing.T) {
 			if exec.CommandContext(ctx, "ffmpeg", "-nostdin", "-v", "error", "-xerror", "-i", file, "-t", "8", "-map", "0:v:0", "-map", "0:a:0?", "-f", "null", "-").Run() != nil {
 				t.Fatal("audio/video decode failed")
 			}
-			t.Logf("resolver=wasm-only options=%d codec=%s model_dimensions=%dx%d resolve_ms=%d bytes=%s duration=%s decoded_seconds=8", len(options), option.Codec, option.Width, option.Height, resolveMS, media.Format["size"], media.Format["duration"])
+			t.Logf("resolver=%s options=%d codec=%s model_dimensions=%dx%d resolve_ms=%d bytes=%s duration=%s decoded_seconds=8", resolver.Metadata().Name, len(options), option.Codec, option.Width, option.Height, resolveMS, media.Format["size"], media.Format["duration"])
 		})
 	}
 }

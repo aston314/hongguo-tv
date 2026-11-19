@@ -1,4 +1,4 @@
-//go:build !resolverprobe
+//go:build !resolverprobe && !resolverjsprobe
 
 package main
 
