@@ -35,6 +35,7 @@ var source []byte
 func Source() []byte { return bytes.Clone(source) }
 
 const MaxScript = 1024 * 1024
+const Version = "2026.11.20.2"
 
 type Transport func(context.Context, resolverwire.HTTPRequest) (resolverwire.HTTPResponse, error)
 type Error struct{ Code, Stage string }

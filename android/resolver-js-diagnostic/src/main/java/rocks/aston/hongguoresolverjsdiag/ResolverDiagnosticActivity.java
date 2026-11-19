@@ -25,7 +25,7 @@ public final class ResolverDiagnosticActivity extends Activity {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         TextView waiting = new TextView(this);
-        waiting.setText("正在验签并加载真实 resolver.js…");
+        waiting.setText("native".equals(getIntent().getStringExtra("engine")) ? "正在启动原生解析对照…" : "正在验签并加载真实 resolver.js…");
         waiting.setTextSize(24);
         waiting.setPadding(40, 40, 40, 40);
         setContentView(waiting);

@@ -1037,13 +1037,17 @@ factories["resolver"]=function(module,exports,require){
 'use strict';
 var device=require('./device-pure'),model=require('./model-pure'),v5=require('./mobile-playback-v5'),sign=require('./passport-sign'),crypto=require('crypto');
 var identity=null,refreshAfter=0;
-var fallbackUA='com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-11-18)';
+var fallbackUA='com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
 function failure(stage,code){var e=new Error(code);e.code=code;e.stage=stage;throw e;}
 function http(method,url,headers,body){return Promise.resolve().then(function(){return __resolverHost.http(method,url,headers,body||Buffer.alloc(0));});}
+function registrationQuery(q){
+  function encode(value){return encodeURIComponent(String(value)).replace(/[!'()*]/g,function(c){return '%'+c.charCodeAt(0).toString(16).toUpperCase();}).replace(/%20/g,'+');}
+  return Object.keys(q).sort().map(function(key){return encode(key)+'='+encode(q[key]);}).join('&');
+}
 function register(){
   var d=device.device(),stamp=Date.now(),ts=Math.floor(stamp/1000),body=device.ttEncrypt(device.protocolDevicePayload(d,stamp),crypto.randomBytes(32));
   var q=device.appQuery({device:d});delete q.device_id;delete q.iid;q.tt_data='a';q.ts=String(ts);q._rticket=String(stamp);q.package='com.phoenix.read';
-  var query=device.sortedQuery(q),headers={'User-Agent':device.ua,'Content-Type':'application/octet-stream;tt-data=a','Accept':'application/json; charset=utf-8,application/x-protobuf','Content-Encoding':'gzip','X-Tt-Request-Tag':'t=0;n=1','Log-Encode-Type':'gzip','Lc':'102','Sdk-Version':'2','Passport-Sdk-Version':'60755','Passport-Sdk-Settings':'device_transfer_s_0,device_transfer_ab_1','X-SS-DP':'8662','X-Vc-Bdturing-Sdk-Version':'4.0.3.cn','X-Tt-Store-Region':'cn','X-Tt-Store-Region-Src':'did','X-Khronos':String(ts),'X-Argus':device.le32(ts).toString('base64'),'X-SS-Req-Ticket':String(stamp),'X-SS-STUB':crypto.createHash('md5').update(body).digest('hex'),'X-Gorgon':sign.gorgon(query,body,ts,crypto.randomBytes(2).readUInt16LE(0))};
+  var query=registrationQuery(q),headers={'User-Agent':device.ua,'Content-Type':'application/octet-stream;tt-data=a','Accept':'application/json; charset=utf-8,application/x-protobuf','Content-Encoding':'gzip','X-Tt-Request-Tag':'t=0;n=1','Log-Encode-Type':'gzip','Lc':'102','Sdk-Version':'2','Passport-Sdk-Version':'60755','Passport-Sdk-Settings':'device_transfer_s_0,device_transfer_ab_1','X-SS-DP':'8662','X-Vc-Bdturing-Sdk-Version':'4.0.3.cn','X-Tt-Store-Region':'cn','X-Tt-Store-Region-Src':'did','X-Khronos':String(ts),'X-Argus':device.le32(ts).toString('base64'),'X-SS-Req-Ticket':String(stamp),'X-SS-STUB':crypto.createHash('md5').update(body).digest('hex'),'X-Gorgon':sign.gorgon(query,body,ts,crypto.randomBytes(2).readUInt16LE(0))};
   return http('POST','https://log.snssdk.com/service/2/device_register/?'+query,headers,body).then(function(response){
   if(response.status!==200)failure('device_register','DEVICE_REGISTER_HTTP');
   var bytes=response.body;if(bytes.slice(0,6).equals(Buffer.from([0x74,0x63,5,0x10,0,0])))bytes=device.ttDecrypt(bytes);
@@ -1119,7 +1123,7 @@ function selfTest(text){
   var rows=JSON.parse(text),s=require('./playback-v5-sign'),q=v5.query({deviceID:'123',installID:'456',cdid:'synthetic'});
   for(var i=0;i<rows.length;i++){var r=rows[i],t=s.tune(q,Buffer.from(r.body,'hex'),r.ts*1000),med=s.medusa(q,r.ts,t.q,t.m,[0x80000000,0x80000000,0x80000000],{nonce:'synthetic',started:1800000000000});if(t.query!==r.query||med!==r.medusa||s.helios(r.ts,0x80000000)!==r.helios)return 0;}return rows.length;
 }
-module.exports={resolve:resolve,selfTest:selfTest,metadata:function(){return {name:'js-v5',version:'2026.11.20.1',protocol:1}},test:{device:device,model:model,options:options}};
+module.exports={resolve:resolve,selfTest:selfTest,metadata:function(){return {name:'js-v5',version:'2026.11.20.2',protocol:1}},test:{device:device,model:model,options:options}};
 
 };
 function require(name){if(name.slice(0,2)==='./')name=name.slice(2);if(name==='buffer')return {Buffer:Buffer};if(cache[name])return cache[name].exports;if(!factories[name])throw new Error('module unavailable');var m={exports:{}};cache[name]=m;factories[name](m,m.exports,require);return m.exports;}return require('resolver');})()

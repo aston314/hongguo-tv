@@ -25,7 +25,7 @@ func TestJSPlaybackResolverLiveMedia(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	r, e := newJSPlaybackResolver(ctx, playbackResolverManifest{Version: "2026.11.20.1", Protocol: 1}, b, http.DefaultClient)
+	r, e := newJSPlaybackResolver(ctx, playbackResolverManifest{Version: jsresolver.Version, Protocol: 1}, b, http.DefaultClient)
 	if e != nil {
 		t.Fatal(e)
 	}

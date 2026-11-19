@@ -106,13 +106,14 @@ func main() {
 	dir := flag.String("data-dir", "", "private diagnostic directory")
 	candidate := flag.String("js-file", "", "explicit private test script override")
 	engine := flag.String("engine", "js", "js or native reference")
-	moduleVersion := flag.String("module-version", "2026.11.20.1", "diagnostic manifest version")
+	moduleVersion := flag.String("module-version", jsresolver.Version, "diagnostic manifest version")
 	flag.Parse()
 	if *engine != "js" && *engine != "native" {
 		log.Fatal("invalid test engine")
 	}
 	resolverProbeArtifact := jsresolver.Source()
 	if *engine == "native" {
+		resolverProbePage = bytes.ReplaceAll(resolverProbePage, []byte("已验签加载 "), []byte("原生参考，JS 未执行 · 文件 "))
 		resolverProbePage = bytes.ReplaceAll(resolverProbePage, []byte("JS 播放解析 · 独立验证"), []byte("原生解析 · 内存对照验证"))
 		resolverProbePage = bytes.ReplaceAll(resolverProbePage, []byte("注册、签名、模型解析、兼容编码回退均在本地 JS 内执行。内置解析回退：关闭。"), []byte("当前为原生参考模式，未加载 JS 解析器。使用相同页面和媒体流程，内置解析回退：关闭。"))
 	}

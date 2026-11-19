@@ -5,6 +5,7 @@ go run ./scripts/resolver_js_codegen -check
 go test ./core/internal/jsresolver -count=1
 node --test tests/resolver-js-bundle.test.cjs
 go test -tags resolverjsprobe ./core/cmd/hongguotv -run '^$'
+go test -tags resolverjstest ./core/cmd/hongguotv -run '^TestJSResolverRegistrationWireParity$' -count=1
 python3 scripts/package_resolver_js_notices.py
 toolchain="${ANDROID_HOME:?}/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin"
 for abi in arm64-v8a armeabi-v7a; do
