@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -33,6 +34,10 @@ func TestWASMPlaybackResolverRealAlgorithm(t *testing.T) {
 			if r.Header.Get("X-Medusa") == "" || r.Header.Get("X-Helios") == "" || r.Header.Get("X-Khronos") == "" || r.Header.Get("Cookie") != "" {
 				t.Error("V5 signature missing or account header leaked")
 			}
+			stamp, _ := strconv.ParseInt(r.Header.Get("X-Khronos"), 10, 64)
+			if delta := time.Now().Unix() - stamp; delta < -5 || delta > 5 {
+				t.Errorf("guest timestamp skew=%d seconds", delta)
+			}
 			body, _ = json.Marshal(map[string]any{"code": 0, "data": map[string]any{"7706514645208534041": map[string]any{"video_model": codecFallbackModel("h265", "7706514645208534041", 90)}}})
 		} else {
 			t.Errorf("unexpected request path %s", r.URL.Path)
@@ -57,6 +62,28 @@ func TestWASMPlaybackResolverRealAlgorithm(t *testing.T) {
 	}
 	if registered != 1 || models != 2 {
 		t.Fatalf("guest identity cache registrations=%d model_requests=%d", registered, models)
+	}
+}
+
+func TestWASMPlaybackResolverWireSelfTest(t *testing.T) {
+	artifact := os.Getenv("HONGGUO_RESOLVER_WASM_FILE")
+	if artifact == "" {
+		t.Skip("compiled algorithm not supplied")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	resolver, err := loadWASMPlaybackResolverWithHTTP(ctx, playbackResolverManifest{Version: "2026.11.19.1", Protocol: 1}, artifact, http.DefaultClient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closePlaybackResolver(context.Background(), resolver)
+	function := resolver.(*wasmPlaybackResolver).module.ExportedFunction("resolver_self_test")
+	if function == nil {
+		t.Fatal("missing guest wire self-test")
+	}
+	values, err := function.Call(ctx)
+	if err != nil || len(values) != 1 || values[0] != 4 {
+		t.Fatalf("guest wire vectors failed: %v err=%v", values, err)
 	}
 }
 

@@ -152,6 +152,9 @@ func (r playbackResolverWithFallback) Resolve(ctx context.Context, request playb
 		if err == nil && len(options) > 0 {
 			return options, nil
 		}
+		if r.embedded == nil && err != nil {
+			return nil, err
+		}
 	}
 	if r.embedded == nil {
 		return nil, errPlaybackResolverRuntimeUnavailable

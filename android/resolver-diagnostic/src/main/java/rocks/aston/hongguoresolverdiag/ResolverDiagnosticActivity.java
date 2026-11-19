@@ -12,6 +12,8 @@ import android.widget.TextView;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
+import java.util.Arrays;
 
 /** Isolated test package: no access to production accounts or playback data. */
 public final class ResolverDiagnosticActivity extends Activity {
@@ -35,7 +37,12 @@ public final class ResolverDiagnosticActivity extends Activity {
         try {
             File binary = new File(getApplicationInfo().nativeLibraryDir, "libresolverprobe.so");
             File data = new File(getFilesDir(), "resolver-probe");
-            java.lang.Process child = new ProcessBuilder(binary.getAbsolutePath(), "-port", "0", "-parent-pid", Integer.toString(Process.myPid()), "-data-dir", data.getAbsolutePath()).redirectErrorStream(true).start();
+            ArrayList<String> command = new ArrayList<>(Arrays.asList(binary.getAbsolutePath(), "-port", "0", "-parent-pid", Integer.toString(Process.myPid()), "-data-dir", data.getAbsolutePath()));
+            if (getIntent().getBooleanExtra("private_module_override", false)) {
+                command.add("-wasm-file");
+                command.add(new File(data, "candidate.wasm").getAbsolutePath());
+            }
+            java.lang.Process child = new ProcessBuilder(command).redirectErrorStream(true).start();
             core = child;
             if (closed) { child.destroy(); return; }
             try (BufferedReader lines = new BufferedReader(new InputStreamReader(child.getInputStream()))) {

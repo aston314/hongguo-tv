@@ -4,21 +4,21 @@
 <button id="start">连续测试切集与切剧</button><button id="retry">重试当前集</button><button id="stop">停止测试</button><video id="video" controls autoplay></video><pre id="log"></pre>
 <script>
 var ids=['7706514645208534041','7706514815799282713','7706514627462433817','7702841946812714008','7702841953875938328','7703473857562151961'];
-var index=0,running=false,busy=false,generation=0,timer=null,video=document.getElementById('video'),status=document.getElementById('status'),log=document.getElementById('log');
+var index=0,running=false,busy=false,generation=0,timer=null,video=document.getElementById('video'),statusLabel=document.getElementById('status'),log=document.getElementById('log');
 function line(t){log.textContent+=t+'\n';log.scrollTop=log.scrollHeight;}
 function post(path,value){return fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)}).then(function(r){return r.json();});}
 function report(value){post('/report',value).catch(function(){});}
 function stop(){running=false;generation++;clearTimeout(timer);video.pause();}
-function run(){if(busy)return;busy=true;var token=++generation,vid=ids[index];clearTimeout(timer);video.pause();video.removeAttribute('src');video.load();status.textContent='正在用 WASM 获取 '+vid+'…';
-post('/api/run',{vid:vid}).then(function(r){busy=false;if(token!==generation)return;line((index+1)+' / '+ids.length+' '+(r.ok?'成功':'失败')+' · '+r.resolve_ms+'ms · '+(r.codec||r.code)+' · '+(r.media_bytes||0)+'字节');if(!r.ok){status.textContent='失败：'+r.code;if(running)timer=setTimeout(next,1500);return;}
-status.textContent='模型与媒体准备成功，等待视频首帧…';video.setAttribute('data-vid',vid);video.src=r.media+'?v='+Date.now();video.play().catch(function(){status.textContent='按确认播放';});
-}).catch(function(){busy=false;status.textContent='测试请求失败';});}
-function next(){if(!running)return;index++;if(index>=ids.length){running=false;status.textContent='本轮结束，可查看每集的解析与播放记录';return;}run();}
-video.addEventListener('playing',function(){status.textContent='播放中：'+video.videoWidth+'×'+video.videoHeight;});
+function run(){if(busy)return;busy=true;var token=++generation,vid=ids[index];clearTimeout(timer);video.pause();video.removeAttribute('src');video.load();statusLabel.textContent='正在用 WASM 获取 '+vid+'…';
+post('/api/run',{vid:vid}).then(function(r){busy=false;if(token!==generation)return;line((index+1)+' / '+ids.length+' '+(r.ok?'成功':'失败')+' · '+r.resolve_ms+'ms · '+(r.codec||r.code)+' · '+(r.media_bytes||0)+'字节');if(!r.ok){statusLabel.textContent='失败：'+r.code;if(running)timer=setTimeout(next,1500);return;}
+statusLabel.textContent='模型与媒体准备成功，等待视频首帧…';video.setAttribute('data-vid',vid);video.src=r.media+'?v='+Date.now();video.play().catch(function(){statusLabel.textContent='按确认播放';});
+}).catch(function(){busy=false;statusLabel.textContent='测试请求失败';});}
+function next(){if(!running)return;index++;if(index>=ids.length){running=false;statusLabel.textContent='本轮结束，可查看每集的解析与播放记录';return;}run();}
+video.addEventListener('playing',function(){statusLabel.textContent='播放中：'+video.videoWidth+'×'+video.videoHeight;});
 video.addEventListener('error',function(){var code=video.error?video.error.code:0;line('系统播放器失败 code='+code);report({vid:video.getAttribute('data-vid'),event:'error',code:code});if(running)timer=setTimeout(next,1500);});
 video.addEventListener('timeupdate',function(){if(video.currentTime>=5&&!video._recorded){video._recorded=true;var frames=video.getVideoPlaybackQuality?video.getVideoPlaybackQuality():{};report({vid:video.getAttribute('data-vid'),event:'playing_5s',position:video.currentTime,width:video.videoWidth,height:video.videoHeight,decoded_frames:frames.totalVideoFrames||video.webkitDecodedFrameCount||0,dropped_frames:frames.droppedVideoFrames||video.webkitDroppedFrameCount||0});line('实际播放 ≥5秒 · '+video.videoWidth+'×'+video.videoHeight);if(running)timer=setTimeout(next,500);}});
 video.addEventListener('loadstart',function(){video._recorded=false;});
 document.getElementById('start').onclick=function(){if(busy)return;stop();index=0;running=true;log.textContent='';run();};document.getElementById('retry').onclick=function(){if(busy)return;stop();run();};document.getElementById('stop').onclick=stop;
-fetch('/health').then(function(r){return r.json();}).then(function(r){status.textContent='已验签加载 '+(r.wasm_bytes/1048576).toFixed(1)+'MB · '+r.load_ms+'ms · 内置回退关闭';});
+fetch('/health').then(function(r){return r.json();}).then(function(r){statusLabel.textContent='已验签加载 '+(r.wasm_bytes/1048576).toFixed(1)+'MB · '+r.load_ms+'ms · 内置回退关闭';});
 document.getElementById('start').focus();
 </script></html>

@@ -74,12 +74,23 @@ func main() {
 	port := flag.Int("port", 0, "loopback port")
 	parent := flag.Int("parent-pid", 0, "host process")
 	dir := flag.String("data-dir", "", "private diagnostic directory")
+	candidate := flag.String("wasm-file", "", "explicit private test module override")
 	flag.Parse()
 	if *dir == "" {
 		log.Fatal("private data directory required")
 	}
 	if err := os.MkdirAll(*dir, 0700); err != nil {
 		log.Fatal("private directory failed")
+	}
+	if *candidate != "" {
+		if filepath.Clean(*candidate) != filepath.Join(*dir, "candidate.wasm") {
+			log.Fatal("test module must be in private diagnostic directory")
+		}
+		var err error
+		resolverProbeArtifact, err = os.ReadFile(*candidate)
+		if err != nil || len(resolverProbeArtifact) > playbackResolverMaxArtifact {
+			log.Fatal("private test module unreadable")
+		}
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -104,6 +115,13 @@ func main() {
 		log.Fatal("signed WASM activation failed")
 	}
 	loadMS := time.Since(start).Milliseconds()
+	active := runtime.Current().(playbackResolverWithFallback).active.(*wasmPlaybackResolver)
+	var wireTest uint64
+	if function := active.module.ExportedFunction("resolver_self_test"); function != nil {
+		if values, e := function.Call(ctx); e == nil && len(values) == 1 {
+			wireTest = values[0]
+		}
+	}
 	defer closePlaybackResolver(context.Background(), runtime.Current().(playbackResolverWithFallback).active)
 	var runMu sync.Mutex
 	var results []resolverProbeResult
@@ -123,7 +141,7 @@ func main() {
 		w.Write(resolverProbePage)
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		write(w, map[string]any{"ok": true, "resolver": "wasm-only", "embedded_fallback": false, "sha256": manifest.SHA256, "load_ms": loadMS, "wasm_bytes": manifest.Size})
+		write(w, map[string]any{"ok": true, "resolver": "wasm-only", "embedded_fallback": false, "sha256": manifest.SHA256, "load_ms": loadMS, "wasm_bytes": manifest.Size, "wire_vectors": wireTest, "private_override": *candidate != ""})
 	})
 	mux.HandleFunc("/report", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPost {
