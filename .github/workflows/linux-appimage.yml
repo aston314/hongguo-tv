@@ -45,6 +45,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    env:
+      PLAYBACK_RESOLVER_PUBLIC_KEY: ${{ secrets.PLAYBACK_RESOLVER_PUBLIC_KEY }}
     steps:
       - uses: actions/checkout@v4
       - name: Resolve immutable release application source
@@ -73,7 +75,7 @@ jobs:
           if [[ "$GITHUB_REF_TYPE" == tag ]]; then test "$GITHUB_REF_NAME" = "v$linux_version"; fi
           docker run --rm -v "$PWD:/work" -v "$(go env GOROOT):/opt/go:ro" -v "$(go env GOMODCACHE):/go/pkg/mod" -v "$RUNNER_TEMP/linux-appimage-candidate:/out" \
             -v "$RUNNER_TEMP/appimage-github-auth:/run/appimage-github-auth:ro" -e CURL_HOME=/run/appimage-github-auth \
-            -e GITHUB_ACTIONS=true -e GITHUB_SHA="${HONGGUO_LINUX_SOURCE_COMMIT:-$GITHUB_SHA}" -e HONGGUO_CORE_VERSION="$linux_version-${HONGGUO_LINUX_SOURCE_COMMIT:-$GITHUB_SHA}" \
+            -e GITHUB_ACTIONS=true -e GITHUB_SHA="${HONGGUO_LINUX_SOURCE_COMMIT:-$GITHUB_SHA}" -e HONGGUO_CORE_VERSION="$linux_version-${HONGGUO_LINUX_SOURCE_COMMIT:-$GITHUB_SHA}" -e PLAYBACK_RESOLVER_PUBLIC_KEY="$PLAYBACK_RESOLVER_PUBLIC_KEY" \
             -e HONGGUO_LINUX_VERSION="$linux_version" -e HONGGUO_LINUX_OUT=/out -w /work debian:12 bash -c '
               set -e
               apt-get update -qq

@@ -18,6 +18,14 @@ const vectors = (name) => require('../core/cmd/hongguotv/testdata/signing-v5-' +
 const device = { deviceID: '123', installID: '456', cdid: 'synthetic' };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
+test('webOS v5 exports the shared resolver protocol metadata', () => {
+  assert.deepEqual(profile.metadata(), {
+    name: 'embedded-v5',
+    version: '2026.11.19.1',
+    protocol: 1
+  });
+});
+
 test('v5 matches independent Kotlin F13, carrier and complete wire vectors', () => {
   assert.equal(vectors('f13').length, 32);
   for (const v of vectors('f13'))

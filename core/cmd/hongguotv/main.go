@@ -41,16 +41,18 @@ type server struct {
 }
 
 type statusResponse struct {
-	OK             bool     `json:"ok"`
-	Service        string   `json:"service"`
-	Version        string   `json:"version"`
-	InstanceID     string   `json:"instance_id,omitempty"`
-	Implementation string   `json:"implementation"`
-	StartedAt      string   `json:"started_at"`
-	Capabilities   []string `json:"capabilities"`
+	OK                      bool     `json:"ok"`
+	Service                 string   `json:"service"`
+	Version                 string   `json:"version"`
+	PlaybackResolver        string   `json:"playback_resolver,omitempty"`
+	PlaybackResolverVersion string   `json:"playback_resolver_version,omitempty"`
+	InstanceID              string   `json:"instance_id,omitempty"`
+	Implementation          string   `json:"implementation"`
+	StartedAt               string   `json:"started_at"`
+	Capabilities            []string `json:"capabilities"`
 }
 
-func main() {
+func runApplication() {
 	port := flag.Int("port", 8797, "local HTTP port")
 	instanceID := flag.String("instance-id", "", "Android child process identity")
 	parentPID := flag.Int("parent-pid", 0, "exit when the Android host process ends")
@@ -68,6 +70,26 @@ func main() {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	publicKey, keyErr := parsePlaybackResolverPublicKey(playbackResolverPublicKeyRaw)
+	if keyErr != nil {
+		log.Printf("playback resolver disabled: %v", keyErr)
+		publicKey = nil
+	}
+	resolverRuntime := configureProductionPlaybackResolverRuntime(*dataDir, publicKey)
+	if resolverRuntime.Configured() {
+		if err := restoreProductionPlaybackResolver(ctx); err != nil {
+			log.Printf("playback resolver restore skipped: %v", err)
+		}
+		go func() {
+			updateCtx, stop := context.WithTimeout(ctx, 45*time.Second)
+			defer stop()
+			if err := updatePlaybackResolver(updateCtx, resolverRuntime, nil, playbackResolverManifestURL, publicKey, nil); err != nil {
+				log.Printf("playback resolver update skipped: %v", err)
+				return
+			}
+			log.Printf("playback resolver update activated")
+		}()
+	}
 	s := &server{instanceID: *instanceID, startedAt: time.Now().UTC(), hongguo: newHongguoClient(), radar: newRadarService(*dataDir, nil), libraryStore: library}
 	s.watchStatisticsStore = &watchStatisticsStore{dir: *dataDir}
 	if err := initPlaybackCustomDevice(filepath.Join(*dataDir, "playback-custom-device.json")); err != nil {
@@ -224,14 +246,17 @@ func (s *server) status(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusMethodNotAllowed, "method not allowed")
 		return
 	}
+	resolver := currentProductionPlaybackResolver().Metadata()
 	writeJSON(w, http.StatusOK, statusResponse{
-		OK:             true,
-		Service:        "hongguo-tv-core",
-		Version:        version,
-		InstanceID:     s.instanceID,
-		Implementation: "go-api-adapter+embedded-playback",
-		StartedAt:      s.startedAt.Format(time.RFC3339),
-		Capabilities:   []string{"tv-ui", "local-http", "focus-state-machine", "category", "rank", "actor-works", "ranking-radar", "search", "series-detail", "series-reviews", "related-series", "follow-updates", "notifications", "play-info", "embedded-playback", "cenc-mp4", "range-media", "local-history", "local-favorites", "local-likes", "resume-playback", "next-episode", "next-season", "account-login", "account-mfa", "cloud-library", "new-series", "release-calendar", "reservations", "recommend-feed", "comments", "danmaku", "infinite-scroll"},
+		OK:                      true,
+		Service:                 "hongguo-tv-core",
+		Version:                 version,
+		PlaybackResolver:        resolver.Name,
+		PlaybackResolverVersion: resolver.Version,
+		InstanceID:              s.instanceID,
+		Implementation:          "go-api-adapter+playback-resolver",
+		StartedAt:               s.startedAt.Format(time.RFC3339),
+		Capabilities:            []string{"tv-ui", "local-http", "focus-state-machine", "category", "rank", "actor-works", "ranking-radar", "search", "series-detail", "series-reviews", "related-series", "follow-updates", "notifications", "play-info", "embedded-playback", "cenc-mp4", "range-media", "local-history", "local-favorites", "local-likes", "resume-playback", "next-episode", "next-season", "account-login", "account-mfa", "cloud-library", "new-series", "release-calendar", "reservations", "recommend-feed", "comments", "danmaku", "infinite-scroll"},
 	})
 }
 

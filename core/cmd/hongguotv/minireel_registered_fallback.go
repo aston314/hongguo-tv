@@ -15,6 +15,7 @@ type miniReelPlaybackSources struct {
 	legacyEndpoints  []string
 	register         func(context.Context) (miniReelDevice, error)
 	mobileV5         *miniReelMobileV5Source
+	resolverOverride playbackResolver
 	registeredSingle *miniReelSingleRegisteredSource
 	singleEndpoint   string
 	registerSingle   func(context.Context) (miniReelDevice, error)

@@ -12,7 +12,11 @@ app_dir="$build_dir/AppDir"
 mkdir -p "$app_dir/usr/bin" "$HONGGUO_LINUX_OUT" "$repo_dir/desktop/frontend/dist"
 cp "$repo_dir/desktop/frontend/index.html" "$repo_dir/desktop/frontend/dist/index.html"
 cd "$repo_dir"
-CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$HONGGUO_CORE_VERSION" -o "$app_dir/usr/bin/hongguo-tv-core" ./core/cmd/hongguotv
+CORE_LDFLAGS="-s -w -X main.version=$HONGGUO_CORE_VERSION"
+if [[ -n "${PLAYBACK_RESOLVER_PUBLIC_KEY:-}" ]]; then
+  CORE_LDFLAGS+=" -X main.playbackResolverPublicKeyRaw=$PLAYBACK_RESOLVER_PUBLIC_KEY"
+fi
+CGO_ENABLED=0 go build -trimpath -ldflags "$CORE_LDFLAGS" -o "$app_dir/usr/bin/hongguo-tv-core" ./core/cmd/hongguotv
 cd desktop
 go test -tags 'production,webkit2_41' ./...
 go build -trimpath -tags 'production,webkit2_41' -ldflags "-s -w -X main.version=$HONGGUO_CORE_VERSION -X main.desktopVersion=$HONGGUO_LINUX_VERSION -X main.desktopVersionCode=0" -o "$app_dir/usr/bin/hongguo-tv" .

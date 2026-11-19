@@ -5,6 +5,11 @@ var ENDPOINT =
   'https://api5-normal-sinfonlinea.fqnovel.com/novel/player/multi_video_model/player/v1';
 var UA =
   'com.phoenix.read/73932 (Linux; U; Android 12; zh_CN_#Hans; PGT-AN10; Build/V417IR;tt-ok/3.12.13.20)';
+var RESOLVER_METADATA = Object.freeze({
+  name: 'embedded-v5',
+  version: '2026.11.19.1',
+  protocol: 1
+});
 function query(d) {
   return {
     aid: '8662',
@@ -67,4 +72,10 @@ function normalize(envelope, vid, contentType) {
   if (entry && entry.video_model != null) result[vid] = entry;
   return Object.assign({}, envelope, { data: result });
 }
-module.exports = { query: query, build: build, normalize: normalize, maxJSON: 2 * 1024 * 1024 };
+module.exports = {
+  query: query,
+  build: build,
+  normalize: normalize,
+  maxJSON: 2 * 1024 * 1024,
+  metadata: function () { return RESOLVER_METADATA; }
+};

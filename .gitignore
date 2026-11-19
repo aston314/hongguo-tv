@@ -36,3 +36,6 @@ desktop/wasm-runtime/decoder.wasm
 desktop/wasm-runtime/FFmpeg-LICENSE.txt
 desktop/wasm-runtime/NOTICE.txt
 desktop/wasm-runtime/lgpl-relink.tar.gz
+
+# Generated real algorithm for the isolated resolver diagnostic APK.
+core/cmd/hongguotv/resolver-probe-assets/

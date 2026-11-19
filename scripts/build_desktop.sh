@@ -8,6 +8,10 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 : "${DESKTOP_VERSION_CODE:?Set the desktop update code}"
 : "${DESKTOP_PLATFORM:?darwin/universal or windows/amd64}"
 cd "$ROOT_DIR"
+CORE_LDFLAGS="-s -w -X main.version=$HONGGUO_CORE_VERSION"
+if [[ -n "${PLAYBACK_RESOLVER_PUBLIC_KEY:-}" ]]; then
+  CORE_LDFLAGS+=" -X main.playbackResolverPublicKeyRaw=$PLAYBACK_RESOLVER_PUBLIC_KEY"
+fi
 mkdir -p desktop/build/darwin desktop/build/sidecar desktop/dist
 cp desktop/resources/Info.plist desktop/build/darwin/Info.plist
 if [[ "$DESKTOP_PLATFORM" == darwin/universal ]]; then
@@ -23,11 +27,11 @@ config['info']['productVersion']=os.environ['APP_VERSION']; path.write_text(json
 PY
 if [[ "$DESKTOP_PLATFORM" == darwin/universal ]]; then
   for arch in amd64 arm64; do
-    GOOS=darwin GOARCH="$arch" CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$HONGGUO_CORE_VERSION" -o "desktop/build/sidecar/core-$arch" ./core/cmd/hongguotv
+    GOOS=darwin GOARCH="$arch" CGO_ENABLED=0 go build -trimpath -ldflags "$CORE_LDFLAGS" -o "desktop/build/sidecar/core-$arch" ./core/cmd/hongguotv
   done
   lipo -create desktop/build/sidecar/core-amd64 desktop/build/sidecar/core-arm64 -output desktop/build/sidecar/hongguo-tv-core
 else
-  GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "-s -w -X main.version=$HONGGUO_CORE_VERSION" -o desktop/build/sidecar/hongguo-tv-core.exe ./core/cmd/hongguotv
+  GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -trimpath -ldflags "$CORE_LDFLAGS" -o desktop/build/sidecar/hongguo-tv-core.exe ./core/cmd/hongguotv
 fi
 cd desktop
 export PATH="$(go env GOPATH)/bin:$PATH"

@@ -1,0 +1,56 @@
+name: Temporary real WASM resolver diagnostic APK
+on:
+  push:
+    branches: [codex/resolver-wasm-device-test]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.x"
+          cache: true
+          cache-dependency-path: go.mod
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install SDK and NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+      - name: Compile real algorithm, test WASM and build diagnostic host
+        run: bash scripts/build_resolver_diagnostic.sh
+      - name: Build and lint isolated diagnostic APK
+        run: gradle --no-daemon --max-workers=1 -p android :resolver-diagnostic:assembleDebug :resolver-diagnostic:lintDebug
+      - name: Verify diagnostic identity and publish temporary draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_TAG: resolver-wasm-diagnostic-${{ github.run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/resolver-probe"
+          apk="$RUNNER_TEMP/resolver-probe/Resolver-WASM-Test.apk"
+          cp android/resolver-diagnostic/build/outputs/apk/debug/resolver-diagnostic-debug.apk "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" > "$RUNNER_TEMP/badging.txt"
+          grep -q "package: name='rocks.aston.hongguoresolverdiag'" "$RUNNER_TEMP/badging.txt"
+          grep -q "sdkVersion:'23'" "$RUNNER_TEMP/badging.txt"
+          unzip -t "$apk" >/dev/null
+          cp core/cmd/hongguotv/resolver-probe-assets/resolver.wasm "$RUNNER_TEMP/resolver-probe/"
+          git rev-parse HEAD > "$RUNNER_TEMP/resolver-probe/COMMIT.txt"
+          (cd "$RUNNER_TEMP/resolver-probe" && sha256sum *.apk *.wasm > SHA256SUMS.txt)
+          gh release create "$RUN_TAG" "$RUNNER_TEMP/resolver-probe/"* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --latest=false \
+            --title "Temporary WASM resolver device test" \
+            --notes "Isolated package. Real Go registration, V5 signatures and compatible codec fallback execute in a local WASM reactor. Embedded resolver fallback disabled. Not a production release; remove draft after testing."

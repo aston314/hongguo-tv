@@ -91,6 +91,10 @@ jobs:
           compression-level: 0
   build:
     needs: [prepare, wasm-decoder]
+    env:
+      # Empty keeps desktop builds on the embedded V5 resolver until a signed
+      # resolver artifact is reviewed and published.
+      PLAYBACK_RESOLVER_PUBLIC_KEY: ${{ secrets.PLAYBACK_RESOLVER_PUBLIC_KEY }}
     strategy:
       fail-fast: false
       matrix:

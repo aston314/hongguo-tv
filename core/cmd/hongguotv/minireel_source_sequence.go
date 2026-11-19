@@ -11,7 +11,7 @@ func miniReelProductionSources() miniReelPlaybackSources {
 		tabEndpoint: miniReelVideoTabBase + miniReelVideoTabPath, tabIdentity: miniReelPlaybackRouteIdentities[2],
 		legacyEndpoints:  []string{"https://api5-normal-sinfonlineb.fqnovel.com" + miniReelAPIPath, "https://api5-normal-hl.fqnovel.com" + miniReelAPIPath},
 		register:         registerMiniReelPlaybackDeviceContext,
-		mobileV5:         productionMobileV5,
+		resolverOverride: currentProductionPlaybackResolver(),
 		registeredSingle: productionSingleRegistered,
 		singleEndpoint:   miniReelSingleEndpoint, registerSingle: registerMiniReelSingleDevice,
 		memory: miniReelSourceMemory,
@@ -126,11 +126,12 @@ func (s *miniReelSourceSequence) next(ctx context.Context) ([]miniReelOption, er
 				options, err = miniReelVideoTabOptionsWithClient(requestCtx, s.vid, s.sources.tabEndpoint, d, s.codecMode, s.sources.client)
 			}
 		case miniReelLegacyProvider:
-			if !oldMultiOnly && s.sources.mobileV5 != nil {
+			resolver := s.sources.resolver()
+			if !oldMultiOnly && resolver != nil {
 				// v5 shares the existing legacy group's 14-second ceiling.
 				// Reserve the rest for old hosts, including after a media failure.
 				variantCtx, stop := context.WithTimeout(requestCtx, 8*time.Second)
-				options, err = s.sources.mobileV5.options(variantCtx, s.vid, s.codecMode, s.contentType)
+				options, err = resolver.Resolve(variantCtx, playbackResolverRequest{VID: s.vid, CodecMode: s.codecMode, ContentType: s.contentType})
 				expired := variantCtx.Err() != nil
 				stop()
 				if err == nil && len(options) > 0 {

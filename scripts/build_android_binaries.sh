@@ -33,6 +33,11 @@ resolve_toolchain_dir() {
   TOOLCHAIN_DIR="$ndk_dir/toolchains/llvm/prebuilt/$host_tag/bin"
 }
 
+CORE_LDFLAGS="-s -w -X main.version=$VERSION"
+if [[ -n "${PLAYBACK_RESOLVER_PUBLIC_KEY:-}" ]]; then
+  CORE_LDFLAGS+=" -X main.playbackResolverPublicKeyRaw=$PLAYBACK_RESOLVER_PUBLIC_KEY"
+fi
+
 build_one() {
   local abi="$1" goarch="$2" goarm="${3:-}" cc="$4"
   local output="$OUT_DIR/$abi/libhongguotv.so"
@@ -40,11 +45,11 @@ build_one() {
   echo "Building $abi -> $output"
   if [[ -n "$goarm" ]]; then
     GOOS=android GOARCH="$goarch" GOARM="$goarm" CGO_ENABLED=1 CC="$cc" \
-      go build -trimpath -buildmode=pie -ldflags "-s -w -X main.version=$VERSION" \
+      go build -trimpath -buildmode=pie -ldflags "$CORE_LDFLAGS" \
       -o "$output" ./core/cmd/hongguotv
   else
     GOOS=android GOARCH="$goarch" CGO_ENABLED=1 CC="$cc" \
-      go build -trimpath -buildmode=pie -ldflags "-s -w -X main.version=$VERSION" \
+      go build -trimpath -buildmode=pie -ldflags "$CORE_LDFLAGS" \
       -o "$output" ./core/cmd/hongguotv
   fi
 }
