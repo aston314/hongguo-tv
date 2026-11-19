@@ -54,7 +54,14 @@ type resolverProbeTransport struct{ record func(resolverProbeHTTP) }
 func (p resolverProbeTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	start := time.Now()
 	res, err := http.DefaultTransport.RoundTrip(r)
-	row := resolverProbeHTTP{Stage: r.URL.Path, Codec: r.URL.Query().Get("codec_type"), MS: time.Since(start).Milliseconds()}
+	stage := "fallback_api"
+	if r.URL.Path == "/service/2/device_register/" {
+		stage = "device_register"
+	}
+	if r.URL.Path == "/novel/player/multi_video_model/player/v1" {
+		stage = "v5_model"
+	}
+	row := resolverProbeHTTP{Stage: stage, Codec: r.URL.Query().Get("codec_type"), MS: time.Since(start).Milliseconds()}
 	if err == nil {
 		row.Status = res.StatusCode
 		row.Bytes = res.ContentLength
