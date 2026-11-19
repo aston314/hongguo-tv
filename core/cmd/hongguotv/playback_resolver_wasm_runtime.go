@@ -14,6 +14,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/aston314/hongguo-tv/core/internal/resolverwire"
+
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -21,8 +23,8 @@ import (
 
 const (
 	playbackResolverWASMName       = "wasm-v1"
-	playbackResolverWASMMaxRequest = 16 * 1024
-	playbackResolverWASMMaxResult  = 256 * 1024
+	playbackResolverWASMMaxRequest = resolverwire.MaxRequest
+	playbackResolverWASMMaxResult  = resolverwire.MaxResult
 	playbackResolverWASMMaxOptions = 32
 	playbackResolverWASMMaxKey     = 128
 
@@ -31,7 +33,7 @@ const (
 	playbackResolverWASMFree        = "resolver_free"
 	playbackResolverWASMHostModule  = "hongguo_resolver_host"
 	playbackResolverWASMHTTP        = "resolver_http"
-	playbackResolverWASMMaxHTTPBody = 2 * 1024 * 1024
+	playbackResolverWASMMaxHTTPBody = resolverwire.MaxHTTPBody
 )
 
 var (
@@ -44,11 +46,7 @@ var (
 // account cookies or authorization headers. A production module may opt into
 // the separately validated fqnovel/snssdk HTTP callback below; the no-import fixture
 // remains the default and has no network capability.
-type playbackResolverWASMRequest struct {
-	VID         string `json:"vid"`
-	CodecMode   string `json:"codec_mode"`
-	ContentType string `json:"content_type"`
-}
+type playbackResolverWASMRequest = resolverwire.Request
 
 type playbackResolverWASMResponse struct {
 	Options    []miniReelOption `json:"options"`
@@ -56,17 +54,8 @@ type playbackResolverWASMResponse struct {
 	ErrorStage string           `json:"error_stage,omitempty"`
 }
 
-type playbackResolverWASMHTTPResponse struct {
-	Status int    `json:"status"`
-	Body   []byte `json:"body,omitempty"`
-}
-
-type playbackResolverWASMHTTPRequest struct {
-	Method  string            `json:"method"`
-	URL     string            `json:"url"`
-	Headers map[string]string `json:"headers,omitempty"`
-	Body    []byte            `json:"body,omitempty"`
-}
+type playbackResolverWASMHTTPResponse = resolverwire.HTTPResponse
+type playbackResolverWASMHTTPRequest = resolverwire.HTTPRequest
 
 type wasmPlaybackResolver struct {
 	mu       sync.Mutex

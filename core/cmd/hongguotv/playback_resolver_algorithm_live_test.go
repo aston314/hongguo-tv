@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +20,32 @@ func TestWASMPlaybackResolverLiveMedia(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	resolver, err := loadWASMPlaybackResolverWithHTTP(ctx, playbackResolverManifest{Version: "2026.11.19.1", Protocol: 1}, artifact, http.DefaultClient)
+	client := http.DefaultClient
+	if os.Getenv("HONGGUO_RESOLVER_TRACE_TIMING") == "1" {
+		var registered time.Time
+		client = &http.Client{Transport: miniReelTestRoundTripper(func(r *http.Request) (*http.Response, error) {
+			if r.URL.Path == "/novel/player/multi_video_model/player/v1" {
+				ts, _ := strconv.ParseInt(r.Header.Get("X-Khronos"), 10, 64)
+				ticket, _ := strconv.ParseInt(r.URL.Query().Get("_rticket"), 10, 64)
+				t.Logf("request registration_gap_ms=%d header_skew_ms=%d ticket_skew_ms=%d", time.Since(registered).Milliseconds(), time.Now().UnixMilli()-ts*1000, time.Now().UnixMilli()-ticket)
+			}
+			res, err := http.DefaultTransport.RoundTrip(r)
+			if r.URL.Path == "/service/2/device_register/" {
+				registered = time.Now()
+			}
+			return res, err
+		})}
+	}
+	if delay, _ := strconv.Atoi(os.Getenv("HONGGUO_RESOLVER_REGISTRATION_DELAY_MS")); delay > 0 && delay <= 3000 {
+		client = &http.Client{Transport: miniReelTestRoundTripper(func(r *http.Request) (*http.Response, error) {
+			res, err := http.DefaultTransport.RoundTrip(r)
+			if err == nil && r.URL.Path == "/service/2/device_register/" {
+				time.Sleep(time.Duration(delay) * time.Millisecond)
+			}
+			return res, err
+		})}
+	}
+	resolver, err := loadWASMPlaybackResolverWithHTTP(ctx, playbackResolverManifest{Version: "2026.11.19.1", Protocol: 1}, artifact, client)
 	if err != nil {
 		t.Fatal(err)
 	}

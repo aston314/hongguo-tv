@@ -1,4 +1,4 @@
-//go:build !resolverwasm && !resolverprobe
+//go:build !resolverprobe
 
 package main
 
