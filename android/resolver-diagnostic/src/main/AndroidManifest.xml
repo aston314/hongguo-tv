@@ -3,7 +3,7 @@
     <uses-feature android:name="android.software.leanback" android:required="false" />
     <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
     <uses-permission android:name="android.permission.INTERNET" />
-    <application android:allowBackup="false" android:label="红果 WASM 解析测试" android:usesCleartextTraffic="true" android:theme="@android:style/Theme.Material.NoActionBar">
+    <application android:allowBackup="false" android:label="红果 WASM 解析测试" android:icon="@drawable/tv_banner" android:banner="@drawable/tv_banner" android:usesCleartextTraffic="true" android:theme="@android:style/Theme.Material.NoActionBar">
         <activity android:name=".ResolverDiagnosticActivity" android:configChanges="keyboard|keyboardHidden|orientation|screenSize|smallestScreenSize" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
