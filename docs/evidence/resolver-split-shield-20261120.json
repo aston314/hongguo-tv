@@ -1,0 +1,362 @@
+{
+  "schema": 1,
+  "date": "2026-11-20",
+  "experimental": true,
+  "build_run": 44558998106,
+  "source_commit": "8c23f5e8bbd54bc50c7c404c3fc88c2c199edd43",
+  "device": {
+    "model": "Shield/darcy",
+    "android": "11",
+    "abi": "arm64",
+    "webview": "120.0.6099.230"
+  },
+  "apk_sha256": "f0809a24b2b420a411db3c33881180d887ee7ee394847ffda4f59d33cec34ffb",
+  "report": {
+    "embedded_fallback": false,
+    "load_ms": 884,
+    "playback": [
+      {
+        "vid": "7706514645208534041",
+        "event": "playing_5s",
+        "position": 5.001072,
+        "width": 1080,
+        "height": 1920,
+        "decoded_frames": 129,
+        "dropped_frames": 10
+      },
+      {
+        "vid": "7706514815799282713",
+        "event": "playing_5s",
+        "position": 5.113034,
+        "width": 1080,
+        "height": 1920,
+        "decoded_frames": 132,
+        "dropped_frames": 0
+      },
+      {
+        "vid": "7706514627462433817",
+        "event": "playing_5s",
+        "position": 5.121992,
+        "width": 1080,
+        "height": 1920,
+        "decoded_frames": 132,
+        "dropped_frames": 0
+      },
+      {
+        "vid": "7702841946812714008",
+        "event": "playing_5s",
+        "position": 5.235551,
+        "width": 1920,
+        "height": 1080,
+        "decoded_frames": 161,
+        "dropped_frames": 0
+      },
+      {
+        "vid": "7702841953875938328",
+        "event": "playing_5s",
+        "position": 5.052668,
+        "width": 1920,
+        "height": 1080,
+        "decoded_frames": 126,
+        "dropped_frames": 0
+      },
+      {
+        "vid": "7703473857562151961",
+        "event": "playing_5s",
+        "position": 5.090683,
+        "width": 1920,
+        "height": 1080,
+        "decoded_frames": 157,
+        "dropped_frames": 0
+      }
+    ],
+    "resolver": "wasm-only",
+    "results": [
+      {
+        "vid": "7706514645208534041",
+        "ok": true,
+        "codec": "bytevc1",
+        "width": 1080,
+        "height": 1080,
+        "options": 1,
+        "resolve_ms": 2609,
+        "total_ms": 6239,
+        "media_bytes": 22013835,
+        "media": "/media/current.mp4",
+        "requests": [
+          {
+            "stage": "device_register",
+            "status": 200,
+            "bytes": -1,
+            "ms": 370
+          },
+          {
+            "stage": "v5_model",
+            "status": 200,
+            "bytes": 0,
+            "ms": 166
+          },
+          {
+            "stage": "device_register",
+            "status": 200,
+            "bytes": -1,
+            "ms": 203
+          },
+          {
+            "stage": "v5_model",
+            "status": 200,
+            "bytes": -1,
+            "ms": 161
+          }
+        ]
+      },
+      {
+        "vid": "7706514815799282713",
+        "ok": true,
+        "codec": "bytevc1",
+        "width": 1080,
+        "height": 1080,
+        "options": 5,
+        "resolve_ms": 1430,
+        "total_ms": 3181,
+        "media_bytes": 7258839,
+        "media": "/media/current.mp4",
+        "requests": [
+          {
+            "stage": "v5_model",
+            "status": 200,
+            "bytes": -1,
+            "ms": 114
+          }
+        ]
+      },
+      {
+        "vid": "7706514627462433817",
+        "ok": true,
+        "codec": "bytevc1",
+        "width": 1080,
+        "height": 1080,
+        "options": 5,
+        "resolve_ms": 1340,
+        "total_ms": 2357,
+        "media_bytes": 3875487,
+        "media": "/media/current.mp4",
+        "requests": [
+          {
+            "stage": "v5_model",
+            "status": 200,
+            "bytes": -1,
+            "ms": 129
+          }
+        ]
+      },
+      {
+        "vid": "7702841946812714008",
+        "ok": true,
+        "codec": "h265",
+        "width": 1920,
+        "height": 1080,
+        "options": 5,
+        "resolve_ms": 2730,
+        "total_ms": 7665,
+        "media_bytes": 27320959,
+        "media": "/media/current.mp4",
+        "requests": [
+          {
+            "stage": "v5_model",
+            "status": 200,
+            "bytes": -1,
+            "ms": 122
+          },
+          {
+            "stage": "fallback_api",
+            "status": 200,
+            "bytes": -1,
+            "ms": 161,
+            "codec": "4"
+          },
+          {
+            "stage": "fallback_api",
+            "status": 200,
+            "bytes": -1,
+            "ms": 62,
+            "codec": "1"
+          }
+        ]
+      },
+      {
+        "vid": "7702841953875938328",
+        "ok": true,
+        "codec": "h265",
+        "width": 1920,
+        "height": 1080,
+        "options": 5,
+        "resolve_ms": 2611,
+        "total_ms": 3898,
+        "media_bytes": 7522899,
+        "media": "/media/current.mp4",
+        "requests": [
+          {
+            "stage": "v5_model",
+            "status": 200,
+            "bytes": -1,
+            "ms": 124
+          },
+          {
+            "stage": "fallback_api",
+            "status": 200,
+            "bytes": -1,
+            "ms": 72,
+            "codec": "4"
+          },
+          {
+            "stage": "fallback_api",
+            "status": 200,
+            "bytes": -1,
+            "ms": 76,
+            "codec": "1"
+          }
+        ]
+      },
+      {
+        "vid": "7703473857562151961",
+        "ok": true,
+        "codec": "h265",
+        "width": 1920,
+        "height": 1080,
+        "options": 5,
+        "resolve_ms": 2566,
+        "total_ms": 4147,
+        "media_bytes": 16120440,
+        "media": "/media/current.mp4",
+        "requests": [
+          {
+            "stage": "v5_model",
+            "status": 200,
+            "bytes": -1,
+            "ms": 129
+          },
+          {
+            "stage": "fallback_api",
+            "status": 200,
+            "bytes": -1,
+            "ms": 62,
+            "codec": "4"
+          },
+          {
+            "stage": "fallback_api",
+            "status": 200,
+            "bytes": -1,
+            "ms": 67,
+            "codec": "1"
+          }
+        ]
+      }
+    ],
+    "sha256": "81a9825bc03667a3ec5fa34ddbba5ac33fbeca4851cf9766e23c642be4e36a60"
+  },
+  "memory_before": {
+    "guest_linear_bytes": 8388608,
+    "host_heap_alloc": 126907904,
+    "host_heap_idle": 4055040,
+    "host_heap_released": 4046848,
+    "host_heap_sys": 133627904,
+    "host_sys": 140369968
+  },
+  "memory_after": {
+    "guest_linear_bytes": 12845056,
+    "host_heap_alloc": 198104544,
+    "host_heap_idle": 1572864,
+    "host_heap_released": 1474560,
+    "host_heap_sys": 204603392,
+    "host_sys": 213250112
+  },
+  "process_before_kib": {
+    "pss": 142398,
+    "rss": 143128
+  },
+  "process_after_kib": {
+    "pss": 206832,
+    "rss": 208216,
+    "rss_peak": 209148
+  },
+  "alternating_fresh_identity_trials": {
+    "trials_per_engine": 10,
+    "native_model_successes": 7,
+    "wasm_model_successes": 8,
+    "failure_code": "VIDEO_MODEL_EMPTY",
+    "native_process_signer_reused": true,
+    "wasm_process_signer_reused": false
+  },
+  "replacement": {
+    "health": {
+      "embedded_fallback": false,
+      "load_ms": 1565,
+      "ok": true,
+      "private_override": true,
+      "resolver": "wasm-only",
+      "sha256": "fb3c493543aee59dfd7ef8167e905358a21f73259dbaf66ce23d484290d5ad15",
+      "wasm_bytes": 4824888,
+      "wire_vectors": 4
+    },
+    "report": {
+      "embedded_fallback": false,
+      "load_ms": 1565,
+      "playback": [
+        {
+          "vid": "7702841946812714008",
+          "event": "playing_5s",
+          "position": 5.22527,
+          "width": 1920,
+          "height": 1080,
+          "decoded_frames": 161,
+          "dropped_frames": 0
+        }
+      ],
+      "resolver": "wasm-only",
+      "results": [
+        {
+          "vid": "7702841946812714008",
+          "ok": true,
+          "codec": "h265",
+          "width": 1920,
+          "height": 1080,
+          "options": 5,
+          "resolve_ms": 3285,
+          "total_ms": 8150,
+          "media_bytes": 27320959,
+          "media": "/media/current.mp4",
+          "requests": [
+            {
+              "stage": "device_register",
+              "status": 200,
+              "bytes": -1,
+              "ms": 375
+            },
+            {
+              "stage": "v5_model",
+              "status": 200,
+              "bytes": -1,
+              "ms": 229
+            },
+            {
+              "stage": "fallback_api",
+              "status": 200,
+              "bytes": -1,
+              "ms": 173,
+              "codec": "4"
+            },
+            {
+              "stage": "fallback_api",
+              "status": 200,
+              "bytes": -1,
+              "ms": 75,
+              "codec": "1"
+            }
+          ]
+        }
+      ],
+      "sha256": "fb3c493543aee59dfd7ef8167e905358a21f73259dbaf66ce23d484290d5ad15"
+    }
+  }
+}

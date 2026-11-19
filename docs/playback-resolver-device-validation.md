@@ -3,6 +3,9 @@
 This is an experimental validation, not production acceptance. Android/desktop
 stay on the embedded resolver unless a trusted production update key is configured.
 
+The independent-module follow-up and reduced-memory measurements are in
+[playback-resolver-split-validation.md](playback-resolver-split-validation.md).
+
 ## Exact build and device
 
 - GitHub build: https://github.com/aston314/hongguo-tv/actions/runs/44549030884
@@ -68,6 +71,9 @@ The final Go 1.27.1 GitHub artifact works on both. A locally compiled Go 1.25.5
 module also works, so do not claim all Go 1.25 builds are broken. The precise
 cause of the Go 1.25.14 artifact discrepancy is not yet minimized. A build pass
 and fixed-wire/mock tests alone do not establish live resolver acceptance.
+Subsequent alternating native/WASM trials also reproduced empty responses in
+native execution. The observations above do not establish a compiler or WASM
+engine defect; do not use them to attribute the cause to a Go version.
 
 ## Performance and boundaries
 
