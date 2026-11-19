@@ -166,7 +166,7 @@ ABI; no separate playback server is required.
 
 ## Isolated GitHub APK validation
 
-`resolver-diagnostic.yml` builds the real reactor with Go 1.25, runs its ABI and
+`resolver-diagnostic.yml` builds the real reactor with pinned Go 1.27.1, runs its ABI and
 algorithm tests, builds arm64/armv7 Android hosts and lints an isolated APK.
 Outputs go to a temporary draft Release, never a stable update channel.
 
@@ -190,3 +190,5 @@ HONGGUO_RESOLVER_WASM_FILE=/tmp/resolver.wasm HONGGUO_LIVE_RESOLVER_WASM=1 \
 
 webOS currently exports only protocol metadata; its JS service does not yet
 load this reactor. Cross-platform parity is still pending.
+
+Device results and limitations: [Shield validation](playback-resolver-device-validation.md).

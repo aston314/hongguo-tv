@@ -114,6 +114,15 @@ func TestPlaybackResolverRuntimeFallsBackToEmbeddedOnModuleError(t *testing.T) {
 	}
 }
 
+func TestPlaybackResolverWithoutEmbeddedPreservesModuleDiagnostic(t *testing.T) {
+	failure := &playbackPreparationError{cause: errMiniReelVideoModelEmpty, diagnostic: playbackPreparationDiagnostic{Code: "VIDEO_MODEL_EMPTY", Stage: "multi_video_model"}}
+	resolver := playbackResolverWithFallback{active: &stubPlaybackResolver{err: failure}}
+	_, err := resolver.Resolve(context.Background(), playbackResolverRequest{VID: "123"})
+	if err != failure || playbackPreparationDetails(err).Code != "VIDEO_MODEL_EMPTY" {
+		t.Fatal("module failure replaced by generic runtime unavailable")
+	}
+}
+
 func TestPlaybackResolverRuntimeRejectsDowngradeAndKeepsPrevious(t *testing.T) {
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
 	if err != nil {
