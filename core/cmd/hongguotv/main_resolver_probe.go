@@ -17,7 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"runtime"
+	goruntime "runtime"
 	"sync"
 	"time"
 )
@@ -145,8 +145,8 @@ func main() {
 		write(w, map[string]any{"ok": true, "resolver": "wasm-only", "embedded_fallback": false, "sha256": manifest.SHA256, "load_ms": loadMS, "wasm_bytes": manifest.Size, "wire_vectors": wireTest, "private_override": *candidate != ""})
 	})
 	mux.HandleFunc("/memory", func(w http.ResponseWriter, r *http.Request) {
-		var stats runtime.MemStats
-		runtime.ReadMemStats(&stats)
+		var stats goruntime.MemStats
+		goruntime.ReadMemStats(&stats)
 		write(w, map[string]any{"host_heap_alloc": stats.HeapAlloc, "host_heap_sys": stats.HeapSys, "host_heap_idle": stats.HeapIdle, "host_heap_released": stats.HeapReleased, "host_sys": stats.Sys, "guest_linear_bytes": active.module.Memory().Size()})
 	})
 	mux.HandleFunc("/report", func(w http.ResponseWriter, r *http.Request) {
