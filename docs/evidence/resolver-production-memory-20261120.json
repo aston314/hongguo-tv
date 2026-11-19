@@ -1,0 +1,354 @@
+{
+  "date": "2026-11-20",
+  "device": "Shield/darcy Android 11 arm64",
+  "release": "v0.2.173",
+  "release_url": "https://github.com/aston314/hongguo-tv-releases/releases/tag/v0.2.173",
+  "official_apks": {
+    "rocks.aston.hongguotv": "0e90af73d1dcea586a5f7193e440c3b7371701270bc58f093481f45d047b75c8",
+    "rocks.aston.hongguotv.mpv": "0668e9fc28c70b406f86bd3a135c973ca098471f49d14ab002497fa70fa09b40"
+  },
+  "installed_apks_match_release": true,
+  "official_standard": {
+    "actual_playback": false,
+    "failure_code": "VIDEO_MODEL_EMPTY",
+    "series_id": "7702841940475120702",
+    "vid": "7702841946812714008",
+    "memory": {
+      "phase": "stable-173-unable-to-play",
+      "utc": "2026-11-19T22:53:19.398022+00:00",
+      "processes": {
+        "java": {
+          "pid": 5660,
+          "pss_kib": 180623,
+          "rss_kib": 323096,
+          "peak_rss_kib": 308312
+        },
+        "core": {
+          "pid": 5772,
+          "pss_kib": 51123,
+          "rss_kib": 53248,
+          "peak_rss_kib": 66700
+        },
+        "renderer": {
+          "pid": 5698,
+          "pss_kib": 73242,
+          "rss_kib": 154732,
+          "peak_rss_kib": 173140
+        }
+      },
+      "sum_pss_kib": 304988,
+      "sum_rss_kib": 531076
+    }
+  },
+  "notes": [
+    "PSS sums include only app host, core and attributed WebView renderer.",
+    "No video/audio decoder playback memory was measurable in the official APK.",
+    "Do not treat this official error-state snapshot as a playback baseline.",
+    "Not a matched-APK benchmark: official data, toolchains, media modes and sample sequences differ.",
+    "RSS sums are retained as raw bookkeeping only, not unique physical-memory totals.",
+    "peak_rss_kib is VmHWM from /proc and does not include all graphics accounting in dumpsys RSS."
+  ],
+  "native_preview": {
+    "build_run": 44633173312,
+    "source_commit": "b6392ac03343483f767c0210f062fe65775a5377",
+    "package": "rocks.aston.hongguotv.debug",
+    "version": "0.2.173-debug",
+    "apk_sha256": "07ea97597f97f436228671f7db9e821d01d73b2dcab42f9bc016620a2c2e5bae",
+    "go_toolchain": "go1.25.14",
+    "resolver": "embedded-v5",
+    "wasm_loaded": false,
+    "playback_samples": [
+      {
+        "label": "1080p-episode-1",
+        "position": 80.840297,
+        "duration": 136.997732,
+        "width": 1920,
+        "height": 1080,
+        "paused": false,
+        "readyState": 4,
+        "visibility": "visible",
+        "frames": 547,
+        "dropped": 0,
+        "native": false,
+        "route": {
+          "webview_version": "120.0.6099.230",
+          "preferred_path": "HTML5",
+          "active_path": "HTML5",
+          "final_path": "HTML5",
+          "switched": false,
+          "switch_reason": "",
+          "outcome": "first_frame",
+          "metadata_ms": 68,
+          "zero_progress_ms": null,
+          "switch_ms": null,
+          "html5_elapsed_ms": 16514,
+          "zero_progress_wait_ms": null,
+          "first_frame_ms": 616,
+          "first_frame_wait_ms": 76,
+          "media3_first_frame_ms": null,
+          "media3_wait_ms": null,
+          "final_first_frame": true,
+          "cache_written": false
+        },
+        "quality": "1080P"
+      },
+      {
+        "label": "1080p-episode-17-round-0",
+        "position": 38.412301,
+        "duration": 61.887007,
+        "width": 1920,
+        "height": 1080,
+        "paused": false,
+        "readyState": 4,
+        "visibility": "visible",
+        "frames": 925,
+        "dropped": 0,
+        "native": false,
+        "route": {
+          "webview_version": "120.0.6099.230",
+          "preferred_path": "HTML5",
+          "active_path": "HTML5",
+          "final_path": "HTML5",
+          "switched": false,
+          "switch_reason": "",
+          "outcome": "first_frame",
+          "metadata_ms": 83,
+          "zero_progress_ms": null,
+          "switch_ms": null,
+          "html5_elapsed_ms": 38656,
+          "zero_progress_wait_ms": null,
+          "first_frame_ms": 277,
+          "first_frame_wait_ms": 76,
+          "media3_first_frame_ms": null,
+          "media3_wait_ms": null,
+          "final_first_frame": true,
+          "cache_written": false
+        },
+        "quality": "1080P"
+      },
+      {
+        "label": "1080p-episode-18-round-1",
+        "position": 5.326031,
+        "duration": 49.385896,
+        "width": 1920,
+        "height": 1080,
+        "paused": false,
+        "readyState": 4,
+        "visibility": "visible",
+        "frames": 132,
+        "dropped": 2,
+        "native": false,
+        "route": {
+          "webview_version": "120.0.6099.230",
+          "preferred_path": "HTML5",
+          "active_path": "HTML5",
+          "final_path": "HTML5",
+          "switched": false,
+          "switch_reason": "",
+          "outcome": "first_frame",
+          "metadata_ms": 51,
+          "zero_progress_ms": null,
+          "switch_ms": null,
+          "html5_elapsed_ms": 5486,
+          "zero_progress_wait_ms": null,
+          "first_frame_ms": 231,
+          "first_frame_wait_ms": 85,
+          "media3_first_frame_ms": null,
+          "media3_wait_ms": null,
+          "final_first_frame": true,
+          "cache_written": false
+        },
+        "quality": "1080P"
+      },
+      {
+        "label": "1080p-episode-1-round-2",
+        "position": 5.723919,
+        "duration": 136.997732,
+        "width": 1920,
+        "height": 1080,
+        "paused": false,
+        "readyState": 4,
+        "visibility": "visible",
+        "frames": 176,
+        "dropped": 2,
+        "native": false,
+        "route": {
+          "webview_version": "120.0.6099.230",
+          "preferred_path": "HTML5",
+          "active_path": "HTML5",
+          "final_path": "HTML5",
+          "switched": false,
+          "switch_reason": "",
+          "outcome": "first_frame",
+          "metadata_ms": 86,
+          "zero_progress_ms": null,
+          "switch_ms": null,
+          "html5_elapsed_ms": 5962,
+          "zero_progress_wait_ms": null,
+          "first_frame_ms": 325,
+          "first_frame_wait_ms": 115,
+          "media3_first_frame_ms": null,
+          "media3_wait_ms": null,
+          "final_first_frame": true,
+          "cache_written": false
+        },
+        "quality": "1080P"
+      },
+      {
+        "label": "1080p-episode-17-round-3",
+        "position": 5.624064,
+        "duration": 61.887007,
+        "width": 1920,
+        "height": 1080,
+        "paused": false,
+        "readyState": 4,
+        "visibility": "visible",
+        "frames": 139,
+        "dropped": 1,
+        "native": false,
+        "route": {
+          "webview_version": "120.0.6099.230",
+          "preferred_path": "HTML5",
+          "active_path": "HTML5",
+          "final_path": "HTML5",
+          "switched": false,
+          "switch_reason": "",
+          "outcome": "first_frame",
+          "metadata_ms": 81,
+          "zero_progress_ms": null,
+          "switch_ms": null,
+          "html5_elapsed_ms": 5834,
+          "zero_progress_wait_ms": null,
+          "first_frame_ms": 260,
+          "first_frame_wait_ms": 65,
+          "media3_first_frame_ms": null,
+          "media3_wait_ms": null,
+          "final_first_frame": true,
+          "cache_written": false
+        },
+        "quality": "1080P"
+      },
+      {
+        "label": "1080p-episode-18-round-4",
+        "position": 5.598038,
+        "duration": 49.385896,
+        "width": 1920,
+        "height": 1080,
+        "paused": false,
+        "readyState": 4,
+        "visibility": "visible",
+        "frames": 138,
+        "dropped": 1,
+        "native": false,
+        "route": {
+          "webview_version": "120.0.6099.230",
+          "preferred_path": "HTML5",
+          "active_path": "HTML5",
+          "final_path": "HTML5",
+          "switched": false,
+          "switch_reason": "",
+          "outcome": "first_frame",
+          "metadata_ms": 92,
+          "zero_progress_ms": null,
+          "switch_ms": null,
+          "html5_elapsed_ms": 5827,
+          "zero_progress_wait_ms": null,
+          "first_frame_ms": 242,
+          "first_frame_wait_ms": 31,
+          "media3_first_frame_ms": null,
+          "media3_wait_ms": null,
+          "final_first_frame": true,
+          "cache_written": false
+        },
+        "quality": "1080P"
+      }
+    ],
+    "memory": [
+      {
+        "phase": "preview-native-1080p-first",
+        "utc": "2026-11-19T23:05:28.673082+00:00",
+        "processes": {
+          "java": {
+            "pid": 6695,
+            "pss_kib": 304014,
+            "rss_kib": 407136,
+            "peak_rss_kib": 297216
+          },
+          "core": {
+            "pid": 6832,
+            "pss_kib": 23348,
+            "rss_kib": 25356,
+            "peak_rss_kib": 27176
+          },
+          "renderer": {
+            "pid": 6758,
+            "pss_kib": 96500,
+            "rss_kib": 163376,
+            "peak_rss_kib": 164496
+          }
+        },
+        "sum_pss_kib": 423862,
+        "sum_rss_kib": 595868
+      },
+      {
+        "phase": "preview-native-1080p-during-switching",
+        "utc": "2026-11-19T23:06:58.297765+00:00",
+        "processes": {
+          "java": {
+            "pid": 6695,
+            "pss_kib": 202605,
+            "rss_kib": 303812,
+            "peak_rss_kib": 306160
+          },
+          "core": {
+            "pid": 6832,
+            "pss_kib": 24961,
+            "rss_kib": 26972,
+            "peak_rss_kib": 27204
+          },
+          "renderer": {
+            "pid": 6758,
+            "pss_kib": 103882,
+            "rss_kib": 164960,
+            "peak_rss_kib": 174652
+          }
+        },
+        "sum_pss_kib": 331448,
+        "sum_rss_kib": 495744
+      },
+      {
+        "phase": "preview-native-1080p-after-six",
+        "utc": "2026-11-19T23:07:32.603670+00:00",
+        "processes": {
+          "java": {
+            "pid": 6695,
+            "pss_kib": 299784,
+            "rss_kib": 400700,
+            "peak_rss_kib": 306160
+          },
+          "core": {
+            "pid": 6832,
+            "pss_kib": 23705,
+            "rss_kib": 25716,
+            "peak_rss_kib": 27204
+          },
+          "renderer": {
+            "pid": 6758,
+            "pss_kib": 106121,
+            "rss_kib": 166360,
+            "peak_rss_kib": 174652
+          }
+        },
+        "sum_pss_kib": 429610,
+        "sum_rss_kib": 592776
+      }
+    ]
+  },
+  "comparison_wasm": {
+    "evidence": "resolver-split-shield-20261120.json",
+    "go_process_pss_kib": 206832,
+    "go_toolchain": "go1.27.1",
+    "interface": "diagnostic, full-file media",
+    "same_six_sample_sequence": false
+  }
+}

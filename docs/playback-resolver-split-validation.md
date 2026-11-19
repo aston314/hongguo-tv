@@ -79,6 +79,9 @@ The module is 71% smaller; the measured native process PSS after the same six
 samples is 55% lower (about 447 to 202 MiB). These are separate runs on the same
 device, and whole diagnostic Go-process figures excluding Java/WebView, not
 additional production memory or an isolated guest-heap measurement.
+The installed official APK and actual native-app comparison is recorded in
+[playback-resolver-production-memory.md](playback-resolver-production-memory.md);
+the 202 MiB diagnostic value must not be compared to total app memory.
 The guest linear memory was 8 MiB before requests and 12.25 MiB afterward;
 most process memory remains in the host/runtime. There was no forced GC before
 the snapshots. Six short clips cannot establish absence of a memory leak or
