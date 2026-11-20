@@ -16,8 +16,8 @@ function fixture(native, options={}) {
     appendChild(n){this.children.push(n);n.parentElement=this;return n}
     insertBefore(n,old){this.children.unshift(n);n.parentElement=this}
     addEventListener(k,f){(this.listeners[k]||=[]).push(f)}
-    dispatch(k){for(const f of this.listeners[k]||[])f()}
-    click(){if(!this.disabled)this.dispatch('click')}
+    dispatch(k,event){for(const f of this.listeners[k]||[])f(event)}
+    click(){if(!this.disabled){this.dispatch('click',{detail:0});for(let p=this.parentElement;p;p=p.parentElement)p.dispatch('click',{detail:0})}}
     contains(n){return n===this||this.children.some(c=>c.contains(n))}
   }
   const hero=new Node(),group=new Node(),shell=new Node(),video={src:'unchanged.mp4',currentTime:19,paused:false,muted:true,volume:.6,playbackRate:1.5,listeners:{},addEventListener:Node.prototype.addEventListener};
@@ -73,20 +73,53 @@ test('mini controls use shared commands and respect episode/recommendation bound
   assert.deepEqual(f.commands.slice(-2),[['seek',42],['volume',0]]);
 });
 
-test('controls auto-hide again after next episode playback resumes',async()=>{
-  const f=fixture();await f.mini.request(true);const overlay=f.hero.children[0];
-  assert.equal(f.fireTimer(2500),true);assert.equal(overlay.classList.contains('is-visible'),false);
-  f.s.paused=true;f.video.paused=true;f.video.listeners.pause.forEach(callback=>callback());
-  assert.equal(overlay.classList.contains('is-visible'),true);
-  f.s.episode=2;f.s.paused=false;f.video.paused=false;
+test('automatic episode transitions keep hidden controls hidden on every desktop platform',async()=>{
+  for(const platform of ['darwin','windows','linux']) {
+    const f=fixture(enabled=>({active:enabled}),{platform});await f.mini.request(true);const overlay=f.hero.children[0];
+    assert.equal(f.fireTimer(2500),true);assert.equal(overlay.classList.contains('is-visible'),false);
+    for(let episode=2;episode<=4;episode++) {
+      f.s.paused=true;f.video.paused=true;
+      for(const name of ['ended','pause','emptied','loadedmetadata']) {
+        f.video.listeners[name].forEach(callback=>callback());
+        assert.equal(overlay.classList.contains('is-visible'),false,platform+' '+name);
+      }
+      f.s.episode=episode;f.s.paused=false;f.video.paused=false;
+      f.video.listeners.playing.forEach(callback=>callback());f.mini.render();
+      assert.equal(overlay.classList.contains('is-visible'),false,platform+' resumed');
+      assert.equal([...f.timers.values()].some(timer=>timer.delay===2500),false);
+    }
+  }
+});
+
+test('buffering recovery and passive focus loss do not reopen the compact overlay',async()=>{
+  const f=fixture();await f.mini.request(true);const overlay=f.hero.children[0];f.fireTimer(2500);
   f.video.listeners.playing.forEach(callback=>callback());
-  assert.equal(overlay.classList.contains('is-visible'),true);
-  assert.equal(f.fireTimer(2500),true);assert.equal(overlay.classList.contains('is-visible'),false);
+  overlay.dispatch('focusout');f.fireTimer(0);
+  assert.equal(overlay.classList.contains('is-visible'),false);
+});
+
+test('pointer interaction reveals controls, pause holds them and resume rearms auto-hide',async()=>{
+  const f=fixture();await f.mini.request(true);const overlay=f.hero.children[0];f.fireTimer(2500);
+  f.hero.dispatch('click');assert.equal(overlay.classList.contains('is-visible'),true);
+  f.s.paused=true;f.video.paused=true;f.video.listeners.pause.forEach(callback=>callback());
+  assert.equal(f.fireTimer(2500),false);assert.equal(overlay.classList.contains('is-visible'),true);
+  f.s.paused=false;f.video.paused=false;f.video.listeners.playing.forEach(callback=>callback());
+  f.fireTimer(2500);assert.equal(overlay.classList.contains('is-visible'),false);
+  f.hero.dispatch('mousemove');assert.equal(overlay.classList.contains('is-visible'),true);
+});
+
+test('a retained slider focus can reveal hidden controls without moving focus or consuming native arrows',async()=>{
+  const f=fixture();await f.mini.request(true);const overlay=f.hero.children[0];f.fireTimer(2500);
+  f.doc.activeElement=f.find('mini-player-progress');let prevented=0;
+  assert.equal(f.mini.handleKey({preventDefault(){prevented++},stopPropagation(){}},'ArrowRight',()=>assert.fail('focus moved')),true);
+  assert.equal(prevented,0);assert.equal(overlay.classList.contains('is-visible'),true);
 });
 
 test('keyboard interaction still keeps mini controls visible after playback resumes',async()=>{
   const f=fixture();await f.mini.request(true);const overlay=f.hero.children[0];
   f.mini.handleKey({preventDefault(){},stopPropagation(){}},'ArrowRight',node=>{f.doc.activeElement=node});
+  // Enter's synthetic click bubbles through the hero, without becoming mouse input.
+  f.mini.handleKey({preventDefault(){},stopPropagation(){}},'Enter',()=>{});
   f.s.paused=false;f.video.paused=false;
   f.video.listeners.playing.forEach(callback=>callback());
   assert.equal(overlay.classList.contains('is-visible'),true);
