@@ -1,6 +1,6 @@
 # 匿名播放身份与空响应恢复
 
-## 当前生产流程（2026-11-16）
+## 当前生产流程（2026-11-20）
 
 Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取源顺序：
 
@@ -9,6 +9,8 @@ Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取�
 2. GET 失败、缺模型、没有兼容源或其媒体读取失败后，进入同一个 `multi_video_model`
    provider：先请求移动端 v5 的 `POST /novel/player/multi_video_model/player/v1`。
    用独立的注册身份缓存、gzip JSON、完整 v5 Medusa / Helios 和实际压缩字节的 SS-STUB。
+   主域 HTTP 200 空正文时，以同一身份重新签名请求备用 V5 域；两个域都空时，
+   才以同一身份签名请求无正文的 `video_tab`。成功立即返回，整组失败后才进入旧协议。
 3. v5 有正常兼容源时直接进入媒体准备；仅 ByteVC2 或内联列表为空时，接现有
    `fallback_api` 和 `codec_type=1 → 0 → 3` 兼容编码回退，取得兼容候选即停止。
 4. v5 发生可恢复的取源或媒体错误时，保留旧 `POST /novel/player/multi_video_model/v1/`：
@@ -23,20 +25,22 @@ Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取�
    未压缩 JSON 与 query 使用当前播放签名实现。空响应或临时网络失败最多两次，
    明确返回不兼容模型时不反复换身份。
 
-### 移动端 v5 恢复（2026-11-16）
+### 移动端 v5 恢复（2026-11-20）
 
 参考 [N3urda/hongguoTV](https://github.com/N3urda/hongguoTV/commit/18c37c2afd0567520135abcae312352542f09083)
 的已验证请求与签名，Go 核心和 webOS 使用独立的播放专用模块，不修改账号签名：
 
-- 请求主机为 `api5-normal-sinfonlinea.fqnovel.com`，POST 路径无结尾斜线，body gzip 压缩。
+- 请求主域为 `api5-normal-sinfonlineb.fqnovel.com`，备用 V5 域为
+  `api5-normal-sinfonlinea.fqnovel.com`；POST 路径无结尾斜线，body gzip 压缩。
   `mixed_video_id_map` 保留所选内容类型，默认 `1004`；`dr_scene=player`，
-  `biz_param` 使用验证过的 `video_platform=1024`、`device_level=3` 等字段。
+  `biz_param` 使用验证过的 `video_platform=1024`、`device_level=1` 等字段。
 - query 按移动端顺序编码，版本 `7.4.3.32`，Android 12 / `PGT-AN10`；仅微调
   `_rticket` 以命中 v5 branch 12，最多 1024 次。`X-Khronos` 使用同一基准时间戳。
 - 只发送 `X-Medusa` / `X-Helios` / `X-Khronos` / `X-SS-STUB`，后者为实际 gzip 字节的
   MD5；不带账号 Cookie、Argus、Gorgon、Ladon。不使用参考代码内置的注册身份。
 - v5 匿名身份进程内复用，与 tab、旧 multi、新旧 single 和账号隔离。
-  仅确认 HTTP 200 空正文才刷新一次，沿用并发合并与 30 秒冷却；其他模型错误不轮换身份。
+  HTTP 200 空正文时保留身份，依次备用 V5 域、签名 `video_tab` GET；每次分别签名。
+  带 `Retry-After` 的响应终止这组恢复；取消、整体预算及后续旧协议重试上限不变。
 - 只接受 `data[vid].video_model` 或 `data[content_type][vid].video_model`，
   不接受别集、首条猜测或 direct-model 兜底；最大响应 2 MiB。
 - 沿用现有同剧 provider 记忆、媒体下载、Range、CENC、清晰度和播放器生命周期。
@@ -44,6 +48,14 @@ Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取�
   存储错误或禁止降档继续停止。Service 关闭取消任务，唤醒重建独立身份缓存。
 - 新增代码的来源及许可证见 `THIRD_PARTY_NOTICES.md`；40 组独立 Kotlin 合成向量
   覆盖 32 个 F13 时间旋转、4 个 carrier 分支、4 个完整 Medusa / Helios 请求。
+
+2026-11-20 按 [hongguo-drama v7.7 固定源码](https://github.com/jackotom/hongguo-drama/blob/92df757ed7be8ea658ee274a6a429b77f49e54e8/src/native/app-source.js)
+补齐同身份恢复顺序。恢复 GET 沿用 V5 的 Android 12 / `PGT-AN10` /
+`vivo_8662_64` / `74332` query，并签名覆盖 VID、业务参数和 `_rticket`；
+不再混用原来的 Redmi / `73932` query。参考实现的 POST 与恢复 GET User-Agent
+均保留 `73932`，这是与 query 版本不同的独立字段，不将其机械替换为 `74332`。
+恢复 GET 无 body、Content-Type 或 SS-STUB；只接收目标 VID，继续复用兼容编码回退。
+Android、桌面共享 Go 核心，webOS 同步这一流程；原有快速 `video_tab` 及同剧取源记忆保持原样。
 
 2026-11-16 本机实网验证：Go 共 6 集，webOS 共 4 集，均完整下载、CENC 解密，
 FFprobe 确认为 HEVC + 音频，FFmpeg 全片音视频解码无错误。其中 3 个样本的 v5 原模型

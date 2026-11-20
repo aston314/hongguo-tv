@@ -808,9 +808,9 @@
       lastVideoModelDiagnostic = Object.assign({video_id:String(vid)},diagnostic);
       if (retry.onDiagnostic) retry.onDiagnostic(Object.assign({},diagnostic));
     }
-    function next(device,attempt) {
+    function next(device,attempt,originalEmpty) {
       if (current.signal.aborted || playbackIdentityClosed) throw preparationCancelled();
-      var contentType = retry.contentType || '1004', request = mobileV5.build(String(vid),contentType,device,Date.now());
+      var contentType = retry.contentType || '1004', request = mobileV5.build(String(vid),contentType,device,Date.now(),attempt === 2);
       return requestBuffer(request.url,'POST',request.headers,request.body,mobileV5.maxJSON,current.signal,8000).catch(function (error) {
         // requestBuffer's bounded-body rejection is generic. Classify it only
         // for this protocol, so malformed v5 data can use the retained sources.
@@ -830,21 +830,26 @@
         return optionsFromEnvelope(vid,mobileV5.normalize(envelope,String(vid),contentType),current.signal,'multi_video_model',report);
       }).catch(function (error) {
         error.videoModel = Object.assign({},diagnostic);
-        if (attempt === 1 && error.code === 'VIDEO_MODEL_EMPTY' && diagnostic.http_status === 200 && !current.signal.aborted && !error.retryAfter) {
-          // v1.3.3 recovery reuses the exact registration from the POST. Do
-          // not register again or repeat the v5 POST after a 200 empty body.
+        if (current.signal.aborted || error && error.name === 'AbortError') throw preparationCancelled();
+        if (error.code === 'VIDEO_MODEL_EMPTY' && diagnostic.http_status === 200 && !error.retryAfter) {
+          // v7.7 retries V5 on the alternate host before the signed bodyless
+          // video_tab recovery. All three requests reuse this registration.
+          if (attempt === 1) return next(device, 2, error);
           return mobileVideoTabRecoveryOptions(vid, device, current.signal, report).catch(function (recoveryError) {
             if (current.signal.aborted || recoveryError && recoveryError.name === 'AbortError') throw preparationCancelled();
-            throw error;
+            throw originalEmpty || error;
           });
         }
-        throw error;
+        throw originalEmpty || error;
       });
     }
     return mobileV5Identity.get(current.signal).then(function (d) { return next(d,1); }).then(function (options) {
       finish(); state.multiLegacyPending = true; return options;
     },function (error) {
       finish(); if (signal && signal.aborted || playbackIdentityClosed) throw preparationCancelled();
+      // A recovery GET can fail with another HTTP status. Keep the V5
+      // failure that selected this fallback, so the legacy path stays usable.
+      if (error.videoModel) diagnostic = Object.assign({}, error.videoModel);
       if (error.code === 'ACCOUNT_DEVICE') diagnostic = {stage:'device_register'};
       report({code:error.code || 'VIDEO_MODEL_NETWORK',network_reason:networkDiagnostic(error)});
       error.videoModel = Object.assign({},diagnostic); state.lastError = error;
