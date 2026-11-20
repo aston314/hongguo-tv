@@ -42,7 +42,17 @@ public final class RecommendedAppPolicyTest {
         assertEquals(UpdatePolicy.BUILTIN_PROXIES.length, sources.length);
         for (int i = 0; i < sources.length; i++) assertEquals(UpdatePolicy.BUILTIN_PROXIES[i] + url, sources[i]);
         assertEquals("cc.kafeizhibo.tv", RecommendedAppPolicy.find("sports").packageName);
+        RecommendedAppPolicy.App mygo = RecommendedAppPolicy.find("mygo");
+        assertEquals("dev.aston.mygo.music.tv", mygo.packageName);
+        assertEquals("https://raw.githubusercontent.com/aston314/my-music-release/main/update.json", mygo.manifestUrl);
         try { RecommendedAppPolicy.find("../update"); fail(); } catch (IllegalArgumentException expected) { /* rejected */ }
+    }
+    @Test public void acceptsMyGoMusicPublicManifestIdentity() {
+        RecommendedAppPolicy.App mygo = RecommendedAppPolicy.find("mygo");
+        String apk = "https://github.com/aston314/my-music-release/releases/download/v0.1.5/mygo-music-tv-0.1.5.apk";
+        RecommendedAppPolicy.validate(mygo, mygo.packageName, 17, "0.1.5", 23, 25482182,
+                "ba651f28cf0b8de6209ce56babe41817c631ba659f88da1a6f17a02398d4b419", apk);
+        assertTrue(RecommendedAppPolicy.matchingArchive(mygo, mygo.packageName, 17, "0.1.5", 17, "0.1.5", new String[]{mygo.signer}));
     }
     @Test public void anIncompleteInstallCanReachEveryExistingCompatibilityRoute() {
         assertArrayEquals(new String[]{"view", "install_package", "session"}, UpdateInstallPolicy.routes(true));
