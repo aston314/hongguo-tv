@@ -46,6 +46,14 @@ func noHTTP(context.Context, resolverwire.HTTPRequest) (resolverwire.HTTPRespons
 
 func TestJSResolverIndependentVectors(t *testing.T) {
 	r := newTest(t, noHTTP)
+	digest := sumSM3([]byte("abc"))
+	if hex.EncodeToString(digest[:]) != "66c7f0f462eeedd9d1f2d46bdc10e4e24167c4875cf2f7a2297da02b8f4ba8e0" {
+		t.Fatal("standard SM3 vector mismatch")
+	}
+	metadata, e := r.Metadata(context.Background())
+	if e != nil || !metadata.NativeSM3 || metadata.Version != Version {
+		t.Fatal("script/host hash capability or version mismatch")
+	}
 	b, e := os.ReadFile("../playbackresolver/testdata/signing-v5-wire.json")
 	if e != nil {
 		t.Fatal(e)

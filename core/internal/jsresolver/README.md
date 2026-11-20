@@ -6,6 +6,9 @@ framing/key derivation, V5 signing/carrier math, identity state, model/key parsi
 and codec fallback execute in JS. Go exposes generic hash/AES/gzip/random byte
 primitives and bounded HTTP only. No account store, native signer or resolver
 fallback is exposed to the script.
+The standard SM3 hash is accelerated by the existing native primitive, generated
+from its original implementation. Protocol-specific F13/carrier operations stay
+in JS. The same bundle retains a pure-JS hash on hosts without native SM3.
 
 The Goja/Buffer dependencies are pinned to versions compatible with Go 1.25.
 No new JS runtime is imported by the normal application entry: the core adapter

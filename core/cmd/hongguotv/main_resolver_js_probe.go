@@ -152,6 +152,7 @@ func main() {
 	// Exactly one selected resolver executes; JS cannot call the native reference.
 	var active playbackResolver
 	var wireTest uint32
+	var nativeSM3 bool
 	start := time.Now()
 	if *engine == "js" {
 		runtime := newPlaybackResolverRuntime(*dir, nil, public)
@@ -161,6 +162,11 @@ func main() {
 			log.Fatal("signed JS activation failed")
 		}
 		active = runtime.Current().(playbackResolverWithFallback).active
+		metadata, e := active.(*jsPlaybackResolver).script.Metadata(ctx)
+		if e != nil {
+			log.Fatal("JS metadata unavailable")
+		}
+		nativeSM3 = metadata.NativeSM3
 		wireTest, err = active.(*jsPlaybackResolver).script.SelfTest(ctx, jsProbeVectors)
 		if err != nil || wireTest != 4 {
 			log.Fatal("JS wire vectors failed")
@@ -189,7 +195,7 @@ func main() {
 		w.Write(resolverProbePage)
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		write(w, map[string]any{"ok": true, "resolver": *engine + "-only", "embedded_fallback": false, "sha256": manifest.SHA256, "load_ms": loadMS, "script_bytes": manifest.Size, "engine": *engine, "script_loaded": *engine == "js", "module_version": *moduleVersion, "wire_vectors": wireTest, "private_override": *candidate != ""})
+		write(w, map[string]any{"ok": true, "resolver": *engine + "-only", "embedded_fallback": false, "sha256": manifest.SHA256, "load_ms": loadMS, "script_bytes": manifest.Size, "engine": *engine, "script_loaded": *engine == "js", "native_sm3": nativeSM3, "module_version": *moduleVersion, "wire_vectors": wireTest, "private_override": *candidate != ""})
 	})
 	mux.HandleFunc("/memory", func(w http.ResponseWriter, r *http.Request) {
 		var stats goruntime.MemStats

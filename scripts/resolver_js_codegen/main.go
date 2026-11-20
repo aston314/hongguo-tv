@@ -6,6 +6,10 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	goast "go/ast"
+	"go/format"
+	goparser "go/parser"
+	"go/token"
 	"os"
 	"regexp"
 	"strings"
@@ -20,6 +24,44 @@ func mustRead(path string) []byte {
 		panic(e)
 	}
 	return b
+}
+func standardSM3() []byte {
+	path := "core/cmd/hongguotv/passport_sign.go"
+	src := mustRead(path)
+	set := token.NewFileSet()
+	f, e := goparser.ParseFile(set, path, src, 0)
+	if e != nil {
+		panic(e)
+	}
+	for _, d := range f.Decls {
+		if fn, ok := d.(*goast.FuncDecl); ok && fn.Name.Name == "passportSM3" {
+			body := string(src[set.Position(fn.Pos()).Offset:set.Position(fn.End()).Offset])
+			body = strings.Replace(body, "func passportSM3(", "func sumSM3(", 1)
+			out, e := format.Source([]byte("// Code generated from the existing standard SM3 primitive; DO NOT EDIT.\npackage jsresolver\nimport(\"encoding/binary\";\"math/bits\")\n" + body + "\n"))
+			if e != nil {
+				panic(e)
+			}
+			return out
+		}
+	}
+	panic("missing standard SM3 primitive")
+}
+func passportModule() []byte {
+	s := string(mustRead("webos/service/passport-sign.js"))
+	at := strings.LastIndex(s, "  module.exports=")
+	if at < 0 {
+		panic("missing passport exports")
+	}
+	// Standard hash acceleration only. The protocol-specific branch selection,
+	// F13/carrier math, signing state and request construction remain in JS.
+	hook := `  var nativeSM3=false;
+  try { crypto.createHash('sm3').update(Buffer.alloc(0)).digest(); nativeSM3=true;
+    sm3=function(data){return crypto.createHash('sm3').update(data).digest();};
+  } catch(unsupportedSM3) {} // Older JS hosts retain the existing pure-JS hash.
+`
+	s = s[:at] + hook + s[at:]
+	s = strings.Replace(s, "module.exports={", "module.exports={nativeSM3:nativeSM3,", 1)
+	return []byte(s)
 }
 func pure(path string, names []string, prefix string) []byte {
 	source := mustRead(path)
@@ -66,7 +108,7 @@ func main() {
 	}{
 		{"crypto", mustRead("core/internal/jsresolver/source/crypto.js")},
 		{"zlib", []byte(`module.exports={gzipSync:function(b,o){return __resolverHost.gzip(b,o&&o.level!=null?o.level:-1)},gunzipSync:function(b){return __resolverHost.gunzip(b)}};`)},
-		{"passport-sign", mustRead("webos/service/passport-sign.js")},
+		{"passport-sign", passportModule()},
 		{"playback-v5-sign", mustRead("webos/service/playback-v5-sign.js")},
 		{"playback-v5-carrier", mustRead("webos/service/playback-v5-carrier.js")},
 		{"playback-v5-constants.json", append(append([]byte("module.exports="), mustRead("webos/service/playback-v5-constants.json")...), ';')},
@@ -88,11 +130,19 @@ func main() {
 		panic(e)
 	}
 	path := "core/internal/jsresolver/resolver.js"
+	sm3 := standardSM3()
+	hashPath := "core/internal/jsresolver/sm3_generated.go"
 	if *check {
 		if !bytes.Equal(mustRead(path), out.Bytes()) {
 			panic("stale JS resolver bundle; run go run ./scripts/resolver_js_codegen")
 		}
+		if !bytes.Equal(mustRead(hashPath), sm3) {
+			panic("stale standard SM3 primitive")
+		}
 		return
+	}
+	if e := os.WriteFile(hashPath, sm3, 0644); e != nil {
+		panic(e)
 	}
 	if e := os.WriteFile(path, out.Bytes(), 0644); e != nil {
 		panic(e)

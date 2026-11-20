@@ -271,7 +271,11 @@ factories["passport-sign"]=function(module,exports,require){
   function signInternational(values,bodyBytes,stamp){var tuned=tune(values,bodyBytes,stamp),query=tuned.query,ts=Math.floor(tuned.stamp/1000)>>>0,raw=crypto.randomBytes(14),be=Buffer.alloc(4);be.writeUInt32BE(ts,0);var trace=(tun32(tuned.stamp).toString(16).padStart(8,'0')+'10'+raw.slice(6).toString('hex'));var h={'X-Khronos':String(ts),'X-SS-Req-Ticket':String(values._rticket),'X-Argus':le32(ts).toString('base64'),'X-Ladon':be.toString('base64'),'X-Helios':helios(ts,raw.readUInt32LE(2)),'X-Gorgon':internationalGorgon(query,bodyBytes,ts,raw.readUInt16LE(0)),'X-TT-Trace-Id':'00-'+trace+'-'+trace.slice(0,16)+'-01'};if(bodyBytes.length)h['X-SS-STUB']=md5(bodyBytes).toString('hex').toUpperCase();return {query:query,headers:h};}
   function tun32(value){return value>>>0;}
   function le32(value){var b=Buffer.alloc(4);b.writeUInt32LE(value>>>0,0);return b;}
-  module.exports={signSingleRegistered:signSingleRegistered,playbackArgus:playbackArgus,playbackLadon:playbackLadon,signPlayback:signPlayback,sign:sign,signInternational:signInternational,sm3:sm3,branch:branch,passportF13:passportF13,passportProto:passportProto,helios:helios,gorgon:gorgon,medusa:medusa,aesV3:aesV3,internationalGorgon:internationalGorgon};
+  var nativeSM3=false;
+  try { crypto.createHash('sm3').update(Buffer.alloc(0)).digest(); nativeSM3=true;
+    sm3=function(data){return crypto.createHash('sm3').update(data).digest();};
+  } catch(unsupportedSM3) {} // Older JS hosts retain the existing pure-JS hash.
+  module.exports={nativeSM3:nativeSM3,signSingleRegistered:signSingleRegistered,playbackArgus:playbackArgus,playbackLadon:playbackLadon,signPlayback:signPlayback,sign:sign,signInternational:signInternational,sm3:sm3,branch:branch,passportF13:passportF13,passportProto:passportProto,helios:helios,gorgon:gorgon,medusa:medusa,aesV3:aesV3,internationalGorgon:internationalGorgon};
 }());
 
 };
@@ -1123,7 +1127,7 @@ function selfTest(text){
   var rows=JSON.parse(text),s=require('./playback-v5-sign'),q=v5.query({deviceID:'123',installID:'456',cdid:'synthetic'});
   for(var i=0;i<rows.length;i++){var r=rows[i],t=s.tune(q,Buffer.from(r.body,'hex'),r.ts*1000),med=s.medusa(q,r.ts,t.q,t.m,[0x80000000,0x80000000,0x80000000],{nonce:'synthetic',started:1800000000000});if(t.query!==r.query||med!==r.medusa||s.helios(r.ts,0x80000000)!==r.helios)return 0;}return rows.length;
 }
-module.exports={resolve:resolve,selfTest:selfTest,metadata:function(){return {name:'js-v5',version:'2026.11.20.2',protocol:1}},test:{device:device,model:model,options:options}};
+module.exports={resolve:resolve,selfTest:selfTest,metadata:function(){return {name:'js-v5',version:'2026.11.20.3',protocol:1,native_sm3:!!sign.nativeSM3}},test:{device:device,model:model,options:options}};
 
 };
 function require(name){if(name.slice(0,2)==='./')name=name.slice(2);if(name==='buffer')return {Buffer:Buffer};if(cache[name])return cache[name].exports;if(!factories[name])throw new Error('module unavailable');var m={exports:{}};cache[name]=m;factories[name](m,m.exports,require);return m.exports;}return require('resolver');})()

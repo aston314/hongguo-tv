@@ -35,7 +35,7 @@ var source []byte
 func Source() []byte { return bytes.Clone(source) }
 
 const MaxScript = 1024 * 1024
-const Version = "2026.11.20.2"
+const Version = "2026.11.20.3"
 
 type Transport func(context.Context, resolverwire.HTTPRequest) (resolverwire.HTTPResponse, error)
 type Error struct{ Code, Stage string }
@@ -171,9 +171,10 @@ func (r *Resolver) Resolve(ctx context.Context, request resolverwire.Request) ([
 }
 
 type Metadata struct {
-	Name     string `json:"name"`
-	Version  string `json:"version"`
-	Protocol int    `json:"protocol"`
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	Protocol  int    `json:"protocol"`
+	NativeSM3 bool   `json:"native_sm3"`
 }
 
 func (r *Resolver) Metadata(ctx context.Context) (Metadata, error) {
@@ -247,6 +248,9 @@ func (r *Resolver) hash(call goja.FunctionCall) goja.Value {
 	b := r.blob(call.Argument(1))
 	var out []byte
 	switch call.Argument(0).String() {
+	case "sm3":
+		v := sumSM3(b)
+		out = v[:]
 	case "md5":
 		v := md5.Sum(b)
 		out = v[:]

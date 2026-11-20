@@ -87,4 +87,4 @@ function selfTest(text){
   var rows=JSON.parse(text),s=require('./playback-v5-sign'),q=v5.query({deviceID:'123',installID:'456',cdid:'synthetic'});
   for(var i=0;i<rows.length;i++){var r=rows[i],t=s.tune(q,Buffer.from(r.body,'hex'),r.ts*1000),med=s.medusa(q,r.ts,t.q,t.m,[0x80000000,0x80000000,0x80000000],{nonce:'synthetic',started:1800000000000});if(t.query!==r.query||med!==r.medusa||s.helios(r.ts,0x80000000)!==r.helios)return 0;}return rows.length;
 }
-module.exports={resolve:resolve,selfTest:selfTest,metadata:function(){return {name:'js-v5',version:'2026.11.20.2',protocol:1}},test:{device:device,model:model,options:options}};
+module.exports={resolve:resolve,selfTest:selfTest,metadata:function(){return {name:'js-v5',version:'2026.11.20.3',protocol:1,native_sm3:!!sign.nativeSM3}},test:{device:device,model:model,options:options}};

@@ -21,8 +21,8 @@ function sandboxBuffer(){
   LocalBuffer.concat=function(){return wrap(Buffer.concat.apply(Buffer,arguments));};
   return LocalBuffer;
 }
-function create(http){
-  const host={random:n=>crypto.randomBytes(n),hash:(name,b)=>crypto.createHash(name).update(b).digest(),
+function create(http,options){
+  const host={random:n=>crypto.randomBytes(n),hash:(name,b)=>{if(options&&options.noNativeSM3&&name==='sm3')throw Error('unsupported hash');return crypto.createHash(name).update(b).digest();},
     gzip:(b,level)=>zlib.gzipSync(b,{level}),gunzip:b=>zlib.gunzipSync(b),http,
     cipher:(name,key,iv,data,decrypt,padding)=>{const c=(decrypt?crypto.createDecipheriv:crypto.createCipheriv)(name,key,iv);c.setAutoPadding(padding);return Buffer.concat([c.update(data),c.final()]);}};
   return vm.runInNewContext(source,{Buffer:sandboxBuffer(),__resolverHost:host},{timeout:3000});
@@ -33,6 +33,12 @@ test('same script passes independent vectors with the Node byte host',()=>{
   const vectors=fs.readFileSync(path.join(root,'core/internal/playbackresolver/testdata/signing-v5-wire.json'),'utf8');
   assert.equal(api.selfTest(vectors),4);
   assert.equal(Buffer.prototype.slice,slice,'sandbox modified the host Buffer prototype');
+});
+test('older hosts retain the pure-JS SM3 path with identical signatures',()=>{
+  const api=create(()=>{throw Error('unexpected network');},{noNativeSM3:true});
+  assert.equal(api.metadata().native_sm3,false);
+  const vectors=fs.readFileSync(path.join(root,'core/internal/playbackresolver/testdata/signing-v5-wire.json'),'utf8');
+  assert.equal(api.selfTest(vectors),4);
 });
 test('same script supports asynchronous HTTP, refresh and compatible fallback',async()=>{
   let registrations=0,models=0;const codecs=[];
