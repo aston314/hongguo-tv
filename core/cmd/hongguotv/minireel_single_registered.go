@@ -16,7 +16,28 @@ import (
 
 const singleRegisteredEndpoint = "https://api5-normal-sinfonlineb.fqnovel.com" + miniReelSinglePath
 const singleRegisteredDeviceBase = "https://log.snssdk.com"
+const singleRegisteredFallbackDeviceBase = "https://log5-applog-lq.fqnovel.com"
 const singleRegisteredUA = "com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)"
+
+var singleRegisteredDeviceBases = []string{singleRegisteredDeviceBase, singleRegisteredFallbackDeviceBase}
+
+func registerSingleRegisteredDeviceWithFallback(ctx context.Context, client *http.Client) (miniReelDevice, error) {
+	var lastErr error
+	for _, base := range singleRegisteredDeviceBases {
+		if err := ctx.Err(); err != nil {
+			return miniReelDevice{}, err
+		}
+		device, err := registerSingleRegisteredDevice(ctx, base, client)
+		if err == nil {
+			return device, nil
+		}
+		lastErr = err
+		if !miniReelPlaybackDeviceHostRetryable(err) {
+			break
+		}
+	}
+	return miniReelDevice{}, lastErr
+}
 
 func singleRegisteredQuery(d miniReelDevice) url.Values {
 	return url.Values{"aid": {"8662"}, "app_name": {"novelread"}, "version_code": {"73532"}, "version_name": {"7.3.5.32"}, "manifest_version_code": {"73532"}, "update_version_code": {"73532"}, "channel": {"update_64"}, "device_platform": {"android"}, "os": {"android"}, "ssmix": {"a"}, "device_type": {"25053RT47C"}, "device_brand": {"Redmi"}, "language": {"zh"}, "os_api": {"36"}, "os_version": {"16"}, "resolution": {"1280*2772"}, "dpi": {"520"}, "ac": {"wifi"}, "device_id": {d.deviceID}, "iid": {d.installID}}
@@ -84,7 +105,7 @@ type miniReelSingleRegisteredSource struct {
 var productionSingleRegistered = &miniReelSingleRegisteredSource{endpoint: singleRegisteredEndpoint, identity: newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), miniReelDeviceTimeout)
 	defer cancel()
-	return registerSingleRegisteredDevice(ctx, singleRegisteredDeviceBase, nil)
+	return registerSingleRegisteredDeviceWithFallback(ctx, nil)
 })}
 
 func (s *miniReelSingleRegisteredSource) options(ctx context.Context, vid, codecMode string) ([]miniReelOption, error) {

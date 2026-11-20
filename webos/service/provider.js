@@ -66,7 +66,7 @@
   }
   function transientVideoModelError(error) {
     if (!error) return false;
-    if (error.code === 'VIDEO_MODEL_HTTP' || error.code === 'ACCOUNT_DEVICE') return [408, 425, 429, 500, 502, 503, 504].indexOf(Number(error.status)) >= 0;
+    if (error.code === 'VIDEO_MODEL_HTTP' || error.code === 'ACCOUNT_DEVICE') return [408, 425, 429, 444, 500, 502, 503, 504].indexOf(Number(error.status)) >= 0;
     return ['VIDEO_MODEL_EMPTY', 'UPSTREAM_TIMEOUT', 'ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET',
       'ECONNREFUSED', 'EPIPE', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN'].indexOf(error.code) >= 0;
   }

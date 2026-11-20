@@ -3,6 +3,8 @@ var sign = require('./passport-sign');
 var crypto = require('crypto');
 var networkDiagnostic = require('./network-diagnostic');
 var UA = 'com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
+var DEVICE_BASE = 'https://log.snssdk.com';
+var DEVICE_FALLBACK_BASE = 'https://log5-applog-lq.fqnovel.com';
 function query(d) {
   return {aid:'8662',app_name:'novelread',version_code:'73532',version_name:'7.3.5.32',manifest_version_code:'73532',update_version_code:'73532',channel:'update_64',device_platform:'android',os:'android',ssmix:'a',device_type:'25053RT47C',device_brand:'Redmi',language:'zh',os_api:'36',os_version:'16',resolution:'1280*2772',dpi:'520',ac:'wifi',device_id:d.deviceID || '',iid:d.installID || ''};
 }
@@ -13,7 +15,14 @@ function register(send) {
   var q=query({}); delete q.device_id;delete q.iid;q.req_id=uuid();q._rticket=String(stamp);
   var raw=Buffer.from(JSON.stringify({magic_tag:'ss_app_log',header:h,_gen_time:stamp}));
   var encoded=Object.keys(q).sort().map(function(k){return encodeURIComponent(k)+'='+encodeURIComponent(q[k]).replace(/\*/g,'%2A');}).join('&');
-  return send('https://log.snssdk.com/service/2/device_register/?'+encoded,'POST',{'User-Agent':UA,Accept:'application/json','Content-Type':'application/json; charset=utf-8'},raw,65536).then(function(res){
+  function post(base){return send(base+'/service/2/device_register/?'+encoded,'POST',{'User-Agent':UA,Accept:'application/json','Content-Type':'application/json; charset=utf-8'},raw,65536).then(function(res){
+    if(Number(res.status)===444){var error=new Error('匿名播放身份注册失败');error.code='ACCOUNT_DEVICE';error.status=res.status;throw error;}
+    return res;
+  });}
+  return post(DEVICE_BASE).catch(function(error){
+    if(error && error.code==='ACCOUNT_DEVICE' && Number(error.status)===444)return post(DEVICE_FALLBACK_BASE);
+    throw error;
+  }).then(function(res){
     var error=new Error('匿名播放身份注册失败');error.code='ACCOUNT_DEVICE';error.status=res.status;
     if(res.status!==200)throw error;
     var p;try{p=JSON.parse(res.body.toString('utf8').replace(/("(?:device_id|install_id)"\s*:\s*)(\d{16,})/g,'$1"$2"'));}catch(ignored){throw error;}

@@ -57,6 +57,10 @@ func miniReelSourceFallbackAllowed(err error) bool {
 	switch d.Code {
 	case "VIDEO_MODEL_MISSING", "VIDEO_MODEL_LIST_EMPTY", "VIDEO_MODEL_JSON", "VIDEO_MODEL_NO_QUALITY", "DEVICE_REGISTER_FAILED", "DEVICE_REGISTER_READ":
 		return true
+	case "DEVICE_REGISTER_HTTP":
+		if d.HTTPStatus != nil && *d.HTTPStatus == 444 {
+			return true
+		}
 	}
 	return false
 }

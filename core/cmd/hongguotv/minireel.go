@@ -1258,8 +1258,13 @@ func miniReelNativeOptionsWithIdentityCacheForContentType(ctx context.Context, v
 	return miniReelPlaybackRecovery.recover(ctx, identity, device, vid, endpoint, codecMode, contentType, sourceErr)
 }
 
+// Playback identities use log.snssdk.com first. log5-applog-lq is the
+// registration host used by the single-episode protocol and is a fallback for
+// networks where the legacy host answers 444 without a response body.
+var miniReelPlaybackDeviceBases = []string{passportDeviceAPI, miniReelSingleDeviceBase}
+
 func registerMiniReelPlaybackDevice() (miniReelDevice, error) {
-	return registerMiniReelPlaybackDeviceAt(passportDeviceAPI)
+	return registerMiniReelPlaybackDeviceWithFallback(context.Background())
 }
 
 func registerMiniReelPlaybackDeviceAt(deviceBase string) (miniReelDevice, error) {
@@ -1267,7 +1272,34 @@ func registerMiniReelPlaybackDeviceAt(deviceBase string) (miniReelDevice, error)
 }
 
 func registerMiniReelPlaybackDeviceContext(ctx context.Context) (miniReelDevice, error) {
-	return registerMiniReelPlaybackDeviceAtContext(ctx, passportDeviceAPI)
+	return registerMiniReelPlaybackDeviceWithFallback(ctx)
+}
+
+func registerMiniReelPlaybackDeviceWithFallback(ctx context.Context) (miniReelDevice, error) {
+	var lastErr error
+	for _, deviceBase := range miniReelPlaybackDeviceBases {
+		if err := ctx.Err(); err != nil {
+			return miniReelDevice{}, err
+		}
+		device, err := registerMiniReelPlaybackDeviceAtContext(ctx, deviceBase)
+		if err == nil {
+			return device, nil
+		}
+		lastErr = err
+		if !miniReelPlaybackDeviceHostRetryable(err) {
+			break
+		}
+	}
+	return miniReelDevice{}, lastErr
+}
+
+func miniReelPlaybackDeviceHostRetryable(err error) bool {
+	diagnostic := playbackPreparationDetails(err)
+	if diagnostic.HTTPStatus == nil {
+		return diagnostic.Code == "DEVICE_REGISTER_FAILED" || strings.HasSuffix(diagnostic.Code, "_TIMEOUT")
+	}
+	status := *diagnostic.HTTPStatus
+	return status == 444
 }
 
 func registerMiniReelPlaybackDeviceAtContext(ctx context.Context, deviceBase string) (miniReelDevice, error) {
