@@ -13,7 +13,8 @@ function keyboard() {
     var current={id:'sidebar-recommend',classList:{contains:function(){return false}}};
     var highlighted=current;
     var document={activeElement:current,body:{id:'body'},querySelector:function(selector){return selector==='.is-focused'?highlighted:null}};
-    function focusables(){return highlighted?[highlighted]:[]}
+    var paintedFocus=current;
+    function isFocusTarget(element){return !!element && element===highlighted}
     var lastPageFocus={search:current};
     var detailModalOpen=false,playerOptionsOpen=false,confirmOpen=false,discussionOpen=false;
     var androidShell=false,searchSuggestionActivation=null; function accountKeypadOpen(){return false}
@@ -29,7 +30,7 @@ function keyboard() {
     function isPlaybackPage(){return false}
     function zoneOf(){return 'sidebar'}
     function moveFrom(current,direction){moved.push(direction);return {id:direction}}
-    function goFocus(target){focused.push(target.id);highlighted=target;if(!target.classList)target.classList={contains:function(){return false}};if(!target.click)target.click=function(){clicks++}}
+    function goFocus(target){focused.push(target.id);highlighted=target;paintedFocus=target;if(!target.classList)target.classList={contains:function(){return false}};if(!target.click)target.click=function(){clicks++}}
     function revealControls(){}
     function handleMediaCommand(){return false}
     function handleEndRecommendationKey(){return false}
