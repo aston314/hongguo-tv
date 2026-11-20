@@ -1,5 +1,9 @@
 # Shield: production and native playback memory, 2026-11-20
 
+Follow-up: the [local JavaScript resolver validation](playback-resolver-js-validation.md)
+records a lower-memory alternative, including matched-APK native/JS playback,
+script-only replacement, timing cost and measurement limits.
+
 The installed official APKs are already the latest Android release,
 [v0.2.173](https://github.com/aston314/hongguo-tv-releases/releases/tag/v0.2.173).
 Both installed APK hashes exactly match that release's SHA256SUMS:

@@ -1,0 +1,1270 @@
+{
+  "schema": 1,
+  "date": "2026-11-20",
+  "experimental": true,
+  "build_run": 44643677717,
+  "source_commit": "8325e97d695fb2e32f95066e34b5355d38e22f21",
+  "go_toolchain": "go1.25.14",
+  "package": "rocks.aston.hongguoresolverjsdiag",
+  "device": {
+    "model": "Shield/darcy",
+    "android": "11",
+    "abi": "arm64",
+    "webview": "120.0.6099.230"
+  },
+  "apk": {
+    "bytes": 15823077,
+    "installed_apk_sha256": "2adf8ecb27d1a2d4711250cb5cc997122121032c3dee9c78c5d013a36f73da5f",
+    "build_run": 44643677717
+  },
+  "module_version": "2026.11.20.3",
+  "checks": {
+    "independent_v5_vectors": 4,
+    "node_bundle_tests": 3,
+    "go_race_packages": [
+      "jsresolver",
+      "playbackresolver"
+    ],
+    "registration_wire_parity": true,
+    "production_resolver_focused_tests": true,
+    "github_apk_lint_and_dual_abi_build": true
+  },
+  "sessions": {
+    "js": {
+      "health": {
+        "embedded_fallback": false,
+        "engine": "js",
+        "load_ms": 245,
+        "module_version": "2026.11.20.3",
+        "native_sm3": true,
+        "ok": true,
+        "private_override": false,
+        "resolver": "js-only",
+        "script_bytes": 72498,
+        "script_loaded": true,
+        "sha256": "a63b6d56ccfcf6bacf37357a183a78fe667fd33baff65b0d140d2302a96cfa71",
+        "wire_vectors": 4
+      },
+      "report": {
+        "embedded_fallback": false,
+        "load_ms": 245,
+        "playback": [
+          {
+            "vid": "7706514645208534041",
+            "event": "playing_5s",
+            "position": 5.170402,
+            "width": 1080,
+            "height": 1920,
+            "decoded_frames": 133,
+            "dropped_frames": 4
+          },
+          {
+            "vid": "7706514815799282713",
+            "event": "playing_5s",
+            "position": 5.127211,
+            "width": 1080,
+            "height": 1920,
+            "decoded_frames": 132,
+            "dropped_frames": 0
+          },
+          {
+            "vid": "7706514627462433817",
+            "event": "playing_5s",
+            "position": 5.092882,
+            "width": 1080,
+            "height": 1920,
+            "decoded_frames": 132,
+            "dropped_frames": 0
+          },
+          {
+            "vid": "7702841946812714008",
+            "event": "playing_5s",
+            "position": 5.072263,
+            "width": 1920,
+            "height": 1080,
+            "decoded_frames": 156,
+            "dropped_frames": 0
+          },
+          {
+            "vid": "7702841953875938328",
+            "event": "playing_5s",
+            "position": 5.122929,
+            "width": 1920,
+            "height": 1080,
+            "decoded_frames": 127,
+            "dropped_frames": 0
+          },
+          {
+            "vid": "7703473857562151961",
+            "event": "playing_5s",
+            "position": 5.092115,
+            "width": 1920,
+            "height": 1080,
+            "decoded_frames": 157,
+            "dropped_frames": 0
+          }
+        ],
+        "resolver": "js-only",
+        "results": [
+          {
+            "vid": "7706514645208534041",
+            "ok": true,
+            "codec": "bytevc1",
+            "width": 1080,
+            "height": 1080,
+            "options": 1,
+            "resolve_ms": 1355,
+            "total_ms": 3945,
+            "media_bytes": 22013835,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "device_register",
+                "status": 200,
+                "bytes": -1,
+                "ms": 335
+              },
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 241
+              }
+            ]
+          },
+          {
+            "vid": "7706514815799282713",
+            "ok": true,
+            "codec": "bytevc1",
+            "width": 1080,
+            "height": 1080,
+            "options": 5,
+            "resolve_ms": 897,
+            "total_ms": 2032,
+            "media_bytes": 7258839,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 144
+              }
+            ]
+          },
+          {
+            "vid": "7706514627462433817",
+            "ok": true,
+            "codec": "bytevc1",
+            "width": 1080,
+            "height": 1080,
+            "options": 5,
+            "resolve_ms": 936,
+            "total_ms": 1591,
+            "media_bytes": 3875487,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 130
+              }
+            ]
+          },
+          {
+            "vid": "7702841946812714008",
+            "ok": true,
+            "codec": "h265",
+            "width": 1920,
+            "height": 1080,
+            "options": 5,
+            "resolve_ms": 1322,
+            "total_ms": 26244,
+            "media_bytes": 27320959,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 126
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 195,
+                "codec": "4"
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 53,
+                "codec": "1"
+              }
+            ]
+          },
+          {
+            "vid": "7702841953875938328",
+            "ok": true,
+            "codec": "h265",
+            "width": 1920,
+            "height": 1080,
+            "options": 5,
+            "resolve_ms": 1225,
+            "total_ms": 2300,
+            "media_bytes": 7522899,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 130
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 119,
+                "codec": "4"
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 64,
+                "codec": "1"
+              }
+            ]
+          },
+          {
+            "vid": "7703473857562151961",
+            "ok": true,
+            "codec": "h265",
+            "width": 1920,
+            "height": 1080,
+            "options": 5,
+            "resolve_ms": 1158,
+            "total_ms": 3374,
+            "media_bytes": 16120440,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 128
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 64,
+                "codec": "4"
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 64,
+                "codec": "1"
+              }
+            ]
+          }
+        ],
+        "sha256": "a63b6d56ccfcf6bacf37357a183a78fe667fd33baff65b0d140d2302a96cfa71"
+      },
+      "before": {
+        "phase": "js-probe-v3-before",
+        "utc": "2026-11-20T00:19:48.379880+00:00",
+        "processes": {
+          "core": {
+            "pid": 10023,
+            "pss_kib": 20582,
+            "rss_kib": 22652,
+            "peak_rss_kib": 22948
+          },
+          "java": {
+            "pid": 9935,
+            "pss_kib": 210298,
+            "rss_kib": 305256,
+            "peak_rss_kib": 249868
+          },
+          "renderer": {
+            "pid": 9979,
+            "pss_kib": 61899,
+            "rss_kib": 123948,
+            "peak_rss_kib": 125632
+          }
+        },
+        "sum_pss_kib": 292779,
+        "sum_rss_kib": 451856
+      },
+      "after": {
+        "phase": "js-probe-v3-after",
+        "utc": "2026-11-20T00:21:12.341775+00:00",
+        "processes": {
+          "core": {
+            "pid": 10023,
+            "pss_kib": 38500,
+            "rss_kib": 40568,
+            "peak_rss_kib": 64776
+          },
+          "java": {
+            "pid": 9935,
+            "pss_kib": 279365,
+            "rss_kib": 378656,
+            "peak_rss_kib": 287212
+          },
+          "renderer": {
+            "pid": 9979,
+            "pss_kib": 86708,
+            "rss_kib": 148448,
+            "peak_rss_kib": 146648
+          }
+        },
+        "sum_pss_kib": 404573,
+        "sum_rss_kib": 567672
+      },
+      "heap_after": {
+        "host_heap_alloc": 2978656,
+        "host_heap_idle": 43909120,
+        "host_heap_released": 42999808,
+        "host_heap_sys": 49676288,
+        "host_sys": 55533584
+      }
+    },
+    "native": {
+      "health": {
+        "embedded_fallback": false,
+        "engine": "native",
+        "load_ms": 1,
+        "module_version": "2026.11.20.3",
+        "native_sm3": false,
+        "ok": true,
+        "private_override": false,
+        "resolver": "native-only",
+        "script_bytes": 72498,
+        "script_loaded": false,
+        "sha256": "a63b6d56ccfcf6bacf37357a183a78fe667fd33baff65b0d140d2302a96cfa71",
+        "wire_vectors": 4
+      },
+      "report": {
+        "embedded_fallback": false,
+        "load_ms": 1,
+        "playback": [
+          {
+            "vid": "7706514645208534041",
+            "event": "playing_5s",
+            "position": 5.043476,
+            "width": 1080,
+            "height": 1920,
+            "decoded_frames": 130,
+            "dropped_frames": 0
+          },
+          {
+            "vid": "7706514815799282713",
+            "event": "playing_5s",
+            "position": 5.127524,
+            "width": 1080,
+            "height": 1920,
+            "decoded_frames": 132,
+            "dropped_frames": 0
+          },
+          {
+            "vid": "7706514627462433817",
+            "event": "playing_5s",
+            "position": 5.083517,
+            "width": 1080,
+            "height": 1920,
+            "decoded_frames": 132,
+            "dropped_frames": 0
+          },
+          {
+            "vid": "7702841946812714008",
+            "event": "playing_5s",
+            "position": 5.06665,
+            "width": 1920,
+            "height": 1080,
+            "decoded_frames": 157,
+            "dropped_frames": 0
+          },
+          {
+            "vid": "7702841953875938328",
+            "event": "playing_5s",
+            "position": 5.112886,
+            "width": 1920,
+            "height": 1080,
+            "decoded_frames": 127,
+            "dropped_frames": 0
+          },
+          {
+            "vid": "7703473857562151961",
+            "event": "playing_5s",
+            "position": 5.100676,
+            "width": 1920,
+            "height": 1080,
+            "decoded_frames": 157,
+            "dropped_frames": 0
+          }
+        ],
+        "resolver": "native-only",
+        "results": [
+          {
+            "vid": "7706514645208534041",
+            "ok": true,
+            "codec": "bytevc1",
+            "width": 1080,
+            "height": 1080,
+            "options": 1,
+            "resolve_ms": 695,
+            "total_ms": 4631,
+            "media_bytes": 22013835,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "device_register",
+                "status": 200,
+                "bytes": -1,
+                "ms": 409
+              },
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 273
+              }
+            ]
+          },
+          {
+            "vid": "7706514815799282713",
+            "ok": true,
+            "codec": "bytevc1",
+            "width": 1080,
+            "height": 1080,
+            "options": 5,
+            "resolve_ms": 136,
+            "total_ms": 1211,
+            "media_bytes": 7258839,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 131
+              }
+            ]
+          },
+          {
+            "vid": "7706514627462433817",
+            "ok": true,
+            "codec": "bytevc1",
+            "width": 1080,
+            "height": 1080,
+            "options": 5,
+            "resolve_ms": 139,
+            "total_ms": 670,
+            "media_bytes": 3875487,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 132
+              }
+            ]
+          },
+          {
+            "vid": "7702841946812714008",
+            "ok": true,
+            "codec": "h265",
+            "width": 1920,
+            "height": 1080,
+            "options": 5,
+            "resolve_ms": 461,
+            "total_ms": 4932,
+            "media_bytes": 27320959,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 110
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 238,
+                "codec": "4"
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 102,
+                "codec": "1"
+              }
+            ]
+          },
+          {
+            "vid": "7702841953875938328",
+            "ok": true,
+            "codec": "h265",
+            "width": 1920,
+            "height": 1080,
+            "options": 5,
+            "resolve_ms": 345,
+            "total_ms": 3100,
+            "media_bytes": 7522899,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 131
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 125,
+                "codec": "4"
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 77,
+                "codec": "1"
+              }
+            ]
+          },
+          {
+            "vid": "7703473857562151961",
+            "ok": true,
+            "codec": "h265",
+            "width": 1920,
+            "height": 1080,
+            "options": 5,
+            "resolve_ms": 310,
+            "total_ms": 2968,
+            "media_bytes": 16120440,
+            "media": "/media/current.mp4",
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": -1,
+                "ms": 134
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 80,
+                "codec": "4"
+              },
+              {
+                "stage": "fallback_api",
+                "status": 200,
+                "bytes": -1,
+                "ms": 83,
+                "codec": "1"
+              }
+            ]
+          }
+        ],
+        "sha256": "a63b6d56ccfcf6bacf37357a183a78fe667fd33baff65b0d140d2302a96cfa71"
+      },
+      "before": {
+        "phase": "js-probe-native-v3-before",
+        "utc": "2026-11-20T00:21:45.401354+00:00",
+        "processes": {
+          "core": {
+            "pid": 10568,
+            "pss_kib": 14098,
+            "rss_kib": 16068,
+            "peak_rss_kib": 15476
+          },
+          "java": {
+            "pid": 10487,
+            "pss_kib": 153158,
+            "rss_kib": 247488,
+            "peak_rss_kib": 191720
+          }
+        },
+        "sum_pss_kib": 167256,
+        "sum_rss_kib": 263556
+      },
+      "after": {
+        "phase": "js-probe-native-v3-after",
+        "utc": "2026-11-20T00:22:38.540348+00:00",
+        "processes": {
+          "core": {
+            "pid": 10568,
+            "pss_kib": 20278,
+            "rss_kib": 22248,
+            "peak_rss_kib": 60888
+          },
+          "java": {
+            "pid": 10487,
+            "pss_kib": 219231,
+            "rss_kib": 321232,
+            "peak_rss_kib": 212276
+          }
+        },
+        "sum_pss_kib": 239509,
+        "sum_rss_kib": 343480
+      },
+      "heap_after": {
+        "host_heap_alloc": 1872616,
+        "host_heap_idle": 45768704,
+        "host_heap_released": 44564480,
+        "host_heap_sys": 49676288,
+        "host_sys": 55009296
+      }
+    }
+  },
+  "timing_difference_ms": [
+    660,
+    761,
+    797,
+    861,
+    880,
+    848
+  ],
+  "script_only_replacement": {
+    "proof": {
+      "apk_sha256": "9acbf39927985f4fa4d7a94dadebda544d15c3efa96568e634b0c80e59f0e6ab",
+      "v2_script_sha256": "f82bd69893646cd9528f71fd2b7b8fe1210c6cc8f72fb56c6e976aa19d2bf4cd",
+      "private_override": true,
+      "apk_unchanged_from_run": 44639764677
+    },
+    "script_version": "2026.11.20.2",
+    "health": {
+      "embedded_fallback": false,
+      "engine": "js",
+      "load_ms": 883,
+      "module_version": "2026.11.20.2",
+      "ok": true,
+      "private_override": true,
+      "resolver": "js-only",
+      "script_bytes": 72183,
+      "script_loaded": true,
+      "sha256": "f82bd69893646cd9528f71fd2b7b8fe1210c6cc8f72fb56c6e976aa19d2bf4cd",
+      "wire_vectors": 4
+    },
+    "report": {
+      "embedded_fallback": false,
+      "load_ms": 883,
+      "playback": [
+        {
+          "vid": "7706514645208534041",
+          "event": "playing_5s",
+          "position": 5.060865,
+          "width": 1080,
+          "height": 1920,
+          "decoded_frames": 131,
+          "dropped_frames": 0
+        },
+        {
+          "vid": "7706514815799282713",
+          "event": "playing_5s",
+          "position": 5.089558,
+          "width": 1080,
+          "height": 1920,
+          "decoded_frames": 131,
+          "dropped_frames": 0
+        },
+        {
+          "vid": "7706514627462433817",
+          "event": "playing_5s",
+          "position": 5.120841,
+          "width": 1080,
+          "height": 1920,
+          "decoded_frames": 132,
+          "dropped_frames": 0
+        },
+        {
+          "vid": "7702841946812714008",
+          "event": "playing_5s",
+          "position": 5.062514,
+          "width": 1920,
+          "height": 1080,
+          "decoded_frames": 156,
+          "dropped_frames": 0
+        },
+        {
+          "vid": "7702841953875938328",
+          "event": "playing_5s",
+          "position": 5.118106,
+          "width": 1920,
+          "height": 1080,
+          "decoded_frames": 127,
+          "dropped_frames": 0
+        },
+        {
+          "vid": "7703473857562151961",
+          "event": "playing_5s",
+          "position": 5.116481,
+          "width": 1920,
+          "height": 1080,
+          "decoded_frames": 158,
+          "dropped_frames": 0
+        }
+      ],
+      "resolver": "js-only",
+      "results": [
+        {
+          "vid": "7706514645208534041",
+          "ok": true,
+          "codec": "bytevc1",
+          "width": 1080,
+          "height": 1080,
+          "options": 1,
+          "resolve_ms": 1716,
+          "total_ms": 5479,
+          "media_bytes": 22013835,
+          "media": "/media/current.mp4",
+          "requests": [
+            {
+              "stage": "device_register",
+              "status": 200,
+              "bytes": -1,
+              "ms": 445
+            },
+            {
+              "stage": "v5_model",
+              "status": 200,
+              "bytes": -1,
+              "ms": 241
+            }
+          ]
+        },
+        {
+          "vid": "7706514815799282713",
+          "ok": true,
+          "codec": "bytevc1",
+          "width": 1080,
+          "height": 1080,
+          "options": 5,
+          "resolve_ms": 1026,
+          "total_ms": 2610,
+          "media_bytes": 7258839,
+          "media": "/media/current.mp4",
+          "requests": [
+            {
+              "stage": "v5_model",
+              "status": 200,
+              "bytes": -1,
+              "ms": 134
+            }
+          ]
+        },
+        {
+          "vid": "7706514627462433817",
+          "ok": true,
+          "codec": "bytevc1",
+          "width": 1080,
+          "height": 1080,
+          "options": 5,
+          "resolve_ms": 1017,
+          "total_ms": 1438,
+          "media_bytes": 3875487,
+          "media": "/media/current.mp4",
+          "requests": [
+            {
+              "stage": "v5_model",
+              "status": 200,
+              "bytes": -1,
+              "ms": 132
+            }
+          ]
+        },
+        {
+          "vid": "7702841946812714008",
+          "ok": true,
+          "codec": "h265",
+          "width": 1920,
+          "height": 1080,
+          "options": 5,
+          "resolve_ms": 1479,
+          "total_ms": 6669,
+          "media_bytes": 27320959,
+          "media": "/media/current.mp4",
+          "requests": [
+            {
+              "stage": "v5_model",
+              "status": 200,
+              "bytes": -1,
+              "ms": 143
+            },
+            {
+              "stage": "fallback_api",
+              "status": 200,
+              "bytes": -1,
+              "ms": 204,
+              "codec": "4"
+            },
+            {
+              "stage": "fallback_api",
+              "status": 200,
+              "bytes": -1,
+              "ms": 101,
+              "codec": "1"
+            }
+          ]
+        },
+        {
+          "vid": "7702841953875938328",
+          "ok": true,
+          "codec": "h265",
+          "width": 1920,
+          "height": 1080,
+          "options": 5,
+          "resolve_ms": 1257,
+          "total_ms": 2112,
+          "media_bytes": 7522899,
+          "media": "/media/current.mp4",
+          "requests": [
+            {
+              "stage": "v5_model",
+              "status": 200,
+              "bytes": -1,
+              "ms": 150
+            },
+            {
+              "stage": "fallback_api",
+              "status": 200,
+              "bytes": -1,
+              "ms": 91,
+              "codec": "4"
+            },
+            {
+              "stage": "fallback_api",
+              "status": 200,
+              "bytes": -1,
+              "ms": 97,
+              "codec": "1"
+            }
+          ]
+        },
+        {
+          "vid": "7703473857562151961",
+          "ok": true,
+          "codec": "h265",
+          "width": 1920,
+          "height": 1080,
+          "options": 5,
+          "resolve_ms": 1817,
+          "total_ms": 4572,
+          "media_bytes": 16120440,
+          "media": "/media/current.mp4",
+          "requests": [
+            {
+              "stage": "v5_model",
+              "status": 200,
+              "bytes": -1,
+              "ms": 153
+            },
+            {
+              "stage": "fallback_api",
+              "status": 200,
+              "bytes": -1,
+              "ms": 86,
+              "codec": "4"
+            },
+            {
+              "stage": "fallback_api",
+              "status": 200,
+              "bytes": -1,
+              "ms": 103,
+              "codec": "1"
+            }
+          ]
+        }
+      ],
+      "sha256": "f82bd69893646cd9528f71fd2b7b8fe1210c6cc8f72fb56c6e976aa19d2bf4cd"
+    },
+    "before": {
+      "phase": "js-probe-v2-before",
+      "utc": "2026-11-19T23:57:52.000633+00:00",
+      "processes": {
+        "core": {
+          "pid": 9385,
+          "pss_kib": 22186,
+          "rss_kib": 24212,
+          "peak_rss_kib": 22964
+        }
+      },
+      "sum_pss_kib": 22186,
+      "sum_rss_kib": 24212
+    },
+    "after": {
+      "phase": "js-probe-v2-during",
+      "utc": "2026-11-19T23:58:54.609010+00:00",
+      "processes": {
+        "core": {
+          "pid": 9385,
+          "pss_kib": 64561,
+          "rss_kib": 66588,
+          "peak_rss_kib": 66576
+        }
+      },
+      "sum_pss_kib": 64561,
+      "sum_rss_kib": 66588
+    },
+    "paired_native_before": {
+      "phase": "js-probe-native-before",
+      "utc": "2026-11-19T23:54:03.707450+00:00",
+      "processes": {
+        "core": {
+          "pid": 9117,
+          "pss_kib": 13882,
+          "rss_kib": 16100,
+          "peak_rss_kib": 15448
+        }
+      },
+      "sum_pss_kib": 13882,
+      "sum_rss_kib": 16100
+    },
+    "paired_native_after": {
+      "phase": "js-probe-native-after",
+      "utc": "2026-11-19T23:55:14.839086+00:00",
+      "processes": {
+        "core": {
+          "pid": 9117,
+          "pss_kib": 59680,
+          "rss_kib": 61900,
+          "peak_rss_kib": 61460
+        }
+      },
+      "sum_pss_kib": 59680,
+      "sum_rss_kib": 61900
+    },
+    "changes": "Canonical registration query escapes matched native encoding; corrected fallback User-Agent date. APK was not replaced."
+  },
+  "early_cold_failures": [
+    {
+      "script_version": "2026.11.20.1",
+      "health": {
+        "embedded_fallback": false,
+        "engine": "js",
+        "load_ms": 1024,
+        "module_version": "2026.11.20.1",
+        "ok": true,
+        "private_override": false,
+        "resolver": "js-only",
+        "script_bytes": 71874,
+        "script_loaded": true,
+        "sha256": "ec1fbc768a4d9038626b8e346fe1288eb6747e10b70bdb2c4314cd451beaa0a6",
+        "wire_vectors": 4
+      },
+      "report": {
+        "embedded_fallback": false,
+        "load_ms": 1024,
+        "playback": null,
+        "resolver": "js-only",
+        "results": [
+          {
+            "vid": "7706514645208534041",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 1233,
+            "total_ms": 1233,
+            "requests": [
+              {
+                "stage": "device_register",
+                "status": 200,
+                "bytes": -1,
+                "ms": 371
+              },
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 171
+              },
+              {
+                "stage": "device_register",
+                "status": 200,
+                "bytes": -1,
+                "ms": 211
+              },
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 70
+              }
+            ]
+          },
+          {
+            "vid": "7706514815799282713",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 294,
+            "total_ms": 294,
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 67
+              }
+            ]
+          },
+          {
+            "vid": "7706514627462433817",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 508,
+            "total_ms": 508,
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 81
+              }
+            ]
+          },
+          {
+            "vid": "7702841946812714008",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 330,
+            "total_ms": 330,
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 60
+              }
+            ]
+          },
+          {
+            "vid": "7702841953875938328",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 419,
+            "total_ms": 419,
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 73
+              }
+            ]
+          },
+          {
+            "vid": "7703473857562151961",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 199,
+            "total_ms": 199,
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 59
+              }
+            ]
+          }
+        ],
+        "sha256": "ec1fbc768a4d9038626b8e346fe1288eb6747e10b70bdb2c4314cd451beaa0a6"
+      }
+    },
+    {
+      "script_version": "2026.11.20.1",
+      "health": {
+        "embedded_fallback": false,
+        "engine": "js",
+        "load_ms": 851,
+        "module_version": "2026.11.20.1",
+        "ok": true,
+        "private_override": false,
+        "resolver": "js-only",
+        "script_bytes": 71874,
+        "script_loaded": true,
+        "sha256": "ec1fbc768a4d9038626b8e346fe1288eb6747e10b70bdb2c4314cd451beaa0a6",
+        "wire_vectors": 4
+      },
+      "report": {
+        "embedded_fallback": false,
+        "load_ms": 851,
+        "playback": null,
+        "resolver": "js-only",
+        "results": [
+          {
+            "vid": "7706514645208534041",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 1245,
+            "total_ms": 1245,
+            "requests": [
+              {
+                "stage": "device_register",
+                "status": 200,
+                "bytes": -1,
+                "ms": 496
+              },
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 296
+              },
+              {
+                "stage": "device_register",
+                "status": 200,
+                "bytes": -1,
+                "ms": 246
+              },
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 66
+              }
+            ]
+          },
+          {
+            "vid": "7706514815799282713",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 589,
+            "total_ms": 589,
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 83
+              }
+            ]
+          },
+          {
+            "vid": "7706514627462433817",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 538,
+            "total_ms": 538,
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 71
+              }
+            ]
+          },
+          {
+            "vid": "7702841946812714008",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 338,
+            "total_ms": 338,
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 76
+              }
+            ]
+          },
+          {
+            "vid": "7702841953875938328",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 156,
+            "total_ms": 156,
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 73
+              }
+            ]
+          },
+          {
+            "vid": "7703473857562151961",
+            "ok": false,
+            "code": "VIDEO_MODEL_EMPTY",
+            "stage": "multi_video_model",
+            "resolve_ms": 124,
+            "total_ms": 124,
+            "requests": [
+              {
+                "stage": "v5_model",
+                "status": 200,
+                "bytes": 0,
+                "ms": 67
+              }
+            ]
+          }
+        ],
+        "sha256": "ec1fbc768a4d9038626b8e346fe1288eb6747e10b70bdb2c4314cd451beaa0a6"
+      }
+    }
+  ],
+  "local_real_media": {
+    "version": "2026.11.20.3",
+    "vid": "7702841946812714008",
+    "media_bytes": 27320959,
+    "codec": "h265",
+    "dimensions": "1920x1080",
+    "resolve_ms": 800,
+    "decoded_seconds": 8,
+    "test": "TestJSPlaybackResolverLiveMedia"
+  },
+  "limits": [
+    "This is the isolated diagnostic, not the complete production app playback/focus test.",
+    "Native and JS use the exact same APK, page, six VIDs, complete-file download/decrypt and WebView playback path. The two engines run sequentially.",
+    "Measurements include the whole Go process, not a separately isolated resolver heap. No forced GC was used.",
+    "PSS snapshots depend on GC/scavenger and download timing; differences are not a fixed incremental runtime cost. The old V2 pair was 64561 vs 59680 KiB after six.",
+    "peak_rss_kib is /proc VmHWM, a different measurement from current dumpsys PSS/RSS. RSS is not summed into unique physical memory.",
+    "The native reference has its standalone ten-minute identity refresh cooldown; the JS prototype uses thirty seconds. Clean batches do not exercise that difference.",
+    "Early cold empty responses are retained. Correcting a demonstrated registration encoding mismatch and passing subsequent batches does not prove that mismatch caused every empty response.",
+    "SM3 is a standard generic host primitive; registration, signing/carrier math, timestamp/query construction, parsing and compatible-codec fallback remain JS.",
+    "Node tests exercise this same source with async HTTP, but LG hardware and desktop runtime integration have not been accepted.",
+    "Local-file activation uses a disposable signing key. Production online manifest/download/key/rollback integration is not completed.",
+    "Goja provides cancellation and IO/stack limits, not a hard isolated JS heap quota. Only reviewed signed modules are suitable.",
+    "Six short clips do not establish long-session stability or old-box performance."
+  ],
+  "cleanup": {
+    "test_processes_stopped": true,
+    "downloaded_media_removed": true,
+    "production_apps_modified": false,
+    "production_release_published": false,
+    "temporary_drafts_removed": [
+      "resolver-js-diagnostic-44643677717",
+      "resolver-js-diagnostic-44641788737",
+      "resolver-js-diagnostic-44639764677"
+    ]
+  }
+}
