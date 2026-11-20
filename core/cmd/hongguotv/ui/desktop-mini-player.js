@@ -83,13 +83,17 @@
       if (active && !pending && app() && app().miniPlayerCommand) app().miniPlayerCommand(action, value);
       render();
     }
+    function scheduleHide() {
+      win.clearTimeout(timer);
+      timer = null;
+      if (overlay && overlay.classList.contains('is-visible') && active && !state().paused && !keyboardFocus) {
+        timer = win.setTimeout(function () { overlay.classList.remove('is-visible'); }, 2500);
+      }
+    }
     function reveal() {
       if (!overlay) return;
       overlay.classList.add('is-visible');
-      win.clearTimeout(timer);
-      if (active && !state().paused && !keyboardFocus) {
-        timer = win.setTimeout(function () { overlay.classList.remove('is-visible'); }, 2500);
-      }
+      scheduleHide();
     }
     function apply(value) {
       var changed = active !== value;
@@ -166,14 +170,13 @@
       if (doc.activeElement !== progress) progress.value = s.position || 0;
       if (doc.activeElement !== volume) volume.value = s.volume || 0;
       time.textContent = clock(s.position) + ' / ' + clock(s.duration);
-      if (s.paused) overlay.classList.add('is-visible');
     }
     function handleKey(event, key, goFocus) {
       if (!active || !state().available || event.metaKey || event.ctrlKey || event.altKey || event.isComposing) return false;
       if (key === 'Escape') { request(false); event.preventDefault(); event.stopPropagation(); return true; }
       keyboardFocus = true;
       var current = doc.activeElement;
-      if (current && current.tagName === 'INPUT' && /^Arrow/.test(key)) { event.stopPropagation(); return true; }
+      if (current && current.tagName === 'INPUT' && /^Arrow/.test(key)) { reveal(); event.stopPropagation(); return true; }
       if (key === 'Enter' || key === ' ') {
         if (!event.repeat) {
           if (key === 'Enter' && current && overlay.contains(current) && current.tagName === 'BUTTON') current.click();
@@ -219,11 +222,14 @@
       volume.addEventListener('input', function () { command('volume', Number(volume.value)); }); bottom.appendChild(volume); footer.appendChild(bottom);
       overlay.appendChild(footer); hero.appendChild(overlay);
       hero.addEventListener('mousemove', function () { keyboardFocus = false; reveal(); });
+      hero.addEventListener('click', function (event) { if (event && event.detail > 0) keyboardFocus = false; reveal(); });
       overlay.addEventListener('mousedown', function () { keyboardFocus = false; });
-      overlay.addEventListener('focusin', reveal); overlay.addEventListener('focusout', function () { win.setTimeout(reveal, 0); });
+      overlay.addEventListener('focusin', reveal); overlay.addEventListener('focusout', function () { win.setTimeout(scheduleHide, 0); });
       var video = doc.getElementById('hero-video');
-      ['timeupdate', 'loadedmetadata', 'play', 'pause', 'volumechange', 'emptied', 'ended'].forEach(function (name) { video.addEventListener(name, function () { render(); }); });
-      video.addEventListener('playing', function () { render(); reveal(); });
+      ['timeupdate', 'loadedmetadata', 'play', 'pause', 'volumechange', 'emptied', 'ended'].forEach(function (name) { video.addEventListener(name, function () { render(); if (name === 'pause') scheduleHide(); }); });
+      // A new episode and buffering recovery both emit playing. Media events
+      // update labels/timers but leave visibility to explicit user interaction.
+      video.addEventListener('playing', function () { render(); scheduleHide(); });
       if (win.HongguoI18n) win.HongguoI18n.onChange(function () { copy(); render(); });
       settingCard = doc.getElementById('desktop-mini-titlebar-settings');
       settingToggle = doc.getElementById('desktop-mini-titlebar-toggle');
