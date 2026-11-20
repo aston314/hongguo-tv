@@ -15,6 +15,7 @@
         <package android:name="rocks.aston.doudoutv" />
         <package android:name="cc.kafeizhibo.tv" />
         <package android:name="cc.yunying.tv" />
+        <package android:name="dev.aston.mygo.music.tv" />
     </queries>
 
     <application

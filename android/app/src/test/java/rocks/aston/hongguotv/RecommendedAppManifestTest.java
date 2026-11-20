@@ -48,4 +48,16 @@ public final class RecommendedAppManifestTest {
         json.put("package_name", yunying.packageName);
         try { new RecommendedAppManifest(app, json.toString()); fail(); } catch (IllegalArgumentException expected) { /* rejected */ }
     }
+    @Test public void parsesMyGoMusicPublicUpdateJson() throws Exception {
+        RecommendedAppPolicy.App app = RecommendedAppPolicy.find("mygo");
+        JSONObject json = new JSONObject().put("schema", 1).put("package_name", app.packageName).put("version_code", 17)
+                .put("version_name", "0.1.5").put("min_sdk", 23).put("size", 25482182)
+                .put("sha256", "ba651f28cf0b8de6209ce56babe41817c631ba659f88da1a6f17a02398d4b419")
+                .put("download_url", "https://github.com/aston314/my-music-release/releases/download/v0.1.5/mygo-music-tv-0.1.5.apk");
+        RecommendedAppManifest manifest = new RecommendedAppManifest(app, json.toString());
+        assertEquals("0.1.5", manifest.version);
+        assertEquals(17, manifest.code);
+        assertEquals(23, manifest.minSdk);
+        assertEquals(25482182, manifest.size);
+    }
 }

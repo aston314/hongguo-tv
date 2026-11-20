@@ -26,7 +26,9 @@ final class RecommendedAppPolicy {
                 "https://github.com/aston314/kafeizhibo-tv/releases/latest/download/update.json", "sports-live-tv-"),
         new App("yunying", "cc.yunying.tv", "aston314/yunying-tv-releases",
                 "https://api.github.com/repos/aston314/yunying-tv-releases/releases/latest", "yunying-tv-",
-                "0871aeb15cbb0bc153a2b76cc73338e2476d5d1855058f1381145b68d669f845", true)
+                "0871aeb15cbb0bc153a2b76cc73338e2476d5d1855058f1381145b68d669f845", true),
+        new App("mygo", "dev.aston.mygo.music.tv", "aston314/my-music-release",
+                "https://raw.githubusercontent.com/aston314/my-music-release/main/update.json", "mygo-music-tv-")
     };
     static App find(String id) {
         for (App app : APPS) if (app.id.equals(id)) return app;
