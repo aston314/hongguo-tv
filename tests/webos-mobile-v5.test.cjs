@@ -117,7 +117,7 @@ function fixture(reply, registrationReply) {
         if (result.hold) return;
         const res = new PassThrough();
         res.statusCode = result.status || 200;
-        res.headers = {};
+        res.headers = result.headers || {};
         req.emit('response', res);
         res.end(typeof result.body === 'string' ? result.body : JSON.stringify(result.body));
       };
@@ -253,6 +253,94 @@ test('v5 reuses independent identity across episodes; media failure retains old 
     f.close();
   }
 });
+test('v7.7 mobile V5 uses the alternate host with the same registered identity', async () => {
+  const seen = [];
+  const f = fixture((o) => {
+    if (isV5(o)) {
+      const u = new URL('https://fixture.test' + o.path);
+      seen.push({ host: o.hostname, device: u.searchParams.get('device_id'), version: u.searchParams.get('version_name') });
+      if (o.hostname.indexOf('sinfonlineb') >= 0) return { body: '' };
+      return response(o);
+    }
+    return noTab(o) || response(o);
+  });
+  try {
+    assert.equal((await f.resolve()).length, 1);
+    assert.deepEqual(seen.map((x) => x.host), ['api5-normal-sinfonlineb.fqnovel.com', 'api5-normal-sinfonlinea.fqnovel.com']);
+    assert.equal(seen[0].device, seen[1].device);
+    assert.deepEqual(seen.map((x) => x.version), ['7.4.3.32', '7.4.3.32']);
+    assert.equal(f.registrations, 2); // initial video_tab plus one mobile V5 identity
+  } finally {
+    f.close();
+  }
+});
+test('v7.7 same-identity video_tab recovery follows two empty V5 hosts', async () => {
+  const seen = [];
+  const f = fixture((o) => {
+    if (isV5(o)) {
+      const u = new URL('https://fixture.test' + o.path);
+      seen.push({ host: o.hostname, device: u.searchParams.get('device_id'), version: u.searchParams.get('version_name') });
+      return { body: '' };
+    }
+    if (o.path.includes('/video_tab/')) {
+      const u = new URL('https://fixture.test' + o.path);
+      // The initial provider is intentionally unavailable. The recovery GET
+      // is recognized by the v7.7 7.4.3.32 query profile.
+      if (u.searchParams.get('version_name') === '7.4.3.32') return response(o);
+      return noTab(o);
+    }
+    return response(o);
+  });
+  try {
+    assert.equal((await f.resolve()).length, 1);
+    assert.deepEqual(seen.map((x) => x.host), ['api5-normal-sinfonlineb.fqnovel.com', 'api5-normal-sinfonlinea.fqnovel.com']);
+    assert.equal(seen[0].device, seen[1].device);
+    const recovery = f.requests.find((x) => x.options.path.includes('/video_tab/') && new URL('https://fixture.test' + x.options.path).searchParams.get('version_name') === '7.4.3.32');
+    assert(recovery);
+    assert.equal(new URL('https://fixture.test' + recovery.options.path).searchParams.get('device_id'), seen[0].device);
+    assert.equal(recovery.options.headers['X-SS-STUB'], undefined);
+    assert.equal(recovery.options.headers['Content-Type'], undefined);
+    assert.equal(f.registrations, 2);
+  } finally {
+    f.close();
+  }
+});
+test('Retry-After on either V5 host skips further same-identity recovery', async () => {
+  for (const backoffHost of ['sinfonlineb', 'sinfonlinea']) {
+    const f = fixture((o) => {
+      if (isV5(o)) return { body: '', headers: o.hostname.includes(backoffHost) ? { 'retry-after': '30' } : {} };
+      return noTab(o) || response(o);
+    });
+    try {
+      assert.equal((await f.resolve()).length, 1);
+      assert.equal(f.requests.filter((x) => isV5(x.options)).length, backoffHost === 'sinfonlineb' ? 1 : 2);
+      assert.equal(f.requests.filter((x) => x.options.path.includes('/video_tab/') && x.options.headers['X-Medusa']).length, 0);
+    } finally {
+      f.close();
+    }
+  }
+});
+
+test('v7.7 recovery query keeps the reference profile, ordered signature and bodyless headers', () => {
+  const request = profile.videoTabRecovery('123', device, 1800000000000);
+  const url = new URL(request.url);
+  assert.deepEqual([...url.searchParams.keys()], [
+    'aid', 'app_name', 'version_code', 'version_name', 'channel', 'device_platform',
+    'device_type', 'os_version', 'update_version_code', 'iid', 'cdid', 'device_id',
+    'video_id', 'video_id_type', 'device_level', 'need_all_video_definition',
+    'need_mp4_align', 'use_os_player', 'video_platform', 'source', 'from_video_id', '_rticket'
+  ]);
+  assert.equal(url.searchParams.get('version_code'), '74332');
+  assert.equal(url.searchParams.get('update_version_code'), '74332');
+  assert.equal(url.searchParams.get('version_name'), '7.4.3.32');
+  assert.equal(url.searchParams.get('device_type'), 'PGT-AN10');
+  assert.equal(url.searchParams.get('os_version'), '12');
+  assert.equal(url.searchParams.get('channel'), 'vivo_8662_64');
+  assert.equal(passport.branch(url.search.slice(1), Buffer.alloc(0), 1800000000).iv & 15, 12);
+  assert.equal(request.headers['X-SS-STUB'], undefined);
+  assert.equal(request.headers['Content-Type'], undefined);
+  assert.match(request.headers['User-Agent'], /^com\.phoenix\.read\/73932 /);
+});
 test('v5 all-ByteVC2 follows unchanged codec fallback to same-episode HEVC', async () => {
   const codecs = [];
   const f = fixture((o) => {
@@ -282,7 +370,7 @@ test('v5 all-ByteVC2 follows unchanged codec fallback to same-episode HEVC', asy
     f.close();
   }
 });
-test('empty 200 uses one same-identity video_tab attempt; other failures use old multi', async () => {
+test('empty 200 tries alternate V5 and same-identity video_tab before old multi', async () => {
   for (const mode of ['empty', 'wrong', 'invalid', 'http', 'large']) {
     let calls = 0;
     const f = fixture((o) => {
@@ -297,7 +385,7 @@ test('empty 200 uses one same-identity video_tab attempt; other failures use old
     });
     try {
       assert.equal((await f.resolve()).length, 1);
-      assert.equal(calls, 1);
+      assert.equal(calls, mode === 'empty' ? 2 : 1);
       assert.equal(f.registrations, 3);
     } finally {
       f.close();

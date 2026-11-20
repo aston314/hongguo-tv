@@ -19,7 +19,7 @@ import (
 )
 
 func mobileV5Fixture(client *http.Client, registered *int) *miniReelMobileV5Source {
-	return &miniReelMobileV5Source{endpoint: "https://api.fqnovel.com/mobile", client: client, identity: newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
+	return &miniReelMobileV5Source{endpoint: "https://api.fqnovel.com/mobile", alternateEndpoint: "https://api.fqnovel.com/mobile-alt", client: client, identity: newMiniReelPlaybackDeviceCache(func() (miniReelDevice, error) {
 		*registered++
 		return miniReelDevice{deviceID: strconv.Itoa(*registered + 100), installID: "456", cdid: "synthetic", cookie: "must-not-be-sent"}, nil
 	})}
@@ -59,6 +59,9 @@ func TestMiniReelMobileV5RequestAndCompatibility(t *testing.T) {
 					}
 					if r.Header.Get("X-Khronos") == "" || r.Header.Get("X-Helios") == "" || r.Header.Get("X-Medusa") == "" {
 						t.Error("video_tab recovery omitted signed headers")
+					}
+					if r.Header.Get("User-Agent") != miniReelMobileV5RecoveryUA {
+						t.Errorf("video_tab recovery User-Agent = %q, want v7.7 profile", r.Header.Get("User-Agent"))
 					}
 					if mode == "wrong-episode" || mode == "empty-wrong-episode" {
 						body = `{"code":0,"data":{"video_model_data":{"124":{"video_model":{"video_list":[]}}}}}`
@@ -131,18 +134,25 @@ func TestMiniReelMobileV5RequestAndCompatibility(t *testing.T) {
 			})}
 			source := mobileV5Fixture(client, &registered)
 			options, err := source.options(context.Background(), "123", "default", "")
-			if mode == "inline" || mode == "nested" || mode == "bytevc2" || mode == "empty" {
+			if mode == "inline" || mode == "nested" || mode == "bytevc2" {
 				if err != nil || len(options) != 1 || options[0].Codec != "h265" {
 					t.Fatalf("compatible source failed: %v", err)
 				}
 				if calls != 1 || registered != 1 {
 					t.Fatal("unnecessary request/registration")
 				}
+			} else if mode == "empty" {
+				if err != nil || len(options) != 1 || options[0].Codec != "h265" {
+					t.Fatalf("compatible source failed: %v", err)
+				}
+				if calls != 2 || registered != 1 {
+					t.Fatalf("same-identity alternate recovery did not run: calls=%d registered=%d", calls, registered)
+				}
 			} else if err == nil {
 				t.Fatal("invalid model accepted")
 			}
 			if mode == "empty" {
-				if calls != 1 || recoveryCalls != 1 || registered != 1 || recoveryIdentity != "101" || err != nil {
+				if calls != 2 || recoveryCalls != 1 || registered != 1 || recoveryIdentity != "101" || err != nil {
 					t.Fatalf("empty recovery failed: calls=%d recovery=%d registered=%d identity=%q err=%v", calls, recoveryCalls, registered, recoveryIdentity, err)
 				}
 			} else if mode == "wrong-episode" {
@@ -150,7 +160,7 @@ func TestMiniReelMobileV5RequestAndCompatibility(t *testing.T) {
 					t.Fatal("nonempty wrong-episode response was unexpectedly recovered")
 				}
 			} else if mode == "empty-wrong-episode" {
-				if calls != 1 || recoveryCalls != 1 || registered != 1 || !errors.Is(err, errMiniReelVideoModelEmpty) {
+				if calls != 2 || recoveryCalls != 1 || registered != 1 || !errors.Is(err, errMiniReelVideoModelEmpty) {
 					t.Fatal("wrong-episode recovery accepted or churned identity")
 				}
 			} else if calls != 1 || registered != 1 {
@@ -186,6 +196,131 @@ func TestMiniReelMobileV5EmptyRetryAfterSkipsVideoTabRecovery(t *testing.T) {
 	}
 	if posts != 1 || gets != 0 || registered != 1 {
 		t.Fatalf("requests after Retry-After: posts=%d gets=%d registrations=%d", posts, gets, registered)
+	}
+}
+
+func TestMiniReelMobileV5V77FallbackOrderAndSameIdentity(t *testing.T) {
+	for _, mode := range []string{"alternate", "video-tab"} {
+		t.Run(mode, func(t *testing.T) {
+			registered := 0
+			var paths []string
+			var postDevices []string
+			client := &http.Client{Transport: miniReelTestRoundTripper(func(r *http.Request) (*http.Response, error) {
+				paths = append(paths, r.URL.Path)
+				if r.Method == http.MethodPost {
+					postDevices = append(postDevices, r.URL.Query().Get("device_id"))
+					for _, key := range []string{"version_code", "update_version_code"} {
+						if got := r.URL.Query().Get(key); got != "74332" {
+							t.Errorf("%s = %q, want 74332", key, got)
+						}
+					}
+					if got := r.URL.Query().Get("version_name"); got != "7.4.3.32" {
+						t.Errorf("version_name = %q, want 7.4.3.32", got)
+					}
+					body := ""
+					if strings.HasSuffix(r.URL.Path, "mobile-alt") && mode == "alternate" {
+						data, _ := json.Marshal(map[string]any{"code": 0, "data": map[string]any{"123": map[string]any{"video_model": codecFallbackModel("h265", "123", 90)}}})
+						body = string(data)
+					}
+					return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+				}
+				if r.Method != http.MethodGet || r.URL.Path != miniReelVideoTabPath {
+					t.Fatalf("unexpected recovery request %s %s", r.Method, r.URL.Path)
+				}
+				if got := r.URL.Query().Get("device_id"); got != "101" {
+					t.Errorf("video_tab identity = %q, want 101", got)
+				}
+				for _, key := range []string{"version_code", "update_version_code"} {
+					if got := r.URL.Query().Get(key); got != "74332" {
+						t.Errorf("video_tab %s = %q, want 74332", key, got)
+					}
+				}
+				if got := r.URL.Query().Get("version_name"); got != "7.4.3.32" {
+					t.Errorf("video_tab version_name = %q, want 7.4.3.32", got)
+				}
+				if r.URL.Query().Get("device_type") != "PGT-AN10" || r.URL.Query().Get("os_version") != "12" || r.URL.Query().Get("channel") != "vivo_8662_64" {
+					t.Error("recovery did not retain the v7.7 mobile query profile")
+				}
+				if r.Header.Get("User-Agent") != miniReelMobileV5RecoveryUA {
+					t.Error("recovery changed the reference User-Agent")
+				}
+				if r.Header.Get("X-SS-STUB") != "" || r.Header.Get("Content-Type") != "" {
+					t.Error("bodyless recovery must not carry body headers")
+				}
+				data, _ := json.Marshal(map[string]any{"code": 0, "data": map[string]any{"video_model_data": map[string]any{"123": map[string]any{"video_model": codecFallbackModel("h265", "123", 90)}}}})
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(bytes.NewReader(data)), Header: make(http.Header)}, nil
+			})}
+			source := mobileV5Fixture(client, &registered)
+			options, err := source.options(context.Background(), "123", "default", "1004")
+			if err != nil || len(options) != 1 {
+				t.Fatalf("v7.7 fallback failed: options=%d err=%v", len(options), err)
+			}
+			if registered != 1 {
+				t.Fatalf("fallback registered %d identities, want 1", registered)
+			}
+			if !reflect.DeepEqual(postDevices, []string{"101", "101"}) {
+				t.Fatalf("V5 identity sequence = %v", postDevices)
+			}
+			want := []string{"/mobile", "/mobile-alt"}
+			if mode == "video-tab" {
+				want = append(want, miniReelVideoTabPath)
+			}
+			if !reflect.DeepEqual(paths, want) {
+				t.Fatalf("request order = %v, want %v", paths, want)
+			}
+		})
+	}
+}
+
+func TestMiniReelMobileV5V77AlternateWrongVIDKeepsOriginalEmptyFailure(t *testing.T) {
+	registered, gets := 0, 0
+	client := &http.Client{Transport: miniReelTestRoundTripper(func(r *http.Request) (*http.Response, error) {
+		if r.Method == http.MethodGet {
+			gets++
+		}
+		if strings.HasSuffix(r.URL.Path, "mobile-alt") {
+			body := `{"code":0,"data":{"124":{"video_model":{"video_list":[]}}}}`
+			return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader(body)), Header: make(http.Header)}, nil
+		}
+		return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("\n")), Header: make(http.Header)}, nil
+	})}
+	source := mobileV5Fixture(client, &registered)
+	_, err := source.options(context.Background(), "123", "default", "1004")
+	if !errors.Is(err, errMiniReelVideoModelEmpty) {
+		t.Fatalf("error = %v, want original VIDEO_MODEL_EMPTY", err)
+	}
+	if registered != 1 || gets != 0 {
+		t.Fatalf("wrong-VID fallback churned or recovered: registrations=%d gets=%d", registered, gets)
+	}
+}
+
+func TestMiniReelMobileV5V77AlternateCancellationAndBackoff(t *testing.T) {
+	for _, cancelAlternate := range []bool{false, true} {
+		t.Run(strconv.FormatBool(cancelAlternate), func(t *testing.T) {
+			registered, requests := 0, 0
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			client := &http.Client{Transport: miniReelTestRoundTripper(func(r *http.Request) (*http.Response, error) {
+				requests++
+				header := make(http.Header)
+				if r.URL.Path == "/mobile-alt" {
+					if cancelAlternate {
+						cancel()
+						return nil, context.Canceled
+					}
+					header.Set("Retry-After", "30")
+				}
+				return &http.Response{StatusCode: http.StatusOK, Body: io.NopCloser(strings.NewReader("")), Header: header}, nil
+			})}
+			_, err := mobileV5Fixture(client, &registered).options(ctx, "123", "default", "1004")
+			want := errMiniReelVideoModelEmpty
+			if cancelAlternate {
+				want = context.Canceled
+			}
+			if !errors.Is(err, want) || requests != 2 || registered != 1 {
+				t.Fatalf("alternate cancellation/backoff lost: err=%v requests=%d registered=%d", err, requests, registered)
+			}
+		})
 	}
 }
 

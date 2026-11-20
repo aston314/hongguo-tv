@@ -2,11 +2,13 @@
 var zlib = require('zlib');
 var signer = require('./playback-v5-sign');
 var ENDPOINT =
+  'https://api5-normal-sinfonlineb.fqnovel.com/novel/player/multi_video_model/player/v1';
+var ALTERNATE_ENDPOINT =
   'https://api5-normal-sinfonlinea.fqnovel.com/novel/player/multi_video_model/player/v1';
 var VIDEO_TAB_ENDPOINT = 'https://api5-normal-sinfonlineb.fqnovel.com';
 var VIDEO_TAB_PATH = '/reading/bookapi/video_tab/multi_video_model/v1/';
 var VIDEO_TAB_UA =
-  'com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
+  'com.phoenix.read/73932 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
 var UA =
   'com.phoenix.read/73932 (Linux; U; Android 12; zh_CN_#Hans; PGT-AN10; Build/V417IR;tt-ok/3.12.13.20)';
 function query(d) {
@@ -25,7 +27,7 @@ function query(d) {
     device_id: d.deviceID
   };
 }
-function build(vid, contentType, device, stamp) {
+function build(vid, contentType, device, stamp, alternate) {
   if (!/^[0-9]{1,32}$/.test(vid) || !/^[0-9]{1,16}$/.test(contentType))
     throw new Error('invalid playback episode');
   var ids = {};
@@ -51,7 +53,7 @@ function build(vid, contentType, device, stamp) {
   );
   var signed = signer.sign(query(device), body, stamp);
   return {
-    url: ENDPOINT + '?' + signed.query,
+    url: (alternate ? ALTERNATE_ENDPOINT : ENDPOINT) + '?' + signed.query,
     body: body,
     headers: Object.assign({}, signed.headers, {
       'User-Agent': UA,
@@ -64,22 +66,14 @@ function build(vid, contentType, device, stamp) {
 function videoTabRecovery(vid, device, stamp) {
   if (!/^[0-9]{1,32}$/.test(String(vid))) throw new Error('invalid playback episode');
   stamp = Number(stamp) || Date.now();
-  var values = {
-    ac: 'wifi', channel: 'update_64', aid: '8662', app_name: 'novelread',
-    version_code: '73932', version_name: '7.3.9.32', device_platform: 'android', os: 'android', ssmix: 'a',
-    device_type: '25053RT47C', device_brand: 'Redmi', language: 'zh', os_api: '36', os_version: '16',
-    manifest_version_code: '73932', resolution: '1280*2772', dpi: '520', update_version_code: '73932',
-    host_abi: 'arm64-v8a', dragon_device_type: 'phone', pv_player: '73932', compliance_status: '0',
-    need_personal_recommend: '1', player_so_load: '1', is_android_pad_screen: '0',
-    iid: device.installID, cdid: device.cdid, device_id: device.deviceID, video_id: String(vid), video_id_type: '0',
+  var values = Object.assign({}, query(device), {
+    video_id: String(vid), video_id_type: '0',
     device_level: '1', need_all_video_definition: '1', need_mp4_align: '0', use_os_player: '0',
     video_platform: '1024', source: '0', from_video_id: ''
-  };
+  });
   var keys = [
-    'ac', 'channel', 'aid', 'app_name', 'version_code', 'version_name', 'device_platform', 'os', 'ssmix',
-    'device_type', 'device_brand', 'language', 'os_api', 'os_version', 'manifest_version_code', 'resolution',
-    'dpi', 'update_version_code', 'host_abi', 'dragon_device_type', 'pv_player', 'compliance_status',
-    'need_personal_recommend', 'player_so_load', 'is_android_pad_screen', 'iid', 'cdid', 'device_id',
+    'aid', 'app_name', 'version_code', 'version_name', 'channel', 'device_platform',
+    'device_type', 'os_version', 'update_version_code', 'iid', 'cdid', 'device_id',
     'video_id', 'video_id_type', 'device_level', 'need_all_video_definition', 'need_mp4_align', 'use_os_player',
     'video_platform', 'source', 'from_video_id', '_rticket'
   ];

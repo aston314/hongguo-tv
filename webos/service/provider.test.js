@@ -491,13 +491,18 @@ async function run() {
     videoTabEnabled = false;
 
     // A v5 HTTP 200 empty response is recovered by one signed, bodyless
-    // video_tab GET with the same registered identity and the 7.3.9.32 query.
+    // video_tab GET after both V5 hosts with the same identity and 7.4.3.32 query.
     videoTabRecoveryEnabled = true;
     mobileV5EmptyBody = true;
     var beforeRecoveryTab = videoTabRequests.length, beforeMobileV5 = mobileV5Requests.length, beforeRecoveryRegistration = deviceRegisterRequests;
     var recoveryProbe = await provider.inspectVideoModel('1334567890123456788');
     assert.strictEqual(recoveryProbe.ok, true, 'empty v5 response recovers through video_tab');
-    assert.strictEqual(mobileV5Requests.length - beforeMobileV5, 1, 'empty v5 response is not repeated');
+    assert.strictEqual(mobileV5Requests.length - beforeMobileV5, 2, 'both V5 hosts precede same-identity recovery');
+    var recoveryPosts = mobileV5Requests.slice(beforeMobileV5);
+    assert.deepStrictEqual(recoveryPosts.map(function (call) { return call.options.hostname; }), ['api5-normal-sinfonlineb.fqnovel.com', 'api5-normal-sinfonlinea.fqnovel.com']);
+    assert.strictEqual(recoveryPosts[0].query.device_id, recoveryPosts[1].query.device_id);
+    assert.strictEqual(recoveryPosts[0].query.iid, recoveryPosts[1].query.iid);
+    assert.strictEqual(recoveryPosts[0].query.cdid, recoveryPosts[1].query.cdid);
     var recoveryTabCalls = videoTabRequests.slice(beforeRecoveryTab).filter(function (call) { return !!call.options.headers['X-Medusa']; });
     assert.strictEqual(recoveryTabCalls.length, 1, 'one signed recovery GET');
     assert(deviceRegisterRequests - beforeRecoveryRegistration <= 1, 'recovery does not register a second identity');
@@ -509,7 +514,11 @@ async function run() {
     var recoveryBody = JSON.parse(zlib.gunzipSync(recoveryPost.body).toString('utf8'));
     assert.strictEqual(recoveryBody.biz_param.device_level, 1);
     assert.strictEqual(recoveryGet.options.method, 'GET');
-    assert.strictEqual(recoveryGet.query.version_code, '73932');
+    assert.strictEqual(recoveryGet.query.version_code, '74332');
+    assert.strictEqual(recoveryGet.query.version_name, '7.4.3.32');
+    assert.strictEqual(recoveryGet.query.device_type, 'PGT-AN10');
+    assert.strictEqual(recoveryGet.query.os_version, '12');
+    assert.strictEqual(recoveryGet.query.channel, 'vivo_8662_64');
     assert.strictEqual(recoveryGet.query.video_id, '1334567890123456788');
     assert.strictEqual(recoveryGet.options.headers['X-SS-STUB'], undefined);
     assert.strictEqual(recoveryGet.options.headers['Content-Type'], undefined);
