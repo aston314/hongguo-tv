@@ -59,9 +59,9 @@ module.exports = function (data, ts, key, iv) {
       if (round === 1) {
         prev = Buffer.from(b);
         for (z = 0; z < b.length; z++) b[z] = prev[Math.floor(z / 4) * 4 + con[z % 4]];
-        function xt(x) {
+        var xt = function (x) {
           return x & 128 ? ((x << 1) ^ 0x1b) & 255 : (x << 1) & 255;
-        }
+        };
         for (col = 0; col < 4; col++) {
           aa = b[col];
           cc = b[4 + col];

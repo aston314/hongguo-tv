@@ -147,7 +147,7 @@
       // playback retries must start outside the shared agent's socket pool.
       if (headers && headers.Connection === 'close') options.agent = false;
       var request;
-      try { request = transport.request(options); } catch (error) { finish(error); return; }
+      try { request = transport.request(require('./upstream-tls')(options)); } catch (error) { finish(error); return; }
       if (signal) signal.addEventListener('abort', aborted);
       request.on('timeout', function () { request.destroy(fail('上游请求超时', undefined, 'UPSTREAM_TIMEOUT')); });
       request.on('error', function (error) { finish(error); });

@@ -77,7 +77,7 @@
     return new Promise(function (resolve, reject) {
       var parsed = url.parse(target); var transport = parsed.protocol === 'http:' ? http : https;
       var req;
-      try { req = transport.request({ hostname: parsed.hostname, port: parsed.port || (parsed.protocol === 'http:' ? 80 : 443), path: parsed.path, method: method || 'GET', headers: headers || {}, timeout: 30000 }); } catch (e) { reject(e); return; }
+      try { req = transport.request(require('./upstream-tls')({ protocol: parsed.protocol, hostname: parsed.hostname, port: parsed.port || (parsed.protocol === 'http:' ? 80 : 443), path: parsed.path, method: method || 'GET', headers: headers || {}, timeout: 30000 })); } catch (e) { reject(e); return; }
       var done = false, chunks = [], total = 0;
       function finish(err, value) { if (done) return; done = true; if (err) reject(err); else resolve(value); }
       req.on('timeout', function () { req.destroy(); finish(fail('红果账号服务连接超时', 504, 'ACCOUNT_TIMEOUT')); });
