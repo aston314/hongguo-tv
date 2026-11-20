@@ -1620,48 +1620,6 @@ func miniReelOptionsFromModel(optionModel map[string]any) []miniReelOption {
 	return options
 }
 
-// The official video_tab API returns the model under data.video_model_data.
-// Normalize it to the legacy envelope so the shared parser remains the sole
-// owner of codec and fallback behavior.
-func miniReelVideoTabEnvelope(vid string, root map[string]any) (map[string]any, bool) {
-	data, ok := asMap(root["data"])
-	if !ok {
-		return nil, false
-	}
-	rows, ok := asMap(data["video_model_data"])
-	if !ok {
-		rows = data
-	}
-	row, ok := asMap(rows[vid])
-	if !ok {
-		for _, value := range rows {
-			if candidate, candidateOK := asMap(value); candidateOK {
-				if _, hasModel := candidate["video_model"]; hasModel {
-					row = candidate
-					ok = true
-					break
-				}
-			}
-		}
-	}
-	if !ok {
-		return nil, false
-	}
-	model := row["video_model"]
-	if text := miniReelToString(model); strings.HasPrefix(strings.TrimSpace(text), "{") {
-		var decoded any
-		if err := json.Unmarshal([]byte(text), &decoded); err == nil {
-			model = decoded
-		}
-	}
-	return map[string]any{
-		"code": 0,
-		"data": map[string]any{
-			vid: map[string]any{"video_model": model},
-		},
-	}, true
-}
-
 // Fetch the current official playback model. It is intentionally a single
 // bounded GET; old multi_video_model recovery remains the fallback path.
 func miniReelVideoTabOptions(ctx context.Context, vid, endpoint string, device miniReelDevice, codecMode string) (options []miniReelOption, err error) {
@@ -1676,53 +1634,27 @@ func miniReelVideoTabOptionsWithClient(ctx context.Context, vid, endpoint string
 	if err != nil {
 		return nil, err
 	}
+	// The station now requires the same v5 Medusa/Helios/Khronos signature for
+	// video_tab as the mobile v5 POST. An unsigned 7.1.3.32 GET is answered
+	// with HTTP 200 and a zero-byte body, which is the #256 playback failure.
 	stamp := time.Now().UnixMilli()
-	params := url.Values{
-		"_rticket":                  {strconv.FormatInt(stamp, 10)},
-		"ac":                        {"wifi"},
-		"aid":                       {"8662"},
-		"app_name":                  {"novelread"},
-		"channel":                   {"update_64"},
-		"cdid":                      {device.cdid},
-		"device_brand":              {"Redmi"},
-		"device_id":                 {device.deviceID},
-		"device_platform":           {"android"},
-		"device_type":               {"25053RT47C"},
-		"dpi":                       {"520"},
-		"dragon_device_type":        {"phone"},
-		"host_abi":                  {"arm64-v8a"},
-		"iid":                       {device.installID},
-		"is_android_pad_screen":     {"0"},
-		"language":                  {"zh"},
-		"manifest_version_code":     {"71332"},
-		"need_personal_recommend":   {"1"},
-		"os":                        {"android"},
-		"os_api":                    {"36"},
-		"os_version":                {"16"},
-		"resolution":                {"1280*2772"},
-		"player_so_load":            {"1"},
-		"pv_player":                 {"71332"},
-		"ssmix":                     {"a"},
-		"update_version_code":       {"71332"},
-		"version_code":              {"71332"},
-		"version_name":              {"7.1.3.32"},
-		"compliance_status":         {"0"},
-		"video_id":                  {vid},
-		"video_id_type":             {"0"},
-		"device_level":              {"1"},
-		"need_all_video_definition": {"1"},
-		"need_mp4_align":            {"0"},
-		"use_os_player":             {"0"},
-		"video_platform":            {"1024"},
-		"source":                    {"0"},
-		"from_video_id":             {""},
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+params.Encode(), nil)
+	params := miniReelMobileV5VideoTabParams(vid, device, stamp)
+	keys := miniReelMobileV5VideoTabKeys()
+	query, headers, err := signPlaybackV5Keys(params, nil, stamp, keys)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", miniReelPlaybackUA)
+	// A body-less GET has no Content-Type or SS-STUB. The signer returns the
+	// latter for the generic profile, so remove it explicitly here.
+	headers.Del("X-SS-STUB")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+query, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header = headers
+	req.Header.Set("User-Agent", miniReelFallbackUA)
 	req.Header.Set("Accept", "application/json; charset=utf-8")
+	req.Header.Set("Accept-Language", "zh-CN,zh;q=0.9")
 	if device.cookie != "" {
 		req.Header.Set("Cookie", device.cookie)
 	}
@@ -1762,7 +1694,7 @@ func miniReelVideoTabOptionsWithClient(ctx context.Context, vid, endpoint string
 			businessCode: code,
 		}
 	}
-	envelope, ok := miniReelVideoTabEnvelope(vid, root)
+	envelope, ok := miniReelVideoTabEnvelopeExact(vid, root)
 	if !ok {
 		diagnostic.Code = "VIDEO_TAB_MODEL_MISSING"
 		return nil, &miniReelStreamMissError{cause: errMiniReelVideoModelMissing}

@@ -163,50 +163,10 @@ func (s *miniReelMobileV5Source) request(ctx context.Context, vid, codecMode, co
 // profile and the v5 Medusa/Helios/Khronos signer. A missing/wrong VID keeps
 // the original empty error so another provider can make the next decision.
 func (s *miniReelMobileV5Source) recoverVideoTab(ctx context.Context, vid, codecMode string, d miniReelDevice) ([]miniReelOption, error) {
-	stamp := time.Now().UnixMilli()
-	params := miniReelMobileV5VideoTabParams(vid, d, stamp)
-	keys := miniReelMobileV5VideoTabKeys()
-	query, headers, err := signPlaybackV5Keys(params, nil, stamp, keys)
-	if err != nil {
-		return nil, err
-	}
-	// A body-less GET has no Content-Type or SS-STUB. The signer returns the
-	// latter for the generic profile, so remove it explicitly here.
-	headers.Del("X-SS-STUB")
-	headers.Set("User-Agent", miniReelFallbackUA)
-	headers.Set("Accept", "application/json; charset=utf-8")
-	headers.Set("Accept-Language", "zh-CN,zh;q=0.9")
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, miniReelVideoTabBase+miniReelVideoTabPath+"?"+query, nil)
-	if err != nil {
-		return nil, err
-	}
-	request.Header = headers
-	response, err := miniReelNoRedirectClient(s.client, 15*time.Second).Do(request)
-	if err != nil {
-		return nil, err
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("MiniReel video_tab recovery HTTP %d", response.StatusCode)
-	}
-	data, err := miniReelReadLimited(response.Body, miniReelMaxJSONBytes)
-	if err != nil || len(bytes.TrimSpace(data)) == 0 {
-		return nil, errMiniReelVideoModelEmpty
-	}
-	var root map[string]any
-	decoder := json.NewDecoder(bytes.NewReader(data))
-	decoder.UseNumber()
-	if err := decoder.Decode(&root); err != nil || root == nil {
-		return nil, errors.New("MiniReel video_tab recovery response is invalid JSON")
-	}
-	if code := miniReelBusinessCodeFromEnvelope(root); code != "" && code != "0" {
-		return nil, fmt.Errorf("MiniReel video_tab recovery rejected request (code %s)", code)
-	}
-	envelope, ok := miniReelVideoTabEnvelopeExact(vid, root)
-	if !ok {
-		return nil, errMiniReelVideoModelEmpty
-	}
-	return miniReelOptionsFromEnvelope(ctx, vid, envelope, s.client, codecMode, &playbackPreparationDiagnostic{Stage: "video_tab", Code: "VIDEO_TAB_JSON"})
+	// Both the primary video_tab provider and this v5 recovery use the same
+	// signed 7.3.9.32 GET shape. An unsigned request is answered with HTTP 200
+	// and a zero-byte body.
+	return miniReelVideoTabOptionsWithClient(ctx, vid, miniReelVideoTabBase+miniReelVideoTabPath, d, codecMode, s.client)
 }
 
 func miniReelMobileV5VideoTabKeys() []string {

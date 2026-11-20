@@ -6,6 +6,8 @@ Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取�
 
 1. 保留官方 `GET /reading/bookapi/video_tab/multi_video_model/v1/` 优先。
    它沿用自己的匿名注册身份与允许的注册 Cookie；候选源通过媒体准备即可返回，不预先注册后备身份。
+   该 GET 必须使用与 v5 相同的 `7.3.9.32` query 和 Medusa / Helios / Khronos 签名；
+   未签名的 `7.1.3.32` 请求会被上游以 HTTP 200 + 0 字节正文拒绝（#256）。
 2. GET 失败、缺模型、没有兼容源或其媒体读取失败后，进入同一个 `multi_video_model`
    provider：先请求移动端 v5 的 `POST /novel/player/multi_video_model/player/v1`。
    用独立的注册身份缓存、gzip JSON、完整 v5 Medusa / Helios 和实际压缩字节的 SS-STUB。
