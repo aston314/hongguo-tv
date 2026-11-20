@@ -62,6 +62,7 @@ test('v5 signs the actual gzip bytes and binds timestamp, identity and selected 
     const body = JSON.parse(zlib.gunzipSync(r.body));
     assert.deepEqual(body.mixed_video_id_map, { [type]: ['123'] });
     assert.equal(body.dr_scene, 'player');
+    assert.equal(body.biz_param.device_level, 1);
     assert.equal(body.biz_param.video_platform, 1024);
     assert.equal(r.headers['Content-Encoding'], 'gzip');
     assert.equal(r.headers['X-Khronos'], '1800000000');
@@ -281,7 +282,7 @@ test('v5 all-ByteVC2 follows unchanged codec fallback to same-episode HEVC', asy
     f.close();
   }
 });
-test('only confirmed empty 200 refreshes v5 identity once; other recoverable failures use old multi', async () => {
+test('empty 200 uses one same-identity video_tab attempt; other failures use old multi', async () => {
   for (const mode of ['empty', 'wrong', 'invalid', 'http', 'large']) {
     let calls = 0;
     const f = fixture((o) => {
@@ -296,8 +297,8 @@ test('only confirmed empty 200 refreshes v5 identity once; other recoverable fai
     });
     try {
       assert.equal((await f.resolve()).length, 1);
-      assert.equal(calls, mode === 'empty' ? 2 : 1);
-      assert.equal(f.registrations, mode === 'empty' ? 4 : 3);
+      assert.equal(calls, 1);
+      assert.equal(f.registrations, 3);
     } finally {
       f.close();
     }

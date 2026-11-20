@@ -9,12 +9,26 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
+	"strings"
 	"time"
 )
 
 const miniReelMobileV5Endpoint = "https://api5-normal-sinfonlinea.fqnovel.com/novel/player/multi_video_model/player/v1"
 const miniReelMobileV5UA = "com.phoenix.read/73932 (Linux; U; Android 12; zh_CN_#Hans; PGT-AN10; Build/V417IR;tt-ok/3.12.13.20)"
 const miniReelMobileV5MaxJSON = 2 << 20
+
+type miniReelV5EmptyResponseError struct {
+	retryAfter bool
+}
+
+func (e *miniReelV5EmptyResponseError) Error() string { return errMiniReelVideoModelEmpty.Error() }
+func (e *miniReelV5EmptyResponseError) Unwrap() error { return errMiniReelVideoModelEmpty }
+
+func miniReelV5EmptyBackoff(err error) bool {
+	var empty *miniReelV5EmptyResponseError
+	return errors.As(err, &empty) && empty.retryAfter
+}
 
 type miniReelMobileV5Source struct {
 	endpoint string
@@ -44,22 +58,21 @@ func (s *miniReelMobileV5Source) options(ctx context.Context, vid, codecMode, co
 	if err != nil {
 		return nil, wrapPlaybackPreparation(err, "device_register", "DEVICE_REGISTER_FAILED")
 	}
-	for attempt := 0; attempt < 2; attempt++ {
-		options, e := s.request(ctx, vid, codecMode, contentType, d)
-		if e == nil {
-			return options, nil
-		}
-		err = e
-		// Only one confirmed empty response can rotate this reusable session.
-		if attempt > 0 || !errors.Is(err, errMiniReelVideoModelEmpty) || ctx.Err() != nil {
-			break
-		}
-		d, e = s.identity.refreshAfterEmpty(ctx, d)
-		if e != nil {
-			return nil, err
+	options, e := s.request(ctx, vid, codecMode, contentType, d)
+	if e == nil {
+		return options, nil
+	}
+	// A v5 HTTP 200 empty body is recoverable with a signed video_tab GET
+	// using this same registered identity. Re-registering and repeating v5
+	// is the failure pattern the upstream now rejects.
+	if errors.Is(e, errMiniReelVideoModelEmpty) && !miniReelV5EmptyBackoff(e) {
+		if recovered, recoveryErr := s.recoverVideoTab(ctx, vid, codecMode, d); recoveryErr == nil && len(recovered) > 0 {
+			return recovered, nil
+		} else if ctx.Err() != nil {
+			return nil, ctx.Err()
 		}
 	}
-	return nil, err
+	return nil, e
 }
 
 func (s *miniReelMobileV5Source) request(ctx context.Context, vid, codecMode, contentType string, d miniReelDevice) (options []miniReelOption, err error) {
@@ -68,7 +81,7 @@ func (s *miniReelMobileV5Source) request(ctx context.Context, vid, codecMode, co
 	defer func() { err = finishPlaybackPreparation(err, diag, started) }()
 	// Content type belongs to the selected episode, including the existing 1003
 	// route. The normal short-drama request is exactly the verified 1004 shape.
-	raw, err := json.Marshal(map[string]any{"biz_param": map[string]any{"detail_page_version": 0, "device_level": 3, "disable_digg_stat": false, "disable_video_relate_book": false, "need_all_video_definition": true, "need_mp4_align": false, "use_os_player": false, "use_server_dns": false, "video_platform": 1024}, "mixed_video_id_map": map[string][]string{contentType: {vid}}, "dr_scene": "player"})
+	raw, err := json.Marshal(map[string]any{"biz_param": map[string]any{"detail_page_version": 0, "device_level": 1, "disable_digg_stat": false, "disable_video_relate_book": false, "need_all_video_definition": true, "need_mp4_align": false, "use_os_player": false, "use_server_dns": false, "video_platform": 1024}, "mixed_video_id_map": map[string][]string{contentType: {vid}}, "dr_scene": "player"})
 	if err != nil {
 		return nil, errors.New("playback payload failed")
 	}
@@ -118,7 +131,7 @@ func (s *miniReelMobileV5Source) request(ctx context.Context, vid, codecMode, co
 	diag.ResponseBytes = &n
 	if len(bytes.TrimSpace(data)) == 0 {
 		diag.Code = "VIDEO_MODEL_EMPTY"
-		return nil, errMiniReelVideoModelEmpty
+		return nil, &miniReelV5EmptyResponseError{retryAfter: strings.TrimSpace(res.Header.Get("Retry-After")) != ""}
 	}
 	diag.Code = "VIDEO_MODEL_JSON"
 	var envelope map[string]any
@@ -143,4 +156,99 @@ func (s *miniReelMobileV5Source) request(ctx context.Context, vid, codecMode, co
 	}
 	envelope["data"] = map[string]any{vid: entry}
 	return miniReelOptionsFromEnvelope(ctx, vid, envelope, s.client, codecMode, &diag)
+}
+
+// recoverVideoTab mirrors the upstream v1.3.3 recovery: the v5 POST and this
+// GET share one registered identity, while the GET uses the 7.3.9.32 query
+// profile and the v5 Medusa/Helios/Khronos signer. A missing/wrong VID keeps
+// the original empty error so another provider can make the next decision.
+func (s *miniReelMobileV5Source) recoverVideoTab(ctx context.Context, vid, codecMode string, d miniReelDevice) ([]miniReelOption, error) {
+	stamp := time.Now().UnixMilli()
+	params := miniReelMobileV5VideoTabParams(vid, d, stamp)
+	keys := miniReelMobileV5VideoTabKeys()
+	query, headers, err := signPlaybackV5Keys(params, nil, stamp, keys)
+	if err != nil {
+		return nil, err
+	}
+	// A body-less GET has no Content-Type or SS-STUB. The signer returns the
+	// latter for the generic profile, so remove it explicitly here.
+	headers.Del("X-SS-STUB")
+	headers.Set("User-Agent", miniReelFallbackUA)
+	headers.Set("Accept", "application/json; charset=utf-8")
+	headers.Set("Accept-Language", "zh-CN,zh;q=0.9")
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, miniReelVideoTabBase+miniReelVideoTabPath+"?"+query, nil)
+	if err != nil {
+		return nil, err
+	}
+	request.Header = headers
+	response, err := miniReelNoRedirectClient(s.client, 15*time.Second).Do(request)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("MiniReel video_tab recovery HTTP %d", response.StatusCode)
+	}
+	data, err := miniReelReadLimited(response.Body, miniReelMaxJSONBytes)
+	if err != nil || len(bytes.TrimSpace(data)) == 0 {
+		return nil, errMiniReelVideoModelEmpty
+	}
+	var root map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	decoder.UseNumber()
+	if err := decoder.Decode(&root); err != nil || root == nil {
+		return nil, errors.New("MiniReel video_tab recovery response is invalid JSON")
+	}
+	if code := miniReelBusinessCodeFromEnvelope(root); code != "" && code != "0" {
+		return nil, fmt.Errorf("MiniReel video_tab recovery rejected request (code %s)", code)
+	}
+	envelope, ok := miniReelVideoTabEnvelopeExact(vid, root)
+	if !ok {
+		return nil, errMiniReelVideoModelEmpty
+	}
+	return miniReelOptionsFromEnvelope(ctx, vid, envelope, s.client, codecMode, &playbackPreparationDiagnostic{Stage: "video_tab", Code: "VIDEO_TAB_JSON"})
+}
+
+func miniReelMobileV5VideoTabKeys() []string {
+	return []string{"ac", "channel", "aid", "app_name", "version_code", "version_name", "device_platform", "os", "ssmix", "device_type", "device_brand", "language", "os_api", "os_version", "manifest_version_code", "resolution", "dpi", "update_version_code", "host_abi", "dragon_device_type", "pv_player", "compliance_status", "need_personal_recommend", "player_so_load", "is_android_pad_screen", "iid", "cdid", "device_id", "video_id", "video_id_type", "device_level", "need_all_video_definition", "need_mp4_align", "use_os_player", "video_platform", "source", "from_video_id", "_rticket"}
+}
+
+func miniReelMobileV5VideoTabParams(vid string, d miniReelDevice, stamp int64) url.Values {
+	return url.Values{
+		"ac": {"wifi"}, "channel": {"update_64"}, "aid": {"8662"}, "app_name": {"novelread"},
+		"version_code": {"73932"}, "version_name": {"7.3.9.32"}, "device_platform": {"android"}, "os": {"android"}, "ssmix": {"a"},
+		"device_type": {"25053RT47C"}, "device_brand": {"Redmi"}, "language": {"zh"}, "os_api": {"36"}, "os_version": {"16"},
+		"manifest_version_code": {"73932"}, "resolution": {"1280*2772"}, "dpi": {"520"}, "update_version_code": {"73932"},
+		"host_abi": {"arm64-v8a"}, "dragon_device_type": {"phone"}, "pv_player": {"73932"}, "compliance_status": {"0"},
+		"need_personal_recommend": {"1"}, "player_so_load": {"1"}, "is_android_pad_screen": {"0"},
+		"iid": {d.installID}, "cdid": {d.cdid}, "device_id": {d.deviceID}, "video_id": {vid}, "video_id_type": {"0"},
+		"device_level": {"1"}, "need_all_video_definition": {"1"}, "need_mp4_align": {"0"}, "use_os_player": {"0"},
+		"video_platform": {"1024"}, "source": {"0"}, "from_video_id": {""}, "_rticket": {strconv.FormatInt(stamp, 10)},
+	}
+}
+
+func miniReelVideoTabEnvelopeExact(vid string, root map[string]any) (map[string]any, bool) {
+	data, ok := asMap(root["data"])
+	if !ok {
+		return nil, false
+	}
+	rows, ok := asMap(data["video_model_data"])
+	if !ok {
+		rows = data
+	}
+	row, ok := asMap(rows[vid])
+	if !ok {
+		return nil, false
+	}
+	model := row["video_model"]
+	if text := miniReelToString(model); strings.HasPrefix(strings.TrimSpace(text), "{") {
+		var decoded any
+		if json.Unmarshal([]byte(text), &decoded) == nil {
+			model = decoded
+		}
+	}
+	if _, ok := asMap(model); !ok {
+		return nil, false
+	}
+	return map[string]any{"code": 0, "data": map[string]any{vid: map[string]any{"video_model": model}}}, true
 }

@@ -193,6 +193,13 @@ func playbackV5Helios(ts, nonce uint32) string {
 // the final query and the exact compressed body are signed together.
 func playbackV5Tune(values url.Values, body []byte, stamp int64) (string, [32]byte, [16]byte, error) {
 	keys := []string{"aid", "app_name", "version_code", "version_name", "channel", "device_platform", "device_type", "os_version", "update_version_code", "iid", "cdid", "device_id", "_rticket"}
+	return playbackV5TuneKeys(values, body, stamp, keys)
+}
+
+// playbackV5TuneKeys signs an explicitly ordered query. The video_tab
+// recovery request uses a larger Android query than the v5 POST; signing the
+// exact ordered bytes keeps its business parameters inside the signature.
+func playbackV5TuneKeys(values url.Values, body []byte, stamp int64, keys []string) (string, [32]byte, [16]byte, error) {
 	for offset := int64(0); offset < 1024; offset++ {
 		parts := make([]string, 0, len(keys))
 		for _, key := range keys {
@@ -212,7 +219,12 @@ func playbackV5Tune(values url.Values, body []byte, stamp int64) (string, [32]by
 }
 
 func signPlaybackV5(values url.Values, body []byte, stamp int64) (string, http.Header, error) {
-	query, q, m, err := playbackV5Tune(values, body, stamp)
+	keys := []string{"aid", "app_name", "version_code", "version_name", "channel", "device_platform", "device_type", "os_version", "update_version_code", "iid", "cdid", "device_id", "_rticket"}
+	return signPlaybackV5Keys(values, body, stamp, keys)
+}
+
+func signPlaybackV5Keys(values url.Values, body []byte, stamp int64, keys []string) (string, http.Header, error) {
+	query, q, m, err := playbackV5TuneKeys(values, body, stamp, keys)
 	if err != nil {
 		return "", nil, err
 	}

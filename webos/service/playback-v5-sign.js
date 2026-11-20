@@ -181,7 +181,7 @@ function medusa(values, ts, q, m, n, process) {
   );
 }
 function tune(values, body, stamp) {
-  var keys = [
+  return tuneKeys(values, body, stamp, [
     'aid',
     'app_name',
     'version_code',
@@ -195,7 +195,9 @@ function tune(values, body, stamp) {
     'cdid',
     'device_id',
     '_rticket'
-  ];
+  ]);
+}
+function tuneKeys(values, body, stamp, keys) {
   for (var offset = 0; offset < 1024; offset++) {
     var query = keys
       .map(function (key) {
@@ -215,7 +217,24 @@ function tune(values, body, stamp) {
   throw new Error('unable to select v5 signature branch');
 }
 function sign(values, body, stamp) {
-  var tuned = tune(values, body, stamp),
+  return signKeys(values, body, stamp, [
+    'aid',
+    'app_name',
+    'version_code',
+    'version_name',
+    'channel',
+    'device_platform',
+    'device_type',
+    'os_version',
+    'update_version_code',
+    'iid',
+    'cdid',
+    'device_id',
+    '_rticket'
+  ]);
+}
+function signKeys(values, body, stamp, keys) {
+  var tuned = tuneKeys(values, body, stamp, keys),
     ts = Math.floor(stamp / 1000) >>> 0;
   var n = [0, 0, 0, 0].map(function () {
     return crypto.randomBytes(4).readUInt32LE(0);
@@ -314,4 +333,4 @@ function xmxor(data, key) {
   return out;
 }
 
-module.exports = { sign: sign, tune: tune, f13: f13, medusa: medusa, helios: helios };
+module.exports = { sign: sign, signKeys: signKeys, tune: tune, tuneKeys: tuneKeys, f13: f13, medusa: medusa, helios: helios };
