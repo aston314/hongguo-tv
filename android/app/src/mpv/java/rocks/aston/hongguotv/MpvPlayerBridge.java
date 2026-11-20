@@ -59,6 +59,10 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         MPVLib player;
         boolean outputReady, wantsPlay, terminal, completedEof, pendingSeek, inPlaceReplacement, pauseAfterFirstFrame;
         boolean softwareFallback;
+        // Per-source state: the shared libmpv client must not carry this ratio
+        // or its detection budget across manual/automatic episode changes.
+        String portraitAspectOverride = "";
+        int portraitAspectWidth, portraitAspectHeight, portraitAspectChecks;
         int greenProbes, greenStreak, stallStrikes;
         long dropSampleAt, dropBase;
         long position, duration;
@@ -241,6 +245,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         try {
             target.player.setPropertyString("android-surface-size", frame.width() + "x" + frame.height());
             target.player.setPropertyString("hwdec", activeHwdec(target));
+            target.player.setPropertyString("video-aspect-override", "no");
             target.player.setPropertyString("force-window", "yes");
             target.player.setPropertyBoolean("mute", muted);
             target.player.setPropertyDouble("volume", volume * 100);
@@ -297,6 +302,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             surfaceSize(target, frame.width(), frame.height());
             active.setPropertyString("android-surface-size", frame.width() + "x" + frame.height());
             active.setPropertyString("hwdec", activeHwdec(target));
+            active.setPropertyString("video-aspect-override", "no");
             target.pendingSeek = target.position > 0;
             active.setPropertyString("force-window", "yes");
             active.setPropertyBoolean("mute", muted);
@@ -325,7 +331,9 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             // software decoding if their vendor decoder produces bad frames.
             option(active, "config", "no"); option(active, "terminal", "no");
             option(active, "vo", "gpu"); option(active, "gpu-context", "android");
-            option(active, "opengl-es", "yes"); option(active, "hwdec", MpvDecodeMode.stored(decoderMode()).hwdec);
+            option(active, "opengl-es", "yes");
+            option(active, "hwdec", MpvPortraitAspectPolicy.hwdec(android.os.Build.MODEL,
+                MpvDecodeMode.stored(decoderMode()), false));
             option(active, "keepaspect", "yes"); option(active, "panscan", "0");
             option(active, "video-align-x", "0"); option(active, "video-align-y", "0");
             option(active, "scale", "bilinear"); option(active, "dscale", "bilinear");
@@ -482,9 +490,12 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                             if (!target.sourceSwitch.onFileLoaded()) return;
                             target.output.loaded = true;
                             target.fileLoadedAt = SystemClock.uptimeMillis();
+                            maybeApplyPortraitAspect(target);
                             String loadedProfile = currentDecodeProfile(target);
                             if (target.mode == MpvDecodeMode.AUTOMATIC && !target.softwareFallback
-                                    && isHardwareDecoder(active) && decodeMemory.isBroken(loadedProfile)) {
+                                    && isHardwareDecoder(active)
+                                    && MpvPortraitAspectPolicy.useCachedDecodeFailure(decodeMemory.isBroken(loadedProfile),
+                                        !target.portraitAspectOverride.isEmpty())) {
                                 retrySoftware(target, "known_broken_profile", false);
                                 return;
                             }
@@ -564,8 +575,11 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         Boolean coreIdle = player.getPropertyBoolean("core-idle");
         if (coreIdle != null) target.output.coreIdle = coreIdle;
         if (target.inPlaceReplacement || !target.output.ready(surface.getHolder().getSurface().isValid())) return;
+        maybeApplyPortraitAspect(target);
         if (target.mode == MpvDecodeMode.AUTOMATIC && !target.softwareFallback
-                && isHardwareDecoder(player) && decodeMemory.isBroken(currentDecodeProfile(target))) {
+                && isHardwareDecoder(player)
+                && MpvPortraitAspectPolicy.useCachedDecodeFailure(decodeMemory.isBroken(currentDecodeProfile(target)),
+                    !target.portraitAspectOverride.isEmpty())) {
             retrySoftware(target, "known_broken_profile", false);
             return;
         }
@@ -576,7 +590,8 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             target.outputReadyAt = SystemClock.uptimeMillis();
             handler.removeCallbacks(target.timeout);
             JSONObject detail = new JSONObject();
-            try { detail.put("width", w).put("height", h).put("core_idle", target.output.coreIdle); } catch (Exception ignored) {}
+            try { detail.put("width", target.output.width).put("height", target.output.height)
+                .put("core_idle", target.output.coreIdle); } catch (Exception ignored) {}
             // The shared adapter's frame event means presentation-ready here.
             // libmpv has no physical first-frame callback; report that honestly.
             event(target, "frame", detail);
@@ -598,8 +613,45 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
         refreshInPlaceReplaceAvailability();
     }
     private static String activeHwdec(Session target) {
-        return target.softwareFallback ? "no" : target.mode.hwdec;
+        return MpvPortraitAspectPolicy.hwdec(android.os.Build.MODEL, target.mode, target.softwareFallback);
     }
+    private void maybeApplyPortraitAspect(Session target) {
+        if (!current(target) || target.player == null || !target.output.loaded
+                || !MpvPortraitAspectPolicy.eligible(target.mode, target.softwareFallback)) return;
+        if (!target.portraitAspectOverride.isEmpty()) {
+            // These are logical display dimensions after a successful ratio
+            // override, not a claim that the decoder recovered missing pixels.
+            target.output.width = target.portraitAspectWidth;
+            target.output.height = target.portraitAspectHeight;
+            return;
+        }
+        if (target.portraitAspectChecks >= MpvPortraitAspectPolicy.MAX_CHECKS) return;
+        target.portraitAspectChecks++;
+        try {
+            MPVLib active = target.player;
+            int w = positive(active.getPropertyInt("video-dec-params/w"));
+            int h = positive(active.getPropertyInt("video-dec-params/h"));
+            if (!MpvPortraitAspectPolicy.clamped(w, h)) return;
+            int sw = positive(active.getPropertyInt("current-tracks/video/demux-w"));
+            int sh = positive(active.getPropertyInt("current-tracks/video/demux-h"));
+            Integer rotation = active.getPropertyInt("current-tracks/video/demux-rotation");
+            String codec = property(active, "current-tracks/video/codec");
+            if (codec.isEmpty()) codec = property(active, "video-format");
+            String aspect = MpvPortraitAspectPolicy.override(property(active, "hwdec-current"), codec,
+                w, h, sw, sh, rotation == null ? 0 : rotation,
+                active.getPropertyDouble("current-tracks/video/demux-par"));
+            if (aspect.isEmpty()) return;
+            active.setPropertyString("video-aspect-override", aspect);
+            target.portraitAspectOverride = aspect;
+            target.portraitAspectWidth = sw;
+            target.portraitAspectHeight = sh;
+            target.output.width = sw;
+            target.output.height = sh;
+        } catch (RuntimeException ignored) {
+            // An optional display repair must not fail a playable source.
+        }
+    }
+    private static int positive(Integer value) { return value == null || value <= 0 ? 0 : value; }
     private static boolean isHardwareDecoder(MPVLib active) {
         if (active == null) return false;
         try {
@@ -754,6 +806,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
             if (target != null && current(target) && target.player != null) guarded(target, () -> {
                 if (!target.outputReady) rendered(target);
                 if (target.outputReady) {
+                    maybeApplyPortraitAspect(target);
                     reportProgress(target);
                     checkDecodeStall(target);
                 }
@@ -778,6 +831,7 @@ public final class MpvPlayerBridge implements NativePlayerAdapter, SurfaceHolder
                 .put("hwdec_active_request", activeHwdec(target))
                 .put("software_fallback", target.softwareFallback)
                 .put("fallback_reason", target.fallbackReason)
+                .put("portrait_aspect_override", target.portraitAspectOverride)
                 .put("green_frame_probe_count", target.greenProbes)
                 .put("green_frame_streak", target.greenStreak)
                 .put("decode_stall_strikes", target.stallStrikes)
