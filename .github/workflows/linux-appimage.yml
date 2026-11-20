@@ -8,6 +8,11 @@ on:
         type: boolean
         default: true
         required: true
+      allow_debian_playback_failure:
+        description: Publish when Debian 12 only has a missing optional playback sample; Ubuntu must still pass
+        type: boolean
+        default: false
+        required: false
   push:
     branches: [codex/linux-appimage]
     tags: ["v*"]
@@ -96,6 +101,7 @@ jobs:
     needs: build
     runs-on: ubuntu-24.04
     timeout-minutes: 15
+    continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_debian_playback_failure == true }}
     strategy:
       fail-fast: false
       matrix:
@@ -148,7 +154,7 @@ jobs:
 
   publish-linux:
     needs: [desktop-compatibility, playback]
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_public)
+    if: always() && needs.desktop-compatibility.result == 'success' && (needs.playback.result == 'success' || (github.event_name == 'workflow_dispatch' && inputs.allow_debian_playback_failure == true)) && (startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.publish_public))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
