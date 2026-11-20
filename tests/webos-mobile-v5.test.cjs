@@ -321,6 +321,23 @@ test('Retry-After on either V5 host skips further same-identity recovery', async
   }
 });
 
+test('a failed recovery GET retains the original empty diagnostic and reaches the old provider', async () => {
+  const f = fixture((o) => {
+    if (isV5(o)) return { body: '' };
+    if (o.path.includes('/video_tab/')) return { status: 404, body: '' };
+    return response(o);
+  });
+  try {
+    assert.equal((await f.resolve()).length, 1);
+    assert.equal(f.requests.filter((x) => isV5(x.options)).length, 2);
+    assert.equal(f.requests.filter((x) => x.options.path.includes('/video_tab/') && x.options.headers['X-Medusa']).length, 1);
+    assert.equal(f.requests.filter((x) => isOld(x.options)).length, 1);
+    assert.equal(f.registrations, 3);
+  } finally {
+    f.close();
+  }
+});
+
 test('v7.7 recovery query keeps the reference profile, ordered signature and bodyless headers', () => {
   const request = profile.videoTabRecovery('123', device, 1800000000000);
   const url = new URL(request.url);

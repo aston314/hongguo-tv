@@ -847,6 +847,9 @@
       finish(); state.multiLegacyPending = true; return options;
     },function (error) {
       finish(); if (signal && signal.aborted || playbackIdentityClosed) throw preparationCancelled();
+      // A recovery GET can fail with another HTTP status. Keep the V5
+      // failure that selected this fallback, so the legacy path stays usable.
+      if (error.videoModel) diagnostic = Object.assign({}, error.videoModel);
       if (error.code === 'ACCOUNT_DEVICE') diagnostic = {stage:'device_register'};
       report({code:error.code || 'VIDEO_MODEL_NETWORK',network_reason:networkDiagnostic(error)});
       error.videoModel = Object.assign({},diagnostic); state.lastError = error;
