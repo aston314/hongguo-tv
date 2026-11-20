@@ -55,7 +55,7 @@ test('search suggestion focus remains in the native search navigation region for
   assert.match(source, /if \(zone === 'searchInput'\)[\s\S]*?searchSuggestionOpen \? firstVisible\('\.search-suggestion'\)/);
   assert.match(source, /if \(zone === 'searchSuggestions'\)[\s\S]*?moveWithinZone\(zone, current, direction\)/);
   assert.match(source, /if \(key === 'Enter'\)[\s\S]*?current\.click\(\)/);
-  assert.match(source, /function remoteFocusTarget\(\)[\s\S]*?document\.querySelector\('\.is-focused'\)[\s\S]*?focusables\(\)\.indexOf\(painted\)/);
+  assert.match(source, /function remoteFocusTarget\(\)[\s\S]*?var painted = paintedFocus[\s\S]*?isFocusTarget\(painted\)/);
   assert.match(source, /event\.remoteNavigation \? remoteFocusTarget\(\) \|\| document\.activeElement/);
 });
 
