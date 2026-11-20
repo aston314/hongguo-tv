@@ -43,7 +43,7 @@ test('general focus restoration avoids an active editor while search repair requ
 test('Android keeps D-pad and confirm routed through the search focus graph after leaving the editor', () => {
   const focusinStart = app.indexOf("document.addEventListener('focusin'");
   const focusin = app.slice(focusinStart, app.indexOf("document.querySelectorAll('.side-item')", focusinStart));
-  assert.match(focusin, /setRemoteNavigationTarget\(!editingTarget && focusables\(\)\.indexOf\(target\) >= 0\)/);
+  assert.match(focusin, /setRemoteNavigationTarget\(!editingTarget && isFocusTarget\(target\)\)/);
   assert.match(activity, /searchNavigationState\.routeFallbackNavigationKey\(editing\.isEditing\(\)\)/);
   const beginEditingStart = activity.indexOf('private void beginSearchEditingOnUiThread');
   const beginEditing = activity.slice(beginEditingStart, activity.indexOf('private void completeAccountEditing', beginEditingStart));

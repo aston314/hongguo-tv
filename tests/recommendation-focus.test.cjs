@@ -16,7 +16,7 @@ function fixture(mode = 'recommend', zone = 'channels') {
     detailModalOpen: false, confirmOpen: false, playerOptionsOpen: false, discussionOpen: false,
     controlsTimer: 1,
     pageMode: () => state.mode, isPlaybackPage: () => ['recommend', 'player'].includes(state.mode),
-    zoneOf: () => state.zone, activeChannel: () => channel, focusables: () => [feed, input],
+    zoneOf: () => state.zone, activeChannel: () => channel, isFocusTarget: element => [feed, input].includes(element),
     hideControls: () => { state.hidden = true; }
   });
   vm.runInContext(slice('firstContentFocus', 'activeSidebar') + slice('scheduleControlsHide', 'revealControls'), c);

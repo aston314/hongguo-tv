@@ -97,6 +97,8 @@
     ,accountCountry: '#account-country'
     ,accountCountryItems: '.account-country-item, #account-country-close'
   };
+  var focusSelector = Object.keys(zoneSelectors).map(function (zone) { return zoneSelectors[zone]; }).join(',');
+  var paintedFocus = null;
   var status = document.getElementById('core-status');
   var coreStatusLabel = document.getElementById('core-status-label');
   var coreStatusState = 'connecting';
@@ -1139,35 +1141,39 @@
   function scanModalOpen() { return searchScanOpen || danmakuScanOpen; }
 
   function focusables(selector) {
-    var result = [];
-    var query = selector || Object.keys(zoneSelectors).map(function (zone) { return zoneSelectors[zone]; }).join(',');
-    Array.prototype.forEach.call(document.querySelectorAll(query), function (element) {
-      var insideModal = element.closest && element.closest('#detail-modal');
-      if (coreConnectionModalOpen) { if (!element.closest('#core-connection-modal')) return; }
-      else if (scanModalOpen()) { if (!element.closest('#search-scan-modal')) return; }
-      else if (accountCountryModalOpen) { if (!element.closest('#account-country-modal')) return; }
-      else if (accountKeypadOpen()) { if (!element.closest('#account-keypad-modal')) return; }
-      else if (supportModalOpen) { if (!element.closest('#support-modal')) return; }
-      else if (rankFilterOpen) { if (!element.closest('#rank-filter-modal')) return; }
-      else if (typeof actorWorksOpen !== 'undefined' && actorWorksOpen) { if (!element.closest('#actor-works-modal')) return; }
-      else if (detailCastOpen) { if (!element.closest('#detail-cast-modal')) return; }
-      else if (confirmOpen) { if (!element.closest('#confirm-modal')) return; }
-      else if (typeof playbackCommandMenuOpen !== 'undefined' && playbackCommandMenuOpen) { if (!element.closest('#playback-command-menu')) return; }
-      else if (playerOptionsOpen) { if (!element.closest('#player-options')) return; }
-      else if (discussionOpen) { if (!element.closest('#discussion-panel')) return; }
-      else if (endRecommendations && endRecommendations.isOpen()) { if (!element.closest('#end-recommendations')) return; }
-      else if (element.closest('#playback-command-menu')) return;
-      else if (element.closest('#end-recommendations')) return;
-      else if (element.closest('#discussion-panel')) return;
-      else if (detailModalOpen ? !insideModal : insideModal) return;
-      // Cached pages can contain hundreds of hidden cards. Discard them
-      // before resolving computed styles on every remote focus check.
-      if (element.disabled) return;
-      if (!element.getClientRects || !element.getClientRects().length) return;
-      var style = window.getComputedStyle(element);
-      if (style.display !== 'none' && style.visibility !== 'hidden') result.push(element);
-    });
-    return result;
+    return Array.prototype.filter.call(document.querySelectorAll(selector || focusSelector), focusVisible);
+  }
+
+  function focusVisible(element) {
+    var insideModal = element.closest && element.closest('#detail-modal');
+    if (coreConnectionModalOpen) { if (!element.closest('#core-connection-modal')) return false; }
+    else if (scanModalOpen()) { if (!element.closest('#search-scan-modal')) return false; }
+    else if (accountCountryModalOpen) { if (!element.closest('#account-country-modal')) return false; }
+    else if (accountKeypadOpen()) { if (!element.closest('#account-keypad-modal')) return false; }
+    else if (supportModalOpen) { if (!element.closest('#support-modal')) return false; }
+    else if (rankFilterOpen) { if (!element.closest('#rank-filter-modal')) return false; }
+    else if (typeof actorWorksOpen !== 'undefined' && actorWorksOpen) { if (!element.closest('#actor-works-modal')) return false; }
+    else if (detailCastOpen) { if (!element.closest('#detail-cast-modal')) return false; }
+    else if (confirmOpen) { if (!element.closest('#confirm-modal')) return false; }
+    else if (typeof playbackCommandMenuOpen !== 'undefined' && playbackCommandMenuOpen) { if (!element.closest('#playback-command-menu')) return false; }
+    else if (playerOptionsOpen) { if (!element.closest('#player-options')) return false; }
+    else if (discussionOpen) { if (!element.closest('#discussion-panel')) return false; }
+    else if (endRecommendations && endRecommendations.isOpen()) { if (!element.closest('#end-recommendations')) return false; }
+    else if (element.closest('#playback-command-menu')) return false;
+    else if (element.closest('#end-recommendations')) return false;
+    else if (element.closest('#discussion-panel')) return false;
+    else if (detailModalOpen ? !insideModal : insideModal) return false;
+    // Cached pages can contain hundreds of hidden cards. Discard them
+    // before resolving computed styles on every remote focus check.
+    if (element.disabled) return false;
+    if (!element.getClientRects || !element.getClientRects().length) return false;
+    var style = window.getComputedStyle(element);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  }
+
+  function isFocusTarget(element) {
+    // Validate the one candidate without measuring every card on cached pages.
+    return !!(element && element.matches && element.matches(focusSelector) && focusVisible(element));
   }
 
   function firstVisible(selector) {
@@ -1180,18 +1186,20 @@
   }
 
   function remoteFocusTarget() {
-    var painted = document.querySelector('.is-focused');
-    if (painted && focusables().indexOf(painted) >= 0) return painted;
+    var painted = paintedFocus;
+    if (isFocusTarget(painted)) return painted;
     var active = document.activeElement;
-    if (active && focusables().indexOf(active) >= 0) return active;
+    if (isFocusTarget(active)) return active;
     var remembered = lastPageFocus[pageMode()];
-    if (remembered && focusables().indexOf(remembered) >= 0) return remembered;
+    if (isFocusTarget(remembered)) return remembered;
     return null;
   }
 
   function paintFocus(element) {
-    document.querySelectorAll('.is-focused').forEach(function (node) { node.classList.remove('is-focused'); });
-    if (element) element.classList.add('is-focused');
+    if (paintedFocus === element) return;
+    if (paintedFocus) paintedFocus.classList.remove('is-focused');
+    paintedFocus = element || null;
+    if (paintedFocus) paintedFocus.classList.add('is-focused');
   }
 
   function revealSidebarFocus(element) {
@@ -1324,8 +1332,8 @@
     // focus-options overload.
     var previous = document.activeElement;
     if (typeof androidShell !== 'undefined' && androidShell &&
-        (!previous || previous === document.body || focusables().indexOf(previous) < 0) && remoteFocusTarget()) {
-      previous = remoteFocusTarget();
+        (!previous || previous === document.body || !isFocusTarget(previous))) {
+      previous = remoteFocusTarget() || previous;
     }
     if (previous && previous.tagName === 'INPUT' && element.tagName !== 'INPUT' && window.HongguoTVInput) window.HongguoTVInput.finishEditing();
     element.focus();
@@ -1370,7 +1378,7 @@
     if (['favorites', 'likes'].indexOf(pageMode()) >= 0) return firstVisible('.library-tab.is-active') || firstVisible('.library-tab');
     if (pageMode() === 'follows') return firstVisible('.follow-tab.is-active') || firstVisible('.follow-tab');
     var remembered = lastPageFocus[pageMode()];
-    if (remembered && focusables().indexOf(remembered) >= 0) return remembered;
+    if (isFocusTarget(remembered)) return remembered;
     if (pageMode() === 'search') return searchInput || document.querySelector('.search-submit');
     if (pageMode() === 'account') return firstVisible('#account-method-qr[aria-pressed="true"]') || firstVisible('#account-method-phone') || firstVisible('.account-input') || firstVisible('.account-action');
     if (pageMode() === 'settings') return selectedSidebarDisplay() || selectedLocale() || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action') || activeSidebar();
@@ -2710,8 +2718,10 @@
     controlsManuallyHidden = false;
     // Hidden progress ticks skip painting the controls. Sync before revealing
     // them, without refreshing on every pointer move while already visible.
-    if (shell.classList.contains('is-controls-hidden')) updatePlaybackControls();
-    shell.classList.remove('is-controls-hidden');
+    if (shell.classList.contains('is-controls-hidden')) {
+      updatePlaybackControls();
+      shell.classList.remove('is-controls-hidden');
+    }
     scheduleControlsHide();
   }
   function hideControls() {
@@ -8338,8 +8348,8 @@
 
   if (desktopShell && window.HongguoDesktopUI && window.HongguoDesktopUI.createPointerFocus) {
     desktopPointerFocus = window.HongguoDesktopUI.createPointerFocus(window, {
-      selector: Object.keys(zoneSelectors).map(function (zone) { return zoneSelectors[zone]; }).join(','),
-      allowed: function (element) { return focusables().indexOf(element) >= 0; },
+      selector: focusSelector,
+      allowed: isFocusTarget,
       paint: paintFocus,
       focus: goFocus,
       hover: function (element) {
@@ -8364,7 +8374,7 @@
       var editingTarget = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
       // Search edit mode already blocks fallback keys; keep the last page
       // target so a delayed IME focus callback cannot disable suggestion nav.
-      if (target.id !== 'search-input') window.HongguoTVInput.setRemoteNavigationTarget(!editingTarget && focusables().indexOf(target) >= 0);
+      if (target.id !== 'search-input') window.HongguoTVInput.setRemoteNavigationTarget(!editingTarget && isFocusTarget(target));
       if (target.classList && target.classList.contains('search-suggestion')) searchSuggestionFocusedKey = target.dataset.suggestionKey || '';
       else searchSuggestionFocusedKey = '';
     }

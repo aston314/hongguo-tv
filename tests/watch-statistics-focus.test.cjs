@@ -51,7 +51,7 @@ test('focus validation skips hidden cached cards without resolving their styles'
   const modal = node(true, {display: 'block', visibility: 'visible'}, true);
   const reads = [];
   const context = vm.createContext({
-    zoneSelectors: {statistics: '.watch-stat-action'},
+    focusSelector: '.watch-stat-action',
     document: {querySelectorAll: () => hiddenCards.concat(day, invisible, disabled, modal)},
     window: {getComputedStyle: element => { reads.push(element); assert.ok(element.style); return element.style; }},
     coreConnectionModalOpen: false, scanModalOpen: () => false, accountCountryModalOpen: false,
