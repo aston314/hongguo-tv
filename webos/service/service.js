@@ -1,6 +1,8 @@
 (function () {
   'use strict';
 
+  require('./runtime-compat');
+
   var SERVICE_ID = 'com.aston314.hongguo.webos.service';
   var DEFAULT_PORT = 7655;
 
@@ -30,6 +32,12 @@
     if (!luna) {
       var Service = options.Service || require('webos-service');
       luna = new Service(serviceID);
+    }
+
+    function isListening() {
+      // Node 0.12 lacks Server#listening. Preserve the native property on
+      // newer runtimes and use the bound address only on the legacy VM.
+      return !!(server && (typeof server.listening === 'boolean' ? server.listening : server.address()));
     }
 
     function cors(res, origin) {
@@ -64,7 +72,7 @@
     function statusPayload() {
       return {
         ok: true,
-        ready: !!(server && server.listening),
+        ready: isListening(),
         service: 'hongguo-webos-service',
         implementation: 'experimental-js-service',
         platform: 'webos',
@@ -147,8 +155,8 @@
       if (pathName === '/api/v1/player/audio') {
         if (req.method !== 'GET') return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
         var audioAbort = require('./audio-cancel').create();
-        function stopAudio() { audioAbort.abort(); }
-        function detachAudio() { req.removeListener('aborted', stopAudio); res.removeListener('close', stopAudio); }
+        var stopAudio = function () { audioAbort.abort(); };
+        var detachAudio = function () { req.removeListener('aborted', stopAudio); res.removeListener('close', stopAudio); };
         req.once('aborted', stopAudio); res.once('close', stopAudio);
         return provider.prepareAudio(String(q.media || ''), audioAbort.signal).then(function (audio) {
           detachAudio(); if (res.destroyed || audioAbort.signal.aborted) return;
@@ -168,8 +176,8 @@
       if (pathName === '/minireel-proxy/resolve' || pathName === '/api/v1/play/info' || pathName === '/api/v1/PlayInfo') {
         var seriesID = String(q.series_id || ''), vid = String(q.vid || '');
         var preparationAbort = require('./audio-cancel').create();
-        function stopPreparation() { preparationAbort.abort('PLAYBACK_PREPARATION_CANCELLED'); }
-        function detachPreparation() { req.removeListener('aborted', stopPreparation); res.removeListener('close', stopPreparation); }
+        var stopPreparation = function () { preparationAbort.abort('PLAYBACK_PREPARATION_CANCELLED'); };
+        var detachPreparation = function () { req.removeListener('aborted', stopPreparation); res.removeListener('close', stopPreparation); };
         req.once('aborted', stopPreparation); res.once('close', stopPreparation);
         return provider.prepare(seriesID, vid, String(q.quality || ''), String(q.fallback || '') === '1', String(q.mode || ''), String(q.prefetch || '') === '1', preparationAbort.signal, String(q.content_type || '')).then(function (result) {
           detachPreparation(); if (!res.destroyed && !preparationAbort.signal.aborted) data(req, res, result);
@@ -333,8 +341,8 @@
       }
       var pathName = String(req.url || '/').split('?')[0];
       if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'POST' && req.method !== 'DELETE') return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
-      if (pathName === '/api/v1/health') return json(res, 200, { ok: true, ready: !!(server && server.listening), service: 'hongguo-webos-service', port: port }, req);
-      if (pathName === '/api/v1/diagnostics') return json(res, 200, { ok: true, ready: !!(server && server.listening), port: port, lastStartupError: lastStartupError, video_model: provider.foregroundVideoModelDiagnostics ? provider.foregroundVideoModelDiagnostics() : provider.videoModelDiagnostics ? provider.videoModelDiagnostics() : { stage: 'unavailable', code: 'NOT_SUPPORTED' } }, req);
+      if (pathName === '/api/v1/health') return json(res, 200, { ok: true, ready: isListening(), service: 'hongguo-webos-service', port: port }, req);
+      if (pathName === '/api/v1/diagnostics') return json(res, 200, { ok: true, ready: isListening(), port: port, lastStartupError: lastStartupError, video_model: provider.foregroundVideoModelDiagnostics ? provider.foregroundVideoModelDiagnostics() : provider.videoModelDiagnostics ? provider.videoModelDiagnostics() : { stage: 'unavailable', code: 'NOT_SUPPORTED' } }, req);
       if (pathName === '/api/v1/status') return json(res, 200, statusPayload(), req);
       if (pathName.indexOf('/api/') === 0 || pathName.indexOf('/minireel-proxy/media/') === 0 || pathName === '/minireel-proxy/resolve') {
         try { return handleProvider(req, res, pathName); } catch (error) { return failure(req, res, error); }
@@ -383,7 +391,7 @@
     }
 
     function ensureServer() {
-      if (server && server.listening) return Promise.resolve(server);
+      if (isListening()) return Promise.resolve(server);
       if (serverStart) return serverStart;
       server = http.createServer(handle);
       serverStart = new Promise(function (resolve, reject) {
@@ -408,7 +416,7 @@
         return value;
       }, function (error) {
         serverStart = null;
-        if (server && !server.listening) server = null;
+        if (server && !isListening()) server = null;
         console.error('[hongguo-webos] HTTP server error', error && error.stack || error);
         throw error;
       });
@@ -450,7 +458,7 @@
     function stopServer() {
       if (account.close) account.close();
       if (provider.closeCache) provider.closeCache();
-      if (!server || !server.listening) { server = null; return Promise.resolve(); }
+      if (!isListening()) { server = null; return Promise.resolve(); }
       var previous = server;
       server = null;
       return new Promise(function (resolve) {

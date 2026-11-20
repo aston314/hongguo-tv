@@ -71,7 +71,7 @@ Jar.prototype.export = function () { var out = {}; this.cookies(BASE + '/').forE
 
 function nativeRequest(target, method, headers, body, limit, control) {
   return new Promise(function (resolve, reject) {
-    var p = url.parse(target), req = https.request({ hostname: p.hostname, port: p.port || 443, path: p.path, method: method, headers: headers });
+    var p = url.parse(target), req = https.request(require('./upstream-tls')({ protocol: 'https:', hostname: p.hostname, port: p.port || 443, path: p.path, method: method, headers: headers }));
     var chunks = [], size = 0, done = false;
     function finish(error, value) { if (done) return; done = true; if (error) reject(error); else resolve(value); }
     control.onCancel(function () { req.destroy(); finish(failure('扫码请求已取消')); });

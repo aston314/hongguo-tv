@@ -14,6 +14,33 @@ permissions:
   contents: read
 
 jobs:
+  webos-legacy-runtime:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - version: "0.12.2"
+            sha256: "4e1578efc2a2cc67651413a05ccc4c5d43f6b4329c599901c556f24d93cd0508"
+          - version: "8.12.0"
+            sha256: "3df19b748ee2b6dfe3a03448ebc6186a3a86aeab557018d77a0f7f3314594ef6"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Verify official legacy Node runtime
+        env:
+          LEGACY_VERSION: ${{ matrix.version }}
+          LEGACY_SHA256: ${{ matrix.sha256 }}
+        run: |
+          archive="node-v${LEGACY_VERSION}-linux-x64.tar.gz"
+          curl --fail --silent --show-error --location --retry 2 "https://nodejs.org/dist/v${LEGACY_VERSION}/${archive}" -o "$RUNNER_TEMP/$archive"
+          echo "$LEGACY_SHA256  $RUNNER_TEMP/$archive" | sha256sum --check
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
+          echo "WEBOS_LEGACY_NODE=$RUNNER_TEMP/node-v${LEGACY_VERSION}-linux-x64/bin/node" >> "$GITHUB_ENV"
+      - name: Test production bootstrap, signature vectors and TLS verification
+        run: node --test tests/webos-legacy-runtime.test.cjs tests/webos-upstream-tls.test.cjs
+
   release-source-windows:
     runs-on: windows-2022
     steps:

@@ -2,6 +2,9 @@
 
 // Fixed metadata only. Never copy a URL, certificate, hostname or error message.
 module.exports = function (error) {
+  // Node 0.12 hostname mismatches have no error.code. Classify only this fixed
+  // native prefix; never return the message, which contains the upstream host.
+  if (error && /^Hostname\/IP doesn't match certificate's altnames:/.test(String(error.message || ''))) return 'tls';
   var reason = error && error.network_reason;
   if (['dns', 'tls', 'timeout', 'refused', 'reset', 'unreachable', 'cancelled'].indexOf(reason) >= 0) return reason;
   var code = error && error.code;

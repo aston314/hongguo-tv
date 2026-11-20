@@ -12,6 +12,7 @@ var starts = 0;
 var instance;
 var loaded = { exports: {} };
 function loader(name) {
+  if (name === './runtime-compat') return require(name);
   assert.strictEqual(name, './service');
   return function () {
     starts++;
