@@ -28,8 +28,6 @@
   var API_BASE = 'https://api5-normal-sinfonlineb.fqnovel.com';
   var WEB_BASE = 'https://hongguoduanju.com';
   var API_PATH = '/novel/player/multi_video_model/v1/';
-  var VIDEO_TAB_BASE = 'https://api5-normal-sinfonlineb.fqnovel.com';
-  var VIDEO_TAB_PATH = '/reading/bookapi/video_tab/multi_video_model/v1/';
   var APP_UA = 'com.phoenix.read/73532 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
   var PLAYBACK_UA = 'com.phoenix.read/71532 (Linux; U; Android 9; SM-N9860; Build/PQ3A.190705.10241111;tt-ok/3.12.13.20)';
   var FALLBACK_UA = 'com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
@@ -68,7 +66,7 @@
   }
   function transientVideoModelError(error) {
     if (!error) return false;
-    if (error.code === 'VIDEO_MODEL_HTTP' || error.code === 'ACCOUNT_DEVICE') return [408, 425, 429, 500, 502, 503, 504].indexOf(Number(error.status)) >= 0;
+    if (error.code === 'VIDEO_MODEL_HTTP' || error.code === 'ACCOUNT_DEVICE') return [408, 425, 429, 444, 500, 502, 503, 504].indexOf(Number(error.status)) >= 0;
     return ['VIDEO_MODEL_EMPTY', 'UPSTREAM_TIMEOUT', 'ETIMEDOUT', 'ESOCKETTIMEDOUT', 'ECONNRESET',
       'ECONNREFUSED', 'EPIPE', 'EAI_AGAIN', 'ENETUNREACH', 'EHOSTUNREACH', 'ENETDOWN'].indexOf(error.code) >= 0;
   }
@@ -291,23 +289,6 @@
     };
   }
 
-  function videoTabQuery(device, stamp, vid) {
-    var query = playbackQuery(device, stamp);
-    Object.assign(query, {
-      player_so_load: '1',
-      video_id: String(vid),
-      video_id_type: '0',
-      device_level: '1',
-      need_all_video_definition: '1',
-      need_mp4_align: '0',
-      use_os_player: '0',
-      video_platform: '1024',
-      source: '0',
-      from_video_id: ''
-    });
-    return query;
-  }
-
   function randomID() {
     var bytes = crypto.randomBytes(16);
     var text = '';
@@ -404,25 +385,7 @@
     return modelString(data && (data.code == null ? data.Code : data.code));
   }
 
-  function videoTabEnvelope(vid, root) {
-    var data = asMap(root && root.data);
-    if (!data) return null;
-    var rows = asMap(data.video_model_data) || data;
-    var row = asMap(rows[String(vid)]);
-    if (!row && data.video_model != null) row = data;
-    if (!row) {
-      Object.keys(rows).some(function (key) {
-        var candidate = asMap(rows[key]);
-        if (candidate && candidate.video_model != null) { row = candidate; return true; }
-        return false;
-      });
-    }
-    if (!row || row.video_model == null) return null;
-    var model = decodeModel(row.video_model);
-    return { code: 0, data: (function () { var out = {}; out[String(vid)] = { video_model: model }; return out; }()) };
-  }
-
-  // The v1.3.3 recovery must not accept a neighboring row or a direct model
+  // The recovery must not accept a neighboring row or a direct model
   // convenience shape. The identity was consumed by the failed v5 POST, so a
   // wrong VID here must leave the original empty-response error intact.
   function videoTabEnvelopeExact(vid, root) {
@@ -592,17 +555,18 @@
     recordDiagnostic({ stage: 'device_register', code: 'VIDEO_TAB_REQUEST' });
     return playbackIdentity.get(signal).then(function (device) {
       if (signal && signal.aborted) throw preparationCancelled();
-      var stamp = Date.now();
-      var params = videoTabQuery(device, stamp, vid);
-      var headers = {
-        'User-Agent': PLAYBACK_UA,
-        Accept: 'application/json; charset=utf-8',
-        'Accept-Encoding': 'identity'
-      };
+      // The station now requires the v5 Medusa/Helios/Khronos signature for
+      // video_tab too. An unsigned 7.1.3.32 GET is answered with HTTP 200 and
+      // a zero-byte body; keep the primary provider on the signed 7.3.9.32
+      // shape used by the v5 recovery path.
+      var request;
+      try { request = mobileV5.videoTabRecovery(String(vid), device, Date.now()); }
+      catch (error) { throw fail('播放请求签名失败', 502, 'VIDEO_TAB_SIGN', 'video_tab'); }
+      var headers = Object.assign({}, request.headers, { 'Accept-Encoding': 'identity' });
       var cookie = playbackCookieHeader(device.cookies);
       if (cookie) headers.Cookie = cookie;
       recordDiagnostic({ stage: 'video_tab', code: 'VIDEO_TAB_REQUEST' });
-      return requestBuffer(VIDEO_TAB_BASE + VIDEO_TAB_PATH + '?' + sortedQuery(params), 'GET', headers, null, MAX_JSON, signal);
+      return requestBuffer(request.url, 'GET', headers, null, MAX_JSON, signal);
     }).then(function (response) {
       recordDiagnostic({ stage: 'video_tab', http_status: response.status, response_bytes: response.body.length, code: 'VIDEO_TAB_RESPONSE' });
       if (response.status < 200 || response.status >= 300) throw fail('video_tab HTTP ' + response.status, response.status, 'VIDEO_TAB_HTTP', 'video_tab');
@@ -612,7 +576,7 @@
       try { root = parseExactJSON(responseText); } catch (error) { throw fail('video_tab 响应不是有效 JSON', 502, 'VIDEO_TAB_INVALID_JSON', 'video_tab'); }
       recordDiagnostic({ stage: 'video_tab', http_status: response.status, response_bytes: response.body.length, code: 'VIDEO_TAB_JSON' });
       if (businessCode(root) && businessCode(root) !== '0') throw fail('video_tab 拒绝了播放请求（' + businessCode(root) + '）', 502, 'VIDEO_TAB_REJECTED', 'video_tab');
-      var envelope = videoTabEnvelope(vid, root);
+      var envelope = videoTabEnvelopeExact(vid, root);
       if (!envelope) throw fail('video_tab 未返回所选分集的视频数据', 502, 'VIDEO_MODEL_MISSING', 'video_tab');
       return optionsFromEnvelope(vid, envelope, signal, 'video_tab', recordDiagnostic);
     }).catch(failWithDiagnostic);

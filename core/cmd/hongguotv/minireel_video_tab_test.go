@@ -48,7 +48,7 @@ func TestMiniReelVideoTabUsesOfficialGetShapeAndRegisteredCookies(t *testing.T) 
 				t.Errorf("query %s = %q, want %q", key, got, want)
 			}
 		}
-		if got := r.Header.Get("User-Agent"); got != miniReelPlaybackUA {
+		if got := r.Header.Get("User-Agent"); got != miniReelFallbackUA {
 			t.Errorf("User-Agent = %q", got)
 		}
 		if got := r.Header.Get("Accept"); got != "application/json; charset=utf-8" {
@@ -57,10 +57,16 @@ func TestMiniReelVideoTabUsesOfficialGetShapeAndRegisteredCookies(t *testing.T) 
 		if got := r.Header.Get("Cookie"); got != device.cookie {
 			t.Errorf("Cookie = %q, want %q", got, device.cookie)
 		}
-		for _, header := range []string{"X-Medusa", "X-Gorgon", "X-Argus", "X-Ladon"} {
-			if got := r.Header.Get(header); got != "" {
-				t.Errorf("unexpected full signature header %s=%q", header, got)
+		for _, header := range []string{"X-Khronos", "X-Helios", "X-Medusa"} {
+			if got := r.Header.Get(header); got == "" {
+				t.Errorf("missing v5 signature header %s", header)
 			}
+		}
+		if got := r.Header.Get("X-SS-STUB"); got != "" {
+			t.Errorf("unexpected body signature header X-SS-STUB=%q", got)
+		}
+		if got := r.Header.Get("Content-Type"); got != "" {
+			t.Errorf("unexpected Content-Type=%q", got)
 		}
 		response := map[string]any{
 			"code": 0,

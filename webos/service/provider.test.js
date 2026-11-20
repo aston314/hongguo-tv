@@ -29,6 +29,7 @@ var mobileV5Requests = [];
 var videoTabRequests = [];
 var videoTabEnabled = false;
 var videoTabRecoveryEnabled = false;
+var videoTabPrimarySkips = 0;
 var mobileV5RetryAfter = false;
 var mobileV5EmptyBody = false;
 var deviceRegisterRequests = 0;
@@ -94,8 +95,10 @@ https.request = function (options) {
     }
     if (options.path.indexOf('/reading/bookapi/video_tab/multi_video_model/v1/') >= 0) {
       var tabQuery = Object.fromEntries(new URL('https://fixture.test' + options.path).searchParams);
-      videoTabRequests.push({ options: options, query: tabQuery });
-      if (videoTabEnabled || videoTabRecoveryEnabled && options.headers['X-Medusa']) {
+      var tabSkipped = videoTabPrimarySkips > 0;
+      if (tabSkipped) videoTabPrimarySkips--;
+      videoTabRequests.push({ options: options, query: tabQuery, skipped: tabSkipped });
+      if (!tabSkipped && (videoTabEnabled || videoTabRecoveryEnabled && options.headers['X-Medusa'])) {
         var tabVideoID = tabQuery.video_id;
         var tabEntry = {};
         tabEntry[tabVideoID] = { video_model: { video_list: [{ main_url: 'https://media.example.test/video-tab.mp4', video_meta: { vwidth: 1280, vheight: 720, definition: '720P', codec_type: 'h264' }, encrypt_info: {} }], video_duration: 73 } };
@@ -471,7 +474,7 @@ async function run() {
 
     // The official route is the primary source. It uses a registered
     // anonymous identity, forwards only the allowed registration cookies, and
-    // does not send the legacy POST signature or body.
+    // carries the v5 GET signature required by the station.
     videoTabEnabled = true;
     var beforeVideoTab = videoTabRequests.length;
     var videoTabProbe = await provider.inspectVideoModel('1234567890123456787');
@@ -485,7 +488,8 @@ async function run() {
     assert.strictEqual(videoTabCall.query.device_level, '1');
     assert.strictEqual(videoTabCall.query.need_all_video_definition, '1');
     assert(videoTabCall.query.device_id && videoTabCall.query.iid && videoTabCall.query.cdid, 'video_tab uses the registered identity');
-    assert.strictEqual(videoTabCall.options.headers['X-Medusa'], undefined, 'video_tab does not use the legacy POST signature');
+    assert(videoTabCall.options.headers['X-Medusa'], 'video_tab uses the v5 Medusa signature');
+    assert(videoTabCall.options.headers['X-Khronos'] && videoTabCall.options.headers['X-Helios'], 'video_tab uses the v5 Helios/Khronos headers');
     assert.strictEqual(videoTabCall.options.headers['X-Gorgon'], undefined, 'video_tab does not use the legacy Gorgon header');
     assert.strictEqual(videoTabCall.options.headers.Cookie, 'install_id=2234567890123456789; store-region=cn-tj; ttreq=fixture-ttreq', 'video_tab forwards only anonymous registration cookies');
     videoTabEnabled = false;
@@ -493,12 +497,13 @@ async function run() {
     // A v5 HTTP 200 empty response is recovered by one signed, bodyless
     // video_tab GET with the same registered identity and the 7.3.9.32 query.
     videoTabRecoveryEnabled = true;
+    videoTabPrimarySkips = 1;
     mobileV5EmptyBody = true;
     var beforeRecoveryTab = videoTabRequests.length, beforeMobileV5 = mobileV5Requests.length, beforeRecoveryRegistration = deviceRegisterRequests;
     var recoveryProbe = await provider.inspectVideoModel('1334567890123456788');
     assert.strictEqual(recoveryProbe.ok, true, 'empty v5 response recovers through video_tab');
     assert.strictEqual(mobileV5Requests.length - beforeMobileV5, 1, 'empty v5 response is not repeated');
-    var recoveryTabCalls = videoTabRequests.slice(beforeRecoveryTab).filter(function (call) { return !!call.options.headers['X-Medusa']; });
+    var recoveryTabCalls = videoTabRequests.slice(beforeRecoveryTab).filter(function (call) { return !call.skipped && !!call.options.headers['X-Medusa']; });
     assert.strictEqual(recoveryTabCalls.length, 1, 'one signed recovery GET');
     assert(deviceRegisterRequests - beforeRecoveryRegistration <= 1, 'recovery does not register a second identity');
     var recoveryPost = mobileV5Requests[mobileV5Requests.length - 1];
@@ -514,6 +519,7 @@ async function run() {
     assert.strictEqual(recoveryGet.options.headers['X-SS-STUB'], undefined);
     assert.strictEqual(recoveryGet.options.headers['Content-Type'], undefined);
     assert(recoveryGet.options.headers['X-Khronos'] && recoveryGet.options.headers['X-Helios'] && recoveryGet.options.headers['X-Medusa']);
+    videoTabPrimarySkips = 0;
     videoTabRecoveryEnabled = false;
     mobileV5EmptyBody = false;
 
@@ -523,7 +529,7 @@ async function run() {
     var retryAfterProbe = await provider.inspectVideoModel('1334567890123456786');
     assert.strictEqual(retryAfterProbe.ok, true, 'Retry-After falls through to the existing legacy provider');
     assert.strictEqual(mobileV5Requests.length - beforeRetryAfterMobile, 1);
-    assert.strictEqual(videoTabRequests.slice(beforeRetryAfterTab).filter(function (call) { return !!call.options.headers['X-Medusa']; }).length, 0, 'Retry-After skips video_tab recovery');
+    assert.strictEqual(videoTabRequests.length - beforeRetryAfterTab, 1, 'Retry-After skips a second video_tab recovery request');
     mobileV5RetryAfter = false;
     mobileV5EmptyBody = false;
 
