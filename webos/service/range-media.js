@@ -477,6 +477,7 @@ function fetchExact(source, start, end, options) {
     throw fail('上游媒体 Range 响应长度不足', 'RANGE_INTERRUPTED');
   }
   function retryInterrupted(error, failures) {
+    if (options.signal && options.signal.aborted) return Promise.reject(audioCancel.error(options.signal));
     if (error && error.name === 'AbortError') return Promise.reject(error);
     if (error && error.code === 'RANGE_RESPONSE_TOO_LARGE') return Promise.reject(error);
     var partial = error && error.rangeResponse;
@@ -508,6 +509,7 @@ function fetchExact(source, start, end, options) {
 }
 
 function fetchMediaUncached(source, start, end, options) {
+  if (options && options.signal && options.signal.aborted) return Promise.reject(audioCancel.error(options.signal));
   source.lastUsedAt = Date.now();
   var result = Buffer.alloc(end - start + 1);
   var cursor = Math.max(start, source.prefix.length);
@@ -557,7 +559,7 @@ function fetchMediaUncached(source, start, end, options) {
   });
 }
 
-function fetchMedia(source, start, end) { return headCache.read(source, start, end); }
+function fetchMedia(source, start, end, signal) { return headCache.read(source, start, end, signal); }
 
 function prefetchHead(source, signal) {
   var cancel = audioCancel.create();
@@ -594,16 +596,22 @@ function serve(req, res, source, onStatus) {
   res.setHeader('Content-Length', String(end - start + 1));
   if (range.partial) res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + source.length);
   if (req.method === 'HEAD') return res.end();
+  var consumer = audioCancel.create();
+  function disconnected() { consumer.abort(); }
+  res.once('close', disconnected);
+  res.once('finish', function () { res.removeListener('close', disconnected); });
   function writeChunk(cursor) {
-    if (res.destroyed) return;
+    if (res.destroyed || consumer.signal.aborted) return;
     // Content-Length completes the client's body parser, but Node still needs
     // end() to release this response and send the next one on a reused socket.
     if (cursor > end) return res.end();
     var chunkEnd = Math.min(end, cursor + CHUNK_BYTES - 1);
-    fetchMedia(source, cursor, chunkEnd).then(function (buffer) {
+    fetchMedia(source, cursor, chunkEnd, consumer.signal).then(function (buffer) {
+      if (res.destroyed || consumer.signal.aborted) return;
       if (res.write(buffer)) writeChunk(chunkEnd + 1);
       else res.once('drain', function () { writeChunk(chunkEnd + 1); });
     }, function (error) {
+      if (res.destroyed || consumer.signal.aborted) return;
       if (res.headersSent) { if (typeof res.destroy === 'function') res.destroy(error); return; }
       res.removeHeader('Content-Length');
       res.removeHeader('Content-Range');

@@ -81,9 +81,10 @@ module.exports = function (load, options) {
     })(index);
     return chain.then(function (bytes) { entry.users--; return bytes; }, function (error) { entry.users--; throw error; });
   }
-  function read(source, start, end) {
+  function read(source, start, end, signal) {
+    if (signal && signal.aborted) return Promise.reject(cancel.error(signal));
     var entry = find(source, false);
-    if (!entry || start >= headBytes) return load(source, start, end);
+    if (!entry || start >= headBytes) return load(source, start, end, signal ? { signal: signal } : undefined);
     entry.users++;
     var parts = [], chain = Promise.resolve(), cursor = start;
     while (cursor <= end) {
@@ -91,7 +92,8 @@ module.exports = function (load, options) {
       var to = from < headBytes ? Math.min(end, headBytes - 1, (index + 1) * blockBytes - 1) : end;
       (function (from, to, index) {
         chain = chain.then(function () {
-          return from >= headBytes ? load(source, from, to) : block(entry, index, null, false).then(function (data) {
+          cancel.check(signal);
+          return from >= headBytes ? load(source, from, to, signal ? { signal: signal } : undefined) : block(entry, index, signal, false).then(function (data) {
             return data.slice(from - index * blockBytes, to - index * blockBytes + 1);
           });
         }).then(function (data) { parts.push(data); });

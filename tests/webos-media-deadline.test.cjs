@@ -41,3 +41,13 @@ test('an interrupted full response rejects instead of accepting a partial cache 
  const f=await fixture(t,(req,res)=>{res.writeHead(200,{'Content-Length':10000});res.write(Buffer.alloc(128));setTimeout(()=>res.destroy(),10);});
  await assert.rejects(media.downloadFile(f.url,f.file),{code:'MEDIA_DOWNLOAD_INTERRUPTED'});
 });
+
+test('closing the local media response cancels its actual upstream Range read',async t=>{
+ let reached,closed;const upstreamReached=new Promise(r=>reached=r),upstreamClosed=new Promise(r=>closed=r);
+ const upstream=await fixture(t,(req,res)=>{req.on('close',closed);reached();});
+ const source={url:upstream.url,etag:'"fixture"',length:1000,prefix:Buffer.alloc(16),samples:[],key:Buffer.alloc(16)};
+ const proxy=http.createServer((req,res)=>media.serve(req,res,source));await new Promise(r=>proxy.listen(0,'127.0.0.1',r));
+ t.after(()=>new Promise(r=>proxy.close(r)));
+ const request=http.get('http://127.0.0.1:'+proxy.address().port,()=>{});request.on('error',()=>{});
+ await upstreamReached;request.destroy();await upstreamClosed;
+});
