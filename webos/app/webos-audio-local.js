@@ -89,6 +89,27 @@
     return hit;
   }
 
+  function audioConfig(d, start, length) {
+    var bit = 0;
+    function read(count) {
+      if (bit + count > length * 8) throw fail('LOCAL_AAC_CONFIG_UNSUPPORTED');
+      var value = 0;
+      while (count--) { value = value * 2 + ((d.getUint8(start + (bit >> 3)) >> (7 - (bit & 7))) & 1); bit++; }
+      return value;
+    }
+    var aot = read(5), fi = read(4), ch = read(4), outputChannels = ch;
+    if (fi > 12 || ch < 1 || ch > 2) throw fail('LOCAL_AAC_CONFIG_UNSUPPORTED');
+    if (aot === 5 || aot === 29) {
+      // Explicit SBR/PS wraps a core AAC configuration. ADTS describes that
+      // core; the decoder discovers SBR/PS in the unchanged AAC payload.
+      var extensionFrequency = read(4), coreType = read(5);
+      if (extensionFrequency > 12 || coreType !== 2 || read(3) !== 0) throw fail('LOCAL_AAC_CONFIG_UNSUPPORTED');
+      if (aot === 29) outputChannels = 2; // PS expands the mono core to stereo.
+      aot = coreType;
+    }
+    if (aot < 1 || aot > 4) throw fail('LOCAL_AAC_CONFIG_UNSUPPORTED');
+    return { objectType: aot, freqIndex: fi, channels: ch, outputChannels: outputChannels };
+  }
   function parseEsds(d, s, e) {
     function descriptor(from, to) {
       var o = from;
@@ -111,9 +132,7 @@
           var nested = descriptor(cursor, end); if (nested) return nested;
         } else if (tag === 0x05) {
           if (length < 2) throw fail('LOCAL_AAC_CONFIG_UNSUPPORTED');
-          var b0 = d.getUint8(o), b1 = d.getUint8(o + 1), aot = b0 >> 3, fi = ((b0 & 7) << 1) | (b1 >> 7), ch = (b1 >> 3) & 15;
-          if (aot < 1 || aot > 4 || fi > 12 || ch < 1 || ch > 2) throw fail('LOCAL_AAC_CONFIG_UNSUPPORTED');
-          return { objectType: aot, freqIndex: fi, channels: ch };
+          return audioConfig(d, o, length);
         } else if (tag === 0x04) {
           if (length < 13) throw fail('LOCAL_ESDS_DECODER_CONFIG');
           var config = descriptor(o + 13, end); if (config) return config;
@@ -210,7 +229,7 @@
     return out.buffer;
   }
 
-  function extract(path, signal) {
+  function extract(path, signal, limits) {
     var state = { aborted: false, total: 0 }, t0 = Date.now(), stats = { requests: 0 };
     state.signal = signal; state.requests = [];
     function abortAll() { state.aborted = true; state.requests.slice().forEach(function (xhr) { try { xhr.abort(); } catch (ignored) {} }); }
@@ -218,6 +237,8 @@
     if (signal) { if (signal.aborted) return Promise.reject(fail('WEBOS_AUDIO_CANCELLED')); signal.addEventListener('abort', onAbort); }
     return findMoov(path, state).then(function (moov) {
       var track = audioTrack(moov, state.total), spans = spansOf(track.samples), parts = new Array(spans.length), next = 0, bytes = 0;
+      if (limits && (track.duration * 2 * 24000 * 4 > limits.maxPCMBytes ||
+          spans.reduce(function (n, span) { return n + span.end - span.start + 1; }, 0) > limits.maxReadBytes)) throw fail('AUDIO_MEMORY_LIMIT');
       stats.spans = spans.length; stats.samples = track.samples.length; stats.moov_ms = Date.now() - t0;
       function worker() {
         if (next >= spans.length) return Promise.resolve();
@@ -235,9 +256,9 @@
         if (!total || total > MAX_AUDIO_BYTES) throw fail('LOCAL_AUDIO_LIMIT');
         stats.bytes = bytes; stats.ms = Date.now() - t0;
 
-        return { data: adts(track.cfg, frames, total), duration: track.duration, channels: track.cfg.channels || 2, stats: stats };
+        return { data: adts(track.cfg, frames, total), duration: track.duration, channels: track.cfg.outputChannels || track.cfg.channels || 2, stats: stats };
       });
     }).then(function (value) { if (signal) signal.removeEventListener('abort', onAbort); return value; }, function (error) { abortAll(); if (signal) signal.removeEventListener('abort', onAbort); throw error; });
   }
-  root.HongguoWebOSLocalAudio = { extract: extract, _spansOf: spansOf, _adts: adts };
+  root.HongguoWebOSLocalAudio = { extract: extract, _spansOf: spansOf, _adts: adts, _audioConfig: audioConfig };
 }(typeof window !== 'undefined' ? window : this));

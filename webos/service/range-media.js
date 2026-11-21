@@ -44,7 +44,10 @@ function parseContentRange(value) {
   return { start: start, end: end, total: total };
 }
 
-function requestRange(target, start, end, etag, redirects, timeout, signal) {
+function requestRange(target, start, end, etag, redirects, timeout, signal, deadline) {
+  timeout = Number(timeout) > 0 ? Number(timeout) : REQUEST_TIMEOUT;
+  deadline = deadline || Date.now() + timeout;
+  if (Date.now() >= deadline) return Promise.reject(fail('媒体 Range 请求超时', 'RANGE_TIMEOUT'));
   redirects = redirects || 0;
   if (redirects > MAX_REDIRECTS) return Promise.reject(fail('媒体源重定向次数过多'));
   var parsed = url.parse(target);
@@ -60,10 +63,11 @@ function requestRange(target, start, end, etag, redirects, timeout, signal) {
   };
   if (etag) headers['If-Range'] = etag;
   return new Promise(function (resolvePromise, rejectPromise) {
-    var request;
+    var request, timer;
     var finished = false;
     function finish(error, result) {
       if (finished) return; finished = true;
+      clearTimeout(timer);
       if (signal) signal.removeEventListener('abort', aborted);
       if (error) rejectPromise(error); else resolvePromise(result);
     }
@@ -94,6 +98,7 @@ function requestRange(target, start, end, etag, redirects, timeout, signal) {
       });
     } catch (error) { reject(error); return; }
     if (signal) signal.addEventListener('abort', aborted);
+    timer = setTimeout(function () { rejectRequest(fail('媒体 Range 请求超时', 'RANGE_TIMEOUT')); request.destroy(); }, Math.max(1, deadline - Date.now()));
     request.on('timeout', function () { request.destroy(fail('媒体 Range 请求超时', 'RANGE_TIMEOUT')); });
     request.on('error', rejectRequest);
     request.on('response', function (response) {
@@ -107,7 +112,7 @@ function requestRange(target, start, end, etag, redirects, timeout, signal) {
           reject(fail('媒体源重定向试图降级到 HTTP'));
           return;
         }
-        requestRange(redirected, start, end, etag, redirects + 1, timeout, signal).then(resolve, reject);
+        requestRange(redirected, start, end, etag, redirects + 1, timeout, signal, deadline).then(resolve, reject);
         return;
       }
       response.on('data', function (chunk) {
@@ -345,10 +350,15 @@ function indexMP4(prefix, key, total) {
   return samples;
 }
 
-function open(target, key, metadata) {
+function open(target, key, metadata, options) {
   metadata = metadata || {};
+  options = options || {};
+  var deadline = Date.now() + (options.totalTimeoutMs || 8000);
+  function read(target, start, end, etag) {
+    return requestRange(target, start, end, etag, 0, options.timeout || 5000, options.signal, deadline);
+  }
   var firstEnd = PROBE_BYTES - 1;
-  return requestRange(target, 0, firstEnd, '', 0).then(function (response) {
+  return read(target, 0, firstEnd, '').then(function (response) {
     if (response.status !== 206) throw fail('上游未支持 Range (HTTP ' + response.status + ')');
     var etag = String(response.headers.etag || '').trim();
     if (!strongETag(etag)) throw fail('上游没有稳定的强 ETag');
@@ -359,7 +369,7 @@ function open(target, key, metadata) {
     if (found.complete) prefixPromise = Promise.resolve(response.body.slice(0, found.end));
     else if (found.end > 0) {
       if (found.end > MAX_MOOV_BYTES) throw fail('MP4 moov 超过支持上限');
-      prefixPromise = requestRange(response.url, 0, found.end - 1, etag, 0).then(function (initial) {
+      prefixPromise = read(response.url, 0, found.end - 1, etag).then(function (initial) {
         var nextRange = parseContentRange(initial.headers['content-range']);
         if (initial.status !== 206 || String(initial.headers.etag || '').trim() !== etag || !nextRange || nextRange.start !== 0 || nextRange.end !== found.end - 1 || nextRange.total !== range.total || initial.body.length !== found.end) throw fail('上游 MP4 初始化区不稳定');
         return initial.body;
@@ -467,6 +477,7 @@ function fetchExact(source, start, end, options) {
     throw fail('上游媒体 Range 响应长度不足', 'RANGE_INTERRUPTED');
   }
   function retryInterrupted(error, failures) {
+    if (options.signal && options.signal.aborted) return Promise.reject(audioCancel.error(options.signal));
     if (error && error.name === 'AbortError') return Promise.reject(error);
     if (error && error.code === 'RANGE_RESPONSE_TOO_LARGE') return Promise.reject(error);
     var partial = error && error.rangeResponse;
@@ -498,6 +509,7 @@ function fetchExact(source, start, end, options) {
 }
 
 function fetchMediaUncached(source, start, end, options) {
+  if (options && options.signal && options.signal.aborted) return Promise.reject(audioCancel.error(options.signal));
   source.lastUsedAt = Date.now();
   var result = Buffer.alloc(end - start + 1);
   var cursor = Math.max(start, source.prefix.length);
@@ -547,7 +559,7 @@ function fetchMediaUncached(source, start, end, options) {
   });
 }
 
-function fetchMedia(source, start, end) { return headCache.read(source, start, end); }
+function fetchMedia(source, start, end, signal) { return headCache.read(source, start, end, signal); }
 
 function prefetchHead(source, signal) {
   var cancel = audioCancel.create();
@@ -584,16 +596,22 @@ function serve(req, res, source, onStatus) {
   res.setHeader('Content-Length', String(end - start + 1));
   if (range.partial) res.setHeader('Content-Range', 'bytes ' + start + '-' + end + '/' + source.length);
   if (req.method === 'HEAD') return res.end();
+  var consumer = audioCancel.create();
+  function disconnected() { consumer.abort(); }
+  res.once('close', disconnected);
+  res.once('finish', function () { res.removeListener('close', disconnected); });
   function writeChunk(cursor) {
-    if (res.destroyed) return;
+    if (res.destroyed || consumer.signal.aborted) return;
     // Content-Length completes the client's body parser, but Node still needs
     // end() to release this response and send the next one on a reused socket.
     if (cursor > end) return res.end();
     var chunkEnd = Math.min(end, cursor + CHUNK_BYTES - 1);
-    fetchMedia(source, cursor, chunkEnd).then(function (buffer) {
+    fetchMedia(source, cursor, chunkEnd, consumer.signal).then(function (buffer) {
+      if (res.destroyed || consumer.signal.aborted) return;
       if (res.write(buffer)) writeChunk(chunkEnd + 1);
       else res.once('drain', function () { writeChunk(chunkEnd + 1); });
     }, function (error) {
+      if (res.destroyed || consumer.signal.aborted) return;
       if (res.headersSent) { if (typeof res.destroy === 'function') res.destroy(error); return; }
       res.removeHeader('Content-Length');
       res.removeHeader('Content-Range');
@@ -608,9 +626,11 @@ function serve(req, res, source, onStatus) {
   writeChunk(start);
 }
 
-function downloadFile(target, destination, headers, maxBytes, beforeWrite) {
+function downloadFile(target, destination, headers, maxBytes, beforeWrite, options) {
   headers = headers || {};
   maxBytes = maxBytes || MAX_MEDIA_BYTES;
+  options = options || {};
+  var signal = options.signal, deadline = Date.now() + (options.totalTimeoutMs || 30000);
   function attempt(current, redirects) {
     if (redirects > MAX_REDIRECTS) return Promise.reject(fail('媒体源重定向次数过多'));
     var parsed = url.parse(current);
@@ -618,14 +638,31 @@ function downloadFile(target, destination, headers, maxBytes, beforeWrite) {
     var transport = parsed.protocol === 'http:' ? http : https;
     return new Promise(function (resolve, reject) {
       var settled = false;
-      var request;
+      var request, output, responseStream, timer;
       function finish(error) {
         if (settled) return;
         settled = true;
+        clearTimeout(timer);
+        if (signal) signal.removeEventListener('abort', aborted);
         if (error) reject(error); else resolve();
       }
+      var failure;
+      function stop(error) {
+        if (settled || failure) return;
+        failure = error;
+        if (request) request.destroy();
+        if (responseStream) responseStream.destroy();
+        // Do not release the cache lease until the file descriptor is closed.
+        if (output) output.destroy(); else finish(error);
+      }
+      function aborted() { stop(audioCancel.error(signal)); }
+      if (signal && signal.aborted) { aborted(); return; }
+      if (signal) signal.addEventListener('abort', aborted);
+      timer = setTimeout(function () { stop(fail('媒体下载超时', 'MEDIA_DOWNLOAD_TIMEOUT')); }, Math.max(1, deadline - Date.now()));
       try {
-        request = transport.get({ protocol: parsed.protocol, hostname: parsed.hostname, port: parsed.port || (parsed.protocol === 'http:' ? 80 : 443), path: parsed.path || '/', headers: requestHeaders, timeout: 90000 }, function (response) {
+        request = transport.get({ protocol: parsed.protocol, hostname: parsed.hostname, port: parsed.port || (parsed.protocol === 'http:' ? 80 : 443), path: parsed.path || '/', headers: requestHeaders, timeout: options.idleTimeoutMs || 12000 }, function (response) {
+          responseStream = response;
+          if (settled || failure) { response.destroy(); return; }
           var location = response.headers.location;
           if ([301, 302, 303, 307, 308].indexOf(response.statusCode) >= 0 && location) {
             response.resume();
@@ -638,7 +675,6 @@ function downloadFile(target, destination, headers, maxBytes, beforeWrite) {
           if (response.statusCode < 200 || response.statusCode >= 300) {
             response.resume(); finish(fail('媒体源 HTTP ' + response.statusCode)); return;
           }
-          var output;
           try { output = fs.createWriteStream(destination, { mode: 384 }); } catch (error) { response.resume(); finish(error); return; }
           var total = 0;
           response.on('data', function (chunk) {
@@ -647,20 +683,18 @@ function downloadFile(target, destination, headers, maxBytes, beforeWrite) {
               if (total > maxBytes) throw fail('媒体超过大小限制');
               if (beforeWrite) beforeWrite(total);
             } catch (error) {
-              response.unpipe(output);
-              response.destroy();
-              request.destroy(error);
-              output.destroy(error);
+              stop(error);
             }
           });
-          response.on('error', finish);
-          output.on('error', finish);
-          output.on('finish', function () { output.close(); finish(); });
+          response.on('error', stop);
+          response.on('aborted', function () { stop(fail('媒体下载中断', 'MEDIA_DOWNLOAD_INTERRUPTED')); });
+          output.on('error', stop);
+          output.on('close', function () { finish(failure); });
           response.pipe(output);
         });
       } catch (error) { finish(error); return; }
-      request.on('error', finish);
-      request.on('timeout', function () { request.destroy(fail('媒体下载超时')); });
+      request.on('error', stop);
+      request.on('timeout', function () { stop(fail('媒体下载超时', 'MEDIA_DOWNLOAD_TIMEOUT')); });
     });
   }
   var requestHeaders = Object.assign({

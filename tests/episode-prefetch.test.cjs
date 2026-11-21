@@ -216,6 +216,21 @@ test('a successful retry is reused and never starts a third prepare',async()=>{
   now+=3000;p.maybe(info());await tick();
   assert.equal(attempts,2);assert.equal((await p.consume(target()).promise).path,'/retry.mp4');
 });
+test('webOS transient prefetch retries have a hard attempt and wall-clock window',async()=>{
+  for(const window of [12000,2000]){
+    let now=1000,attempts=0;
+    const p=create({now:()=>now,maxRetries:3,retryDelayMs:1500,retryWindowMs:window,lookup:async()=>target(),prepare:async()=>{attempts++;throw Object.assign(Error('connection failed'),{code:'RANGE_UNAVAILABLE',status:502});}});
+    for(let i=0;i<20;i++){p.maybe(info());await tick();now+=1500;}
+    assert.equal(attempts,window===12000?4:2);
+  }
+});
+test('prefetch never retries throttling, Retry-After or an exhausted provider recovery',async()=>{
+  for(const props of [{status:429},{retryAfter:true},{recoveryComplete:true}]){
+    let now=1000,attempts=0;
+    const p=create({now:()=>now,maxRetries:3,retryDelayMs:1500,lookup:async()=>target(),prepare:async()=>{attempts++;throw Object.assign(Error('temporary'),{code:'RANGE_UNAVAILABLE',status:502},props);}});
+    p.maybe(info());await tick();now+=5000;p.maybe(info());await tick();assert.equal(attempts,1);
+  }
+});
 test('webOS rejects expired prefetches while other platforms keep their existing lifetime',async()=>{
   for(const maxAgeMs of [120000,0]) {
     let now=1000;

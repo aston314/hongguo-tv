@@ -466,8 +466,9 @@
   // Bounded, memory-only diagnostics. No drama IDs, titles or account data.
   window.HongguoTVPlaybackTiming = { snapshot: function () { return playbackTiming.map(function (item) { return Object.assign({}, item); }); } };
   var episodePrefetch = HongguoEpisodePrefetch.create({
-    maxRetries: window.HongguoWebOS ? 1 : 0,
-    retryDelayMs: 3000,
+    maxRetries: window.HongguoWebOS ? 3 : 0,
+    retryDelayMs: window.HongguoWebOS ? 1500 : 3000,
+    retryWindowMs: window.HongguoWebOS ? 12000 : 0,
     maxAgeMs: window.HongguoWebOS ? 120000 : 0,
     fullMaxAgeMs: 110 * 60 * 1000,
     lookup: function (info, signal) {
@@ -484,7 +485,12 @@
       // complete-file resolver, while range preparation must stay on the
       // bounded Range path and never silently download the whole episode.
       var params = HongguoEpisodePrefetch.prepareParams(target);
-      return fetchData('/api/v1/play/info?' + new URLSearchParams(params), signal ? { signal: signal } : {});
+      return fetchData('/api/v1/play/info?' + new URLSearchParams(params), signal ? { signal: signal } : {}).then(function (data) {
+        if (window.HongguoWebOS && window.HongguoWebOSAudio && typeof window.HongguoWebOSAudio.warm === 'function' && data && data.path) {
+          try { window.HongguoWebOSAudio.warm(data.path, signal); } catch (ignored) {}
+        }
+        return data;
+      });
     }
   });
   var applicationInBackground = false;

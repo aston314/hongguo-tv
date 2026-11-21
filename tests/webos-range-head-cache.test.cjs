@@ -89,3 +89,14 @@ test('two active warmers reserve both cache slots; a third cannot exceed the bud
   finish.forEach(resolve => resolve()); await Promise.all([first, second]);
   assert.equal(c.diagnostics(d).media_head_cache_bytes, 0);
 });
+
+test('disconnecting one foreground reader preserves a shared head block until its last consumer leaves',async()=>{
+  const s=source(),a=cancel.create(),b=cancel.create();let signal,complete;
+  const c=create((src,start,end,options)=>new Promise((resolve,reject)=>{
+    signal=options.signal;complete=()=>resolve(Buffer.alloc(end-start+1));signal.addEventListener('abort',()=>reject(cancel.error(signal)));
+  }),{blockBytes:16,headBytes:32});
+  const warm=cancel.create();const warming=c.warm(s,warm.signal).catch(e=>e);await tick();
+  const one=c.read(s,0,15,a.signal).catch(e=>e),two=c.read(s,0,15,b.signal).catch(e=>e);await tick();
+  warm.abort();a.abort();await one;assert.equal(signal.aborted,false);
+  b.abort();await two;await warming;assert.equal(signal.aborted,true);
+});
