@@ -1,5 +1,8 @@
 package rocks.aston.hongguotv;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /** Keep unsupported codecs out while allowing the fallback to use device HEVC decoders. */
 final class PlaybackCodecPolicy {
     private PlaybackCodecPolicy() {}
@@ -13,8 +16,8 @@ final class PlaybackCodecPolicy {
             || value.startsWith("c2.google.");
     }
     static boolean shouldRetryHevcSoftwareFallback(boolean selectedHevcExceedsCapabilities,
-            boolean firstFrameRendered, boolean alreadyTried) {
-        return selectedHevcExceedsCapabilities && !firstFrameRendered && !alreadyTried;
+            boolean firstFrameRendered, boolean alreadyTried, boolean hardwareHevc) {
+        return !hardwareHevc && selectedHevcExceedsCapabilities && !firstFrameRendered && !alreadyTried;
     }
     static boolean excludesDecoderForSoftwareHevc(boolean forceSoftwareHevc, String mime, String name) {
         return forceSoftwareHevc && "video/hevc".equals(mime) && !platformSoftware(name);
@@ -25,6 +28,23 @@ final class PlaybackCodecPolicy {
         // Prefer the platform software decoder there, while still allowing a
         // hardware decoder when no software implementation is advertised.
         return "video/hevc".equals(mime) && sdk >= 24 && sdk <= 28;
+    }
+    static boolean supportsHardwareHevcPreference(int sdk) { return sdk >= 24 && sdk <= 28; }
+    static <T> List<T> decoderOrder(String mime, int sdk, boolean hardwareHevc,
+            List<T> hardware, List<T> software) {
+        List<T> choices = new ArrayList<>();
+        if (hardwareHevc && supportsHardwareHevcPreference(sdk)
+                && "video/hevc".equals(mime) && !hardware.isEmpty()) {
+            // Media3 re-sorts by advertised format support after this selector.
+            // Keep this explicit attempt on hardware even when a bogus level
+            // makes a platform software decoder look more capable.
+            choices.addAll(hardware);
+        } else if (preferSoftware(mime, sdk)) {
+            choices.addAll(software); choices.addAll(hardware);
+        } else {
+            choices.addAll(hardware); choices.addAll(software);
+        }
+        return choices;
     }
     static boolean allowsInMode(String mime, String name, boolean compatibility) {
         if (!allowsDecoder(mime)) return false;

@@ -9516,6 +9516,22 @@
   document.getElementById('app-check-update').addEventListener('click', appUpdates.activate);
   document.getElementById('desktop-download-update').addEventListener('click', function () { if (desktopShell) window.HongguoTVUpdates.download(); });
   document.getElementById('desktop-open-update-folder').addEventListener('click', function () { if (desktopShell) window.HongguoTVUpdates.openFolder(); });
+  var hardwareHevcSettings = window.HongguoPlaybackSettings.createHardwareHevc({
+    bridge: window.HongguoNativePlayer,
+    render: function (data) {
+      var card = document.getElementById('hevc-playback-settings');
+      card.classList.toggle('is-hidden', !data.supported);
+      card.querySelectorAll('.hevc-hardware-action').forEach(function (button) {
+        var selected = button.getAttribute('data-mode') === data.mode;
+        button.classList.toggle('account-primary', selected);
+        button.setAttribute('aria-pressed', selected ? 'true' : 'false');
+      });
+      document.getElementById('hevc-decode-state').textContent = data.message || '';
+    }
+  });
+  document.querySelectorAll('.hevc-hardware-action').forEach(function (button) {
+    button.addEventListener('click', function () { hardwareHevcSettings.choose(button.getAttribute('data-mode')); });
+  });
   var playbackSettings = window.HongguoPlaybackSettings.create({
     bridge: window.HongguoNativePlayer,
     render: function (data) {

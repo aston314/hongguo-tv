@@ -15,6 +15,12 @@ test('MPV reports actual decoding separately from preference, including software
 });
 function video(values={}) { return Object.assign({currentTime:8,duration:90,videoWidth:720,videoHeight:1280,readyState:4,networkState:1,paused:false,ended:false,seeking:false,muted:true,volume:1,buffered:{length:1,start:()=>0,end:()=>20},error:null},values); }
 function snapshot(values={}) { return Object.assign({video:diagnostics.readVideo(video()),flags:{preparing:true,audioHeld:true,source:true},episode:8,quality:'720P',userAgent:'Mozilla/5.0 Chrome/44.0.2403.119 HongguoTV-Android',capturedAt:'12:34:56',device:{app_version:'0.2.31',version_code:33,manufacturer:'TV maker',model:'TV-9',android_version:'9',sdk:28,process_bits:32},core:{version:'0.2.31-aabbccddeeff00112233445566778899aabbccdd',arch:'arm'}},values); }
+test('standard diagnostics identify the active session HEVC preference separately from the actual decoder',()=>{
+  function rows(native){return Object.fromEntries(diagnostics.report(snapshot({native:{state:'playing',surface:'SurfaceView',...native}})).rows.map(x=>[x.label,x.value]));}
+  assert.equal(rows({hevc_hardware_preferred:true,video_decoder:'OMX.amlogic.hevc.decoder'})['HEVC 解码'],'硬件解码优先');
+  assert.equal(rows({hevc_hardware_preferred:false,video_decoder:'OMX.google.hevc.decoder'})['HEVC 解码'],'自动（默认）');
+  assert.equal(rows({video_decoder:'OMX.google.hevc.decoder'})['HEVC 解码'],undefined,'old snapshots must not invent a preference');
+});
 test('HTML5 reports its current result without old Media3 capability, decoder, or network warnings',()=>{
   for(const native of [
     {state:'error',track_support:'FORMAT_EXCEEDS_CAPABILITIES',video_track:'old HEVC'},

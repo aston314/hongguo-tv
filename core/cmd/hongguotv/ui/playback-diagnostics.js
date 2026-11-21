@@ -185,6 +185,9 @@
     if (flags.rangeRequested || actualMode) add(tr('diagnostic.readMode'), (flags.rangeRequested ? tr('diagnostic.rangeMode') : tr('diagnostic.standardPlayback')) + (actualMode ? ' · ' + tr('diagnostic.currentSource', { source: text(actualMode, 12) }) : ''));
     if (flags.rangeFallback || core.media_range_fallback) add(tr('diagnostic.playbackFallback'), fallbackReason(flags.rangeFallback || core.media_range_fallback));
     if (native.state || native.surface || native.error_kind) {
+      if (typeof native.hevc_hardware_preferred === 'boolean') {
+        add(tr('settings.hevcDecode'), tr(native.hevc_hardware_preferred ? 'settings.hardwareDecodePriority' : 'settings.autoDecodeDefault'));
+      }
       var nativeState = text(native.state, 24) || tr('diagnostic.unknown');
       var nativeCodec = [text(native.video_decoder, 48), text(native.video_mime, 32)].filter(Boolean).join(' / ');
       var nativeError = native.error_kind ? ' · ' + text(native.error_kind, 24) + (errorCode(native.error_code) ? ' ' + errorCode(native.error_code) : '') : '';
