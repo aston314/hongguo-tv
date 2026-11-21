@@ -32,13 +32,14 @@ type miniPlayerWindow interface {
 }
 
 type miniPlayerWindowState struct {
-	Active           bool   `json:"active"`
-	TitlebarHidden   bool   `json:"titlebar_hidden"`
-	TitlebarFallback bool   `json:"titlebar_fallback,omitempty"`
-	Error            string `json:"error,omitempty"`
-	AspectSession    uint64 `json:"aspect_session,omitempty"`
-	AspectApplied    bool   `json:"aspect_applied,omitempty"`
-	AspectFallback   bool   `json:"aspect_fallback,omitempty"`
+	Active           bool           `json:"active"`
+	TitlebarHidden   bool           `json:"titlebar_hidden"`
+	TitlebarFallback bool           `json:"titlebar_fallback,omitempty"`
+	Error            string         `json:"error,omitempty"`
+	AspectSession    uint64         `json:"aspect_session,omitempty"`
+	AspectApplied    bool           `json:"aspect_applied,omitempty"`
+	AspectFallback   bool           `json:"aspect_fallback,omitempty"`
+	initialSize      windowGeometry // requested entry size; GTK configure events may still report the old frame
 }
 
 type miniPlayerController struct {
@@ -76,6 +77,7 @@ func (m *miniPlayerController) set(w miniPlayerWindow, enabled, portrait, hideTi
 }
 
 func (m *miniPlayerController) setLocked(w miniPlayerWindow, enabled, portrait, hideTitlebar bool) miniPlayerWindowState {
+	var initialSize windowGeometry
 	if m.active.Load() == enabled {
 		return miniPlayerWindowState{Active: m.active.Load(), TitlebarHidden: m.titlebarHidden}
 	}
@@ -125,6 +127,7 @@ func (m *miniPlayerController) setLocked(w miniPlayerWindow, enabled, portrait, 
 			small.Height = height - 80
 		}
 		w.setMinimum(280, 200)
+		initialSize = small
 		w.setGeometry(small)
 		if !remembered {
 			w.center()
@@ -135,7 +138,9 @@ func (m *miniPlayerController) setLocked(w miniPlayerWindow, enabled, portrait, 
 		m.active.Store(true)
 		m.aspectSession++
 		if hideTitlebar {
-			return m.setTitlebarLocked(w, true)
+			result := m.setTitlebarLocked(w, true)
+			result.initialSize = initialSize
+			return result
 		}
 	} else {
 		// Native title-bar fullscreen/maximise can also be used in the small
@@ -181,7 +186,9 @@ func (m *miniPlayerController) setLocked(w miniPlayerWindow, enabled, portrait, 
 			w.setFullscreen(true)
 		}
 	}
-	return m.windowStateLocked()
+	result := m.windowStateLocked()
+	result.initialSize = initialSize
+	return result
 }
 
 // Titlebar changes are optional. A failed enhancement must retain a working

@@ -145,6 +145,13 @@
       report.miniPlayer = { entered: true, originalFullscreen: originalWindow.fullscreen,
         viewport: [innerWidth, innerHeight], retainedVideo: video === document.getElementById('hero-video'),
         continuedPlaying: video.currentTime > miniPosition };
+      var aspectCheck = await send('heartbeat', {});
+      report.miniPlayer.nativeGeometry = aspectCheck.windowGeometry;
+      report.miniPlayer.aspectState = aspectCheck.miniAspectState;
+      report.miniPlayer.aspectErrorPixels = Math.abs(innerWidth * video.videoHeight / video.videoWidth - innerHeight);
+      if (aspectCheck.miniAspectState && aspectCheck.miniAspectState.aspect_applied && report.miniPlayer.aspectErrorPixels > 3) {
+        throw new Error('mini player content aspect does not match source');
+      }
       var oldSource = video.currentSrc;
       document.getElementById('mini-player-nextEpisode').click();
       await waitFor('episode 2 decoded picture', function () {

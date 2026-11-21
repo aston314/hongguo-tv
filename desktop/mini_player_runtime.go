@@ -35,6 +35,9 @@ func (w runtimeMiniWindow) setAspect(aspect miniAspect, refit bool) error {
 	}
 	return err
 }
+func (w runtimeMiniWindow) setAspectGeometry(aspect miniAspect, refit bool, initial windowGeometry) error {
+	return desktopSetMiniAspectGeometry(aspect.Width, aspect.Height, refit, initial.Width, initial.Height)
+}
 func (w runtimeMiniWindow) fullscreen() bool { return wruntime.WindowIsFullscreen(w.ctx) }
 func (w runtimeMiniWindow) setFullscreen(enabled bool) {
 	if enabled {

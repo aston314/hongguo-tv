@@ -43,6 +43,10 @@ type miniAspectWindow interface {
 	setAspect(miniAspect, bool) error
 }
 
+type miniAspectGeometryWindow interface {
+	setAspectGeometry(miniAspect, bool, windowGeometry) error
+}
+
 func (m *miniPlayerController) windowStateLocked() miniPlayerWindowState {
 	s := miniPlayerWindowState{Active: m.active.Load(), TitlebarHidden: m.titlebarHidden,
 		AspectApplied: m.aspectApplied, AspectFallback: m.aspectFallback}
@@ -64,6 +68,10 @@ func (m *miniPlayerController) clearAspectLocked(w miniPlayerWindow) error {
 }
 
 func (m *miniPlayerController) applyAspectLocked(w miniPlayerWindow, aspect miniAspect, refit bool) {
+	m.applyAspectAtSizeLocked(w, aspect, refit, windowGeometry{})
+}
+
+func (m *miniPlayerController) applyAspectAtSizeLocked(w miniPlayerWindow, aspect miniAspect, refit bool, initial windowGeometry) {
 	if !aspect.valid() {
 		return
 	}
@@ -77,7 +85,13 @@ func (m *miniPlayerController) applyAspectLocked(w miniPlayerWindow, aspect mini
 		return
 	}
 	m.aspectInstalled = true // retain cleanup even after a partially failed call
-	if err := adapter.setAspect(aspect, true); err != nil {
+	var err error
+	if sized, ok := w.(miniAspectGeometryWindow); ok && initial.Width > 0 && initial.Height > 0 {
+		err = sized.setAspectGeometry(aspect, true, initial)
+	} else {
+		err = adapter.setAspect(aspect, true)
+	}
+	if err != nil {
 		m.aspectFallback = true
 		_ = m.clearAspectLocked(w)
 		return
@@ -94,7 +108,7 @@ func (m *miniPlayerController) setWithAspect(w miniPlayerWindow, enabled, portra
 	defer m.mu.Unlock()
 	result := m.setLocked(w, enabled, portrait, hidden)
 	if enabled && result.Active && result.Error == "" {
-		m.applyAspectLocked(w, videoMiniAspect(width, height), false)
+		m.applyAspectAtSizeLocked(w, videoMiniAspect(width, height), false, result.initialSize)
 	}
 	state := m.windowStateLocked()
 	state.TitlebarFallback, state.Error = result.TitlebarFallback, result.Error

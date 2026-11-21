@@ -185,3 +185,34 @@ func TestMiniAspectConcurrentMetadataAndExitAlwaysLeaveNormalWindowUnconstrained
 		t.Fatal("metadata raced window restoration")
 	}
 }
+
+type delayedAspectWindow struct {
+	*testAspectWindow
+	requested []windowGeometry
+	sizing    []windowGeometry
+}
+
+func (w *delayedAspectWindow) setGeometry(g windowGeometry) {
+	// Like GTK, record the request without immediately updating actual bounds.
+	w.requested = append(w.requested, g)
+}
+func (w *delayedAspectWindow) setAspectGeometry(a miniAspect, refit bool, initial windowGeometry) error {
+	w.sizing = append(w.sizing, initial)
+	w.g = initial
+	return w.testAspectWindow.setAspect(a, refit)
+}
+func TestMiniAspectEntryUsesRequestedSizeWhileNativeConfigureIsPending(t *testing.T) {
+	w := &delayedAspectWindow{testAspectWindow: newTestAspectWindow()}
+	var m miniPlayerController
+	s := m.setWithAspect(w, true, false, false, 1282, 720)
+	if !s.AspectApplied || len(w.sizing) != 1 || w.sizing[0].Width != 480 || w.sizing[0].Height != 300 || w.g.Width >= 600 {
+		t.Fatal("first aspect fit used stale fullscreen geometry", s, w.sizing, w.g)
+	}
+	// Subsequent source changes must follow a user's live resize, not the old
+	// entry hint, otherwise changing orientation would reset their window size.
+	w.g.Width, w.g.Height = 800, 460
+	m.updateAspect(w, s.AspectSession, 1080, 1920)
+	if len(w.sizing) != 1 || w.g.Height < 700 {
+		t.Fatal("entry hint leaked into later metadata", w.sizing, w.g)
+	}
+}
