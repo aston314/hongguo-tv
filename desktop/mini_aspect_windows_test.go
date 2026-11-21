@@ -43,7 +43,7 @@ func TestNativeMiniAspectWindows(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer windows.VirtualFree(ptr, 0, windows.MEM_RELEASE)
-	proposal := (*miniNativeRect)(unsafe.Pointer(ptr))
+	var proposal miniNativeRect
 	for _, a := range []miniAspect{{16, 9}, {9, 16}, {270, 481}} {
 		if err := desktopSetMiniAspect(a.Width, a.Height, true); err != nil {
 			t.Fatal(err)
@@ -58,7 +58,7 @@ func TestNativeMiniAspectWindows(t *testing.T) {
 			t.Fatal("moving window resized content")
 		}
 		for edge := uintptr(1); edge <= 8; edge++ {
-			*proposal = frame
+			proposal = frame
 			if edge == 1 || edge == 4 || edge == 7 {
 				proposal.Left -= 90
 			} else {
@@ -69,8 +69,10 @@ func TestNativeMiniAspectWindows(t *testing.T) {
 			} else {
 				proposal.Bottom += 60
 			}
-			anchor := *proposal
+			anchor := proposal
+			miniWriteNativeRect(ptr, &proposal)
 			miniUser32.NewProc("SendMessageW").Call(hwnd, 0x0214, edge, ptr)
+			proposal = miniReadNativeRect(ptr)
 			width, height := int(proposal.Right-proposal.Left)-dw, int(proposal.Bottom-proposal.Top)-dh
 			if math.Abs(float64(width*a.Height-height*a.Width)) > float64(max(a.Width, a.Height)) {
 				t.Fatalf("drag edge %d distorted content: %dx%d", edge, width, height)

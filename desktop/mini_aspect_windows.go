@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"syscall"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 var miniGetProcedure = miniUser32.NewProc("GetWindowLongPtrW")
@@ -17,6 +19,7 @@ var miniCallProcedure = miniUser32.NewProc("CallWindowProcW")
 var miniDefaultProcedure = miniUser32.NewProc("DefWindowProcW")
 var miniGetWindowRect = miniUser32.NewProc("GetWindowRect")
 var miniGetClientRect = miniUser32.NewProc("GetClientRect")
+var miniCopyMemory = windows.NewLazySystemDLL("kernel32.dll").NewProc("RtlMoveMemory")
 var miniAspectWindows atomic.Pointer[miniWindowsAspect]
 var miniAspectProcedure uintptr
 var miniAspectProcedureOnce sync.Once
@@ -24,6 +27,17 @@ var miniAspectProcedureOnce sync.Once
 const miniAspectApplyMessage = 0x8000 + 0x3a1
 
 type miniNativeRect struct{ Left, Top, Right, Bottom int32 }
+
+// LPARAM points at native memory, not a Go allocation. Copy across the syscall
+// boundary instead of converting an untracked uintptr into a Go pointer.
+func miniReadNativeRect(address uintptr) (rect miniNativeRect) {
+	miniCopyMemory.Call(uintptr(unsafe.Pointer(&rect)), address, unsafe.Sizeof(rect))
+	return
+}
+func miniWriteNativeRect(address uintptr, rect *miniNativeRect) {
+	miniCopyMemory.Call(address, uintptr(unsafe.Pointer(rect)), unsafe.Sizeof(*rect))
+}
+
 type miniWindowsAspect struct {
 	hwnd, previous             uintptr
 	aspect                     miniAspect
@@ -150,7 +164,9 @@ func miniAspectWindowProcedure(hwnd uintptr, msg uint32, wp, lp uintptr) uintptr
 		return result
 	}
 	if msg == 0x0214 && lp != 0 && miniAspectCanResize(hwnd) { // WM_SIZING: constrain the drag rectangle, not a later WM_SIZE correction.
-		miniConstrainSizing(s, wp, (*miniNativeRect)(unsafe.Pointer(lp)))
+		rect := miniReadNativeRect(lp)
+		miniConstrainSizing(s, wp, &rect)
+		miniWriteNativeRect(lp, &rect)
 		return 1
 	}
 	if msg == 0x0005 { // WM_SIZE, including native maximise/restore/fullscreen.
