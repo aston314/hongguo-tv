@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"runtime"
+
 	wruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
@@ -23,6 +25,15 @@ func (w runtimeMiniWindow) setMinimum(width, height int) {
 func (w runtimeMiniWindow) setTopmost(enabled bool) { wruntime.WindowSetAlwaysOnTop(w.ctx, enabled) }
 func (w runtimeMiniWindow) setTitlebarHidden(hidden bool) error {
 	return desktopSetMiniTitlebarHidden(hidden)
+}
+func (w runtimeMiniWindow) setAspect(aspect miniAspect, refit bool) error {
+	err := desktopSetMiniAspect(aspect.Width, aspect.Height, refit)
+	if err == nil && !aspect.valid() && runtime.GOOS == "linux" {
+		// GTK geometry hints replace, rather than merge, Wails' min/max hints.
+		// Restore the framework's own current mini constraints after clearing.
+		wruntime.WindowSetMinSize(w.ctx, 280, 200)
+	}
+	return err
 }
 func (w runtimeMiniWindow) fullscreen() bool { return wruntime.WindowIsFullscreen(w.ctx) }
 func (w runtimeMiniWindow) setFullscreen(enabled bool) {
@@ -68,6 +79,18 @@ func (a *desktopApp) SetMiniPlayer(enabled, portrait, hideTitlebar bool) string 
 
 func (a *desktopApp) SetMiniPlayerTitlebarHidden(hidden bool) string {
 	state := a.mini.setTitlebar(runtimeMiniWindow{a.ctx}, hidden)
+	b, _ := json.Marshal(state)
+	return string(b)
+}
+
+func (a *desktopApp) SetMiniPlayerWithAspect(enabled, portrait, hidden bool, width, height int) string {
+	state := a.mini.setWithAspect(runtimeMiniWindow{a.ctx}, enabled, portrait, hidden, width, height)
+	b, _ := json.Marshal(state)
+	return string(b)
+}
+
+func (a *desktopApp) UpdateMiniPlayerAspect(session uint64, width, height int) string {
+	state := a.mini.updateAspect(runtimeMiniWindow{a.ctx}, session, width, height)
 	b, _ := json.Marshal(state)
 	return string(b)
 }

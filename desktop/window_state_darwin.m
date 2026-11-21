@@ -1,6 +1,12 @@
 //go:build darwin
 
 #import <Cocoa/Cocoa.h>
+#include "mini_aspect_geometry.h"
+
+static BOOL hongguoMiniAspectSaved, hongguoMiniAspectFitting, hongguoMiniAspectSuspended;
+static NSWindow *hongguoMiniAspectWindow;
+static NSSize hongguoMiniOriginalAspect, hongguoMiniVideoAspect;
+static void hongguoApplyMiniAspect(NSWindow *window, BOOL refit);
 
 static NSWindow *hongguoMainWindow(void) {
     for (NSWindow *window in [NSApp windows]) {
@@ -31,6 +37,10 @@ static void hongguoOnMain(void (^action)(void)) {
     self.fullscreenWasZoomed = window.isZoomed;
     self.hasFullscreenRestore = YES;
     self.transitioning = YES;
+    if (hongguoMiniAspectSaved) {
+        window.contentAspectRatio = hongguoMiniOriginalAspect;
+        hongguoMiniAspectSuspended = YES;
+    }
 }
 - (void)didEnter:(NSNotification *)note { self.transitioning = NO; }
 - (void)willExit:(NSNotification *)note { self.transitioning = YES; }
@@ -40,10 +50,80 @@ static void hongguoOnMain(void (^action)(void)) {
         [window setFrame:self.fullscreenRestoreFrame display:YES animate:NO];
     }
     self.transitioning = NO;
+    if (hongguoMiniAspectSaved) hongguoApplyMiniAspect(window, YES);
+}
+- (void)didResize:(NSNotification *)note {
+    if (!hongguoMiniAspectSaved || hongguoMiniAspectFitting) return;
+    NSWindow *window = note.object;
+    if (self.transitioning || window.isZoomed || (window.styleMask & NSWindowStyleMaskFullScreen)) {
+        window.contentAspectRatio = hongguoMiniOriginalAspect;
+        hongguoMiniAspectSuspended = YES;
+    } else if (hongguoMiniAspectSuspended) hongguoApplyMiniAspect(window, YES);
 }
 @end
 
 static HongguoWindowObserver *hongguoWindowObserver;
+
+static void hongguoApplyMiniAspect(NSWindow *window, BOOL refit) {
+    if (hongguoMiniAspectFitting || window != hongguoMiniAspectWindow) return;
+    if (hongguoWindowObserver.transitioning || window.isZoomed || (window.styleMask & NSWindowStyleMaskFullScreen)) {
+        window.contentAspectRatio = hongguoMiniOriginalAspect;
+        hongguoMiniAspectSuspended = YES;
+        return;
+    }
+    hongguoMiniAspectFitting = YES;
+    @try {
+        window.contentAspectRatio = hongguoMiniVideoAspect;
+        hongguoMiniAspectSuspended = NO;
+        if (refit) {
+            NSRect old = window.frame;
+            NSSize content = window.contentView.bounds.size;
+            NSRect screen = NSInsetRect((window.screen ?: NSScreen.mainScreen).visibleFrame, 12, 12);
+            double chromeW = fmax(0, old.size.width - content.width);
+            double chromeH = fmax(0, old.size.height - content.height);
+            MiniContentSize fit = mini_fit_content(content.width, content.height,
+                hongguoMiniVideoAspect.width / hongguoMiniVideoAspect.height,
+                fmax(1, window.minSize.width - chromeW), fmax(1, window.minSize.height - chromeH),
+                NSWidth(screen) - chromeW, NSHeight(screen) - chromeH);
+            NSRect frame = old;
+            frame.size = NSMakeSize(fit.width + chromeW, fit.height + chromeH);
+            frame.origin.y = NSMaxY(old) - frame.size.height;
+            frame.origin.x = fmax(NSMinX(screen), fmin(frame.origin.x, NSMaxX(screen) - frame.size.width));
+            frame.origin.y = fmax(NSMinY(screen), fmin(frame.origin.y, NSMaxY(screen) - frame.size.height));
+            if (!NSEqualRects(frame, old)) [window setFrame:frame display:YES animate:NO];
+        }
+    } @finally { hongguoMiniAspectFitting = NO; }
+}
+
+int hongguoSetMiniAspect(int width, int height, int refit) {
+    __block int ok = 0;
+    hongguoOnMain(^{
+        NSWindow *window = hongguoMainWindow();
+        if (width == 0 && height == 0) {
+            if (hongguoMiniAspectSaved) {
+                if (!window || window != hongguoMiniAspectWindow) return;
+                window.contentAspectRatio = hongguoMiniOriginalAspect;
+            }
+            hongguoMiniAspectSaved = hongguoMiniAspectSuspended = NO;
+            hongguoMiniAspectWindow = nil;
+            ok = 1;
+            return;
+        }
+        if (!window || width <= 0 || height <= 0 || width > 32768 || height > 32768 ||
+            width > height * 10 || height > width * 10) return;
+        @try {
+            if (!hongguoMiniAspectSaved) {
+                hongguoMiniAspectWindow = window;
+                hongguoMiniOriginalAspect = window.contentAspectRatio;
+                hongguoMiniAspectSaved = YES;
+            }
+            hongguoMiniVideoAspect = NSMakeSize((double)width / height, 1);
+            hongguoApplyMiniAspect(window, refit != 0);
+            ok = 1;
+        } @catch (NSException *exception) { ok = 0; }
+    });
+    return ok;
+}
 
 // Keep the titled/resizable window class. Extending content into the titlebar
 // and hiding its controls avoids replacing the window or its WKWebView.
@@ -102,6 +182,7 @@ void hongguoObserveWindow(void) {
         [center addObserver:hongguoWindowObserver selector:@selector(didEnter:) name:NSWindowDidEnterFullScreenNotification object:window];
         [center addObserver:hongguoWindowObserver selector:@selector(willExit:) name:NSWindowWillExitFullScreenNotification object:window];
         [center addObserver:hongguoWindowObserver selector:@selector(didExit:) name:NSWindowDidExitFullScreenNotification object:window];
+        [center addObserver:hongguoWindowObserver selector:@selector(didResize:) name:NSWindowDidResizeNotification object:window];
     });
 }
 

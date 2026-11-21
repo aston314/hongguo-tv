@@ -10,6 +10,7 @@
     var timer = null, overlay, entry, title, episode, progress, volume, time, buttons = {};
     var hideTitlebar = false, titlebarHidden = false, settingCard, settingToggle, settingState;
     var titlebarKey = 'hongguo.desktop.mini-titlebar-hidden';
+    var aspectSession = 0, aspectKey = '', aspectFailed = '', aspectFlight = null;
     try { hideTitlebar = win.localStorage.getItem(titlebarKey) === 'true'; } catch (_) {}
     function app() { return win.HongguoTV; }
     function bridge() { return win.go && win.go.main && win.go.main.desktopApp; }
@@ -17,6 +18,35 @@
     function text(key, fallback, params) { return win.HongguoI18n ? win.HongguoI18n.t(key, params, fallback) : fallback; }
     function supported() { return /^(darwin|windows|linux|preview)$/.test(config.platform) && (config.platform === 'preview' || bridge() && bridge().SetMiniPlayer); }
     function titlebarSupported() { return supported() && (config.platform === 'preview' || bridge() && bridge().SetMiniPlayerTitlebarHidden); }
+    function aspectSupported() { return config.platform !== 'preview' && bridge() && typeof bridge().SetMiniPlayerWithAspect === 'function' && typeof bridge().UpdateMiniPlayerAspect === 'function'; }
+    function videoAspect(s) {
+      var w = Number(s.videoWidth), h = Number(s.videoHeight);
+      if (!Number.isFinite(w) || !Number.isFinite(h) || w !== Math.floor(w) || h !== Math.floor(h) || w <= 0 || h <= 0 || w > 32768 || h > 32768 || w > h * 10 || h > w * 10) return null;
+      w = Math.round(w); h = Math.round(h);
+      var a = w, b = h; while (b) { var next = a % b; a = b; b = next; }
+      return { width: w, height: h, key: (w / a) + ':' + (h / a) };
+    }
+    function aspectFallback() {
+      if (app() && app().miniPlayerNotify) app().miniPlayerNotify(text('mini.aspectFallback', '暂无法固定比例，已保留原小窗。'));
+    }
+    function syncAspect() {
+      var video = videoAspect(state());
+      if (!active || pending || !aspectSupported() || !aspectSession || !video || aspectFlight || video.key === aspectKey || video.key === aspectFailed) return;
+      var flight = { session: aspectSession, revision: revision, key: video.key };
+      aspectFlight = flight;
+      Promise.resolve().then(function () { return bridge().UpdateMiniPlayerAspect(flight.session, video.width, video.height); }).then(function (result) {
+        if (typeof result === 'string') result = JSON.parse(result);
+        if (!active || pending || revision !== flight.revision || aspectSession !== flight.session) return;
+        if (!result || !result.active || result.aspect_session !== flight.session || !result.aspect_applied) throw new Error('Aspect not applied');
+        aspectKey = video.key; aspectFailed = '';
+      }).catch(function () {
+        if (active && !pending && revision === flight.revision && aspectSession === flight.session) { aspectKey = ''; aspectFailed = video.key; aspectFallback(); }
+      }).then(function () {
+        if (aspectFlight !== flight) return;
+        aspectFlight = null;
+        if (active && !pending) syncAspect(); // coalesce metadata changes during the native call
+      });
+    }
     function saveTitlebar(value) {
       try { win.localStorage.setItem(titlebarKey, value ? 'true' : 'false'); hideTitlebar = value; return true; } catch (_) { return false; }
     }
@@ -58,6 +88,10 @@
         if (typeof result === 'string') result = JSON.parse(result);
         if (!result || typeof result.active !== 'boolean') throw new Error('Invalid titlebar response');
         applyTitlebar(result);
+        if (result.aspect_fallback) {
+          var video = videoAspect(state());
+          aspectKey = ''; aspectFailed = video ? video.key : ''; aspectFallback();
+        }
         if (result.error) throw new Error(result.error);
         var saved = saveTitlebar(!!result.titlebar_hidden);
         if (!saved) renderSetting(text('settings.saveFailed', '设置未能保存，请重试。'));
@@ -98,6 +132,7 @@
     function apply(value) {
       var changed = active !== value;
       active = value;
+      if (!active) { aspectSession = 0; aspectKey = aspectFailed = ''; aspectFlight = null; }
       doc.documentElement.classList.toggle('desktop-mini-player', active);
       if (overlay) overlay.setAttribute('aria-hidden', active ? 'false' : 'true');
       if (changed && app() && app().miniPlayerChanged) app().miniPlayerChanged(active, savedCinema);
@@ -116,12 +151,25 @@
       // clone or reload the video element during a window-mode transition.
       doc.documentElement.classList.toggle('desktop-mini-player', enabled || active);
       render();
+      var requestedAspect = null;
       return Promise.resolve().then(function () {
-        return config.platform === 'preview' ? { active: enabled, titlebar_hidden: enabled && hideTitlebar } : bridge().SetMiniPlayer(enabled, !!state().portrait, !!(enabled && hideTitlebar && titlebarSupported()));
+        if (config.platform === 'preview') return { active: enabled, titlebar_hidden: enabled && hideTitlebar };
+        var s = state(), hidden = !!(enabled && hideTitlebar && titlebarSupported());
+        if (enabled && aspectSupported()) {
+          requestedAspect = videoAspect(s);
+          return bridge().SetMiniPlayerWithAspect(true, !!s.portrait, hidden, requestedAspect ? requestedAspect.width : 0, requestedAspect ? requestedAspect.height : 0);
+        }
+        return bridge().SetMiniPlayer(enabled, !!s.portrait, hidden);
       }).then(function (value) {
         var result = typeof value === 'string' ? JSON.parse(value) : value;
         if (!result || typeof result.active !== 'boolean') throw new Error('Invalid window response');
         pending = false;
+        if (enabled && result.active && aspectSupported()) {
+          aspectSession = Number(result.aspect_session) || 0;
+          aspectKey = requestedAspect && result.aspect_applied ? requestedAspect.key : '';
+          aspectFailed = requestedAspect && result.aspect_fallback ? requestedAspect.key : '';
+          if (result.aspect_fallback) aspectFallback();
+        }
         apply(result.active);
         applyTitlebar(result);
         if (result.error) throw new Error(result.error);
@@ -155,6 +203,7 @@
       renderSetting();
       if (!active) return;
       if (!s.available && !pending) { request(false); return; }
+      syncAspect();
       title.textContent = s.title || text('app.name', '红果短剧');
       episode.textContent = s.episode ? text('content.episodeNumber', '第{episode}集', { episode: s.episode }) : '';
       ['previousEpisode', 'nextEpisode', 'previousDrama', 'nextDrama'].forEach(function (name) { buttons[name].disabled = pending || !s[name]; });
@@ -226,7 +275,7 @@
       overlay.addEventListener('mousedown', function () { keyboardFocus = false; });
       overlay.addEventListener('focusin', reveal); overlay.addEventListener('focusout', function () { win.setTimeout(scheduleHide, 0); });
       var video = doc.getElementById('hero-video');
-      ['timeupdate', 'loadedmetadata', 'play', 'pause', 'volumechange', 'emptied', 'ended'].forEach(function (name) { video.addEventListener(name, function () { render(); if (name === 'pause') scheduleHide(); }); });
+      ['timeupdate', 'loadedmetadata', 'resize', 'play', 'pause', 'volumechange', 'emptied', 'ended'].forEach(function (name) { video.addEventListener(name, function () { render(); if (name === 'pause') scheduleHide(); }); });
       // A new episode and buffering recovery both emit playing. Media events
       // update labels/timers but leave visibility to explicit user interaction.
       video.addEventListener('playing', function () { render(); scheduleHide(); });

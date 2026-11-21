@@ -3585,6 +3585,8 @@
     var width = video.videoWidth || activePlayback && activePlayback.videoWidth || 0;
     var height = video.videoHeight || activePlayback && activePlayback.videoHeight || 0;
     return { available: available, title: item.title || '', episode: episode, portrait: height > width,
+      videoWidth: video.readyState >= 1 ? Number(video.videoWidth) || 0 : 0,
+      videoHeight: video.readyState >= 1 ? Number(video.videoHeight) || 0 : 0,
       previousEpisode: available && episode > 1, nextEpisode: available && episode > 0 && (!total || episode < total),
       previousDrama: recommend && feedIndex > 0, nextDrama: recommend && (feedIndex + 1 < feedItems.length || feedPager.hasMore() || !!feedPager.error),
       canPlay: available && !!video.getAttribute('src'), paused: video.paused || video.ended,

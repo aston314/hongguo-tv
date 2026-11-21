@@ -71,6 +71,52 @@ int main(int argc, const char **argv) {
         [center postNotificationName:NSWindowDidExitFullScreenNotification object:window];
         require(!hongguoWindowTransitioning() && NSEqualRects(window.frame, ordinary), @"DidExit lost ordinary frame");
 
+        NSSize oldMinimum = window.minSize;
+        window.minSize = NSMakeSize(280, 200);
+        for (int hidden = 0; hidden <= 1; hidden++) {
+            require(hongguoSetMiniTitlebarHidden(hidden), @"aspect setup titlebar failed");
+            for (int portrait = 0; portrait <= 1; portrait++) {
+                [window setFrame:NSMakeRect(NSMinX(visible)+50, NSMinY(visible)+50, 480, 568) display:YES];
+                int vw = portrait ? 1080 : 1920, vh = portrait ? 1924 : 1080;
+                require(hongguoSetMiniAspect(vw, vh, YES), @"native content aspect failed");
+                pump();
+                NSSize content = window.contentView.bounds.size;
+                require(fabs(content.width * vh - content.height * vw) <= MAX(vw,vh), @"window content does not fit video ratio");
+                NSSize rectContent = [window contentRectForFrameRect:window.frame].size;
+                require(NSEqualSizes(rectContent,content), @"AppKit content-aspect rectangle differs from WebView content");
+                require(fabs(window.contentAspectRatio.width/window.contentAspectRatio.height - (double)vw/vh)<0.000001,
+                    @"native live-resize constraint missing");
+                require(window.contentView == originalContent && (window.styleMask & NSWindowStyleMaskResizable),
+                    @"aspect change replaced content or disabled dragging");
+                NSSize fitted = window.frame.size;
+                [window setFrameOrigin:NSMakePoint(NSMinX(visible)+60,NSMinY(visible)+60)];
+                require(NSEqualSizes(fitted,window.frame.size), @"moving mini window resized it");
+                require(hongguoSetMiniAspect(0,0,NO), @"could not restore native aspect");
+                require(NSEqualSizes(window.contentAspectRatio,NSZeroSize), @"aspect leaked outside mini window");
+            }
+            require(hongguoSetMiniTitlebarHidden(NO), @"aspect titlebar restoration failed");
+        }
+        window.minSize = oldMinimum;
+        [window setFrame:ordinary display:YES];
+        require(NSEqualRects(window.frame,ordinary), @"normal geometry changed after aspect mode");
+
+        // Pending metadata during a native full-screen transition is applied
+        // only after DidExit, never to the temporary full-screen rectangle.
+        window.minSize=NSMakeSize(280,200);
+        [window setFrame:NSMakeRect(NSMinX(visible)+50,NSMinY(visible)+50,320,568) display:YES];
+        require(hongguoSetMiniAspect(1080,1920,YES), @"portrait setup failed");
+        [center postNotificationName:NSWindowWillEnterFullScreenNotification object:window];
+        require(NSEqualSizes(window.contentAspectRatio,NSZeroSize), @"fullscreen retained mini constraints");
+        require(hongguoSetMiniAspect(1920,1080,YES), @"pending landscape metadata failed");
+        [center postNotificationName:NSWindowWillExitFullScreenNotification object:window];
+        [center postNotificationName:NSWindowDidExitFullScreenNotification object:window];
+        pump();
+        require(fabs(window.contentView.bounds.size.width/window.contentView.bounds.size.height-16.0/9)<0.01,
+            @"pending aspect did not recover after fullscreen");
+        require(hongguoSetMiniAspect(0,0,NO), @"fullscreen aspect cleanup failed");
+        window.minSize=oldMinimum;
+        [window setFrame:ordinary display:YES];
+
         [window setFrame:NSMakeRect(100000, -100000, 480, 300) display:NO];
         hongguoKeepMiniWindowVisible();
         require(NSContainsRect(visible, window.frame), @"off-screen small window was not constrained to visible area");
