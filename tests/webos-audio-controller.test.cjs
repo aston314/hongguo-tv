@@ -138,3 +138,10 @@ test('a local audio decode failure retries the existing Service audio route once
   f.controller.sourceChanged(source(1));f.controller.setRate(2);await f.flush();await f.advance(180);
   assert.equal(localCalls,1);assert.equal(fallbackCalls,1);assert.equal(decodes,2);assert.equal(f.native.rate,2);assert.equal(f.native.muted,true);assert.deepEqual(f.failures,[]);f.controller.destroy();
 });
+test('prepared PCM is handed to the existing worker without fetching or decoding again',async()=>{
+  const f=fixture();f.options.decode=()=>{throw Error('prewarmed PCM must not decode twice');};
+  f.options.requestAudio=async()=>({duration:10,channels:2,prewarmed:true,decoded:{channels:[new Float32Array(240000),new Float32Array(240000)],sampleRate:24000}});
+  f.controller.sourceChanged(source(2));f.controller.setRate(2);await f.flush();await f.advance(180);
+  assert.equal(f.native.rate,2);assert.equal(f.native.muted,true);assert.deepEqual(f.failures,[]);
+  assert.equal(f.controller.diagnostics().pcm_bytes,1920000);f.controller.destroy();
+});

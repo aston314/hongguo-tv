@@ -88,7 +88,7 @@ NODE
 "$node_bin" "$repo_dir/webos/service/provider.test.js"
 "$node_bin" "$repo_dir/webos/service/search-season.test.js"
 "$node_bin" --test "$repo_dir/webos/service/search-discovery.test.js"
-"$node_bin" --test "$repo_dir/tests/webos-prefetch-recovery.test.cjs" "$repo_dir/tests/webos-playback-identity.test.cjs"
+"$node_bin" --test "$repo_dir/tests/webos-prefetch-recovery.test.cjs" "$repo_dir/tests/webos-playback-identity.test.cjs" "$repo_dir/tests/webos-media-deadline.test.cjs"
 "$node_bin" --test "$repo_dir/tests/phone-search-service.test.cjs" "$repo_dir/tests/phone-search.test.cjs"
 "$node_bin" --test "$repo_dir/tests/webos-audio-controller.test.cjs" "$repo_dir/tests/webos-audio-local.test.cjs" "$repo_dir/tests/webos-audio-install.test.cjs"
 "$node_bin" "$repo_dir/webos/service/media-cache.test.js"

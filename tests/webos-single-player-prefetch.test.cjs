@@ -44,6 +44,14 @@ test('webOS consumes prefetch results over four consecutive episode handoffs wit
   assert.equal(f.calls.length, 4, 'exactly one prepared request per next episode');
   assert(f.calls.every(call => new URLSearchParams(call.url.split('?')[1]).get('prefetch') === '1'));
 });
+test('the actual preparation hook warms webOS audio with its cancellation signal without blocking video',async()=>{
+  const f=fixture(),warmed=[];
+  f.c.window.HongguoWebOSAudio={warm(path,signal){warmed.push({path,signal});throw Error('optional audio unavailable');}};
+  f.c.maybePrefetchNextEpisode(f.video);await tick();
+  const handoff=f.c.episodePrefetch.consume({series_id:'123',vid:'222',episode:2,quality:'',owner:1,mode:'range'});
+  const prepared=await handoff.promise;assert.equal(prepared.path,'/minireel-proxy/media/222.mp4');
+  assert.equal(warmed.length,1);assert.equal(warmed[0].path,prepared.path);assert.equal(warmed[0].signal,f.calls[0].signal);
+});
 
 test('aggregate access count does not suppress prefetch for the immediate fourth episode', async () => {
   const f = fixture({

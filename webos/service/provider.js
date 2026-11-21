@@ -1027,8 +1027,8 @@
   }
   function fileExists(file) { try { return fs.statSync(file).isFile(); } catch (ignored) { return false; } }
 
-  function downloadFile(target, destination, token) {
-    return rangeMedia.downloadFile(target, destination, { 'User-Agent': APP_UA }, MAX_MEDIA, function (size) { mediaCache.reserve(token, size); });
+  function downloadFile(target, destination, token, signal) {
+    return rangeMedia.downloadFile(target, destination, { 'User-Agent': APP_UA }, MAX_MEDIA, function (size) { mediaCache.reserve(token, size); }, { signal: signal });
   }
 
   function readU32(buffer, offset) { return buffer.readUInt32BE(offset); }
@@ -1176,6 +1176,7 @@
         function leave() {
           if (done) return false; done = true;
           if (signal) signal.removeEventListener('abort', aborted);
+          if (record.users === 1) clearTimeout(record.deadlineTimer);
           if (--record.users === 0 && (!record.settled || record.fullRecovery)) record.resolveCancel.abort('PLAYBACK_PREPARATION_CANCELLED');
           if (!prefetch && --record.foregroundUsers === 0 && (!record.settled || record.fullRecovery) && record.recoveryCancel) {
             record.recoveryCancel.abort('PLAYBACK_PREPARATION_CANCELLED');
@@ -1192,6 +1193,7 @@
         }
         function failed(error) {
           if (!leave()) return;
+          if (record.timedOut) error = fail('播放准备超时，请重试', 504, 'MEDIA_PREPARATION_TIMEOUT');
           if (!prefetch || !record.foreground) {
             record.report.media_preparation_error_stage = error.stage || record.report.media_preparation_stage;
             record.report.media_preparation_error_code = String(error.code || 'PROVIDER_ERROR');
@@ -1204,7 +1206,7 @@
           if (done) return;
           // Only an active foreground caller may start the existing full-file
           // fallback. Cancellation must not turn speculative work into a download.
-          if (!wantsRange || prefetch || !record.fullFallback || error.name === 'AbortError') { failed(error); return; }
+          if (!wantsRange || prefetch || !record.fullFallback || error.name === 'AbortError' || record.resolveCancel.signal.aborted) { failed(error); return; }
           Promise.resolve().then(function () {
             if (done) throw preparationCancelled();
             return record.fullFallback(error);
@@ -1225,6 +1227,9 @@
     var record = { users: 0, foregroundUsers: 0, speculative: !!prefetch, settled: false, resolveCancel: audioCancel.create(),
       identityState: { plan: sourceMemory.plan([seriesID, 'default', contentType, quality, String(!!fallback)].join('\x00')) },
       report: { media_mode: wantsRange ? 'range' : 'full', media_preparation_stage: 'resolve' } };
+    record.deadlineTimer = setTimeout(function () {
+      record.timedOut = true; record.resolveCancel.abort('PLAYBACK_PREPARATION_CANCELLED');
+    }, 45000);
     rememberPreparation(token, record.report);
     var resolveStartedAt = Date.now();
     function diagnostic(value) { record.report.media_video_model = value; }
@@ -1282,14 +1287,42 @@
           mediaCache.touch(fullToken, true);
           return Promise.resolve(withFallback({ path: '/minireel-proxy/media/' + fullToken + '.mp4', quality: selected.quality, qualities: qualities, vid: vid, mode: 'full' }));
         }
-        if (fullDownloads[fullToken]) return fullDownloads[fullToken].then(withFallback);
+        function joinDownload(shared) {
+          shared.users++;
+          var signal = record.resolveCancel.signal;
+          return new Promise(function (resolve, reject) {
+            var done = false;
+            function leave() {
+              if (done) return false; done = true;
+              signal.removeEventListener('abort', aborted);
+              if (--shared.users === 0 && !shared.settled) shared.cancel.abort('PLAYBACK_PREPARATION_CANCELLED');
+              return true;
+            }
+            function aborted() { if (leave()) reject(preparationCancelled()); }
+            signal.addEventListener('abort', aborted);
+            if (signal.aborted) { aborted(); return; }
+            shared.promise.then(function (result) { if (leave()) resolve(withFallback(result)); }, function (error) { if (leave()) reject(error); });
+          });
+        }
+        var existing = fullDownloads[fullToken];
+        if (existing) {
+          // An abandoned write must close before a retry reuses its path/lease.
+          if (existing.cancel.signal.aborted) return existing.promise.catch(function () {}).then(function () {
+            if (record.resolveCancel.signal.aborted) throw preparationCancelled();
+            return prepareFull(rangeError);
+          });
+          return joinDownload(existing);
+        }
+        var shared = { users: 0, settled: false, cancel: audioCancel.create() };
         var releaseDownload = mediaCache.protect(fullToken);
         var temp = fullFile + '.part';
         var download = measurePreparation(record.report, 'download', 'media_download_ms', function () {
           mediaCache.reserve(fullToken, 1);
           mkdirp(fullDir, 448);
-          return downloadFile(selected.url, temp, fullToken);
+          audioCancel.check(shared.cancel.signal);
+          return downloadFile(selected.url, temp, fullToken, shared.cancel.signal);
         }).then(function () {
+          audioCancel.check(shared.cancel.signal);
           return measurePreparation(record.report, 'decrypt', 'media_decrypt_ms', function () { if (selected.key) decryptMP4(temp, selected.key); });
         }).then(function () {
           fs.renameSync(temp, fullFile);
@@ -1304,16 +1337,19 @@
           throw error;
         });
         var sharedDownload = download.then(function (result) {
-          if (fullDownloads[fullToken] === sharedDownload) delete fullDownloads[fullToken];
+          shared.settled = true;
+          if (fullDownloads[fullToken] === shared) delete fullDownloads[fullToken];
           mediaCache.finishDownload(fullToken); releaseDownload(); mediaCache.prune(true);
           return result;
         }, function (error) {
-          if (fullDownloads[fullToken] === sharedDownload) delete fullDownloads[fullToken];
+          shared.settled = true;
+          if (fullDownloads[fullToken] === shared) delete fullDownloads[fullToken];
           mediaCache.finishDownload(fullToken); releaseDownload(); mediaCache.prune(true);
           throw error;
         });
-        fullDownloads[fullToken] = sharedDownload;
-        return sharedDownload.then(withFallback);
+        shared.promise = sharedDownload;
+        fullDownloads[fullToken] = shared;
+        return joinDownload(shared);
       }
       if (!wantsRange) return prepareFull(null).catch(recoverMedia);
       record.fullFallback = function (error) {
@@ -1325,8 +1361,9 @@
       };
       return measurePreparation(record.report, 'range_init', 'media_range_init_ms', function () {
         if (!selected.key) throw fail('当前视频没有 CENC key');
-        return rangeMedia.open(selected.url, selected.key, { vid: vid, quality: selected.quality });
+        return rangeMedia.open(selected.url, selected.key, { vid: vid, quality: selected.quality }, { signal: record.resolveCancel.signal });
       }).then(function (source) {
+        if (record.resolveCancel.signal.aborted) throw preparationCancelled();
         source.quality = selected.quality;
         source.refresh = function () {
           return videoOptions(vid, null, { contentType: contentType }).then(function (freshOptions) {
@@ -2273,6 +2310,7 @@
       playbackIdentityClosed = true; playbackIdentity.close(); registeredSingleIdentity.close(); mobileV5Identity.close();
       sourceMemory.clear();
       Object.keys(jobs).forEach(function (key) { jobs[key].resolveCancel.abort('PLAYBACK_PREPARATION_CANCELLED'); });
+      Object.keys(fullDownloads).forEach(function (key) { fullDownloads[key].cancel.abort('PLAYBACK_PREPARATION_CANCELLED'); });
       Object.keys(audioJobs).forEach(function (key) { audioJobs[key].cancel.abort(); });
       audioRange.close(); audioCache = [];
       if (typeof rangeMedia.clearHeadCache === 'function') rangeMedia.clearHeadCache();

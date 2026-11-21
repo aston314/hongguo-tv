@@ -186,6 +186,7 @@
         request = options.createAbort ? options.createAbort() : null;
         watchdog = timeout(function () { if (current(id)) fallback('WEBOS_AUDIO_TIMEOUT'); }, 20000);
         function decodeAudio(audio) {
+          if (audio.decoded) return Promise.resolve(audio.decoded);
           return options.decode(audio.data, function () { return current(id); }).catch(function (error) {
             // A local MP4 extraction can be structurally valid while a particular WebOS decoder
             // rejects the generated ADTS. Give the existing Service endpoint one chance before
@@ -199,7 +200,7 @@
         Promise.resolve(options.requestAudio(path, request && request.signal)).then(function (audio) {
           if (!current(id)) return null;
           var bytes = Number(audio.data && audio.data.byteLength), estimated = Number(audio.duration) * Number(audio.channels) * (options.decodeRate || 24000) * 4;
-          if (!bytes || bytes > 10 * 1024 * 1024 || !isFinite(estimated) || estimated <= 0 || estimated > 64 * 1024 * 1024) throw new Error('AUDIO_MEMORY_LIMIT');
+          if ((!audio.decoded && (!bytes || bytes > 10 * 1024 * 1024)) || !isFinite(estimated) || estimated <= 0 || estimated > 64 * 1024 * 1024) throw new Error('AUDIO_MEMORY_LIMIT');
           duration = Number(audio.duration);
           return decodeAudio(audio);
         }).then(function (decoded) {

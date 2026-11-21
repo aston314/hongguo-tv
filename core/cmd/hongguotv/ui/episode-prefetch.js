@@ -4,8 +4,9 @@
   function create(options) {
     var entry = null;
     var now = options.now || Date.now;
-    var maxRetries = options.maxRetries === 1 ? 1 : 0;
+    var maxRetries = Math.min(3, Math.max(0, Math.floor(Number(options.maxRetries) || 0)));
     var retryDelay = Math.max(0, Number(options.retryDelayMs) || 3000);
+    var retryWindow = Math.max(0, Number(options.retryWindowMs) || 0);
     var maxAge = Math.max(0, Number(options.maxAgeMs) || 0);
     var fullMaxAge = Math.max(0, Number(options.fullMaxAgeMs) || 0);
     var isRetryableError = options.isRetryableError || retryableError;
@@ -48,7 +49,8 @@
           !isFinite(info.stable_seconds) || info.stable_seconds < stableThreshold(info)) return;
       var identity = key(info);
       if (entry && entry.key === identity) {
-        if (entry.state === 'failed' && entry.attempts <= maxRetries && now() >= entry.retryAt) run(entry);
+        if (entry.state === 'failed' && entry.attempts <= maxRetries && now() >= entry.retryAt &&
+            (!retryWindow || now() - entry.timing.started_at < retryWindow)) run(entry);
         // A long episode may outlive the early prepared URL. Use the same
         // single extra-attempt budget to refresh near the end, while there is
         // still time to prepare it, rather than polling throughout playback.
@@ -90,7 +92,8 @@
         // Retry only on a later eligible playback tick, never while paused,
         // hidden, cancelled or already handed to foreground playback.
         if (current(candidate)) {
-          if (isRetryableError(error) && candidate.attempts <= maxRetries) {
+          if (isRetryableError(error) && candidate.attempts <= maxRetries &&
+              (!retryWindow || now() - candidate.timing.started_at + retryDelay < retryWindow)) {
             candidate.state = 'failed';
             candidate.retryAt = now() + retryDelay;
           } else {
@@ -137,6 +140,7 @@
   function retryableError(error) {
     if (!error) return false;
     if (error.name === 'AbortError') return false;
+    if (error.retryAfter || error.recoveryComplete || Number(error.upstreamStatus || error.status) === 429) return false;
     if (error.retryable === false) return false;
     if (error.retryable === true) return true;
     var code = String(error.code || '').toUpperCase();

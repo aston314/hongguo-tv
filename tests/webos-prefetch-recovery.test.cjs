@@ -116,10 +116,10 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
   const mod = new Module(providerFile, module); mod.filename = providerFile; mod.paths = Module._nodeModulePaths(path.dirname(providerFile));
   const normal = mod.require.bind(mod);
   mod.require = id => id === 'https' ? transport : id === './range-media' ? {
-    open() { rangeOpens++; if(mediaHooks.open)return mediaHooks.open(rangeOpens); return Promise.resolve({ prefix: Buffer.alloc(16), samples: [], key: Buffer.alloc(16), length: 128, etag: '"fixture"' }); },
+    open(target,key,metadata,options) { rangeOpens++; if(mediaHooks.open)return mediaHooks.open(rangeOpens,options); return Promise.resolve({ prefix: Buffer.alloc(16), samples: [], key: Buffer.alloc(16), length: 128, etag: '"fixture"' }); },
     prefetchHead(source, signal) { headWarms++; return warmHead ? warmHead(source, signal) : Promise.resolve(0); },
     headDiagnostics() { return { media_head_cache_bytes: 128, media_head_cache_hits: 0 }; },
-    downloadFile(target,destination) { downloads++; if(mediaHooks.download)return mediaHooks.download(target,destination,downloads); throw Error('Recovery must not download a complete video'); }
+    downloadFile(target,destination,headers,max,beforeWrite,options) { downloads++; if(mediaHooks.download)return mediaHooks.download(target,destination,downloads,options); throw Error('Recovery must not download a complete video'); }
   } : normal(id);
   // These fixtures exercise the retained legacy protocol's exact retry counts.
   // The mobile-v5 protocol and its integration use their own complete transport
@@ -127,7 +127,8 @@ function fixture(replies, warmHead, registrationReplies = [], tabReply = { code:
   const source = fs.readFileSync(providerFile, 'utf8');
   const selector = 'singleVideoOptions : mobileVideoOptions';
   assert.equal(source.split(selector).length, 2);
-  mod._compile(source.replace(selector, 'singleVideoOptions : legacyVideoOptions'), providerFile);
+  const fixtureSource=source.replace(selector, 'singleVideoOptions : legacyVideoOptions');
+  mod._compile(mediaHooks.prepareTimeoutMs ? fixtureSource.replace('}, 45000);','}, '+mediaHooks.prepareTimeoutMs+');') : fixtureSource, providerFile);
   const provider = mod.exports, consumers = [], prepare = provider.prepare;
   provider.prepare = function (...args) {
     consumers.push({ prefetch: args[5], signal: args[6] }); return prepare.apply(provider, args);
@@ -970,4 +971,51 @@ test('registered profile bootstrap failure retains the original single registrat
     assert.equal(f.singleRequests.length,1);assert.equal(f.registrations,4);
     assert.equal(new URL('https://fixture.test'+f.singleRequests[0].options.path).searchParams.get('version_name'),'7.3.9.32');
   } finally {f.close();}
+});
+
+test('Range initialization is cancelled with its last foreground consumer and does not publish a late source',async()=>{
+  let active;
+  const f=fixture([{}],null,[],{code:100103},[],{open(n,options){active=options.signal;return new Promise((resolve,reject)=>{active.addEventListener('abort',()=>reject(cancel.error(active)));});}}), c=cancel.create();
+  try{
+    const result=observe(f.prepare(false,c.signal));await until(()=>active);c.abort();
+    assert.equal((await result).error.name,'AbortError');await tick();assert(active.aborted);assert.equal(f.downloads,0);
+  }finally{f.close();}
+});
+
+test('one preparation deadline bounds source, Range and download recovery together',async()=>{
+  let active;
+  const f=fixture([{}],null,[],{code:100103},[],{prepareTimeoutMs:100,open(n,options){active=options.signal;return new Promise((resolve,reject)=>{active.addEventListener('abort',()=>reject(cancel.error(active)));});}});
+  try{
+    const result=await observe(f.prepare(false));assert.equal(result.error.code,'MEDIA_PREPARATION_TIMEOUT');assert.equal(result.error.status,504);assert(active.aborted);assert.equal(f.downloads,0);
+  }finally{f.close();}
+});
+
+const clearMediaReply={body:JSON.stringify({data:{video_model:{video_list:[{main_url:'https://media.example.test/clear.mp4',codec_type:'bytevc1',video_meta:{vheight:720}}]}}})};
+test('full and Range-fallback consumers share one download; cancelling one does not abort the other',async()=>{
+  let download;
+  const f=fixture([clearMediaReply,clearMediaReply],null,[],{code:100103},[],{download(target,destination,n,options){return new Promise((resolve,reject)=>{
+    download={signal:options.signal,complete(){fs.writeFileSync(destination,'clear fixture media');resolve();}};
+    options.signal.addEventListener('abort',()=>reject(cancel.error(options.signal)));
+  });}}), a=cancel.create(),b=cancel.create();
+  try{
+    const full=f.provider.prepare('123','456','',true,'full',false,a.signal);await until(()=>download);
+    const range=observe(f.prepare(false,b.signal));await until(()=>f.requests.length===2);await tick();await tick();
+    b.abort();assert.equal((await range).error.name,'AbortError');assert.equal(download.signal.aborted,false);assert.equal(f.downloads,1);
+    download.complete();assert.equal((await full).mode,'full');
+  }finally{f.close();}
+});
+
+test('cancelling the only download permits an immediate clean retry instead of joining the abandoned write',async()=>{
+  const seen=[];
+  const f=fixture([clearMediaReply,clearMediaReply],null,[],{code:100103},[],{download(target,destination,n,options){
+    seen.push(options.signal);
+    if(n===1)return new Promise((resolve,reject)=>options.signal.addEventListener('abort',()=>setImmediate(()=>reject(cancel.error(options.signal)))));
+    fs.writeFileSync(destination,'clear retry fixture');return Promise.resolve();
+  }}), c=cancel.create();
+  try{
+    const first=observe(f.provider.prepare('123','456','',true,'full',false,c.signal));await until(()=>seen.length);c.abort();
+    const retry=f.provider.prepare('123','456','',true,'full',false);
+    assert.equal((await first).error.name,'AbortError');assert(seen[0].aborted);
+    assert.equal((await retry).mode,'full');assert.equal(f.downloads,2);assert.equal(seen[1].aborted,false);
+  }finally{f.close();}
 });

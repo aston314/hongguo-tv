@@ -1,15 +1,15 @@
 const {test}=require('node:test'),assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const {install}=require('../webos/app/webos-audio');
 function fixture(saved){
- const counters={contexts:0,workers:0,observers:0,controllers:0,destroyed:0},storage=new Map(saved?[['hongguo-webos-audible-speed',saved]]:[]),listeners={};let options,rate=1,muted=false;
+ const counters={contexts:0,workers:0,observers:0,controllers:0,destroyed:0},storage=new Map(saved?[['hongguo-webos-audible-speed',saved]]:[]),listeners={},audioState={phase:'idle'};let options,rate=1,muted=false;
  function Media(){this.nativeRate=1;this.nativeDefault=1;this.nativeMuted=false;this.src='/minireel-proxy/media/'+('1'.repeat(24))+'.mp4';this.events={};}
  for(const [name,field] of [['playbackRate','nativeRate'],['defaultPlaybackRate','nativeDefault'],['muted','nativeMuted']])Object.defineProperty(Media.prototype,name,{configurable:true,get(){return this[field]},set(v){this[field]=v}});
  const video=new Media();video.getAttribute=()=>video.src;video.addEventListener=(name,cb)=>video.events[name]=cb;video.dispatchEvent=e=>{if(video.events[e.type])video.events[e.type](e);};
- const doc={hidden:false,querySelector:()=>video,addEventListener(){},createEvent:()=>({initCustomEvent(type,bubbles,cancelable,detail){this.type=type;this.detail=detail;}})};
+ const doc={hidden:false,events:{},querySelector:()=>video,addEventListener(name,fn){this.events[name]=fn;},createEvent:()=>({initCustomEvent(type,bubbles,cancelable,detail){this.type=type;this.detail=detail;}})};
  const win={HongguoWebOS:{mediaPath:v=>v},HTMLMediaElement:Media,AudioContext:function(){counters.contexts++;},OfflineAudioContext:function(){},Worker:function(){counters.workers++;},
   MutationObserver:function(){counters.observers++;this.observe=()=>{};this.disconnect=()=>{counters.observers--;};},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},addEventListener:(name,cb)=>listeners[name]=cb,
-  HongguoWebOSAudioController:{create(o){counters.controllers++;options=o;return{getRate:()=>rate,setRate:v=>{rate=v;},getMuted:()=>muted,setMuted:v=>{muted=v;},sourceChanged(){},foregroundChanged(){},event(){},diagnostics:()=>({phase:'idle'}),destroy(){counters.destroyed++;o.setNativeRate(1);o.setNativeMuted(muted);}}}}};
- const api=install(win,doc);return{win,doc,video,api,storage,counters,listeners,get options(){return options;}};
+  HongguoWebOSAudioController:{create(o){counters.controllers++;options=o;return{getRate:()=>rate,setRate:v=>{rate=v;},getMuted:()=>muted,setMuted:v=>{muted=v;},sourceChanged(){},foregroundChanged(){},event(){},diagnostics:()=>({...audioState}),destroy(){counters.destroyed++;o.setNativeRate(1);o.setNativeMuted(muted);}}}}};
+ const api=install(win,doc);return{win,doc,video,api,storage,counters,listeners,audioState,get options(){return options;}};
 }
 test('default off does not override video, construct contexts/workers, or issue audio requests',()=>{
  const f=fixture();assert.equal(f.api.isEnabled(),false);assert.deepEqual(f.counters,{contexts:0,workers:0,observers:0,controllers:0,destroyed:0});
@@ -29,10 +29,73 @@ test('storage failure and non-webOS never enable a partially applied route',()=>
 test('binary transport cancellation works without AbortController and decoder work never queues',async()=>{
  const f=fixture();f.api.choose(true);let xhr;
  f.win.XMLHttpRequest=function(){xhr=this;this.open=()=>{};this.send=()=>{};this.abort=()=>{this.aborted=true;if(this.onabort)this.onabort();};this.getResponseHeader=()=>null;};
- const c=f.options.createAbort(),pending=f.options.requestAudio('/minireel-proxy/media/'+('1'.repeat(24))+'.mp4',c.signal);c.abort();await assert.rejects(pending,{code:'WEBOS_AUDIO_CANCELLED'});assert.equal(xhr.aborted,true);
+ const c=f.options.createAbort(),pending=f.options.requestAudio('/minireel-proxy/media/'+('1'.repeat(24))+'.mp4',c.signal);await new Promise(r=>setImmediate(r));c.abort();await assert.rejects(pending,{code:'WEBOS_AUDIO_CANCELLED'});assert.equal(xhr.aborted,true);
  let complete;f.win.OfflineAudioContext.prototype.decodeAudioData=function(_,ok){complete=ok;};
  let current=true;const decoding=f.options.decode(new ArrayBuffer(3),()=>current);assert.equal(f.options.decoderBusy(),true);
  await assert.rejects(f.options.decode(new ArrayBuffer(3),()=>true),{code:'WEB_AUDIO_DECODER_BUSY'});current=false;complete({numberOfChannels:1,length:10,getChannelData:()=>new Float32Array(10)});assert.equal(await decoding,null);assert.equal(f.options.decoderBusy(),false);f.api.choose(false);
+});
+const tick=()=>new Promise(r=>setImmediate(r));
+const mediaPath=n=>'/minireel-proxy/media/'+String(n).padStart(24,'0')+'.mp4';
+function warmFixture(t){
+ const f=fixture();t.after(()=>f.api.choose(false));f.api.choose(true);f.api.chooseSpeed(2);
+ f.audioState.worker_ready=true;f.audioState.pcm_bytes=8*1024*1024;f.video.paused=false;
+ f.reads=[];f.decodes=[];
+ f.win.HongguoWebOSLocalAudio={extract(path,signal,limits){f.reads.push({path,signal,limits});return Promise.resolve({data:new ArrayBuffer(20),duration:10,channels:2});}};
+ f.win.OfflineAudioContext.prototype.decodeAudioData=function(data,ok,no){f.decodes.push({data,ok,no});};
+ f.complete=(index=0,channels=2,length=240000)=>f.decodes[index].ok({numberOfChannels:channels,length,sampleRate:24000,getChannelData:()=>new Float32Array(length)});
+ return f;
+}
+test('prewarm only runs with enabled, actively playing audible speed and one reusable next episode',async t=>{
+ const f=warmFixture(t);
+ f.api.chooseSpeed(1);f.api.warm(mediaPath(2));await tick();assert.equal(f.reads.length,0);
+ f.api.chooseSpeed(2);f.video.paused=true;f.api.warm(mediaPath(2));await tick();assert.equal(f.reads.length,0);
+ f.video.paused=false;f.doc.hidden=true;f.api.warm(mediaPath(2));await tick();assert.equal(f.reads.length,0);f.doc.hidden=false;
+ f.api.warm(mediaPath(2));f.api.warm(mediaPath(2));await tick();assert.equal(f.decodes.length,1);assert.equal(f.reads.length,1);
+ f.complete();await tick();assert.equal(f.api.diagnostics().prewarm_state,'ready');
+ // Same-source play/metadata events must not throw away the next-episode cache.
+ f.video.events.play();f.video.events.loadedmetadata();
+ f.video.src='';f.video.events.loadedmetadata();f.video.src=mediaPath(2);f.video.events.loadedmetadata();
+ const audio=await f.options.requestAudio(mediaPath(2),f.options.createAbort().signal);
+ assert(audio.decoded);assert.equal(audio.data,undefined,'encoded track is not retained alongside PCM');
+ assert.equal(f.reads.length,1);assert.equal(f.decodes.length,1);assert.equal(f.api.diagnostics().prewarm_hits,1);
+});
+test('aborting a prefetch or entering background drops PCM, and a late decoder cannot warm another source',async t=>{
+ for(const reason of ['cancel','background','speed','source','disable']){
+  const f=warmFixture(t),c=f.options.createAbort();f.api.warm(mediaPath(2),c.signal);await tick();
+  assert.equal(f.decodes.length,1);
+  if(reason==='cancel')c.abort();
+  if(reason==='background'){f.doc.hidden=true;f.doc.events.visibilitychange();}
+  if(reason==='speed')f.api.chooseSpeed(1);
+  if(reason==='source'){f.video.src=mediaPath(3);f.video.events.loadedmetadata();}
+  if(reason==='disable')f.api.choose(false);
+  assert.equal(f.reads[0].signal.aborted,true,reason);f.complete();await tick();
+  assert.notEqual(f.api.diagnostics().prewarm_state,'ready',reason);assert.equal(f.options.decoderBusy(),false);
+ }
+});
+test('a foreground handoff waits for its prewarm and cancels promptly when decode cannot be interrupted',async t=>{
+ const f=warmFixture(t);f.api.warm(mediaPath(2));await tick();
+ assert.equal(f.options.decoderBusy(),false,'foreground must be allowed to adopt an active warm decode');
+ const c=f.options.createAbort(),result=f.options.requestAudio(mediaPath(2),c.signal);c.abort();
+ await assert.rejects(result,{code:'WEBOS_AUDIO_CANCELLED'});assert.equal(f.reads[0].signal.aborted,true);
+ f.complete();await tick();assert.equal(f.api.diagnostics().prewarm_hits,0);
+});
+test('switching to another drama waits for the cancelled native decoder before reading a new track',async t=>{
+ const f=warmFixture(t);f.api.warm(mediaPath(2));await tick();
+ const c=f.options.createAbort(),pending=f.options.requestAudio(mediaPath(3),c.signal);await tick();
+ assert.equal(f.reads[0].signal.aborted,true);assert.equal(f.reads.length,1);
+ f.complete();const audio=await pending;assert.equal(f.reads.length,2);assert.equal(audio.local,true);assert(!audio.decoded);
+});
+test('prewarm budgets include current PCM, both native/copy buffers and encoded Range spans',async t=>{
+ const f=warmFixture(t);f.audioState.pcm_bytes=62*1024*1024;f.api.warm(mediaPath(2));await tick();
+ assert.equal(f.decodes.length,0);assert.equal(f.reads[0].limits.maxPCMBytes,1*1024*1024);assert.equal(f.reads[0].limits.maxReadBytes,16*1024*1024);
+ f.audioState.pcm_bytes=0;f.api.warm(mediaPath(2));await tick();assert.equal(f.decodes.length,1);
+ f.complete(0,2,5*1024*1024);await tick();assert.equal(f.api.diagnostics().prewarm_state,'skipped');
+});
+test('failed background extraction falls back to the existing foreground path once',async t=>{
+ const f=warmFixture(t);f.win.HongguoWebOSLocalAudio.extract=async()=>{throw Error('offline');};
+ f.api.warm(mediaPath(2));await tick();assert.equal(f.api.diagnostics().prewarm_state,'skipped');
+ f.win.HongguoWebOSLocalAudio.extract=async()=>({data:new ArrayBuffer(1),duration:1,channels:1});
+ const audio=await f.options.requestAudio(mediaPath(2),f.options.createAbort().signal);assert.equal(audio.local,true);assert(!audio.decoded);
 });
 const source=fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'),'utf8');
 test('other platform bundles do not load the webOS audio scripts',()=>{
