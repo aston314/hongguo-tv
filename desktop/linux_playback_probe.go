@@ -112,6 +112,10 @@ func runLinuxPlaybackProbe() error {
 		if r.URL.Path == "/__linux_probe/heartbeat" {
 			payload["requireAutoplay"] = os.Getenv("HONGGUO_PROBE_REQUIRE_AUTOPLAY") == "1"
 			payload["desktopVersion"] = desktopVersion
+			payload["windowGeometry"] = (runtimeMiniWindow{app.ctx}).geometry()
+			app.mini.mu.Lock()
+			payload["miniAspectState"] = app.mini.windowStateLocked()
+			app.mini.mu.Unlock()
 			mu.Lock()
 			heartbeat = payload
 			mu.Unlock()
