@@ -16,6 +16,7 @@ static gboolean inspect(gpointer unused) {
     require(XGetWMNormalHints(gdk_x11_display_get_xdisplay(gdk_window_get_display(native)),gdk_x11_window_get_xid(native),&hints,&mask),"missing native WM hints");
     if (expect_active) {
         require((hints.flags&PAspect)!=0,"native aspect hint missing");
+        require((hints.flags&PBaseSize)!=0 && hints.base_width==0 && hints.base_height==0,"minimum size leaked into the aspect baseline");
         require(fabs((double)hints.min_aspect.x/hints.min_aspect.y-(double)expected_width/expected_height)<0.001,"wrong drag aspect hint");
         require(fabs((double)width*expected_height-(double)height*expected_width)<=MAX(expected_width,expected_height),"content does not match video aspect");
     } else require((hints.flags&PAspect)==0,"aspect leaked into normal window");

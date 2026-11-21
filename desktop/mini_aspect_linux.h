@@ -45,7 +45,11 @@ static gboolean mini_aspect_apply_gtk(GtkWindow *window, gboolean refit) {
     hints.min_height=(int)fmin(200,fmin(maxH,maxW/ratio));
     hints.max_width=(int)maxW;hints.max_height=(int)maxH;
     hints.min_aspect=hints.max_aspect=ratio;
-    gtk_window_set_geometry_hints(window,NULL,&hints,GDK_HINT_MIN_SIZE|GDK_HINT_MAX_SIZE|GDK_HINT_ASPECT);
+    // Without an explicit base, GTK can publish the minimum size as PBaseSize.
+    // The WM then applies the ratio to (width-280,height-200), not the video
+    // content itself (e.g. a 480-wide landscape window becomes ~312 high).
+    hints.base_width=hints.base_height=0;
+    gtk_window_set_geometry_hints(window,NULL,&hints,GDK_HINT_MIN_SIZE|GDK_HINT_MAX_SIZE|GDK_HINT_BASE_SIZE|GDK_HINT_ASPECT);
     mini_aspect_suspended=FALSE;
     if (refit) {
         // gtk_window_resize requests precede WM configure notifications. A new
