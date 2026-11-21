@@ -104,6 +104,7 @@
     "mini.titlebarSettingState": "初期設定はオフです。デスクトップのミニプレーヤーにのみ適用されます。",
     "mini.restoreTitlebar": "システムのタイトルバーを復元",
     "mini.titlebarFallback": "システムのタイトルバーを維持しました。ミニプレーヤーは引き続き使用できます。",
+    "mini.aspectFallback": "縦横比を固定できないため、従来の小窓を維持します。",
     "mini.enter": "ミニプレーヤー",
     "mini.restore": "元のウィンドウに戻す",
     "mini.previousEpisode": "前の話",

@@ -10,6 +10,7 @@ int hongguoWindowTransitioning(void);
 int hongguoFullscreenRestore(int *x, int *y, int *width, int *height, int *maximised);
 void hongguoKeepMiniWindowVisible(void);
 int hongguoSetMiniTitlebarHidden(int hidden);
+int hongguoSetMiniAspect(int width, int height, int refit);
 */
 import "C"
 
@@ -35,6 +36,17 @@ func desktopSetMiniTitlebarHidden(hidden bool) error {
 	}
 	if C.hongguoSetMiniTitlebarHidden(value) == 0 {
 		return errors.New("window titlebar change failed")
+	}
+	return nil
+}
+
+func desktopSetMiniAspect(width, height int, refit bool) error {
+	var fit C.int
+	if refit {
+		fit = 1
+	}
+	if C.hongguoSetMiniAspect(C.int(width), C.int(height), fit) == 0 {
+		return errors.New("window aspect change failed")
 	}
 	return nil
 }

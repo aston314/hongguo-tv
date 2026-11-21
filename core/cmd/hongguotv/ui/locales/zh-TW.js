@@ -104,6 +104,7 @@
     "mini.titlebarSettingState": "預設關閉，僅用於桌面小窗。",
     "mini.restoreTitlebar": "恢復系統標題列",
     "mini.titlebarFallback": "已保留系統標題列，可繼續使用小窗。",
+    "mini.aspectFallback": "暫時無法固定比例，已保留原小視窗。",
     "mini.enter": "小窗播放",
     "mini.restore": "返回大視窗",
     "mini.previousEpisode": "上一集",
