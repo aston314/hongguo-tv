@@ -62,18 +62,26 @@ test('sidebar routing stays local as content grows, skips unavailable entries an
   for (const cardCount of [40, 400]) {
     const f = fixture(cardCount), c = f.context;
     const targets = [];
-    for (const direction of ['up', 'down', 'down', 'down', 'down', 'down', 'up', 'left', 'right']) {
+    for (const direction of ['down', 'down', 'down', 'down', 'down', 'up', 'left', 'right']) {
       const target = c.moveFrom(c.remoteFocusTarget(), direction);
       if (target) c.goFocus(target);
       targets.push(c.document.activeElement.id);
     }
-    assert.deepEqual(targets, ['recommend', 'search', 'history', 'continue', 'settings', 'settings', 'continue', 'continue', 'card-0']);
+    assert.deepEqual(targets, ['search', 'history', 'continue', 'settings', 'settings', 'continue', 'continue', 'card-0']);
     assert.equal(f.reads.moves, 6, 'one focus call per successful move, including Right back to content');
     assert.ok(f.reads.content <= 4, 'only the explicit Right destination may be measured');
     assert.ok(f.reads.queries.every(selector => selector === '.side-item, .watching-return'), 'no full-page focus query');
     costs.push(f.reads.sidebar);
   }
   assert.equal(costs[0], costs[1], 'sidebar work does not grow with the number of cards');
+});
+
+test('the first sidebar item wraps upward to the last available item and skips unavailable entries', () => {
+  const f = fixture(40), c = f.context;
+  assert.equal(c.moveFrom(f.items[0], 'up'), f.items[6], 'Up from the first item wraps to the bottom');
+  f.items[6].disabled = true;
+  f.items[5].visible = false;
+  assert.equal(c.moveFrom(f.items[0], 'up'), f.items[4], 'wrap skips unavailable bottom entries');
 });
 
 test('focus eligibility preserves all modal boundaries and revalidates hidden, disabled or removed targets', () => {

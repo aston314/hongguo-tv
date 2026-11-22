@@ -1507,6 +1507,7 @@
     var items = focusables(zoneSelectors[zone]);
     var index = items.indexOf(current);
     if (index < 0) return items[0] || null;
+    if (zone === 'sidebar' && direction === 'up' && index === 0) return items[items.length - 1] || null;
     if (direction === 'up' || direction === 'left') index -= 1;
     if (direction === 'down' || direction === 'right') index += 1;
     return items[index] || null;
