@@ -2,9 +2,9 @@ plugins {
     id "com.android.application"
 }
 
-def appVersion = "0.2.179"
+def appVersion = "0.2.180"
 def android5Compat = providers.gradleProperty("android5Compat").orNull == "true"
-def mpvVersionCode = 129
+def mpvVersionCode = 130
 def coreVersion = System.getenv("HONGGUO_CORE_VERSION") ?: "${appVersion}-dev"
 def signingVariables = ["ANDROID_KEYSTORE_FILE", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"]
 def releaseSigningReady = signingVariables.every { System.getenv(it) }
@@ -23,7 +23,7 @@ android {
         applicationId "rocks.aston.hongguotv"
         minSdk 23
         targetSdk 35
-        versionCode 178
+        versionCode 179
         versionName appVersion
         testInstrumentationRunner "rocks.aston.hongguotv.UpdateApkSaverInstrumentation"
         buildConfigField "String", "CORE_VERSION", "\"${coreVersion}\""

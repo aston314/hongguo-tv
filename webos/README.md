@@ -22,7 +22,7 @@ webOS 4 的旧 Node 服务启动与上游证书链兼容修复、测试范围见
 
 协议、解密和媒体文件已在 macOS 网络环境中用真实上游数据验证。优先使用 Range/CENC 按需读取；缺少强 ETag 等条件时仍安全回退到完整下载后解密，不会将失败的预取变为整集后台下载。磁盘缓存具有 512 MiB 总预算、2 小时闲置清理和播放占用保护，详见 [缓存策略](../docs/webos-media-cache.md)。
 
-0.2.179 同步共享界面与版本信息，继续使用现有 HTML5 播放流程、Range 边播边下和测试版渠道；webOS 4 安装播放仍需真机复测。[下载 webOS 0.2.179 测试版](https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.179-test.27)。
+0.2.180 同步共享界面与版本信息，继续使用现有 HTML5 播放流程、Range 边播边下和测试版渠道；webOS 4 安装播放仍需真机复测。[下载 webOS 0.2.180 测试版](https://github.com/aston314/hongguo-tv-releases/releases/tag/webos-v0.2.180-test.27)。
 
 2026-10-25，用户在 [Issue #57](https://github.com/aston314/hongguo-tv-releases/issues/57) 回报 LG OLED65C5PTA（台湾版，固件 43.21.77、webOS SDK 11.2.0）安装 `hongguo-webos-0.2.117-test.25.ipk` 后，安装、启动、1080P 视频画面、声音、账号登录及原生遥控器滚轮均正常。安装方式为 Developer Mode + webOS Dev Manager 1.99.20，网络为台湾 Wi-Fi。
 
