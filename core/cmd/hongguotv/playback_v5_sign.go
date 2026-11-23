@@ -127,7 +127,8 @@ func playbackV5Proto(values url.Values, ts, nonce uint32, q [32]byte, f13 []byte
 	p.blob(15, count)
 	p.sint(17, int64(ts))
 	p.text(20, "none")
-	p.sint(21, 377)
+	// v04.10.03 expects wire value 738; the former 754 returns HTTP 200 / an empty body.
+	p.sint(21, 369)
 	p.blob(23, env)
 	p.text(24, `{"cmr":16777216,"cmr2":16777216,"un_h":11,"vpn":0,"kd":0,"dyn":"","do":1,"tk":true}`)
 	return p
@@ -192,7 +193,7 @@ func playbackV5Helios(ts, nonce uint32) string {
 // The ordered query matches the mobile request. Only _rticket may be tuned;
 // the final query and the exact compressed body are signed together.
 func playbackV5Tune(values url.Values, body []byte, stamp int64) (string, [32]byte, [16]byte, error) {
-	keys := []string{"aid", "app_name", "version_code", "version_name", "channel", "device_platform", "device_type", "os_version", "update_version_code", "iid", "cdid", "device_id", "_rticket"}
+	keys := []string{"aid", "app_name", "version_code", "version_name", "manifest_version_code", "channel", "device_platform", "device_type", "os_version", "update_version_code", "iid", "cdid", "device_id", "_rticket"}
 	return playbackV5TuneKeys(values, body, stamp, keys)
 }
 
@@ -219,7 +220,7 @@ func playbackV5TuneKeys(values url.Values, body []byte, stamp int64, keys []stri
 }
 
 func signPlaybackV5(values url.Values, body []byte, stamp int64) (string, http.Header, error) {
-	keys := []string{"aid", "app_name", "version_code", "version_name", "channel", "device_platform", "device_type", "os_version", "update_version_code", "iid", "cdid", "device_id", "_rticket"}
+	keys := []string{"aid", "app_name", "version_code", "version_name", "manifest_version_code", "channel", "device_platform", "device_type", "os_version", "update_version_code", "iid", "cdid", "device_id", "_rticket"}
 	return signPlaybackV5Keys(values, body, stamp, keys)
 }
 

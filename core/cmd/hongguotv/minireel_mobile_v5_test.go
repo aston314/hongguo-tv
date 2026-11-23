@@ -209,7 +209,7 @@ func TestMiniReelMobileV5V77FallbackOrderAndSameIdentity(t *testing.T) {
 				paths = append(paths, r.URL.Path)
 				if r.Method == http.MethodPost {
 					postDevices = append(postDevices, r.URL.Query().Get("device_id"))
-					for _, key := range []string{"version_code", "update_version_code"} {
+					for _, key := range []string{"version_code", "manifest_version_code", "update_version_code"} {
 						if got := r.URL.Query().Get(key); got != "74332" {
 							t.Errorf("%s = %q, want 74332", key, got)
 						}
@@ -230,7 +230,7 @@ func TestMiniReelMobileV5V77FallbackOrderAndSameIdentity(t *testing.T) {
 				if got := r.URL.Query().Get("device_id"); got != "101" {
 					t.Errorf("video_tab identity = %q, want 101", got)
 				}
-				for _, key := range []string{"version_code", "update_version_code"} {
+				for _, key := range []string{"version_code", "manifest_version_code", "update_version_code"} {
 					if got := r.URL.Query().Get(key); got != "74332" {
 						t.Errorf("video_tab %s = %q, want 74332", key, got)
 					}

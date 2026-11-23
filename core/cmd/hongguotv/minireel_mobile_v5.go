@@ -43,7 +43,7 @@ type miniReelMobileV5Source struct {
 var productionMobileV5 = &miniReelMobileV5Source{endpoint: miniReelMobileV5PrimaryEndpoint, alternateEndpoint: miniReelMobileV5AlternateEndpoint, identity: newMiniReelPlaybackDeviceCache(registerMiniReelPlaybackDevice)}
 
 func miniReelMobileV5Query(d miniReelDevice) url.Values {
-	return url.Values{"aid": {"8662"}, "app_name": {"novelread"}, "version_code": {"74332"}, "version_name": {"7.4.3.32"}, "channel": {"vivo_8662_64"}, "device_platform": {"android"}, "device_type": {"PGT-AN10"}, "os_version": {"12"}, "update_version_code": {"74332"}, "iid": {d.installID}, "cdid": {d.cdid}, "device_id": {d.deviceID}}
+	return url.Values{"aid": {"8662"}, "app_name": {"novelread"}, "version_code": {"74332"}, "version_name": {"7.4.3.32"}, "manifest_version_code": {"74332"}, "channel": {"vivo_8662_64"}, "device_platform": {"android"}, "device_type": {"PGT-AN10"}, "os_version": {"12"}, "update_version_code": {"74332"}, "iid": {d.installID}, "cdid": {d.cdid}, "device_id": {d.deviceID}}
 }
 
 func (s *miniReelMobileV5Source) options(ctx context.Context, vid, codecMode, contentType string) ([]miniReelOption, error) {
@@ -223,7 +223,7 @@ func (s *miniReelMobileV5Source) recoverVideoTab(ctx context.Context, vid, codec
 }
 
 func miniReelMobileV5VideoTabKeys() []string {
-	return []string{"aid", "app_name", "version_code", "version_name", "channel", "device_platform", "device_type", "os_version", "update_version_code", "iid", "cdid", "device_id", "video_id", "video_id_type", "device_level", "need_all_video_definition", "need_mp4_align", "use_os_player", "video_platform", "source", "from_video_id", "_rticket"}
+	return []string{"aid", "app_name", "version_code", "version_name", "manifest_version_code", "channel", "device_platform", "device_type", "os_version", "update_version_code", "iid", "cdid", "device_id", "video_id", "video_id_type", "device_level", "need_all_video_definition", "need_mp4_align", "use_os_player", "video_platform", "source", "from_video_id", "_rticket"}
 }
 
 func miniReelMobileV5VideoTabParams(vid string, d miniReelDevice) url.Values {
