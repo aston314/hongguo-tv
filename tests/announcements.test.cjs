@@ -1,5 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { normalize, normalizeItem } = require('../core/cmd/hongguotv/ui/announcements.js');
 
 test('remote announcements require enabled=true and ignore expired entries', () => {
@@ -25,4 +27,9 @@ test('announcement action and body are reduced to safe UI fields', () => {
     id: 'playback', kind: '', level: '', status: '', title: '播放服务', summary: '', body: '稍后重试',
     dismissible: false, action: { type: 'check_update', label: '更新' }
   });
+});
+
+test('settings places announcements before the first settings choice', () => {
+  const html = fs.readFileSync(path.join(__dirname, '..', 'core/cmd/hongguotv/ui/index.html'), 'utf8');
+  assert.ok(html.indexOf('id="system-announcements-card"') < html.indexOf('id="sidebar-display-settings"'));
 });

@@ -358,6 +358,11 @@
 
       <section class="settings-page page-workspace is-hidden" id="settings-page" aria-labelledby="settings-title">
         <div class="settings-heading"><h1 id="settings-title" data-i18n="settings.title">设置</h1></div>
+        <section class="settings-card app-update-card is-hidden" id="system-announcements-card" aria-live="polite">
+          <h2 data-i18n="settings.announcementsTitle">系统公告</h2>
+          <p data-i18n="settings.announcementsDescription">上游服务或应用的重要变化会显示在这里。</p>
+          <div id="system-announcements"></div>
+        </section>
         <div class="settings-card app-update-card" id="sidebar-display-settings">
           <h2 data-i18n="settings.sidebar">侧边栏显示</h2>
           <p data-i18n="settings.sidebarDescription">选择导航栏的显示方式。默认显示菜单文字，也可以只显示图标以扩大内容区域。</p>
@@ -467,11 +472,6 @@
           <div class="app-update-actions"><button class="app-update-action account-action" id="app-check-update" data-focus="app-check-update" data-i18n="settings.checkUpdates">检查更新</button><button class="app-update-action account-action is-hidden" id="desktop-download-update" data-focus="desktop-download-update" data-i18n="ui.downloadZip">下载更新 ZIP</button><button class="app-update-action account-action is-hidden" id="desktop-open-update-folder" data-focus="desktop-open-update-folder" data-i18n="settings.openFolder">打开所在文件夹</button><button class="app-update-action account-action is-hidden" id="app-open-licenses" data-focus="app-open-licenses" data-i18n="settings.licenses">开源许可</button></div>
           <pre id="desktop-update-notes" class="desktop-update-notes is-hidden"></pre>
         </div>
-        <section class="settings-card app-update-card is-hidden" id="system-announcements-card" aria-live="polite">
-          <h2 data-i18n="settings.announcementsTitle">系统公告</h2>
-          <p data-i18n="settings.announcementsDescription">上游服务或应用的重要变化会显示在这里。</p>
-          <div id="system-announcements"></div>
-        </section>
       </section>
 
       <section id="recommended-apps-page" class="page-workspace recommended-apps-page is-hidden" aria-labelledby="recommended-apps-title">
