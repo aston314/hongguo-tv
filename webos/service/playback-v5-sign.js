@@ -147,7 +147,8 @@ function proto(values, ts, nonce, q, hash, process) {
   blob(p, 15, counters);
   sint(p, 17, ts);
   text(p, 20, 'none');
-  sint(p, 21, 377);
+  // v04.10.03 uses wire value 738; 754 receives HTTP 200 / an empty body.
+  sint(p, 21, 369);
   blob(p, 23, env);
   text(
     p,
@@ -186,6 +187,7 @@ function tune(values, body, stamp) {
     'app_name',
     'version_code',
     'version_name',
+    'manifest_version_code',
     'channel',
     'device_platform',
     'device_type',
@@ -222,6 +224,7 @@ function sign(values, body, stamp) {
     'app_name',
     'version_code',
     'version_name',
+    'manifest_version_code',
     'channel',
     'device_platform',
     'device_type',

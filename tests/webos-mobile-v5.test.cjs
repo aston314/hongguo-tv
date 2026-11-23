@@ -18,7 +18,7 @@ const vectors = (name) => require('../core/cmd/hongguotv/testdata/signing-v5-' +
 const device = { deviceID: '123', installID: '456', cdid: 'synthetic' };
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
-test('v5 matches independent Kotlin F13, carrier and complete wire vectors', () => {
+test('v5 matches independent F13, carrier and current protocol wire vectors', () => {
   assert.equal(vectors('f13').length, 32);
   for (const v of vectors('f13'))
     assert.equal(
@@ -62,6 +62,7 @@ test('v5 signs the actual gzip bytes and binds timestamp, identity and selected 
     const body = JSON.parse(zlib.gunzipSync(r.body));
     assert.deepEqual(body.mixed_video_id_map, { [type]: ['123'] });
     assert.equal(body.dr_scene, 'player');
+    assert.equal(u.searchParams.get('manifest_version_code'), '74332');
     assert.equal(body.biz_param.device_level, 1);
     assert.equal(body.biz_param.video_platform, 1024);
     assert.equal(r.headers['Content-Encoding'], 'gzip');
@@ -342,7 +343,7 @@ test('v7.7 recovery query keeps the reference profile, ordered signature and bod
   const request = profile.videoTabRecovery('123', device, 1800000000000);
   const url = new URL(request.url);
   assert.deepEqual([...url.searchParams.keys()], [
-    'aid', 'app_name', 'version_code', 'version_name', 'channel', 'device_platform',
+    'aid', 'app_name', 'version_code', 'version_name', 'manifest_version_code', 'channel', 'device_platform',
     'device_type', 'os_version', 'update_version_code', 'iid', 'cdid', 'device_id',
     'video_id', 'video_id_type', 'device_level', 'need_all_video_definition',
     'need_mp4_align', 'use_os_player', 'video_platform', 'source', 'from_video_id', '_rticket'

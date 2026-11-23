@@ -1,5 +1,24 @@
 # 匿名播放身份与空响应恢复
 
+## Go / webOS 播放签名空响应修复（2026-11-23）
+
+本地实网对照定位了两个独立的协议条件：
+
+- v5 query 必须包含 `manifest_version_code=74332`，并在最终 query 编码时保留、
+  一起签名；Go / webOS 的 POST 主备域及同身份 `video_tab` 恢复 GET 使用相同版本字段。
+- v04.10.03 播放证明字段 21 使用 wire 值 `738`，对应 zigzag 编码前的 `369`。
+  旧值 `754`（编码前 `377`）会在相同身份、同集和相同请求字节下返回 HTTP 200 空正文。
+
+只修正签名而遗漏 manifest 版本仍为空；两项同时修复后，生产 Go v5 请求在三个
+原失败样本上均返回五个兼容候选源。请求正文、解码协商、匿名注册和账号流程沿用原实现。
+没有增加重试次数或引入运行时 SDK 模拟器、外部签名服务。
+
+签名封装对照参考
+[固定 SDK 实现](https://github.com/jackotom/hongguo-drama/blob/b20413b2d46a3d0e5d51e22694cb121477ce1d5d/scripts/sdk-playback/vendor/phone_account/phone_sdk_bootstrap_v5.py)。
+四组独立合成向量覆盖四种时间相关的 carrier，验证最终 query、请求摘要与修正后的封装。
+同身份省略 SDI 初始化也可取得模型，因此不能把这次故障归因为“缺少 SDI token”，
+也不把注册成功视为播放签名已通过。实网回归的模型成功不替代各设备的媒体播放验证。
+
 ## 当前生产流程（2026-11-20）
 
 Android / 桌面 Go 核心与 webOS 独立服务首次采用相同的默认取源顺序：

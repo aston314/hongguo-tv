@@ -17,6 +17,7 @@ function query(d) {
     app_name: 'novelread',
     version_code: '74332',
     version_name: '7.4.3.32',
+    manifest_version_code: '74332',
     channel: 'vivo_8662_64',
     device_platform: 'android',
     device_type: 'PGT-AN10',
@@ -72,7 +73,7 @@ function videoTabRecovery(vid, device, stamp) {
     video_platform: '1024', source: '0', from_video_id: ''
   });
   var keys = [
-    'aid', 'app_name', 'version_code', 'version_name', 'channel', 'device_platform',
+    'aid', 'app_name', 'version_code', 'version_name', 'manifest_version_code', 'channel', 'device_platform',
     'device_type', 'os_version', 'update_version_code', 'iid', 'cdid', 'device_id',
     'video_id', 'video_id_type', 'device_level', 'need_all_video_definition', 'need_mp4_align', 'use_os_player',
     'video_platform', 'source', 'from_video_id', '_rticket'
