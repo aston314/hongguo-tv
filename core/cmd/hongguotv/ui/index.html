@@ -79,7 +79,7 @@
       </div>
       <div class="sidebar-bottom">
         <button class="side-item side-item-secondary" data-page="account" data-focus="sidebar-account" aria-label="我的" data-i18n-aria-label="nav.account"><svg class="side-icon"><use href="#icon-user" xlink:href="#icon-user"></use></svg><span data-i18n="nav.account">我的</span></button>
-        <button class="side-item side-item-secondary" data-page="settings" data-focus="sidebar-settings" aria-label="设置" data-i18n-aria-label="nav.settings"><svg class="side-icon"><use href="#icon-settings" xlink:href="#icon-settings"></use></svg><span data-i18n="nav.settings">设置</span></button>
+        <button class="side-item side-item-secondary" data-page="settings" data-focus="sidebar-settings" aria-label="设置" data-i18n-aria-label="nav.settings"><svg class="side-icon"><use href="#icon-settings" xlink:href="#icon-settings"></use></svg><span data-i18n="nav.settings">设置</span><span class="side-notification-dot is-hidden" id="announcement-sidebar-badge" aria-hidden="true"></span></button>
       </div>
     </aside>
     <div class="watching-return-tooltip is-hidden" id="watching-return-tooltip" role="tooltip"><span class="watching-return-kicker" data-i18n="watching.continue">继续观看</span><strong id="watching-return-tooltip-title"></strong><span class="watching-return-meta" id="watching-return-tooltip-meta"></span></div>
@@ -467,6 +467,11 @@
           <div class="app-update-actions"><button class="app-update-action account-action" id="app-check-update" data-focus="app-check-update" data-i18n="settings.checkUpdates">检查更新</button><button class="app-update-action account-action is-hidden" id="desktop-download-update" data-focus="desktop-download-update" data-i18n="ui.downloadZip">下载更新 ZIP</button><button class="app-update-action account-action is-hidden" id="desktop-open-update-folder" data-focus="desktop-open-update-folder" data-i18n="settings.openFolder">打开所在文件夹</button><button class="app-update-action account-action is-hidden" id="app-open-licenses" data-focus="app-open-licenses" data-i18n="settings.licenses">开源许可</button></div>
           <pre id="desktop-update-notes" class="desktop-update-notes is-hidden"></pre>
         </div>
+        <section class="settings-card app-update-card is-hidden" id="system-announcements-card" aria-live="polite">
+          <h2 data-i18n="settings.announcementsTitle">系统公告</h2>
+          <p data-i18n="settings.announcementsDescription">上游服务或应用的重要变化会显示在这里。</p>
+          <div id="system-announcements"></div>
+        </section>
       </section>
 
       <section id="recommended-apps-page" class="page-workspace recommended-apps-page is-hidden" aria-labelledby="recommended-apps-title">
@@ -700,6 +705,7 @@
   <script src="/sidebar-settings.js"></script>
   <script src="/watching-return.js"></script>
   <script src="/startup-page.js"></script>
+  <script src="/announcements.js"></script>
   <script src="/episode-wheel.js"></script>
   <script src="/playback-pointer.js"></script>
   <script src="/desktop-mini-player.js"></script>

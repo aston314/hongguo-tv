@@ -38,6 +38,7 @@ type server struct {
 	phoneSearches        *phoneSearchManager
 	searchHistoryStore   *searchHistoryStore
 	searchDiscoveryCache searchDiscoveryCache
+	announcementsService *announcementService
 }
 
 type statusResponse struct {
@@ -68,7 +69,7 @@ func main() {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	s := &server{instanceID: *instanceID, startedAt: time.Now().UTC(), hongguo: newHongguoClient(), radar: newRadarService(*dataDir, nil), libraryStore: library}
+	s := &server{instanceID: *instanceID, startedAt: time.Now().UTC(), hongguo: newHongguoClient(), radar: newRadarService(*dataDir, nil), announcementsService: newAnnouncementService(nil), libraryStore: library}
 	s.watchStatisticsStore = &watchStatisticsStore{dir: *dataDir}
 	if err := initPlaybackCustomDevice(filepath.Join(*dataDir, "playback-custom-device.json")); err != nil {
 		log.Printf("prepare custom playback device: %v", err)
@@ -93,6 +94,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/health", s.health)
 	mux.HandleFunc("/api/v1/status", s.status)
+	mux.HandleFunc("/api/v1/announcements", s.announcements)
 	mux.HandleFunc("/api/v1/library", s.library)
 	mux.HandleFunc("/api/v1/watch-statistics", s.watchStatistics)
 	mux.HandleFunc("/api/v1/account", s.account)
