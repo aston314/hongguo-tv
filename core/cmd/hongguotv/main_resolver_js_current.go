@@ -124,6 +124,7 @@ func main() {
 	candidate := flag.String("js-file", "", "private candidate")
 	flag.String("module-version", jsresolver.Version, "diagnostic version")
 	updateLab := flag.Bool("update-lab", false, "fixed signed update lab; isolated APK only")
+	internetLab := flag.Bool("update-internet", false, "fixed GitHub fixture via standard proxy/direct routes")
 	stale := flag.Bool("simulate-stale", false, "simulate old embedded algorithm; isolated APK only")
 	flag.Parse()
 	if *dir == "" || (*engine != "js" && *engine != "native") {
@@ -159,8 +160,8 @@ func main() {
 	}
 	var err error
 	if *engine == "js" {
-		if *updateLab {
-			manager, err = jsupdatelab.New(ctx, filepath.Join(*dir, "updates"), script, jsresolver.HTTPTransport(client))
+		if *updateLab || *internetLab {
+			manager, err = jsupdatelab.New(ctx, filepath.Join(*dir, "updates"), script, jsresolver.HTTPTransport(client), *internetLab)
 			js = manager
 		} else {
 			js, err = jsresolver.New(ctx, script, jsresolver.HTTPTransport(client))

@@ -41,6 +41,7 @@ public final class ResolverDiagnosticActivity extends Activity {
             command.add("-engine");
             command.add("native".equals(getIntent().getStringExtra("engine")) ? "native" : "js");
             if (getIntent().getBooleanExtra("update_lab", false)) command.add("-update-lab");
+            if (getIntent().getBooleanExtra("update_internet", false)) command.add("-update-internet");
             if (getIntent().getBooleanExtra("simulate_stale", false)) command.add("-simulate-stale");
             String moduleVersion = getIntent().getStringExtra("module_version");
             if (moduleVersion != null) { command.add("-module-version"); command.add(moduleVersion); }

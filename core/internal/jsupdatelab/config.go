@@ -18,10 +18,19 @@ import (
 var publicKey string
 
 const Origin = "http://127.0.0.1:18872"
+const InternetRoot = "https://raw.githubusercontent.com/aston314/hongguo-tv/codex/resolver-js-update-fixtures/"
 
-func New(ctx context.Context, dir string, source []byte, transport jsresolver.Transport) (*jsupdate.Manager, error) {
+func New(ctx context.Context, dir string, source []byte, transport jsresolver.Transport, internet bool) (*jsupdate.Manager, error) {
 	key, _ := hex.DecodeString(strings.TrimSpace(publicKey))
-	return jsupdate.New(ctx, jsupdate.Config{Dir: dir, ManifestURL: Origin + "/manifest.json", PublicKey: key, Embedded: source, EmbeddedVersion: jsresolver.Version, Vectors: jsresolver.SigningVectors(), VectorCount: jsresolver.SigningVectorCount, Transport: transport, Client: &http.Client{}, AllowedURL: func(raw string) bool { return raw == Origin+"/manifest.json" || raw == Origin+"/resolver.js" }, Routes: func(raw string) []string { return []string{raw} }})
+	manifest := Origin + "/manifest.json"
+	allowed := func(raw string) bool { return raw == Origin+"/manifest.json" || raw == Origin+"/resolver.js" }
+	routes := func(raw string) []string { return []string{raw} }
+	if internet {
+		manifest = InternetRoot + "manifest.json"
+		allowed = func(raw string) bool { return raw == InternetRoot+"manifest.json" || raw == InternetRoot+"resolver.js" }
+		routes = jsupdate.Routes
+	}
+	return jsupdate.New(ctx, jsupdate.Config{Dir: dir, ManifestURL: manifest, PublicKey: key, Embedded: source, EmbeddedVersion: jsresolver.Version, Vectors: jsresolver.SigningVectors(), VectorCount: jsresolver.SigningVectorCount, Transport: transport, Client: &http.Client{}, AllowedURL: allowed, Routes: routes})
 }
 func Stale(source []byte) []byte {
 	// Deliberate test-only algorithm failure. There is no native escape route.

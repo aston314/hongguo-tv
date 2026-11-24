@@ -89,7 +89,7 @@ func New(ctx context.Context, cfg Config) (*Manager, error) {
 		cfg.RouteTimeout = 4 * time.Second
 	}
 	if cfg.UpdateTimeout == 0 {
-		cfg.UpdateTimeout = 25 * time.Second
+		cfg.UpdateTimeout = 60 * time.Second
 	}
 	if cfg.ValidateTimeout == 0 {
 		cfg.ValidateTimeout = 3 * time.Second
