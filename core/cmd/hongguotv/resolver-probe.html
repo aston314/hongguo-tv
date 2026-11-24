@@ -1,7 +1,7 @@
 <!doctype html><html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JS / 当前原生对照 真实算法验证</title>
 <style>body{margin:0;padding:28px;background:#101218;color:#eee;font:19px sans-serif}h1{font-size:28px;margin:0 0 12px}button{padding:14px 22px;margin:5px 10px 14px 0;background:#303544;color:white;border:2px solid #626a81;border-radius:9px;font-size:19px}button:focus{outline:4px solid #f3aa70;outline-offset:3px}video{width:48%;height:52vh;background:black;float:right;margin-left:24px}pre{white-space:pre-wrap;font-size:17px;line-height:1.6;max-height:65vh;overflow:auto}#status{color:#d7b085;margin:10px 0}</style>
 <h1>JS / 当前原生对照 播放解析 · 独立验证</h1><div>注册、签名、模型解析、兼容编码回退均在本地 JS / 当前原生对照 内执行。内置解析回退：关闭。</div><div id="status">正在读取模块状态…</div>
-<button id="start">连续测试切集与切剧</button><button id="retry">重试当前集</button><button id="stop">停止测试</button><video id="video" controls autoplay></video><pre id="log"></pre>
+<button id="update">检查签名脚本更新</button><button id="start">连续测试切集与切剧</button><button id="retry">重试当前集</button><button id="stop">停止测试</button><video id="video" controls autoplay></video><pre id="log"></pre>
 <script>
 var ids=['7706514645208534041','7706514815799282713','7706514627462433817','7702841946812714008','7702841953875938328','7703473857562151961'];
 var index=0,running=false,busy=false,generation=0,timer=null,video=document.getElementById('video'),statusLabel=document.getElementById('status'),log=document.getElementById('log');
@@ -19,6 +19,6 @@ video.addEventListener('error',function(){var code=video.error?video.error.code:
 video.addEventListener('timeupdate',function(){if(video.currentTime>=5&&!video._recorded){video._recorded=true;var frames=video.getVideoPlaybackQuality?video.getVideoPlaybackQuality():{};report({vid:video.getAttribute('data-vid'),event:'playing_5s',position:video.currentTime,width:video.videoWidth,height:video.videoHeight,decoded_frames:frames.totalVideoFrames||video.webkitDecodedFrameCount||0,dropped_frames:frames.droppedVideoFrames||video.webkitDroppedFrameCount||0});line('实际播放 ≥5秒 · '+video.videoWidth+'×'+video.videoHeight);if(running)timer=setTimeout(next,500);}});
 video.addEventListener('loadstart',function(){video._recorded=false;});
 document.getElementById('start').onclick=function(){if(busy)return;stop();index=0;running=true;log.textContent='';run();};document.getElementById('retry').onclick=function(){if(busy)return;stop();run();};document.getElementById('stop').onclick=stop;
-fetch('/health').then(function(r){return r.json();}).then(function(r){statusLabel.textContent='已验签加载 '+(r.wasm_bytes/1048576).toFixed(1)+'MB · '+r.load_ms+'ms · 内置回退关闭';});
+function health(){return fetch('/health').then(function(r){return r.json();}).then(function(r){var u=r.update;statusLabel.textContent='本地 JS · '+r.module_version+' · '+r.load_ms+'ms'+(u?' · '+u.source+' · '+u.event:'')+' · 原生回退关闭';});}document.getElementById('update').onclick=function(){statusLabel.textContent='正在检查签名更新…';post('/api/update',{}).then(function(r){line('脚本更新 '+(r.ok?'成功':r.error));health();});};health();
 document.getElementById('start').focus();
 </script></html>

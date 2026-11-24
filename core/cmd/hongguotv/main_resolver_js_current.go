@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/aston314/hongguo-tv/core/internal/jsresolver"
+	"github.com/aston314/hongguo-tv/core/internal/jsupdate"
+	"github.com/aston314/hongguo-tv/core/internal/jsupdatelab"
 	"github.com/aston314/hongguo-tv/core/internal/resolverwire"
 )
 
@@ -121,6 +123,8 @@ func main() {
 	engine := flag.String("engine", "js", "js/native")
 	candidate := flag.String("js-file", "", "private candidate")
 	flag.String("module-version", jsresolver.Version, "diagnostic version")
+	updateLab := flag.Bool("update-lab", false, "fixed signed update lab; isolated APK only")
+	stale := flag.Bool("simulate-stale", false, "simulate old embedded algorithm; isolated APK only")
 	flag.Parse()
 	if *dir == "" || (*engine != "js" && *engine != "native") {
 		log.Fatal("invalid probe flags")
@@ -144,11 +148,23 @@ func main() {
 			log.Fatal("candidate unavailable")
 		}
 	}
+	if *stale {
+		script = jsupdatelab.Stale(script)
+	}
 	start := time.Now()
-	var js *jsresolver.Resolver
+	var manager *jsupdate.Manager
+	var js interface {
+		Resolve(context.Context, resolverwire.Request) ([]resolverwire.Option, error)
+		Close(context.Context) error
+	}
 	var err error
 	if *engine == "js" {
-		js, err = jsresolver.New(ctx, script, jsresolver.HTTPTransport(client))
+		if *updateLab {
+			manager, err = jsupdatelab.New(ctx, filepath.Join(*dir, "updates"), script, jsresolver.HTTPTransport(client))
+			js = manager
+		} else {
+			js, err = jsresolver.New(ctx, script, jsresolver.HTTPTransport(client))
+		}
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -174,8 +190,37 @@ func main() {
 		w.Write(currentProbePage)
 	})
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		write(w, map[string]any{"ok": true, "engine": *engine, "resolver": *engine + "-only", "native_baseline": "production-fd454dc", "embedded_fallback": false, "script_loaded": js != nil, "script_bytes": len(script), "load_ms": loadMS, "sha256": hex.EncodeToString(digest[:]), "module_version": jsresolver.Version})
+		health := map[string]any{"ok": true, "engine": *engine, "resolver": *engine + "-only", "native_baseline": "production-fd454dc", "embedded_fallback": manager != nil, "native_fallback": false, "script_loaded": js != nil, "script_bytes": len(script), "load_ms": loadMS, "sha256": hex.EncodeToString(digest[:]), "module_version": jsresolver.Version}
+		if manager != nil {
+			s := manager.Status()
+			health["update"] = s
+			health["sha256"] = s.SHA256
+			health["module_version"] = s.Version
+		}
+		write(w, health)
 	})
+	mux.HandleFunc("/api/update", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			w.WriteHeader(405)
+			return
+		}
+		if manager == nil {
+			w.WriteHeader(404)
+			return
+		}
+		e := manager.Check(r.Context())
+		code := ""
+		if e != nil {
+			code = e.Error()
+		}
+		write(w, map[string]any{"ok": e == nil, "error": code, "update": manager.Status()})
+	})
+	if manager != nil {
+		go func() {
+			e := manager.Check(ctx)
+			log.Printf("probe startup update ok=%t status=%s", e == nil, manager.Status().Event)
+		}()
+	}
 	mux.HandleFunc("/memory", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "POST" {
 			if !jobMu.TryLock() {

@@ -25,7 +25,7 @@ public final class ResolverDiagnosticActivity extends Activity {
         super.onCreate(state);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         TextView waiting = new TextView(this);
-        waiting.setText("native".equals(getIntent().getStringExtra("engine")) ? "正在启动原生解析对照…" : "正在验签并加载真实 resolver.js…");
+        waiting.setText("native".equals(getIntent().getStringExtra("engine")) ? "正在启动原生解析对照…" : "正在加载本地 resolver.js…");
         waiting.setTextSize(24);
         waiting.setPadding(40, 40, 40, 40);
         setContentView(waiting);
@@ -40,6 +40,8 @@ public final class ResolverDiagnosticActivity extends Activity {
             ArrayList<String> command = new ArrayList<>(Arrays.asList(binary.getAbsolutePath(), "-port", "0", "-parent-pid", Integer.toString(Process.myPid()), "-data-dir", data.getAbsolutePath()));
             command.add("-engine");
             command.add("native".equals(getIntent().getStringExtra("engine")) ? "native" : "js");
+            if (getIntent().getBooleanExtra("update_lab", false)) command.add("-update-lab");
+            if (getIntent().getBooleanExtra("simulate_stale", false)) command.add("-simulate-stale");
             String moduleVersion = getIntent().getStringExtra("module_version");
             if (moduleVersion != null) { command.add("-module-version"); command.add(moduleVersion); }
             if (getIntent().getBooleanExtra("private_module_override", false)) {

@@ -79,6 +79,9 @@ func New(ctx context.Context, script []byte, transport Transport) (*Resolver, er
 		if e != nil {
 			return e
 		}
+		if goja.IsUndefined(v) || goja.IsNull(v) {
+			return errors.New("missing JS resolver API")
+		}
 		r.api = v.ToObject(vm)
 		if _, ok := goja.AssertFunction(r.api.Get("resolve")); !ok {
 			return errors.New("missing JS resolver entry")
@@ -91,7 +94,18 @@ func New(ctx context.Context, script []byte, transport Transport) (*Resolver, er
 	return r, nil
 }
 
-func (r *Resolver) run(ctx context.Context, fn func() error) error {
+func (r *Resolver) run(ctx context.Context, fn func() error) (err error) {
+	// Object getters and value conversion can throw outside a JS function call.
+	// Keep exceptions inside the resolver boundary and redact source/URLs.
+	defer func() {
+		if recover() != nil {
+			if ctx.Err() != nil {
+				err = ctx.Err()
+			} else {
+				err = errors.New("JS resolver host boundary failed")
+			}
+		}
+	}()
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
@@ -115,7 +129,7 @@ func (r *Resolver) run(ctx context.Context, fn func() error) error {
 		r.vm.ClearInterrupt()
 		r.ctx = nil
 	}()
-	err := fn()
+	err = fn()
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
