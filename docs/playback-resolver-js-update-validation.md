@@ -71,7 +71,7 @@ transport, not a permanent server requirement, user-facing setting, or proof
 that the four real internet proxies delivered these files on the TVs. Host TLS
 fixture tests separately verify rejection and route fallback behavior. The
 `-update-internet` lab flag additionally downloads a signed fixture from the
-independent `codex/resolver-js-update-fixtures` branch through the same four
+release repository’s `main/experimental/resolver-js/` directory through the same four
 proxies and direct fallback, without ADB reverse. Its endpoint and disposable
 public key are fixed in the test APK. The total check budget is 60 seconds,
 allowing both manifest and script to exhaust four failed proxy routes and

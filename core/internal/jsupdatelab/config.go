@@ -18,7 +18,7 @@ import (
 var publicKey string
 
 const Origin = "http://127.0.0.1:18872"
-const InternetRoot = "https://raw.githubusercontent.com/aston314/hongguo-tv/codex/resolver-js-update-fixtures/"
+const InternetRoot = jsupdate.ChannelRoot
 
 func New(ctx context.Context, dir string, source []byte, transport jsresolver.Transport, internet bool) (*jsupdate.Manager, error) {
 	key, _ := hex.DecodeString(strings.TrimSpace(publicKey))

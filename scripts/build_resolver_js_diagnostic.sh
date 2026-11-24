@@ -2,7 +2,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 go run ./scripts/resolver_js_codegen -check
-go test ./core/internal/jsresolver ./core/internal/jsupdate -count=1
+go test ./core/internal/jsresolver ./core/internal/jsupdate ./core/internal/jsupdatelab -count=1
 go test -race ./core/internal/jsupdate -count=1
 node --test tests/resolver-js-bundle.test.cjs
 go test -tags resolverjsprobe ./core/cmd/hongguotv -run '^$'

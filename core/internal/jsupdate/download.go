@@ -12,7 +12,8 @@ import (
 
 var Proxies = []string{"https://gh-proxy.com/", "https://v4.gh-proxy.org/", "https://gh-proxy.org/", "https://ghfast.top/"}
 
-const ManifestURL = "https://raw.githubusercontent.com/aston314/hongguo-tv-releases/main/experimental/resolver-js/manifest.json"
+const ChannelRoot = "https://raw.githubusercontent.com/aston314/hongguo-tv-releases/main/experimental/resolver-js/"
+const ManifestURL = ChannelRoot + "manifest.json"
 
 // Only this dedicated path is eligible; a signed artifact cannot redirect downloads
 // to an account endpoint, arbitrary host or an older product's update channel.
