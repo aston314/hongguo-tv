@@ -21,6 +21,7 @@
     var numberInput = options.numberInput || require('./number-input')();
     var phoneSearch = options.phoneSearch || require('./phone-search')({dataDir:provider.dataDirectory ? provider.dataDirectory() : process.env.HONGGUO_WEBOS_DATA_DIR});
     var updates = options.updates || require('./updates')();
+    var announcements = options.announcements || require('./announcements')();
     var port = options.port === undefined ? Number(process.env.HONGGUO_WEBOS_PORT) || DEFAULT_PORT : options.port;
     var bindHost = options.bindHost || process.env.HONGGUO_WEBOS_BIND_HOST || '127.0.0.1';
     var server = null;
@@ -144,6 +145,16 @@
     function handleProvider(req, res, pathName) {
       var q = query(req);
       if (!supportedMethod(req)) return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
+      if (pathName === '/api/v1/announcements') {
+        if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
+        return announcements.active(String(q.platform || 'webos'), String(q.version || '')).then(function(items){data(req,res,{items:items});},function(){data(req,res,{items:[]});});
+      }
+      if (pathName === '/api/v1/playback/repair') {
+        // The legacy Node service has no verified Goja host. Do not expose an
+        // ineffective switch or execute remotely supplied code in this process.
+        if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 409, { ok: false, error: 'REPAIR_UNSUPPORTED' }, req);
+        return data(req, res, { supported: false, enabled: false, checking: false, source: 'native', event: 'unsupported', change: 0 });
+      }
       if (pathName === '/api/v1/webos/update') {
         if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
         return updates.check().then(function (result) { data(req, res, result); }, function (error) { failure(req, res, error); });

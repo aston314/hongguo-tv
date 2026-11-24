@@ -107,3 +107,10 @@ func TestAnnouncementsHandlerIsSafeWhenRemoteConfigIsUnavailable(t *testing.T) {
 		t.Fatalf("payload = %#v", payload)
 	}
 }
+
+func TestAnnouncementPlaybackRepairIsAnActionNotRemoteExecution(t *testing.T) {
+	items := normalizeAnnouncements([]announcementItem{{ID: "repair", Title: "repair", Enabled: boolPtr(true), Action: &announcementAction{Type: "repair_playback", MinimumRevision: 7}}, {ID: "bad", Title: "bad", Enabled: boolPtr(true), Action: &announcementAction{Type: "run_script"}}}, time.Now())
+	if len(items) != 2 || items[0].Action == nil || items[0].Action.MinimumRevision != 7 || items[1].Action != nil {
+		t.Fatal(items)
+	}
+}

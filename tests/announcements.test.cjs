@@ -33,3 +33,25 @@ test('settings places announcements before the first settings choice', () => {
   const html = fs.readFileSync(path.join(__dirname, '..', 'core/cmd/hongguotv/ui/index.html'), 'utf8');
   assert.ok(html.indexOf('id="system-announcements-card"') < html.indexOf('id="sidebar-display-settings"'));
 });
+
+test('playback repair action retains only its safe target revision',()=>{
+ const item=normalizeItem({id:'repair',enabled:true,title:'repair',action:{type:'repair_playback',min_revision:7,url:'https://evil.example',enable:true}},Date.now());
+ assert.deepEqual(item.action,{type:'repair_playback',label:'',min_revision:7});
+ assert.equal(normalizeItem({id:'bad',enabled:true,title:'repair',action:{type:'repair_playback',min_revision:Infinity}},Date.now()).action.min_revision,undefined);
+});
+test('playback repair card is directly after announcements and before ordinary settings',()=>{
+ const html=fs.readFileSync(path.join(__dirname,'..','core/cmd/hongguotv/ui/index.html'),'utf8');
+ assert.ok(html.indexOf('id="system-announcements-card"')<html.indexOf('id="playback-repair-settings"'));
+ assert.ok(html.indexOf('id="playback-repair-settings"')<html.indexOf('id="sidebar-display-settings"'));
+});
+
+test('announcement readiness uses the actual active rule and never infers repair from a notice',()=>{
+ const {repairState}=require('../core/cmd/hongguotv/ui/announcements.js');
+ const action={type:'repair_playback',min_revision:7},state={supported:true,enabled:true,source:'repair',revision:6};
+ assert.equal(repairState(action,state),'announcementPending');
+ assert.equal(repairState(action,{...state,revision:7}),'announcementReady');
+ assert.equal(repairState(action,{...state,enabled:false}),'announcementOff');
+ assert.equal(repairState(action,{...state,checking:true}),'checking');
+ assert.equal(repairState(action,{...state,source:'native',revision:9}),'announcementPending');
+ assert.equal(repairState({type:'repair_playback'},{...state,revision:9}),'announcementPending');
+});

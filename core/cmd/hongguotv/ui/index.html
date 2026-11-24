@@ -363,6 +363,14 @@
           <p data-i18n="settings.announcementsDescription">上游服务或应用的重要变化会显示在这里。</p>
           <div id="system-announcements"></div>
         </section>
+        <section class="settings-card app-update-card repair-settings-card is-hidden" id="playback-repair-settings" aria-labelledby="playback-repair-title">
+          <div class="repair-card-heading"><div><span class="repair-eyebrow" data-i18n="repair.eyebrow">播放保障</span><h2 id="playback-repair-title" data-i18n="repair.title">自动修复播放解析</h2></div><span class="repair-badge" id="playback-repair-badge" data-i18n="repair.native">内置解析</span></div>
+          <p class="repair-description" data-i18n="repair.description">播放接口变化时，自动更新解析规则，无需升级应用。</p>
+          <div class="repair-setting-row"><div><strong data-i18n="repair.option">启用自动修复</strong><p data-i18n="repair.hint">更新失败继续使用已有解析，正在播放的视频不受影响。</p></div><button class="repair-action account-action repair-toggle" id="playback-repair-toggle" data-focus="playback-repair-toggle" role="switch" aria-checked="false"><span class="repair-toggle-label" data-i18n="repair.offLabel">关闭</span><span class="repair-switch-track" aria-hidden="true"><span></span></span></button></div>
+          <div class="repair-details"><span id="playback-repair-current"></span><span id="playback-repair-checked"></span></div>
+          <p class="repair-status" id="playback-repair-status" role="status" aria-live="polite"></p>
+          <div class="app-update-actions is-hidden" id="playback-repair-actions"><button class="repair-action account-action" id="playback-repair-check" data-focus="playback-repair-check" data-i18n="repair.check">检查解析更新</button><button class="repair-action account-action" id="playback-repair-restore" data-focus="playback-repair-restore" data-i18n="repair.restore">恢复内置解析</button></div>
+        </section>
         <div class="settings-card app-update-card" id="sidebar-display-settings">
           <h2 data-i18n="settings.sidebar">侧边栏显示</h2>
           <p data-i18n="settings.sidebarDescription">选择导航栏的显示方式。默认显示菜单文字，也可以只显示图标以扩大内容区域。</p>
@@ -579,7 +587,7 @@
           </div>
           </div>
         </div>
-        <div class="player-status is-hidden" id="player-status" role="status" aria-live="polite"><span class="player-spinner" aria-hidden="true"></span><span class="player-status-title is-hidden" id="player-status-title"></span><span id="player-status-text"></span><div class="player-status-actions"><button class="control-button has-icon player-failure-action player-failure-retry is-hidden" id="player-retry" data-action="retry" data-focus="player-retry"><span class="control-content"><svg aria-hidden="true" focusable="false"><use href="#icon-retry" xlink:href="#icon-retry"></use></svg><span class="control-label" data-i18n="common.retryPlayback">重试播放</span></span></button><button class="control-button has-icon player-failure-action player-failure-diagnostics is-hidden" id="player-failure-diagnostics" data-action="diagnostics" data-focus="player-failure-diagnostics" aria-haspopup="dialog" aria-controls="player-options"><span class="control-content"><svg aria-hidden="true" focusable="false"><use href="#icon-diagnostics" xlink:href="#icon-diagnostics"></use></svg><span class="control-label" data-i18n="modal.diagnostics">播放诊断</span></span></button></div></div>
+        <div class="player-status is-hidden" id="player-status" role="status" aria-live="polite"><span class="player-spinner" aria-hidden="true"></span><span class="player-status-title is-hidden" id="player-status-title"></span><span id="player-status-text"></span><div class="player-status-actions"><button class="control-button player-failure-action player-repair-action is-hidden" id="player-enable-repair" data-focus="player-enable-repair" data-i18n="repair.enableRetry">启用自动修复并重试</button><button class="control-button has-icon player-failure-action player-failure-retry is-hidden" id="player-retry" data-action="retry" data-focus="player-retry"><span class="control-content"><svg aria-hidden="true" focusable="false"><use href="#icon-retry" xlink:href="#icon-retry"></use></svg><span class="control-label" data-i18n="common.retryPlayback">重试播放</span></span></button><button class="control-button has-icon player-failure-action player-failure-diagnostics is-hidden" id="player-failure-diagnostics" data-action="diagnostics" data-focus="player-failure-diagnostics" aria-haspopup="dialog" aria-controls="player-options"><span class="control-content"><svg aria-hidden="true" focusable="false"><use href="#icon-diagnostics" xlink:href="#icon-diagnostics"></use></svg><span class="control-label" data-i18n="modal.diagnostics">播放诊断</span></span></button></div></div>
         <section id="playback-menu-hint" class="playback-menu-hint is-hidden" role="dialog" aria-modal="false" aria-labelledby="playback-menu-hint-title" aria-hidden="true">
           <div class="playback-menu-hint-card">
             <div class="playback-menu-hint-graphic" id="playback-menu-hint-graphic">
@@ -697,6 +705,7 @@
   <script src="/playback-recovery.js"></script>
   <script src="/native-player.js"></script>
   <script src="/portrait-backdrop.js"></script>
+  <script src="/playback-repair.js"></script>
   <script src="/playback-settings.js"></script>
   <script src="/episode-prefetch-settings.js"></script>
   <script src="/auto-cinema.js"></script>

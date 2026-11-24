@@ -1,0 +1,68 @@
+name: Publish signed playback resolver rules
+on:
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Increasing control revision (including disable controls)
+        required: true
+        type: string
+      module_version:
+        description: New module version for changed JS
+        required: true
+        type: string
+      disable:
+        description: Disable remote rules and restore native resolution
+        required: true
+        default: false
+        type: boolean
+permissions:
+  contents: read
+concurrency:
+  group: playback-resolver-rules
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+          cache-dependency-path: go.mod
+      - name: Verify the shared resolver and updater
+        run: |
+          go run ./scripts/resolver_js_codegen -check
+          go test -race ./core/internal/jsresolver ./core/internal/jsupdate
+      - name: Clone public distribution repository
+        env:
+          GH_TOKEN: ${{ secrets.HONGGUO_RELEASES_TOKEN }}
+        run: |
+          test -n "$GH_TOKEN"
+          gh auth setup-git
+          gh repo clone aston314/hongguo-tv-releases "$RUNNER_TEMP/public-rules" -- --depth 1
+      - name: Create and verify signed control
+        env:
+          PLAYBACK_RESOLVER_SIGNING_SEED: ${{ secrets.PLAYBACK_RESOLVER_SIGNING_SEED }}
+          RULE_REVISION: ${{ inputs.revision }}
+          RULE_VERSION: ${{ inputs.module_version }}
+          RULE_DISABLE: ${{ inputs.disable }}
+        run: |
+          args=(-revision "$RULE_REVISION" -version "$RULE_VERSION" -out "$RUNNER_TEMP/signed-rules")
+          previous="$RUNNER_TEMP/public-rules/resolver-js/manifest.json"
+          if [[ -f "$previous" ]]; then args+=(-previous "$previous"); fi
+          if [[ "$RULE_DISABLE" == true ]]; then args+=(-disable); fi
+          go run ./core/cmd/resolver-publish "${args[@]}"
+      - name: Publish static rules without an application release
+        env:
+          GH_TOKEN: ${{ secrets.HONGGUO_RELEASES_TOKEN }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/public-rules/resolver-js"
+          cp -R "$RUNNER_TEMP/signed-rules/". "$RUNNER_TEMP/public-rules/resolver-js/"
+          cd "$RUNNER_TEMP/public-rules"
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add resolver-js
+          git commit -m "chore: update signed playback resolver rules"
+          git pull --rebase origin main
+          git push origin main

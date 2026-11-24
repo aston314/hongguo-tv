@@ -27,8 +27,9 @@ type announcementsDocument struct {
 }
 
 type announcementAction struct {
-	Type  string `json:"type,omitempty"`
-	Label string `json:"label,omitempty"`
+	MinimumRevision uint64 `json:"min_revision,omitempty"`
+	Type            string `json:"type,omitempty"`
+	Label           string `json:"label,omitempty"`
 }
 
 type announcementItem struct {
@@ -143,7 +144,7 @@ func normalizeAnnouncements(items []announcementItem, now time.Time) []announcem
 		if item.Action != nil {
 			item.Action.Type = strings.TrimSpace(item.Action.Type)
 			item.Action.Label = strings.TrimSpace(item.Action.Label)
-			if item.Action.Type != "check_update" {
+			if item.Action.Type != "check_update" && item.Action.Type != "repair_playback" || item.Action.MinimumRevision > 9007199254740991 {
 				item.Action = nil
 			}
 		}

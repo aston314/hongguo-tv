@@ -10,6 +10,7 @@ import (
 // Legacy POST identities belong to one resolution only, never to video_tab,
 // another episode, an account, or the old multi-route identity cache.
 type miniReelPlaybackSources struct {
+	repair           func(context.Context, string, string, string) ([]miniReelOption, error)
 	tabEndpoint      string
 	tabIdentity      *miniReelPlaybackDeviceCache
 	legacyEndpoints  []string

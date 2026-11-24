@@ -1,0 +1,30 @@
+[
+  {
+    "query": "aid=8662&app_name=novelread&version_code=74332&version_name=7.4.3.32&manifest_version_code=74332&channel=vivo_8662_64&device_platform=android&device_type=PGT-AN10&os_version=12&update_version_code=74332&iid=456&cdid=synthetic&device_id=123&_rticket=1800000000023",
+    "helios": "AAAAgOldh6XkgPCcSOD+1hk6geYVwA9oX+NbtYeS3DNddvJe",
+    "medusa": "BdJJay2ZBqFJp0QoP2fnRyK/hT0AAAAB+8ogCBCAAZECWG6DibN+FMNQfp7LMJmlvVnR8TwI4eGzk+Tw/1E5DZlXeT3xpBDmmXhqnuirY+qdiBIOGRhqv6ZMLb0mwlxdezGJ6gMVlXxBnSKmbvonIkkQUKQNO/7JbiASAfKG80ZMvOxKCi3ekJbIGY+MahexgYxMpQjbnVW1WgyOTAEpBrthio8/PWKEHwpNNblQL7Y6iO32itSeQyt3iSQUYpHlsvgmA4kfrRRLOFrcBQMKxZPRDIAWoT9xTOUrMPOTwLqgZ9f5lzUSdQjKpMuiNdbsy8pSYKx9kweKcWAT84rfpFElWhi5Vbe5Eh3yQt2Yy3nPvRki+VLUSk1LuL/lZw4y1NoKgEq4fIvG1pPfHIz0nMck3g1CyfAtBoNiGyU2MFhgRJJNqKTQ1LDOlP9DSAdfaV/96J+J1InotBpK9M94pU33xZFE7X9Cp7XbxfTUqt7ElKHNUmyTAR2RXXezULnK64FAQSUzKsfiJcYSKvftpy13n1H1YlJ67lwPlx3lWpjDKOIVK8J9zy0nJRmRE3F/xTFsoTa6IQ1Bf////3////8AgA==",
+    "body": "1f8b080001020304",
+    "ts": 1800000000
+  },
+  {
+    "query": "aid=8662&app_name=novelread&version_code=74332&version_name=7.4.3.32&manifest_version_code=74332&channel=vivo_8662_64&device_platform=android&device_type=PGT-AN10&os_version=12&update_version_code=74332&iid=456&cdid=synthetic&device_id=123&_rticket=1800000001034",
+    "helios": "AAAAgP8cAFskZQCdtTN/xhkUFMsVwA9oX+NbtYeS3DNddvJe",
+    "medusa": "BNJJayyZBqFIp0QoPmfnRyO/hT0AAAABv4oACACEgfYNWKpP2XV4YurrmiRC9rjqZoiopF/gM1tJyoGqCLApLmC7x23R9UpB/2QTIWyGNrPi+MgBi5UQ70L7Xt4u6x2+JGR1XhrJ6jVNPkLOncGx3TiWV1vJstYd8CCQHdSjxBC854fHcOdys/rCzuraBm/6HE3f5Sp6t2MehnVcnkHN/8AJsX/pzyMSer2f+PmJIfsize3+itSeQSs3qSQUYhHlsrgGA4kfLRRLOHrUFQMKxZPRLIgGoT9xTaUrOOOXQLihZ9fxhzESdQjKpMOyMVbuyopSYLx5kwWLcUAT44pfpFBlehCpUTe5Eh3SQt2cS3vPvRki+VLUSk1LuL/lZw4y1NoKgEq4fIvG1pPfHIz0nMck3g1CyfAtBoNiGyU2MFhgRJJNqKTQ1LDOlP9DSAdfaV/96J+J1InotBpK9M94pU33xZFE7X9Cp7XbxfTUqt7ElKHNUmyTAR2RXXezULnK64FAQSUzKsfiJcYSKvftpy13n1H1YlJ67lwPlx3lWpjDKOIVK8J9zy0nJRmRE3F/xTFsoTa6IQ0mf////3////8AgA==",
+    "body": "1f8b080001020304",
+    "ts": 1800000001
+  },
+  {
+    "query": "aid=8662&app_name=novelread&version_code=74332&version_name=7.4.3.32&manifest_version_code=74332&channel=vivo_8662_64&device_platform=android&device_type=PGT-AN10&os_version=12&update_version_code=74332&iid=456&cdid=synthetic&device_id=123&_rticket=1800000002014",
+    "helios": "AAAAgIYHv4VhpWqHAYV6IUj2ICoVwA9oX+NbtYeS3DNddvJe",
+    "medusa": "B9JJay+ZBqFLp0QoPWfnRyC/hT0AAAABsIoAABCAgT8EGA/iE8BLTEy0wAfF/33Pm0ia/SdM/t0ww8L4/UE7CT4uTpqBvnDR0MVO7B9e15LbGNVApjd+NJ8alzJg9UsS8zY4YiQg77yN+b++SdfFSDhB6wn3HYlSL9He3igFFfDLNAks7uhMT1bJc+B2NhtQMK+nW04hvsawKW5Nf5A6F7InXgxxEAgKnZpn1aj4az4rzs32itQeQSp3iSwUZhHls/gmA4kbLRZLeFrUBQeKxZLRLIgWpb9zTOULMPOXQLqgJ9f5lzESdQjKhMuiMdbuyopSaKx9EwWLMUAT447fpFAlehC5Vbe7Eh3yQt2cy3vPvRki+VLUSk1LuL/lZw4y1NoKgEq4fIvG1pPfHIz0nMck3g1CyfAtBoNiGyU2MFhgRJJNqKTQ1LDOlP9DSAdfaV/96J+J1InotBpK9M94pU33xZFE7X9Cp7XbxfTUqt7ElKHNUmyTAR2RXXezULnK64FAQSUzKsfiJcYSKvftpy13n1H1YlJ67lwPlx3lWpjDKOIVK8J9zy0nJRmRE3F/xTFsoTa6IQ0Gf////3////8AgA==",
+    "body": "1f8b080001020304",
+    "ts": 1800000002
+  },
+  {
+    "query": "aid=8662&app_name=novelread&version_code=74332&version_name=7.4.3.32&manifest_version_code=74332&channel=vivo_8662_64&device_platform=android&device_type=PGT-AN10&os_version=12&update_version_code=74332&iid=456&cdid=synthetic&device_id=123&_rticket=1800000003031",
+    "helios": "AAAAgJGyhLcwZ5NBbt3DXJ9OLy8VwA9oX+NbtYeS3DNddvJe",
+    "medusa": "BtJJay6ZBqFKp0QoPGfnRyG/hT0AAAABl4oACBCEgd0CGIlEDFpkrThqWuk8xq+Cr6YRi0/5ewZqNqLmPdmvP5I/PSf9xjfhf0KgHsbWWgJSpLvvcfg1oeoECoWgJmU0qc6mJugKwjkEMpjEI7aQwyn0dehikGjK2Ng9+EaYPz7aCLqMW+0XmB3aEO+37kiEXyNTxgPKoW4nG9OfAm3XGe1av1VxSqCBafTi4qpllXZSy832mtCeQSt3iSQEZpHns/gmA4kbLRZLOHrUFQMKx5PRLIgWob9zTaULMOOXwLqhZ/fxlzUSdwnKhMuyMVbuyopSYLx9EweLMWAT845fpFAlehC5VTe5E13SQt2Yy3vPvRki+VLUSk1LuL/lZw4y1NoKgEq4fIvG1pPfHIz0nMck3g1CyfAtBoNiGyU2MFhgRJJNqKTQ1LDOlP9DSAdfaV/96J+J1InotBpK9M94pU33xZFE7X9Cp7XbxfTUqt7ElKHNUmyTAR2RXXezULnK64FAQSUzKsfiJcYSKvftpy13n1H1YlJ67lwPlx3lWpjDKOIVK8J9zy0nJRmRE3F/xTFsoTa6IQ2ef////3////8AgA==",
+    "body": "1f8b080001020304",
+    "ts": 1800000003
+  }
+]

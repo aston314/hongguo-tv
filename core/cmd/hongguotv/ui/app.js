@@ -11,7 +11,7 @@
     feed: '.hero-feed-focus',
     catalog: '.catalog-card',
     actions: '.round-action',
-    controls: '.playback-buttons .control-button, #player-retry, #player-failure-diagnostics',
+    controls: '.playback-buttons .control-button, #player-enable-repair, #player-retry, #player-failure-diagnostics',
     timeline: '#control-progress',
     miniPlayer: '.mini-player-button, .mini-player-overlay input',
     miniPlayerSettings: '.desktop-mini-titlebar-action',
@@ -61,6 +61,7 @@
     accountKeypad: '.account-keypad-key',
     accountActions: '.account-action',
     appUpdates: '.app-update-action',
+    repairSettings: '.repair-action',
     announcements: '.announcement-action',
     recommendedApps: '.recommended-app-action',
     webosUpdateNotes: '.webos-update-notes',
@@ -1292,6 +1293,7 @@
     if (element.classList.contains('library-remove')) return 'libraryRemovals';
     if (element.classList.contains('account-input')) return 'accountInputs';
     if (element.classList.contains('announcement-action')) return 'announcements';
+    if (element.classList.contains('repair-action')) return 'repairSettings';
     if (element.classList.contains('app-update-action')) return 'appUpdates';
     if (element.classList.contains('desktop-mini-titlebar-action')) return 'miniPlayerSettings';
     if (element.classList.contains('windows-playback-action')) return 'windowsPlayback';
@@ -1389,7 +1391,7 @@
     if (isFocusTarget(remembered)) return remembered;
     if (pageMode() === 'search') return searchInput || document.querySelector('.search-submit');
     if (pageMode() === 'account') return firstVisible('#account-method-qr[aria-pressed="true"]') || firstVisible('#account-method-phone') || firstVisible('.account-input') || firstVisible('.account-action');
-    if (pageMode() === 'settings') return firstVisible('.announcement-action') || selectedSidebarDisplay() || selectedLocale() || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action') || activeSidebar();
+    if (pageMode() === 'settings') return firstVisible('.announcement-action') || firstVisible('#playback-repair-toggle') || selectedSidebarDisplay() || selectedLocale() || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action') || activeSidebar();
     if (pageMode() === 'support') return firstVisible('.support-card');
     if (pageMode() === 'apps') return firstVisible('.recommended-app-action') || activeSidebar();
     if (isLibraryPage()) return firstVisible('.library-card') || firstVisible('.history-filter.is-active') || firstVisible('[data-action="library-discover"]') || firstVisible('.library-toolbar-button');
@@ -1905,7 +1907,7 @@
     }
     if (zone === 'sidebarDisplay') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
-      if (direction === 'up') return firstVisible('.announcement-action') || activeSidebar();
+      if (direction === 'up') return firstVisible('#playback-repair-check') || firstVisible('#playback-repair-toggle') || firstVisible('.announcement-action') || activeSidebar();
       if (direction === 'down') return firstVisible('.startup-page-action[aria-pressed="true"]') || firstVisible('.startup-page-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action');
       return null;
     }
@@ -1927,6 +1929,19 @@
       if (direction === 'down') return firstVisible('.auto-cinema-action') || firstVisible('.webos-audio-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.desktop-mini-titlebar-action') || firstVisible('.app-update-action');
       return null;
     }
+    if (zone === 'repairSettings') {
+      var toggle = document.getElementById('playback-repair-toggle');
+      var check = firstVisible('#playback-repair-check'), restore = firstVisible('#playback-repair-restore');
+      if (direction === 'left') return current === restore ? check : activeSidebar();
+      if (direction === 'right') return current === check ? restore : null;
+      if (direction === 'up') {
+        if (current !== toggle) return toggle;
+        var settingsTargets = focusables('#settings-page [data-focus]'), at = settingsTargets.indexOf(toggle);
+        return settingsTargets[at - 1] || activeSidebar();
+      }
+      if (direction === 'down') return current === toggle && check ? check : selectedSidebarDisplay() || activeSidebar();
+      return null;
+    }
     if (zone === 'appUpdates') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return firstVisible('.desktop-mini-titlebar-action') || firstVisible('.windows-playback-action[aria-pressed="true"]') || firstVisible('.windows-playback-action') || firstVisible('.playback-mode-action[aria-pressed="true"]') || firstVisible('.playback-mode-action') || firstVisible('.episode-prefetch-action[aria-pressed="true"]') || firstVisible('.episode-prefetch-action') || firstVisible('.danmaku-size-action[aria-pressed="true"]') || firstVisible('.danmaku-size-action') || firstVisible('.danmaku-region-action[aria-pressed="true"]') || firstVisible('.danmaku-region-action') || firstVisible('.portrait-background-action[aria-pressed="true"]') || firstVisible('.portrait-background-action') || firstVisible('.webos-audio-action') || firstVisible('.auto-cinema-action') || firstVisible('.recommendation-direction-action[aria-pressed="true"]') || firstVisible('.recommendation-direction-action') || firstVisible('.locale-action[aria-pressed="true"]') || firstVisible('.locale-action') || selectedSidebarDisplay() || activeSidebar();
@@ -1936,7 +1951,7 @@
     if (zone === 'announcements') {
       if (direction === 'left' || direction === 'right') return moveWithinZone(zone, current, direction) || (direction === 'left' ? activeSidebar() : null);
       if (direction === 'up') return activeSidebar();
-      if (direction === 'down') return selectedSidebarDisplay() || activeSidebar();
+      if (direction === 'down') return firstVisible('#playback-repair-toggle') || selectedSidebarDisplay() || activeSidebar();
       return null;
     }
     if (zone === 'miniPlayerSettings') {
@@ -2809,6 +2824,7 @@
     updateHint();
   }
   function setPlayerStatus(message, failed) {
+    if (!failed && activePlayback) activePlayback.preparationError = null;
     var panel = document.getElementById('player-status');
     var hero = document.getElementById('hero');
     if (failed && autoCinemaCandidate) cancelPendingAutoCinema();
@@ -2855,6 +2871,7 @@
     text.classList.toggle('is-hidden', !copy);
     panel.querySelector('.player-spinner').classList.toggle('is-hidden', !!failed);
     document.getElementById('player-retry').classList.toggle('is-hidden', !failed);
+    updatePlaybackRepairOffer(!!failed);
     document.getElementById('player-failure-diagnostics').classList.toggle('is-hidden', !failed);
     if (failed) {
       clearLastPlaybackFrame();
@@ -8345,6 +8362,7 @@
       mainSurface.classList.add('has-workspace');
       settingsPage.classList.remove('is-hidden');
       appUpdates.refresh();
+      if (playbackRepair) playbackRepair.refresh().catch(function () {});
       if (announcements) announcements.refresh();
     } else if (item.dataset.page === 'support') {
       mainSurface.classList.add('has-workspace');
@@ -9484,6 +9502,71 @@
   if (window.HongguoI18n) window.HongguoI18n.onChange(function () { recommendedApps.refresh(); });
   window.addEventListener('pagehide', function () { recommendedApps.destroy(); });
 
+  var repairSaving = false, repairRetrying = false;
+  function repairText(key, params) { return uiText('repair.' + key, '', params); }
+  function repairTextContent(id, value) { var node = document.getElementById(id); if (node.textContent !== value) node.textContent = value; }
+  function updatePlaybackRepairOffer(failed) {
+    var button = document.getElementById('player-enable-repair');
+    var show = !!(failed && !repairRetrying && playbackRepair && activePlayback && playbackRepair.eligible(activePlayback.preparationError));
+    if (!show && document.activeElement === button) goFocus(document.getElementById('player-retry'));
+    button.classList.toggle('is-hidden', !show);
+  }
+  function renderPlaybackRepair(state) {
+    var card = document.getElementById('playback-repair-settings');
+    card.classList.toggle('is-hidden', !state.supported);
+    var toggle = document.getElementById('playback-repair-toggle');
+    var checked = state.enabled ? 'true' : 'false';
+    if (toggle.getAttribute('aria-checked') !== checked) toggle.setAttribute('aria-checked', checked);
+    toggle.setAttribute('aria-disabled', repairSaving ? 'true' : 'false');
+    var label = repairText(state.enabled ? 'onLabel' : 'offLabel');
+    var toggleLabel = toggle.querySelector('.repair-toggle-label');
+    if (toggleLabel.textContent !== label) toggleLabel.textContent = label;
+    repairTextContent('playback-repair-badge', repairText(state.source === 'repair' ? 'repair' : 'native'));
+    repairTextContent('playback-repair-current', repairText(state.source === 'repair' ? 'currentRepair' : 'currentNative', { version: state.version || '' }));
+    var when = state.last_checked ? new Date(state.last_checked).toLocaleString() : '';
+    repairTextContent('playback-repair-checked', repairText(when ? 'checked' : 'notChecked', { time: when }));
+    var statusKey = !state.enabled ? 'off' : state.checking ? 'checking' : state.event === 'check_failed' ? 'failed' :
+      state.event === 'remote_disabled' ? 'disabled' : state.event === 'rolled_back' ? 'rolledBack' : state.source === 'repair' ? state.event === 'updated' ? 'ready' : 'latest' : 'failed';
+    repairTextContent('playback-repair-status', repairText(statusKey));
+    var actions = document.getElementById('playback-repair-actions');
+    if (!state.enabled && actions.contains(document.activeElement)) goFocus(toggle);
+    actions.classList.toggle('is-hidden', !state.enabled);
+    document.getElementById('playback-repair-check').setAttribute('aria-disabled', state.checking ? 'true' : 'false');
+    updatePlaybackRepairOffer(!document.getElementById('player-retry').classList.contains('is-hidden'));
+    if (announcements && announcements.updateRepairStatus) announcements.updateRepairStatus();
+  }
+  var playbackRepair = window.HongguoPlaybackRepair.create({
+    request: function (action) { return fetch('/api/v1/playback/repair', action ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: action }) } : undefined).then(function (response) { return response.json().then(function (payload) { if (!response.ok || payload.ok !== true) throw Error('repair request failed'); return payload; }); }); },
+    render: renderPlaybackRepair,
+    visible: function () { return !applicationHidden() && pageMode() === 'settings'; },
+    updated: function () { if (!activePlayback || !activePlayback.started) showNotice(repairText('updated')); },
+    failed: function () { showNotice(repairText('saveFailed')); }
+  });
+  function changePlaybackRepair(action) {
+    if (repairSaving) return;
+    repairSaving = true; renderPlaybackRepair(playbackRepair.snapshot());
+    playbackRepair.act(action).catch(function () {}).then(function () { repairSaving = false; renderPlaybackRepair(playbackRepair.snapshot()); });
+  }
+  document.getElementById('playback-repair-toggle').addEventListener('click', function () { changePlaybackRepair(playbackRepair.snapshot().enabled ? 'disable' : 'enable'); });
+  document.getElementById('playback-repair-restore').addEventListener('click', function () { changePlaybackRepair('restore'); });
+  document.getElementById('playback-repair-check').addEventListener('click', function () { if (!playbackRepair.snapshot().checking) changePlaybackRepair('check'); });
+  document.getElementById('player-enable-repair').addEventListener('click', function () {
+    if (repairRetrying || !activePlayback || !playbackRepair.eligible(activePlayback.preparationError)) return;
+    var playback = activePlayback, request = playbackRequest, generation = feedGeneration, owner = accountEpoch, failure = activePlayback.preparationError;
+    function current() { return playback === activePlayback && generation === feedGeneration && owner === accountEpoch && (pageMode() === 'player' || pageMode() === 'recommend'); }
+    repairRetrying = true; setPlayerStatus(repairText('repairing'));
+    playbackRepair.enableAndWait(current).then(function () {
+      if (!current() || !request) return;
+      repairRetrying = false; goFocus(document.getElementById('hero-feed-focus'));
+      playFeedItem(request.index, request.episode, request.position);
+    }).catch(function (error) {
+      if (current() && error.name !== 'AbortError') { playback.preparationError = failure; setPlayerStatus(repairText('retryFailed'), true); }
+    }).then(function () { repairRetrying = false; });
+  });
+  if (window.HongguoI18n) window.HongguoI18n.onChange(function () { renderPlaybackRepair(playbackRepair.snapshot()); });
+  window.addEventListener('pagehide', playbackRepair.destroy);
+  playbackRepair.refresh().catch(function () {});
+
   var appUpdates = window.HongguoAppUpdates.create({
     bridge: window.HongguoTVUpdates,
     canPrompt: canShowAppUpdate,
@@ -9551,7 +9634,23 @@
       } catch (ignored) { return ''; }
     },
     t: uiText,
-    checkUpdate: appUpdates.activate
+    checkUpdate: appUpdates.activate,
+    restoreFocus: function (id) {
+      var targets = focusables('#system-announcements [data-focus]');
+      var target = targets.filter(function (node) { return node.getAttribute('data-focus') === id; })[0];
+      goFocus(target || firstVisible('#playback-repair-toggle') || selectedSidebarDisplay() || activeSidebar());
+    },
+    repairStatus: function () { return playbackRepair.snapshot(); },
+    repairPlayback: function () {
+      var settings = document.querySelector('.side-item[data-page="settings"]');
+      if (pageMode() !== 'settings') activatePage(settings);
+      playbackRepair.refresh().then(function (state) {
+        if (!state.supported) { appUpdates.activate(); return; }
+        var target = document.getElementById(state.enabled ? 'playback-repair-check' : 'playback-repair-toggle');
+        goFocus(target);
+        if (state.enabled && !state.checking) changePlaybackRepair('check');
+      }).catch(function () { showNotice(repairText('retryFailed')); });
+    }
   }) : null;
   window.setTimeout(function () { if (announcements) announcements.refresh(); }, 1200);
   var hardwareHevcSettings = window.HongguoPlaybackSettings.createHardwareHevc({

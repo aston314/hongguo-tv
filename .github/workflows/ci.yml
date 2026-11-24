@@ -86,6 +86,11 @@ jobs:
           "$RUNNER_TEMP/mpv-mediacodec-layout-parser-test"
       - name: Test Go core
         run: go test ./...
+      - name: Verify playback rule generation and updater concurrency
+        run: |
+          go run ./scripts/resolver_js_codegen -check
+          go test -race ./core/internal/jsresolver ./core/internal/jsupdate
+          go test -race ./core/cmd/hongguotv -run 'TestPlaybackRepair|TestMiniReelRepair'
       - name: Check concurrent account login, playback identity recovery and cancellation
         run: |
           go test -race ./core/cmd/hongguotv -run 'Test(QR|Account|UpSMS|NewMFA|LateExpiry|TemporaryMFA)'

@@ -13,7 +13,7 @@ function fixture(options) {
   const nodes={'hero':hero,'player-status':panel,'player-status-title':title,'player-status-text':text,'player-retry':retry,'player-failure-diagnostics':diagnostics};
   const frames=[],timers=[];
   let now=1000;
-  const context={document:{getElementById:id=>nodes[id]},activePlayback:null,autoCinemaCandidate:false,featuredItem:{title:'新剧名称'},reveals:0,focused:null,coverClears:0,zoneOf:()=> 'feed',
+  const context={updatePlaybackRepairOffer:function(){},document:{getElementById:id=>nodes[id]},activePlayback:null,autoCinemaCandidate:false,featuredItem:{title:'新剧名称'},reveals:0,focused:null,coverClears:0,zoneOf:()=> 'feed',
     prefetchedEpisodeHint:null,portraitBackdrop:null,webosShell:false,episodePrefetch:{},feedGeneration:4,accountEpoch:2,applicationInBackground:false,
     playbackPreferences:{quality:'720P'},Date:{now:()=>now},isPlaybackPage:()=>true,applicationHidden:()=>false,
     rangePlaybackEnabled:()=>true,effectiveEpisodePrefetchMode:()=> 'full',
