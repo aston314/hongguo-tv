@@ -73,6 +73,21 @@ int main(int argc, const char **argv) {
 
         NSSize oldMinimum = window.minSize;
         window.minSize = NSMakeSize(280, 200);
+        NSSize originalIncrements = window.contentResizeIncrements;
+        // A zero aspect from the getter must be restored via resize increments.
+        // Calling setContentAspectRatio:NSZeroSize silently leaves invalid zero
+        // steps on AppKit; the next real fullscreen exit can then SIGTRAP.
+        window.contentResizeIncrements = NSMakeSize(7, 5);
+        require(hongguoSetMiniAspect(1920, 1080, YES), @"resize-step aspect setup failed");
+        require(hongguoSetMiniAspect(0, 0, NO), @"resize-step restoration failed");
+        require(NSEqualSizes(window.contentResizeIncrements, NSMakeSize(7, 5)),
+            @"leaving mini mode corrupted the original content resize increments");
+        window.contentAspectRatio = NSMakeSize(4, 3);
+        require(hongguoSetMiniAspect(1080, 1920, YES), @"existing-aspect setup failed");
+        require(hongguoSetMiniAspect(0, 0, NO), @"existing-aspect restoration failed");
+        require(NSEqualSizes(window.contentAspectRatio, NSMakeSize(4, 3)),
+            @"leaving mini mode lost the original nonzero aspect");
+        window.contentResizeIncrements = originalIncrements;
         for (int hidden = 0; hidden <= 1; hidden++) {
             require(hongguoSetMiniTitlebarHidden(hidden), @"aspect setup titlebar failed");
             for (int portrait = 0; portrait <= 1; portrait++) {
@@ -93,6 +108,8 @@ int main(int argc, const char **argv) {
                 require(NSEqualSizes(fitted,window.frame.size), @"moving mini window resized it");
                 require(hongguoSetMiniAspect(0,0,NO), @"could not restore native aspect");
                 require(NSEqualSizes(window.contentAspectRatio,NSZeroSize), @"aspect leaked outside mini window");
+                require(NSEqualSizes(window.contentResizeIncrements, originalIncrements),
+                    @"mini titlebar/aspect round trip corrupted resize increments");
             }
             require(hongguoSetMiniTitlebarHidden(NO), @"aspect titlebar restoration failed");
         }
@@ -107,6 +124,8 @@ int main(int argc, const char **argv) {
         require(hongguoSetMiniAspect(1080,1920,YES), @"portrait setup failed");
         [center postNotificationName:NSWindowWillEnterFullScreenNotification object:window];
         require(NSEqualSizes(window.contentAspectRatio,NSZeroSize), @"fullscreen retained mini constraints");
+        require(NSEqualSizes(window.contentResizeIncrements, originalIncrements),
+            @"suspending mini aspect for fullscreen corrupted resize increments");
         require(hongguoSetMiniAspect(1920,1080,YES), @"pending landscape metadata failed");
         [center postNotificationName:NSWindowWillExitFullScreenNotification object:window];
         [center postNotificationName:NSWindowDidExitFullScreenNotification object:window];
