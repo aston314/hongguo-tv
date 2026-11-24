@@ -1,0 +1,9 @@
+goos: darwin
+goarch: arm64
+pkg: github.com/aston314/hongguo-tv/core/internal/jsresolver
+cpu: Apple M4
+BenchmarkResolverStages/parse_24k-10         	    4470	    479652 ns/op	  838152 B/op	     565 allocs/op
+BenchmarkResolverStages/v5_build-10          	     606	   3909598 ns/op	 4261278 B/op	  127581 allocs/op
+BenchmarkResolverStages/options-10           	    4838	    502776 ns/op	  859592 B/op	     704 allocs/op
+PASS
+ok  	github.com/aston314/hongguo-tv/core/internal/jsresolver	8.060s

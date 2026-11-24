@@ -995,30 +995,15 @@ function trim(v) { return String(v == null ? '' : v).replace(/^\s+|\s+$/g, ''); 
 function str(v) { return v == null ? '' : String(v); }
 function validID(v) { return /^[0-9]{1,32}$/.test(trim(v)); }
 function fail(message, status, code) { var e = new Error(message); e.status = status || 502; e.code = code || 'ACCOUNT_ERROR'; return e; }
+// Keep numeric IDs exact without rebuilding every character of the input.
+// Strings (including escaped quotes/backslashes) are consumed as one token, so
+// digits inside URLs, signatures or nested JSON strings are never rewritten.
 function parseExactJSON(text) {
-    var out = '', inString = false, escaped = false, i = 0;
-    while (i < text.length) {
-      var ch = text.charAt(i);
-      if (inString) {
-        out += ch;
-        if (escaped) escaped = false;
-        else if (ch === '\\') escaped = true;
-        else if (ch === '"') inString = false;
-        i++;
-        continue;
-      }
-      if (ch === '"') { inString = true; out += ch; i++; continue; }
-      if (ch === '-' || ch >= '0' && ch <= '9') {
-        var start = i;
-        while (i < text.length && /[0-9eE+.-]/.test(text.charAt(i))) i++;
-        var token = text.slice(start, i);
-        out += /^-?\d{16,}$/.test(token) ? JSON.stringify(token) : token;
-        continue;
-      }
-      out += ch; i++;
-    }
-    return JSON.parse(out);
-  }
+  return JSON.parse(text.replace(/"(?:[^"\\]|\\[\s\S])*"|-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/g, function (token) {
+    return /^-?[0-9]{16,}$/.test(token) ? '"' + token + '"' : token;
+  }));
+}
+
 function uuid() { var b = crypto.randomBytes(16); b[6] = (b[6] & 15) | 64; b[8] = (b[8] & 63) | 128; return b.toString('hex').replace(/^(.{8})(.{4})(.{4})(.{4})(.{12}).*$/, '$1-$2-$3-$4-$5'); }
 function device() { return { cdid: uuid(), clientudid: uuid(), openudid: crypto.randomBytes(8).toString('hex'), created: Date.now() }; }
 function appQuery(s) {
@@ -1050,17 +1035,15 @@ var crypto=require('crypto');
 function trim(value) { return String(value == null ? '' : value).replace(/^\s+|\s+$/g, ''); }
 function number(value) { var n = Number(value); return isFinite(n) ? n : 0; }
 function fail(message, status, code, stage) { var error = new Error(message); error.code = code || 'PROVIDER_ERROR'; if (status) error.status = status; if (stage) error.stage = stage; return error; }
+// Keep numeric IDs exact without rebuilding every character of the input.
+// Strings (including escaped quotes/backslashes) are consumed as one token, so
+// digits inside URLs, signatures or nested JSON strings are never rewritten.
 function parseExactJSON(text) {
-    var out = '', inString = false, escaped = false, i = 0;
-    while (i < text.length) {
-      var ch = text.charAt(i);
-      if (inString) { out += ch; if (escaped) escaped = false; else if (ch === '\\') escaped = true; else if (ch === '"') inString = false; i++; continue; }
-      if (ch === '"') { inString = true; out += ch; i++; continue; }
-      if (ch === '-' || ch >= '0' && ch <= '9') { var start = i; while (i < text.length && /[0-9eE+.-]/.test(text.charAt(i))) i++; var token = text.slice(start, i); out += /^-?\d{16,}$/.test(token) ? JSON.stringify(token) : token; continue; }
-      out += ch; i++;
-    }
-    return JSON.parse(out);
-  }
+  return JSON.parse(text.replace(/"(?:[^"\\]|\\[\s\S])*"|-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/g, function (token) {
+    return /^-?[0-9]{16,}$/.test(token) ? '"' + token + '"' : token;
+  }));
+}
+
 function bitCount(value) { var count = 0; while (value) { count++; value &= value - 1; } return count; }
 function base36(value) {
     if (value >= 48 && value <= 57) return value - 48;

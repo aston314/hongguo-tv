@@ -1,47 +1,43 @@
-# Playback-only JavaScript resolver experiment
+# Current-production JavaScript resolver experiment
 
-`resolver.js` is a replaceable source bundle, generated from an explicit function
-and module allow-list in `scripts/resolver_js_codegen`. Registration, TTEncrypt
-framing/key derivation, V5 signing/carrier math, identity state, model/key parsing
-and codec fallback execute in JS. Go exposes generic hash/AES/gzip/random byte
-primitives and bounded HTTP only. No account store, native signer or resolver
-fallback is exposed to the script.
-The standard SM3 hash is accelerated by the existing native primitive, generated
-from its original implementation. Protocol-specific F13/carrier operations stay
-in JS. The same bundle retains a pure-JS hash on hosts without native SM3.
+This experiment ports the current anonymous playback source sequence into a
+replaceable local JS bundle: video_tab, primary/alternate V5 with same-identity
+recovery, fresh-identity legacy requests, registered single-video requests,
+old single-video profile, model/key parsing and compatible-codec requests.
+The bundle is generated from explicit allowlisted current webOS functions and
+modules. Generic hash/AES/gzip/random byte primitives and bounded HTTP remain
+in Go. JS has no account store, filesystem, native signer, registration helper,
+or native high-level resolver fallback.
 
-The Goja/Buffer dependencies are pinned to versions compatible with Go 1.25.
-No new JS runtime is imported by the normal application entry: the core adapter
-is gated by `resolverjsprobe`/`resolverjstest` build tags. This is not enabled in
-production, and no production update endpoint or key is changed.
+The normal application entry does not import Goja. Only the diagnostic entry,
+selected by `resolverjsprobe`, imports the JS host. Native diagnostic mode calls
+`miniReelNativeOptionsWithSources` from production baseline `fd454dc` directly;
+it is not the old standalone V5-only control. Both modes use the same APK,
+WebView, media downloader and Go media decryption code.
 
-The artifact is Promise-based ES5 JS so hosts with asynchronous HTTP can adapt
-it too. The Goja host executes bounded HTTP synchronously on the resolver's
-serialized worker; callers waiting for the gate can cancel. The source cannot
-load filesystem modules or access signed-in account data. Buffer slice/view
-semantics are explicitly adapted and checked with independent signing vectors.
-HTTP, input/output and stack limits plus context interruption are enforced;
-Goja does not provide a hard isolated heap quota. Only reviewed, signed modules
-may be used. A source-size limit is not a JavaScript heap limit.
+Only four anonymous registration cookie names cross the host boundary. Header,
+request/response size, call-count, per-call timeout and stack bounds plus context
+interruption apply. Goja has no hard isolated heap quota. Production remote
+manifest verification, atomic activation and rollback are not enabled by this
+experiment. An embedded or explicitly private test bundle is not evidence that
+production online script distribution has been accepted.
 
-Reproduce from the repository root:
+The same Promise-based ES5 bundle runs in the Goja synchronous HTTP host and a
+Node asynchronous test host. Standard SM3 uses a generic native primitive when
+available; protocol-specific signing stays in JS and retains pure-JS SM3 for
+hosts without the primitive.
 
 ```sh
-go run ./scripts/resolver_js_codegen
 go run ./scripts/resolver_js_codegen -check
-go test ./core/internal/jsresolver
-HONGGUO_LIVE_RESOLVER_JS=1 go test -tags resolverjstest ./core/cmd/hongguotv \
-  -run '^TestJSPlaybackResolverLiveMedia$' -v -count=1
+go test -race ./core/internal/jsresolver
+node --test tests/resolver-js-bundle.test.cjs
+go test -tags resolverjstest ./core/cmd/hongguotv \
+  -run '^TestJSResolverRegistrationWireParity$' -count=1
+HONGGUO_CURRENT_LIVE=1 go test ./core/internal/jsresolver \
+  -run '^TestCurrentJSLive$' -v -count=1
 ```
 
-The opt-in live test obtains compatible sources, completely downloads/decrypts
-them and verifies actual audio/video decoding. Passing mocks or a clean batch
-does not establish stable upstream acceptance; cold sessions have also returned
-empty responses in the native and JS implementations.
-
-The isolated `resolver-js-diagnostic` Android package has explicit `js` and
-`native` modes in the same APK, HTML page and media pipeline. JS mode has no
-native resolver fallback. It validates a disposable signed manifest through the
-existing update/activation verifier, then executes the local script. This is a
-local-file replacement test, not acceptance of production online updates or LG
-hardware. APK/native builds run only in GitHub Actions.
+The last command checks real resolution only. Physical playback acceptance is
+recorded separately in `docs/playback-resolver-js-current-validation.md`.
+Android native libraries and the isolated APK are built in GitHub Actions;
+production update channels and installed production applications are unchanged.

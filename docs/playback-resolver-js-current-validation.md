@@ -33,3 +33,87 @@ HeapAlloc, reserved Go Sys, RSS and PSS or infer playback success from a URL.
 
 APK/native Android builds run in GitHub Actions. The package is isolated from
 standard and MPV editions. No production update channel or release is changed.
+
+The paired device study uses the same six requested episode IDs repeated 20 times
+for resolve-only tests, then 12 media preparations and ten-second playback
+windows. It alternates JS/native order between Shield and Zidoo, and records
+both raw and forced-GC snapshots. Runs are short repeat-call tests, not whole
+20-episode playback or hours-long stability acceptance. There is no audio-output
+measurement, MPV rendering test or full-app automatic-next-episode UI test here.
+
+The old Zidoo WebView does not report decoded/dropped frame counters. Its canvas
+readback returned a constant black fingerprint even when device screen captures
+showed changing video. Preserve that as unavailable observability, not zero
+actual decoded frames or a failed resolver. Native and JS media SHA256s can be
+compared independently of the device's rendering API capabilities.
+
+The dedicated diagnostic build and lint passed. General branch CI encountered
+an unrelated baseline webOS API parity assertion for /api/v1/announcements;
+none of the webOS service files were modified for this experiment. Do not report
+that all repository CI passed or fix unrelated product behavior in this branch.
+
+## JSON parsing optimization (same APK, replaced script)
+
+The 24 KB JSON in this study is the upstream playback response, not the remote
+script/update manifest. The old exact-number parser appended one character at a
+time. A synthetic 24 KB response microbenchmark on this host measured 33.664 ms
+and 311,647,096 allocated bytes per call; V5 request construction measured 3.672
+ms and 4,246,584 allocated bytes. This disproves the earlier attribution of most
+of the observed multi-second overhead to signing alone. Request traces showed
+that native and JS made the same two warm requests with similar network waits.
+
+The optimized parser consumes complete quoted-string/numeric tokens and only
+quotes long integer literals. URLs, escaped quotes/backslashes, nested JSON
+strings, fractions, exponents, booleans and null retain their types/content.
+Independent tests also reject malformed JSON. Both device-registration and model
+parsers use the same pure-JS helper; signing constants, request order, native
+capabilities and HTTP implementation are unchanged. This optimization does not
+move protocol-specific methods out of the replaceable script.
+
+After the change, the same host microbenchmark measured 0.480 ms and 838,152
+allocated bytes per 24 KB parse (about 70x less time and 372x fewer allocated
+bytes). These are host microbenchmarks, not Android network latency or retained
+memory. Raw benchmark outputs are in the accompanying evidence directory.
+
+The current diagnostic APK built by GitHub Actions (run 45309459350) was kept
+installed. Only `files/resolver-probe/candidate.js` was replaced. The test app
+loaded it via its explicit private-script flag; `/health.sha256` was checked
+before collecting any results. APK SHA256 stayed
+`3da8daa622e6e2af965585a6cc48afb0fb90e436e3a12add343211b96be7541c`.
+Old script: `d259fefdd439a0dd8a8adfb427aa1fbcdd838724212eef1ab4a734185c3d36d9`.
+Optimized script: `bc78025a68f37da6137198a75dc0fb0fd96c87caeab63ad610a983a25a64a094`.
+
+Zidoo's paired 20-request median dropped from 2977.5 ms to 644.5 ms (4.62x).
+All 20 resolves succeeded before and after. Six post-change complete media files
+were downloaded/decrypted; their SHA256 matched the baseline, and every playback
+window advanced beyond ten seconds without a media error. Native/JS baseline
+screen captures had previously established real changing frames; Zidoo's old
+WebView frame counters and canvas readback remain unavailable as documented
+above. No claim of zero dropped frames is made for this device.
+
+Zidoo resolve-20 GC PSS was 20.058 MiB before and 20.105 MiB afterward. Retained
+Go heap grew from about 1.54 MiB to 2.16 MiB because the new regex also retains
+working storage. Playback-end GC PSS was 20.253 MiB before (12 short windows)
+and 21.496 MiB afterward (6 short windows). Reduced cumulative allocations do
+not imply an identical reduction in retained PSS. The limited repeat-call
+samples show a warm plateau, not proof of hours-long leak-free playback.
+
+Shield's paired 20-request median dropped from 891 ms to 322.5 ms (2.76x).
+All 20 resolves succeeded. Three post-change media files were prepared and
+played beyond ten seconds with positive decoded-frame counters; all three
+SHA256s matched the baseline. The fourth media preparation test timed out at
+100 seconds. Follow-up /health and /memory timed out and ADB stopped responding;
+the cause was not established. This run is deliberately marked incomplete and
+is not reported as a six-playback pass or a diagnosed network failure.
+Resolve-20 GC PSS was 32.824 MiB before and 28.372 MiB afterward. Its retained
+heap rose from 2.222 to 3.475 MiB, consistent with regex working storage rather
+than the old quadratic temporary string churn. Do not describe PSS reduction as
+an equal reduction in live heap. The normal native control median was 223 ms
+on Shield and 214.5 ms on Zidoo (sequential, same-sample baseline runs).
+
+Conclusion: avoidable JSON allocation/copying was the dominant old overhead;
+this script-only repair reduces it substantially while keeping all protocol
+logic replaceable. Remaining latency is measurable interpreter work plus
+network variation; this study does not attribute it entirely to signatures.
+No generic accelerators or new native protocol methods were added. Production
+integration and all-platform acceptance remain separate work.

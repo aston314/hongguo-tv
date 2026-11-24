@@ -1,0 +1,933 @@
+{
+  "serial": "192.168.2.117:5555",
+  "engine": "js",
+  "health": {
+    "embedded_fallback": false,
+    "engine": "js",
+    "load_ms": 58,
+    "module_version": "2026.11.24.1",
+    "native_baseline": "production-fd454dc",
+    "ok": true,
+    "resolver": "js-only",
+    "script_bytes": 90440,
+    "script_loaded": true,
+    "sha256": "bc78025a68f37da6137198a75dc0fb0fd96c87caeab63ad610a983a25a64a094"
+  },
+  "device": {
+    "model": "SHIELD Android TV",
+    "sdk": 30,
+    "abi": "arm64-v8a"
+  },
+  "core_pid": "6354",
+  "host_pid": "6281",
+  "snapshots": [
+    {
+      "label": "startup_raw",
+      "forced_gc": false,
+      "pss_kib": 20316,
+      "rss_kib": 21632,
+      "peak_rss_kib": 21632,
+      "threads": 7,
+      "heap": {
+        "goroutines": 8,
+        "heap_objects": 39378,
+        "host_heap_alloc": 2927848,
+        "host_heap_idle": 3186688,
+        "host_heap_inuse": 4644864,
+        "host_heap_released": 2859008,
+        "host_heap_sys": 7831552,
+        "host_sys": 12541968,
+        "num_gc": 2,
+        "total_alloc": 5429424
+      }
+    },
+    {
+      "label": "startup_gc",
+      "forced_gc": true,
+      "pss_kib": 20602,
+      "rss_kib": 22064,
+      "peak_rss_kib": 22064,
+      "threads": 7,
+      "heap": {
+        "goroutines": 7,
+        "heap_objects": 14578,
+        "host_heap_alloc": 1749928,
+        "host_heap_idle": 4227072,
+        "host_heap_inuse": 3670016,
+        "host_heap_released": 4063232,
+        "host_heap_sys": 7897088,
+        "host_sys": 12541968,
+        "num_gc": 4,
+        "total_alloc": 5434368
+      }
+    },
+    {
+      "label": "resolve_1_raw",
+      "forced_gc": false,
+      "pss_kib": 26518,
+      "rss_kib": 27808,
+      "peak_rss_kib": 27808,
+      "threads": 8,
+      "heap": {
+        "goroutines": 10,
+        "heap_objects": 30774,
+        "host_heap_alloc": 7498008,
+        "host_heap_idle": 2572288,
+        "host_heap_inuse": 9453568,
+        "host_heap_released": 1417216,
+        "host_heap_sys": 12025856,
+        "host_sys": 17260560,
+        "num_gc": 10,
+        "total_alloc": 20324304
+      }
+    },
+    {
+      "label": "resolve_1_gc",
+      "forced_gc": true,
+      "pss_kib": 26510,
+      "rss_kib": 27808,
+      "peak_rss_kib": 27808,
+      "threads": 8,
+      "heap": {
+        "goroutines": 9,
+        "heap_objects": 17808,
+        "host_heap_alloc": 3617992,
+        "host_heap_idle": 6160384,
+        "host_heap_inuse": 5898240,
+        "host_heap_released": 6062080,
+        "host_heap_sys": 12058624,
+        "host_sys": 17260560,
+        "num_gc": 12,
+        "total_alloc": 20331560
+      }
+    },
+    {
+      "label": "resolve_6_raw",
+      "forced_gc": false,
+      "pss_kib": 27726,
+      "rss_kib": 29244,
+      "peak_rss_kib": 29244,
+      "threads": 8,
+      "heap": {
+        "goroutines": 10,
+        "heap_objects": 29341,
+        "host_heap_alloc": 4885928,
+        "host_heap_idle": 5013504,
+        "host_heap_inuse": 7012352,
+        "host_heap_released": 1679360,
+        "host_heap_sys": 12025856,
+        "host_sys": 17260560,
+        "num_gc": 21,
+        "total_alloc": 53827928
+      }
+    },
+    {
+      "label": "resolve_6_gc",
+      "forced_gc": true,
+      "pss_kib": 27726,
+      "rss_kib": 29244,
+      "peak_rss_kib": 29244,
+      "threads": 8,
+      "heap": {
+        "goroutines": 9,
+        "heap_objects": 17804,
+        "host_heap_alloc": 3617192,
+        "host_heap_idle": 6094848,
+        "host_heap_inuse": 5931008,
+        "host_heap_released": 6021120,
+        "host_heap_sys": 12025856,
+        "host_sys": 17260560,
+        "num_gc": 23,
+        "total_alloc": 53834456
+      }
+    },
+    {
+      "label": "resolve_12_raw",
+      "forced_gc": false,
+      "pss_kib": 28918,
+      "rss_kib": 30868,
+      "peak_rss_kib": 30868,
+      "threads": 8,
+      "heap": {
+        "goroutines": 10,
+        "heap_objects": 22723,
+        "host_heap_alloc": 4332104,
+        "host_heap_idle": 9338880,
+        "host_heap_inuse": 6881280,
+        "host_heap_released": 6864896,
+        "host_heap_sys": 16220160,
+        "host_sys": 21717008,
+        "num_gc": 33,
+        "total_alloc": 88638192
+      }
+    },
+    {
+      "label": "resolve_12_gc",
+      "forced_gc": true,
+      "pss_kib": 28914,
+      "rss_kib": 30868,
+      "peak_rss_kib": 30868,
+      "threads": 8,
+      "heap": {
+        "goroutines": 9,
+        "heap_objects": 17889,
+        "host_heap_alloc": 3627824,
+        "host_heap_idle": 10092544,
+        "host_heap_inuse": 6127616,
+        "host_heap_released": 9715712,
+        "host_heap_sys": 16220160,
+        "host_sys": 21717008,
+        "num_gc": 35,
+        "total_alloc": 88643288
+      }
+    },
+    {
+      "label": "resolve_20_raw",
+      "forced_gc": false,
+      "pss_kib": 29050,
+      "rss_kib": 30984,
+      "peak_rss_kib": 30984,
+      "threads": 8,
+      "heap": {
+        "goroutines": 10,
+        "heap_objects": 31331,
+        "host_heap_alloc": 6912304,
+        "host_heap_idle": 7061504,
+        "host_heap_inuse": 9125888,
+        "host_heap_released": 5849088,
+        "host_heap_sys": 16187392,
+        "host_sys": 21717008,
+        "num_gc": 50,
+        "total_alloc": 140145112
+      }
+    },
+    {
+      "label": "resolve_20_gc",
+      "forced_gc": true,
+      "pss_kib": 29053,
+      "rss_kib": 30984,
+      "peak_rss_kib": 30984,
+      "threads": 8,
+      "heap": {
+        "goroutines": 9,
+        "heap_objects": 17997,
+        "host_heap_alloc": 3644272,
+        "host_heap_idle": 10051584,
+        "host_heap_inuse": 6135808,
+        "host_heap_released": 9584640,
+        "host_heap_sys": 16187392,
+        "host_sys": 21717008,
+        "num_gc": 52,
+        "total_alloc": 140152368
+      }
+    },
+    {
+      "label": "play_1_raw",
+      "forced_gc": false,
+      "pss_kib": 52514,
+      "rss_kib": 54352,
+      "peak_rss_kib": 54352,
+      "threads": 8,
+      "heap": {
+        "goroutines": 10,
+        "heap_objects": 49049,
+        "host_heap_alloc": 33593576,
+        "host_heap_idle": 5496832,
+        "host_heap_inuse": 35856384,
+        "host_heap_released": 5464064,
+        "host_heap_sys": 41353216,
+        "host_sys": 46882832,
+        "num_gc": 55,
+        "total_alloc": 177055480
+      }
+    },
+    {
+      "label": "play_1_gc",
+      "forced_gc": true,
+      "pss_kib": 52562,
+      "rss_kib": 54352,
+      "peak_rss_kib": 54352,
+      "threads": 8,
+      "heap": {
+        "goroutines": 10,
+        "heap_objects": 18136,
+        "host_heap_alloc": 3712288,
+        "host_heap_idle": 35143680,
+        "host_heap_inuse": 6209536,
+        "host_heap_released": 35143680,
+        "host_heap_sys": 41353216,
+        "host_sys": 46882832,
+        "num_gc": 57,
+        "total_alloc": 177061728
+      }
+    }
+  ],
+  "resolve": [
+    {
+      "vid": "7706514645208534041",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 1192,
+      "total_ms": 1192,
+      "requests": [
+        {
+          "stage": "device_register",
+          "status": 200,
+          "bytes": 384,
+          "ms": 463
+        },
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 193
+        },
+        {
+          "stage": "device_register",
+          "status": 200,
+          "bytes": 384,
+          "ms": 234
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 24245,
+          "ms": 133
+        }
+      ]
+    },
+    {
+      "vid": "7706514815799282713",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 369,
+      "total_ms": 369,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 72
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 23935,
+          "ms": 147
+        }
+      ]
+    },
+    {
+      "vid": "7706514627462433817",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 343,
+      "total_ms": 343,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 69
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 23936,
+          "ms": 125
+        }
+      ]
+    },
+    {
+      "vid": "7702841946812714008",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1920,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 283,
+      "total_ms": 283,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 71
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 16002,
+          "ms": 123
+        }
+      ]
+    },
+    {
+      "vid": "7702841953875938328",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1920,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 276,
+      "total_ms": 276,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 71
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 15987,
+          "ms": 110
+        }
+      ]
+    },
+    {
+      "vid": "7703473857562151961",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1920,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 333,
+      "total_ms": 333,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 72
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 16084,
+          "ms": 136
+        }
+      ]
+    },
+    {
+      "vid": "7706514645208534041",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 289,
+      "total_ms": 289,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 67
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 24258,
+          "ms": 137
+        }
+      ]
+    },
+    {
+      "vid": "7706514815799282713",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 287,
+      "total_ms": 287,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 65
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 23980,
+          "ms": 127
+        }
+      ]
+    },
+    {
+      "vid": "7706514627462433817",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 326,
+      "total_ms": 326,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 61
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 23932,
+          "ms": 161
+        }
+      ]
+    },
+    {
+      "vid": "7702841946812714008",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1920,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 352,
+      "total_ms": 352,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 74
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 16017,
+          "ms": 126
+        }
+      ]
+    },
+    {
+      "vid": "7702841953875938328",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1920,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 293,
+      "total_ms": 293,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 54
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 15942,
+          "ms": 114
+        }
+      ]
+    },
+    {
+      "vid": "7703473857562151961",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1920,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 358,
+      "total_ms": 358,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 75
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 16109,
+          "ms": 175
+        }
+      ]
+    },
+    {
+      "vid": "7706514645208534041",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 347,
+      "total_ms": 347,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 59
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 24338,
+          "ms": 125
+        }
+      ]
+    },
+    {
+      "vid": "7706514815799282713",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 330,
+      "total_ms": 330,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 67
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 23953,
+          "ms": 142
+        }
+      ]
+    },
+    {
+      "vid": "7706514627462433817",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 267,
+      "total_ms": 267,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 56
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 23894,
+          "ms": 113
+        }
+      ]
+    },
+    {
+      "vid": "7702841946812714008",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1920,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 309,
+      "total_ms": 309,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 80
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 16012,
+          "ms": 166
+        }
+      ]
+    },
+    {
+      "vid": "7702841953875938328",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1920,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 319,
+      "total_ms": 319,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 69
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 16022,
+          "ms": 135
+        }
+      ]
+    },
+    {
+      "vid": "7703473857562151961",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1920,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 263,
+      "total_ms": 263,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 72
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 16069,
+          "ms": 121
+        }
+      ]
+    },
+    {
+      "vid": "7706514645208534041",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 329,
+      "total_ms": 329,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 55
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 24302,
+          "ms": 147
+        }
+      ]
+    },
+    {
+      "vid": "7706514815799282713",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 303,
+      "total_ms": 303,
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 67
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 23935,
+          "ms": 133
+        }
+      ]
+    }
+  ],
+  "playback": [
+    {
+      "vid": "7706514645208534041",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 340,
+      "total_ms": 4313,
+      "media_bytes": 22013835,
+      "media": "/media/current.mp4",
+      "media_sha256": "bf7016425900208926d91ae05b3d8a60092a4adbaf161802f74b04c8e6a68048",
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 76
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 24240,
+          "ms": 154
+        },
+        {
+          "stage": "media",
+          "status": 200,
+          "bytes": 22013835,
+          "ms": 162
+        }
+      ],
+      "decoded": true,
+      "playback": {
+        "position": 10.139142,
+        "width": 1080,
+        "height": 1920,
+        "decoded_frames": 260,
+        "frame_hashes": [
+          605227429,
+          3186065584,
+          3761892200,
+          3169136184,
+          386137716,
+          1709006044,
+          3189321436,
+          2426424472,
+          2308370412,
+          2343783652
+        ],
+        "dropped_frames": 0,
+        "error_code": 0,
+        "wait_ms": 13515
+      }
+    },
+    {
+      "vid": "7706514815799282713",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 310,
+      "total_ms": 1907,
+      "media_bytes": 7258839,
+      "media": "/media/current.mp4",
+      "media_sha256": "d5296c00fb618f7c5b783c0ab063e9056dcfd09de08a4dd874946e56480d1893",
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 80
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 24005,
+          "ms": 127
+        },
+        {
+          "stage": "media",
+          "status": 200,
+          "bytes": 7258839,
+          "ms": 531
+        }
+      ],
+      "decoded": true,
+      "playback": {
+        "position": 10.003786,
+        "width": 1080,
+        "height": 1920,
+        "decoded_frames": 253,
+        "frame_hashes": [
+          131902392,
+          2274363880,
+          90385676,
+          1426658364,
+          1272145980,
+          3258498536,
+          4012328940,
+          1360458705,
+          3720728712,
+          68713288
+        ],
+        "dropped_frames": 0,
+        "error_code": 0,
+        "wait_ms": 12896
+      }
+    },
+    {
+      "vid": "7706514627462433817",
+      "ok": true,
+      "codec": "bytevc1",
+      "width": 1080,
+      "height": 1080,
+      "options": 5,
+      "resolve_ms": 286,
+      "total_ms": 872,
+      "media_bytes": 3875487,
+      "media": "/media/current.mp4",
+      "media_sha256": "6b20566e0664b7f178bb2bf8481bb504462b46eae4c7c7d12c546419b3fab4a4",
+      "requests": [
+        {
+          "stage": "video_tab",
+          "status": 200,
+          "bytes": 0,
+          "ms": 84
+        },
+        {
+          "stage": "v5_model",
+          "status": 200,
+          "bytes": 23918,
+          "ms": 130
+        },
+        {
+          "stage": "media",
+          "status": 200,
+          "bytes": 3875487,
+          "ms": 133
+        }
+      ],
+      "decoded": true,
+      "playback": {
+        "position": 10.12744,
+        "width": 1080,
+        "height": 1920,
+        "decoded_frames": 261,
+        "frame_hashes": [
+          3683566312,
+          1106563384,
+          457812692,
+          3762812288,
+          2258885208,
+          2668947732,
+          1179740456,
+          664706663,
+          3394734724,
+          1307652324
+        ],
+        "dropped_frames": 0,
+        "error_code": 0,
+        "wait_ms": 13100
+      }
+    }
+  ],
+  "completed": false,
+  "interruption": {
+    "stage": "fourth_media_preparation",
+    "test_http_timeout_ms": 100000,
+    "followup_health_timeout_ms": 3000,
+    "cause": "unconfirmed; ADB/core HTTP unavailable after timeout"
+  }
+}

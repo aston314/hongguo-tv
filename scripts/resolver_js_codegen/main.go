@@ -80,6 +80,13 @@ func pure(path string, names []string, prefix string) []byte {
 	var out strings.Builder
 	out.WriteString("'use strict';\n" + prefix + "\n")
 	for _, name := range names {
+		// The legacy character-by-character JSON preprocessor is quadratic in
+		// Goja. Preserve its large-integer contract with tokenized JS instead.
+		if name == "parseExactJSON" {
+			out.Write(mustRead("core/internal/jsresolver/source/exact-json.js"))
+			out.WriteString("\n")
+			continue
+		}
 		f := declarations[name]
 		if f == nil {
 			panic("missing allowlisted function " + name)
@@ -113,9 +120,9 @@ func main() {
 		{"playback-v5-carrier", mustRead("webos/service/playback-v5-carrier.js")},
 		{"playback-v5-constants.json", append(append([]byte("module.exports="), mustRead("webos/service/playback-v5-constants.json")...), ';')},
 		{"mobile-playback-v5", mustRead("webos/service/mobile-playback-v5.js")},
- {"single-playback-profile", mustRead("webos/service/single-playback-profile.js")},
- {"single-registered-profile", mustRead("webos/service/single-registered-profile.js")},
- {"network-diagnostic", mustRead("webos/service/network-diagnostic.js")},
+		{"single-playback-profile", mustRead("webos/service/single-playback-profile.js")},
+		{"single-registered-profile", mustRead("webos/service/single-registered-profile.js")},
+		{"network-diagnostic", mustRead("webos/service/network-diagnostic.js")},
 		{"device-pure", pure("webos/service/account.js", strings.Fields("trim str validID fail parseExactJSON uuid device appQuery sortedQuery le32 protocolDevicePayload deviceKey ttEncrypt ttDecrypt"), "var crypto=require('crypto'),zlib=require('zlib'),UA="+string(ua[1])+";")},
 		{"model-pure", pure("webos/service/provider.js", strings.Fields("trim number fail parseExactJSON bitCount base36 decodeSpade modelString modelRows asMap businessCode modelURL isByteVC2 onlyByteVC2 sameFallbackVideo fallbackCodecURL fallbackAPI playbackQuery videoTabQuery decodeModel videoTabEnvelope videoTabEnvelopeExact"), "var crypto=require('crypto');")},
 		{"resolver", mustRead("core/internal/jsresolver/source/resolver.js")},
