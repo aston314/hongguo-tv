@@ -33,6 +33,7 @@ go test -race ./core/internal/jsresolver ./core/internal/jsupdate
 node --test tests/resolver-js-bundle.test.cjs tests/playback-repair.test.cjs
 ```
 
-Android and desktop share the Go host. The legacy webOS service currently
-reports this capability as unavailable and preserves native resolution; it
-never evaluates a downloaded script in its shared Node/account process.
+Android and desktop share the Go host. webOS uses the same signed bundle in a
+separately supervised Node worker, with its original provider as fallback. It
+never executes downloaded code in the account/media service. Its actual old
+Node runtimes and LG TV behavior require distinct acceptance evidence.

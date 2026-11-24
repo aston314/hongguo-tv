@@ -20,3 +20,13 @@ hosts and newer Node versions keep their default trust configuration. Certificat
 chain, expiry and hostname validation remain enabled. If these hosts migrate to
 another CA, re-verify their chain before changing this scope. Never trust a
 certificate downloaded from an unverified connection.
+
+2026-11-24: `v26-reading-video.qznovelvod.com`,
+`v5-se2-gddgtc-reading-video.qznovelvod.com` and
+`v5-se2-jltc-reading-video.qznovelvod.com` presented verified
+`*.qznovelvod.com` leaves under RapidSSL TLS RSA CA G1 -> the same G2 root.
+The latter two used the same leaf fingerprint. Since the response rotates edge
+labels, the legacy helper covers only direct `v<digits>[-labels]-reading-video`
+hosts under qznovelvod.com, preserving certificate/hostname checks. Range and
+full-file requests use this helper; arbitrary sibling/subdomain, update-proxy
+and global trust remain unchanged.

@@ -57,9 +57,10 @@ accepted controls remain usable offline after their acceptance expiry.
 The “关闭自动修复” action turns off automatic repair; it preserves the previously
 verified download so later explicit re-enabling need not depend on network.
 No user-entered URL, account credential or server-side resolver is involved.
-The legacy webOS Node service explicitly reports `supported:false`: secure
-execution on that different runtime has not been accepted, so no ineffective
-setting is displayed and normal webOS playback is preserved.
+webOS now uses the same signed channel through a separately supervised Node
+worker, preserving the original provider as fallback. Downloaded code never
+runs in its account/media service process. See [webOS host boundaries and
+acceptance](playback-rule-webos.md); runtime checks do not certify LG hardware.
 
 ## Updating rules without packaging the app
 

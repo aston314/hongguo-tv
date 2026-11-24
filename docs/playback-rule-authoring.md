@@ -12,9 +12,9 @@
 | --- | --- | --- |
 | Android 标准版／MPV／兼容构建 | 共享 Go 宿主提供能力 | 开启后先尝试已验收的签名规则，失败保留完整原生回退 |
 | macOS／Windows／Linux 桌面版 | 共享 Go 宿主提供能力 | 同上；构建成功不代表每个平台已经实机验收 |
-| webOS | 当前未接入此更新器 | 保留自身 JS 服务；取源修复需要同步源码、测试并发布应用 |
+| webOS | 新增独立 Node 工作进程宿主，待 LG 实机验收 | 初次升级后可用相同签名规则；默认关闭，保留原有 JS provider 兜底 |
 
-webOS 本身能运行 JS，且目前 bundle 复用了它的一些纯函数。但它没有因此自动获得 Go 内的验签、受限宿主与运行时隔离。不要在其共享 Node／账号进程里直接执行下载脚本来冒充适配完成。
+webOS 通过独立 Node 工作进程接入相同规则文件、信任锚和更新通道，并非使用 Goja。私有字节适配层处理旧 Buffer／SM3 差异，协议签名仍在下载规则中。禁止在共享账号／媒体进程内执行下载代码。进程、内存与信任边界见 [webOS 宿主说明](playback-rule-webos.md)。
 
 规则分发只使用公开发布仓库中的静态清单和 JS；执行及上游请求发生在用户本机，不需要解析服务器或 Worker。下载规则经过已有代理与直连；代理不是取播放地址的远程解析服务。
 
@@ -48,7 +48,7 @@ go run ./scripts/resolver_js_codegen -check
 
 生成器只打包白名单模块，且从 `account.js`／`provider.js` 提取指定纯函数；不得把完整账号、存储或播放器模块塞入 bundle。它还生成 `sm3_generated.go`，来源为现有标准 SM3 原语，而非将上游签名算法转回 Go。
 
-复用模块修改会同时影响 webOS 源码，必须验证其真实旧 Node 运行时兼容性。只改 JS 专用编排则不会自动修复 webOS；需要明确记录是否另有同步改动。
+复用模块修改会同时影响 webOS 源码，必须验证其真实旧 Node 运行时兼容性。JS 专用编排会随签名规则到达已升级且已开启的 webOS 客户端；内置 provider 不会自动改变，后续应用版本仍需同步维护。生成器还生成 webOS 的公开信任数据 `playback-rule-trust.js`，以 `-check` 防止公钥与向量漂移。
 
 ## 4. 脚本接口合同（protocol 1／host_api 1）
 
@@ -96,11 +96,11 @@ bundle 是自包含表达式，求值后返回带 `metadata`、`selfTest`、`res
 
 错误码符合 `[A-Z0-9_]{1,64}`，阶段符合 `[a-z_]{1,40}`。保留“上游空体／业务失败／超时／取消”与“脚本执行失败”的区别，避免把上游故障误判成坏脚本并回滚。不要返回原始异常、请求 URL、响应正文或账号信息。
 
-现有脚本可使用 Promise 链；Go 宿主使用同步受限 HTTP，并要求调用结束时 Promise 已完成。没有浏览器 `fetch`、定时器或通用 Node 事件循环可供脚本等待。
+现有脚本可使用 Promise 链；Go 宿主使用同步受限 HTTP，并要求调用结束时 Promise 已完成。没有浏览器 `fetch`、定时器或通用 Node 事件循环可供脚本等待。webOS 通过进程 IPC 等待受限 HTTP 的 Promise，由父进程控制总超时。
 
 ## 5. 职责与资源边界
 
-JS 负责匿名注册、请求构造、签名、模型与密钥解析、候选排序及兼容编码请求。Go 仅提供字节原语与受限网络，负责规则管理，并继续拥有媒体下载／解密／缓存、原生回退与播放器生命周期。
+JS 负责匿名注册、请求构造、签名、模型与密钥解析、候选排序及兼容编码请求。对应平台宿主只提供字节原语、受限网络与规则管理，原应用继续拥有媒体下载／解密／缓存、原生回退与播放器生命周期。
 
 当前 `__resolverHost` 只有 `hash`、`cipher`、`random`、`gzip`、`gunzip`、`http`。签名协议逻辑应留在 JS；不得通过新增 `nativeResolve`／`nativeSign` 高层入口把“热更新”变成调用旧算法的空壳。
 
@@ -130,6 +130,7 @@ go run ./scripts/resolver_js_codegen -check
 go test -race ./core/internal/jsresolver ./core/internal/jsupdate
 go test -race ./core/cmd/hongguotv -run 'TestPlaybackRepair|TestMiniReelRepair'
 node --test tests/resolver-js-bundle.test.cjs tests/playback-repair*.test.cjs tests/announcements.test.cjs
+node --test tests/webos-playback-repair.test.cjs tests/webos-legacy-runtime.test.cjs tests/webos-upstream-tls.test.cjs
 ```
 
 微基准可用 `go test ./core/internal/jsresolver -run '^$' -bench BenchmarkResolverStages -benchmem`。显式联网单样本检查可用 `HONGGUO_CURRENT_LIVE=1 go test ./core/internal/jsresolver -run '^TestCurrentJSLive$' -count=1 -v`；该测试仅证明代码中固定样本的取源情况，不是整套媒体、设备或发布验收。

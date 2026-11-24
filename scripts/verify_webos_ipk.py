@@ -103,6 +103,14 @@ def main():
         for name in ("updates.js", "update-manifest.js"):
             if service_root + "/" + name not in names:
                 fail("webOS update checker is missing from package")
+        for name in ("playback-repair.js", "playback-rule-runtime.js", "playback-rule-worker.js",
+                     "playback-rule-network.js", "playback-rule-verifier.js", "playback-rule-trust.js",
+                     "vendor/tweetnacl/nacl-fast.js", "vendor/tweetnacl/LICENSE",
+                     "vendor/bytes/browser-buffer.js", "vendor/bytes/browser-buffer.LICENSE",
+                     "vendor/bytes/base64-js.js", "vendor/bytes/base64-js.LICENSE",
+                     "vendor/bytes/ieee754.js", "vendor/bytes/ieee754.LICENSE"):
+            if service_root + "/" + name not in names:
+                fail("signed playback rule host asset is missing: " + name)
         if any(name.endswith(".test.js") for name in names):
             fail("test harness files must not be packaged")
         entry_stream = package.extractfile(service_path)

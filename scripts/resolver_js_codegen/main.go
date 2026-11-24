@@ -142,6 +142,16 @@ func main() {
 	path := "core/internal/jsresolver/resolver.js"
 	sm3 := standardSM3()
 	hashPath := "core/internal/jsresolver/sm3_generated.go"
+	key := strings.TrimSpace(string(mustRead("core/internal/jsupdate/publickey.hex")))
+	vectors := mustRead("core/internal/jsresolver/testdata/signing-v5-wire.json")
+	var wireVectors any
+	if e := json.Unmarshal(vectors, &wireVectors); e != nil {
+		panic(e)
+	}
+	compactVectors, _ := json.Marshal(wireVectors)
+	keyJSON, _ := json.Marshal(key)
+	trust := []byte("// Generated public trust data; DO NOT EDIT. No private signing material.\n'use strict';\nmodule.exports={publicKey:" + string(keyJSON) + ",vectors:" + string(compactVectors) + "};\n")
+	trustPath := "webos/service/playback-rule-trust.js"
 	if *check {
 		if !bytes.Equal(mustRead(path), out.Bytes()) {
 			panic("stale JS resolver bundle; run go run ./scripts/resolver_js_codegen")
@@ -149,12 +159,18 @@ func main() {
 		if !bytes.Equal(mustRead(hashPath), sm3) {
 			panic("stale standard SM3 primitive")
 		}
+		if !bytes.Equal(mustRead(trustPath), trust) {
+			panic("stale webOS resolver trust data")
+		}
 		return
 	}
 	if e := os.WriteFile(hashPath, sm3, 0644); e != nil {
 		panic(e)
 	}
 	if e := os.WriteFile(path, out.Bytes(), 0644); e != nil {
+		panic(e)
+	}
+	if e := os.WriteFile(trustPath, trust, 0644); e != nil {
 		panic(e)
 	}
 	fmt.Printf("Bundled %d playback modules, %d bytes\n", len(modules), out.Len())

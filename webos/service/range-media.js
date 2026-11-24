@@ -89,13 +89,13 @@ function requestRange(target, start, end, etag, redirects, timeout, signal, dead
       reject(error);
     }
     try {
-      request = transport.request({
+      request = transport.request(require('./upstream-tls')({
         protocol: parsed.protocol,
         hostname: parsed.hostname,
         port: parsed.port || (parsed.protocol === 'http:' ? 80 : 443),
         path: parsed.path || '/',
         method: 'GET', headers: headers, timeout: Number(timeout) > 0 ? Number(timeout) : REQUEST_TIMEOUT
-      });
+      }));
     } catch (error) { reject(error); return; }
     if (signal) signal.addEventListener('abort', aborted);
     timer = setTimeout(function () { rejectRequest(fail('媒体 Range 请求超时', 'RANGE_TIMEOUT')); request.destroy(); }, Math.max(1, deadline - Date.now()));
