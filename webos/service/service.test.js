@@ -73,7 +73,7 @@ account.recommend = function (query) {
   return Promise.resolve({ items: [{ series_id: '45', title: '追更剧' }], channel: query.channel });
 };
 var numberInput = createNumberInput({ selectIP: function () { return '127.0.0.1'; }, ttl: 30000 });
-var service = createService({ service: luna, provider: provider, account: account, numberInput: numberInput, port: 0,
+var service = createService({ announcements: {active:function(){return Promise.resolve([]);}}, service: luna, provider: provider, account: account, numberInput: numberInput, port: 0,
   updates: { check: function () { updateChecks++; return Promise.resolve({ schema: 1, platform: 'webos', version_name: '0.2.118' }); } } });
 var registry = require('./services.json');
 

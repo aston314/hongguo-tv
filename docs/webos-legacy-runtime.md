@@ -54,3 +54,10 @@ bash scripts/verify_webos.sh
 
 These checks do not replace installation and playback verification on an actual
 LG webOS 4 TV. They do not assert that every HTTPS/media host has a G2 chain.
+
+2026-11-24 follow-up: the original six-host API fix remains in place. Real media
+tests found the same missing G2 root on rotating `qznovelvod.com` reading-video CDN hosts, and Range
+requests did not yet call the scoped helper. Three concrete edges and their wildcard leaves were verified
+through current Node TLS with hostname/chain verification enabled, then the narrowly matched direct reading-video host family was added to
+the scope; Range now uses the same helper as the existing full-file path. This
+does not disable TLS checks or extend trust to all CDN hosts.

@@ -24,6 +24,7 @@
   var createMediaCache = require('./media-cache');
   var audioMedia = require('./audio-media');
   var audioRange = require('./audio-range'), audioCancel = require('./audio-cancel');
+  var playbackRepair = null;
 
   var API_BASE = 'https://api5-normal-sinfonlineb.fqnovel.com';
   var WEB_BASE = 'https://hongguoduanju.com';
@@ -941,6 +942,22 @@
     if (signal && signal.aborted || playbackIdentityClosed) return Promise.reject(preparationCancelled());
     if (!state.plan) state.plan = sourceMemory.plan('');
     state.cursor = state.cursor || 0;
+    if (!state.repairTried) {
+      state.repairTried = true;
+      if (playbackRepair) {
+        var repairStarted = Date.now();
+        var repairFinished = function () { state.resolveSpent = (state.resolveSpent || 0) + Date.now() - repairStarted; };
+        return playbackRepair.resolve({vid:vid,codec_mode:'default',content_type:String(retry.contentType || '1004')},signal).then(function(options){
+          repairFinished();
+          if(signal&&signal.aborted||playbackIdentityClosed)throw preparationCancelled();
+          if(options&&options.length){state.source='repair';return options;}
+          return videoOptions(vid,signal,retry);
+        },function(error){
+          repairFinished();if(signal&&signal.aborted||playbackIdentityClosed)throw preparationCancelled();
+          return videoOptions(vid,signal,retry);
+        });
+      }
+    }
     if (state.cursor >= state.plan.order.length && !state.singleLegacyPending && !state.multiLegacyPending) return Promise.reject(state.lastError || fail('片源已尝试完毕',502,'VIDEO_MODEL_NO_QUALITY'));
     var legacyOnly=!!(state.singleLegacyPending || state.multiLegacyPending);
     var provider = state.multiLegacyPending ? 'multi_video_model' : state.singleLegacyPending ? 'video_model' : state.plan.order[state.cursor], single = provider === 'video_model';
@@ -1268,9 +1285,15 @@
       if (record.resolveCancel.signal.aborted) throw preparationCancelled();
       var provider = record.identityState.source;
       function rememberReady() {
-        if (!playbackIdentityClosed && !record.resolveCancel.signal.aborted) record.identityState.plan.observe(provider,true);
+        if (provider !== 'repair' && !playbackIdentityClosed && !record.resolveCancel.signal.aborted) record.identityState.plan.observe(provider,true);
       }
-      var selected = choose(options, quality, fallback);
+      var selected;
+      try { selected = choose(options, quality, fallback); }
+      catch (error) {
+        if(provider !== 'repair')throw error;
+        return videoOptions(vid,record.resolveCancel.signal,{identityState:record.identityState,contentType:contentType,startedAt:resolveStartedAt,onDiagnostic:diagnostic,allowRetry:foregroundWaiting}).then(prepareOptions);
+      }
+      record.report.media_resolver = provider === 'repair' ? 'signed-js' : 'native';
       var qualities = options.map(function (x) { return x.quality; }).filter(Boolean);
       function prepareFull(rangeError) {
         record.report.media_mode = 'full';
@@ -1384,7 +1407,7 @@
     function recoverMedia(error) {
       if (record.resolveCancel.signal.aborted) throw preparationCancelled();
       if (!mediaSourceFallbackAllowed(error)) throw error;
-      record.identityState.plan.observe(record.identityState.source,false);
+      if(record.identityState.source !== 'repair')record.identityState.plan.observe(record.identityState.source,false);
       if (record.identityState.cursor >= record.identityState.plan.order.length && !record.identityState.singleLegacyPending && !record.identityState.multiLegacyPending) throw error;
       record.identityState.lastError = fail('原片源媒体不可用',502,'VIDEO_MODEL_MISSING');
       return videoOptions(vid,record.resolveCancel.signal,{identityState:record.identityState,contentType:contentType,startedAt:resolveStartedAt,onDiagnostic:diagnostic,allowRetry:foregroundWaiting}).then(prepareOptions);
@@ -2300,6 +2323,7 @@
     suggestions: suggestions, searchDiscovery: searchDiscovery, actorWorks: actorWorks, engagement: engagement, discussion: discussion, replies: replies,
     radar: radar, library: library, changeLibrary: changeLibrary,
     dataDirectory: dataDirectory,
+    setPlaybackRepair: function (repair) { playbackRepair = repair; },
     startCache: function () {
       // Luna may wake the same JS Service instance after shutdown, without
       // restarting its process. Never leave its playback identity closed.

@@ -97,7 +97,7 @@ NODE
 "$node_bin" "$repo_dir/webos/service/account.test.js"
 "$node_bin" --test "$repo_dir/webos/service/account-scan.test.js"
 "$node_bin" "$repo_dir/webos/service/service-entry.test.js"
-"$node_bin" --test "$repo_dir/tests/webos-legacy-runtime.test.cjs" "$repo_dir/tests/webos-upstream-tls.test.cjs"
+"$node_bin" --test "$repo_dir/tests/webos-legacy-runtime.test.cjs" "$repo_dir/tests/webos-upstream-tls.test.cjs" "$repo_dir/tests/webos-playback-repair.test.cjs"
 "$node_bin" --test "$repo_dir/tests/webos-single-player-prefetch.test.cjs" "$repo_dir/tests/webos-range-head-cache.test.cjs" "$repo_dir/tests/next-episode-transition.test.cjs"
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/hongguo-webos-verify.XXXXXX")
@@ -128,7 +128,7 @@ function verifyServiceFiles(directory) {
   });
 }
 verifyServiceFiles(path.join(root, 'service'));
-['runtime-compat.js', 'upstream-tls.js', 'certs/digicert-global-root-g2.pem'].forEach(function (file) {
+['runtime-compat.js', 'upstream-tls.js', 'certs/digicert-global-root-g2.pem', 'playback-repair.js', 'playback-rule-verifier.js', 'playback-rule-runtime.js', 'playback-rule-worker.js', 'playback-rule-network.js', 'playback-rule-trust.js', 'vendor/tweetnacl/nacl-fast.js', 'vendor/tweetnacl/LICENSE', 'vendor/bytes/browser-buffer.js', 'vendor/bytes/browser-buffer.LICENSE', 'vendor/bytes/base64-js.js', 'vendor/bytes/base64-js.LICENSE', 'vendor/bytes/ieee754.js', 'vendor/bytes/ieee754.LICENSE'].forEach(function (file) {
   if (!fs.readFileSync(path.join(root, 'service', file)).equals(fs.readFileSync(path.join(source, 'webos/service', file)))) throw new Error('legacy runtime asset missing or changed in staged service: ' + file);
 });
 var app = JSON.parse(fs.readFileSync(path.join(root, 'app', 'appinfo.json'), 'utf8'));

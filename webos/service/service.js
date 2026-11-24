@@ -21,6 +21,11 @@
     var numberInput = options.numberInput || require('./number-input')();
     var phoneSearch = options.phoneSearch || require('./phone-search')({dataDir:provider.dataDirectory ? provider.dataDirectory() : process.env.HONGGUO_WEBOS_DATA_DIR});
     var updates = options.updates || require('./updates')();
+    var announcements = options.announcements || require('./announcements')();
+    var repair = options.playbackRepair || (provider.setPlaybackRepair ? require('./playback-repair')({dataDir:provider.dataDirectory()}) : {
+      start:function(){},close:function(){return Promise.resolve();},status:function(){return {supported:false,enabled:false,checking:false,source:'native',event:'unsupported',change:0};}
+    });
+    if(provider.setPlaybackRepair)provider.setPlaybackRepair(repair);
     var port = options.port === undefined ? Number(process.env.HONGGUO_WEBOS_PORT) || DEFAULT_PORT : options.port;
     var bindHost = options.bindHost || process.env.HONGGUO_WEBOS_BIND_HOST || '127.0.0.1';
     var server = null;
@@ -144,6 +149,22 @@
     function handleProvider(req, res, pathName) {
       var q = query(req);
       if (!supportedMethod(req)) return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
+      if (pathName === '/api/v1/announcements') {
+        if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
+        return announcements.active(String(q.platform || 'webos'), String(q.version || '')).then(function(items){data(req,res,{items:items});},function(){data(req,res,{items:[]});});
+      }
+      if (pathName === '/api/v1/playback/repair') {
+        if(req.method==='GET'||req.method==='HEAD')return data(req,res,repair.status());
+        if(req.method!=='POST')return json(res,405,{ok:false,error:'METHOD_NOT_ALLOWED'},req);
+        var origin=req.headers.origin,peer=String(req.socket&&req.socket.remoteAddress||''),host=String(req.headers.host||'');
+        if(!/^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(peer)||['127.0.0.1:'+port,'localhost:'+port,'[::1]:'+port].indexOf(host)<0||origin&&origin!=='null'&&origin!=='http://127.0.0.1:'+port||String(req.headers['content-type']||'').split(';')[0].trim()!=='application/json')return json(res,403,{ok:false,error:'REPAIR_LOCAL_REQUEST_REQUIRED'},req);
+        return bodyJSON(req,1024).then(function(body){
+          if(!repair.setEnabled)return json(res,409,{ok:false,error:'REPAIR_UNSUPPORTED'},req);
+          if(['enable','disable','restore','check'].indexOf(body.action)<0)return json(res,400,{ok:false,error:'REPAIR_ACTION_INVALID'},req);
+          if(body.action==='check')repair.check();else repair.setEnabled(body.action==='enable');
+          data(req,res,repair.status());
+        }).catch(function(){json(res,500,{ok:false,error:'REPAIR_SETTING_FAILED'},req);});
+      }
       if (pathName === '/api/v1/webos/update') {
         if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
         return updates.check().then(function (result) { data(req, res, result); }, function (error) { failure(req, res, error); });
@@ -424,6 +445,7 @@
     }
 
     function ensureReady() {
+      repair.start();
       // Storage failure should be reported by playback, without taking down
       // search, account, and other non-media APIs.
       try { if (provider.startCache) provider.startCache(); }
@@ -458,15 +480,16 @@
     function stopServer() {
       if (account.close) account.close();
       if (provider.closeCache) provider.closeCache();
-      if (!isListening()) { server = null; return Promise.resolve(); }
+      var repairClosed = repair.close();
+      if (!isListening()) { server = null; return repairClosed; }
       var previous = server;
       server = null;
-      return new Promise(function (resolve) {
+      return Promise.all([repairClosed,new Promise(function (resolve) {
         previous.close(function (error) {
           if (error) console.error('[hongguo-webos] HTTP server close failed:', error.message || error);
           resolve();
         });
-      });
+      })]);
     }
 
     function respondWhenReady(message, includeStatus) {

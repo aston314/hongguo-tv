@@ -1214,3 +1214,22 @@ html.native-playback .hero-video { display: none !important; }
 .account-login-qr-box img { display: block; width: 100%; height: 100%; object-fit: contain; }
 .account-qr-status { min-height: 1.6em; font-size: 1.15rem; text-align: center; }
 #account-login-qr-expiry { text-align: center; }
+
+/* Playback rule repair: stable TV focus targets, no layout-changing animation. */
+.repair-card-heading { display:flex; align-items:center; justify-content:space-between; }
+.repair-card-heading h2 { margin:.35rem 0 .3rem; }
+.repair-eyebrow { color:#c9a27c; font-size:.88rem; letter-spacing:.08em; }
+.repair-badge { padding:.35rem .75rem; border:1px solid #4a4540; border-radius:2rem; color:#d9b68e; font-size:.88rem; white-space:nowrap; margin-left:1rem; }
+.repair-setting-row { display:flex; align-items:center; justify-content:space-between; padding:1.1rem 0; border-bottom:1px solid #30303a; }
+.repair-setting-row p { margin:.4rem 1.4rem 0 0; font-size:.95rem; }
+.repair-toggle { display:block; white-space:nowrap; background:#26262e; border:1px solid #45454f; border-radius:.65rem; color:#d9d9df; padding:.8rem 1rem; font:inherit; min-width:9rem; flex-shrink:0; }
+.repair-toggle-label { display:inline-block; vertical-align:middle; margin-right:.8rem; }
+.repair-switch-track { display:inline-block; vertical-align:middle; width:2.7rem; height:1.5rem; border-radius:1rem; background:#50505b; padding:.2rem; }
+.repair-switch-track>span { display:block; width:1.1rem; height:1.1rem; border-radius:50%; background:#d5d5db; }
+.repair-toggle[aria-checked="true"] .repair-switch-track { background:#bd7f4c; }
+.repair-toggle[aria-checked="true"] .repair-switch-track>span { margin-left:1.2rem; background:#fff; }
+.repair-details { display:flex; flex-wrap:wrap; padding-top:1rem; color:#b7b7c2; font-size:.95rem; }
+.repair-details>span { margin:0 1.8rem .5rem 0; }
+.repair-status { min-height:1.6em; margin:.4rem 0 1rem; }
+.repair-settings-card .app-update-actions { margin-top:.5rem; }
+.player-repair-action { min-height:3.2rem; padding:.65rem 1rem; }

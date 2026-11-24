@@ -24,9 +24,8 @@
   }
   function normalizeItem(item, now) {
     if (!item || typeof item !== 'object' || !bool(item.enabled) || !text(item.id) || !text(item.title) || isExpired(item, now)) return null;
-    var action = item.action && item.action.type === 'check_update' ? {
-      type: 'check_update', label: text(item.action.label)
-    } : null;
+    var action = item.action && ['check_update', 'repair_playback'].indexOf(item.action.type) >= 0 ? { type: item.action.type, label: text(item.action.label) } : null;
+    if (action && action.type === 'repair_playback' && typeof item.action.min_revision === 'number' && item.action.min_revision >= 1 && item.action.min_revision <= 9007199254740991 && Math.floor(item.action.min_revision) === item.action.min_revision) action.min_revision = item.action.min_revision;
     return {
       id: text(item.id), kind: text(item.kind), level: text(item.level), status: text(item.status),
       title: text(item.title), summary: text(item.summary), body: text(item.body),
@@ -44,6 +43,12 @@
     return result;
   }
 
+  function repairState(action, state) {
+    if (!state || !state.supported) return 'announcementUnsupported';
+    if (!state.enabled) return 'announcementOff';
+    if (state.checking) return 'checking';
+    return state.source === 'repair' && action && action.min_revision && state.revision >= action.min_revision ? 'announcementReady' : 'announcementPending';
+  }
   function create(options) {
     options = options || {};
     var win = options.window || (typeof window !== 'undefined' ? window : null);
@@ -55,7 +60,7 @@
         return response.json();
       });
     };
-    var items = [], pending = null;
+    var items = [], pending = null, renderedKey = null;
 
     function platform() {
       if (typeof options.platform === 'function') return text(options.platform()) || 'browser';
@@ -85,6 +90,10 @@
       var list = doc.getElementById('system-announcements');
       if (!card || !list) return;
       var visible = visibleItems();
+      var key = JSON.stringify(visible) + t('settings.announcementAcknowledge', '知道了') + t('repair.announcementAction', '更新播放解析');
+      if (key === renderedKey) { setBadge(unread()); updateRepairStatus(); return; }
+      var focused = doc.activeElement, focusID = focused && list.contains && list.contains(focused) && focused.getAttribute('data-focus');
+      renderedKey = key;
       list.innerHTML = '';
       visible.forEach(function (item) {
         var article = doc.createElement('article');
@@ -96,18 +105,33 @@
         if (item.action) {
           var action = doc.createElement('button'); action.type = 'button'; action.className = 'announcement-action account-action';
           action.dataset.action = item.action.type; action.dataset.announcementId = item.id; action.dataset.focus = 'announcement-' + item.id + '-action';
-          action.textContent = item.action.label || t('settings.announcementCheckUpdate', '检查更新'); actions.appendChild(action);
+          action.textContent = item.action.label || (item.action.type === 'repair_playback' ? t('repair.announcementAction', '更新播放解析') : t('settings.announcementCheckUpdate', '检查更新')); actions.appendChild(action);
         }
         if (item.dismissible) {
           var acknowledge = doc.createElement('button'); acknowledge.type = 'button'; acknowledge.className = 'announcement-action account-action';
           acknowledge.dataset.action = 'acknowledge'; acknowledge.dataset.announcementId = item.id; acknowledge.dataset.focus = 'announcement-' + item.id + '-ack';
           acknowledge.textContent = t('settings.announcementAcknowledge', '知道了'); actions.appendChild(acknowledge);
         }
+        if (item.action && item.action.type === 'repair_playback') { var stateLine = doc.createElement('p'); stateLine.className = 'announcement-repair-state'; stateLine.setAttribute('role', 'status'); article.appendChild(stateLine); }
         if (actions.childNodes.length) article.appendChild(actions);
         list.appendChild(article);
       });
       card.classList.toggle('is-hidden', visible.length === 0);
       setBadge(unread());
+      updateRepairStatus();
+      if (focusID && typeof options.restoreFocus === 'function') options.restoreFocus(focusID);
+    }
+    function updateRepairStatus() {
+      if (!doc || !doc.querySelectorAll) return;
+      var state = typeof options.repairStatus === 'function' ? options.repairStatus() : null;
+      var cards = doc.querySelectorAll('[data-announcement-id]');
+      Array.prototype.forEach.call(cards, function (article) {
+        var line = article.querySelector('.announcement-repair-state'); if (!line) return;
+        var id = article.getAttribute('data-announcement-id'), item = items.filter(function (v) { return v.id === id; })[0];
+        if (!item || !item.action) return;
+        var key = repairState(item.action, state);
+        var value = t('repair.' + key, key); if (line.textContent !== value) line.textContent = value;
+      });
     }
     function acknowledge(id) {
       id = text(id); if (!id) return;
@@ -115,6 +139,10 @@
     }
     function handle(action, id) {
       if (action === 'acknowledge') { acknowledge(id); return true; }
+      if (action === 'repair_playback') {
+        if (typeof options.repairPlayback === 'function') options.repairPlayback();
+        return true;
+      }
       if (action === 'check_update') {
         if (typeof options.checkUpdate === 'function') options.checkUpdate();
         return true;
@@ -134,8 +162,8 @@
       var action = event.target && event.target.closest && event.target.closest('.announcement-action');
       if (action) handle(action.dataset.action, action.dataset.announcementId);
     });
-    return { refresh: refresh, render: render, acknowledge: acknowledge, handle: handle, unread: unread, items: function () { return items.slice(); } };
+    return { updateRepairStatus: updateRepairStatus, refresh: refresh, render: render, acknowledge: acknowledge, handle: handle, unread: unread, items: function () { return items.slice(); } };
   }
 
-  return { create: create, normalize: normalize, normalizeItem: normalizeItem };
+  return { repairState:repairState, create: create, normalize: normalize, normalizeItem: normalizeItem };
 }));

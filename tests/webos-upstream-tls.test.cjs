@@ -18,7 +18,7 @@ test('legacy CA matches official DigiCert fingerprint; domain and runtime scope 
   assert.equal(x509.fingerprint256.replaceAll(':', ''), 'CB3CCBB76031E5E0138F8DD39A23F9DE47FFC35E43C1144CEA27D46A5AB1CB5F');
   assert(x509.ca && x509.verify(x509.publicKey));
   const legacy = policy('0.12.2');
-  for (const hostname of ['api5-normal-sinfonlineb.fqnovel.com', 'api5-normal-sinfonlinea.fqnovel.com', 'api5-normal-hl.fqnovel.com', 'api5-normal-lq.fqnovel.com', 'log.snssdk.com', 'hongguoduanju.com']) {
+  for (const hostname of ['api5-normal-sinfonlineb.fqnovel.com', 'api5-normal-sinfonlinea.fqnovel.com', 'api5-normal-hl.fqnovel.com', 'api5-normal-lq.fqnovel.com', 'log.snssdk.com', 'hongguoduanju.com', 'v26-reading-video.qznovelvod.com', 'v5-se2-gddgtc-reading-video.qznovelvod.com', 'v5-se2-jltc-reading-video.qznovelvod.com']) {
     const original = { protocol: 'https:', hostname, path: '/private?token=secret', headers: { Cookie: 'synthetic' } };
     const next = legacy(original);
     assert.equal(next.ca[0], cert); assert.equal(next.rejectUnauthorized, true);
@@ -27,7 +27,7 @@ test('legacy CA matches official DigiCert fingerprint; domain and runtime scope 
     for (const version of ['8.12.0', '20.0.0', process.versions.node]) assert.equal(policy(version)(original), original);
     const plain = { ...original, protocol: 'http:' }; assert.equal(legacy(plain), plain);
   }
-  for (const hostname of ['api5-normal-sinfonlineb.fqnovel.com.evil.invalid', 'sub.hongguoduanju.com', 'raw.githubusercontent.com', 'gh-proxy.com', '127.0.0.1']) {
+  for (const hostname of ['api5-normal-sinfonlineb.fqnovel.com.evil.invalid', 'sub.hongguoduanju.com', 'v26-reading-video.qznovelvod.com.evil.invalid', 'sub.v26-reading-video.qznovelvod.com', 'account.qznovelvod.com', 'raw.githubusercontent.com', 'gh-proxy.com', '127.0.0.1']) {
     const original = { protocol: 'https:', hostname }; assert.equal(legacy(original), original);
   }
 });

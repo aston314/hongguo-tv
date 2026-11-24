@@ -28,3 +28,22 @@ synthetic input. They contain no registered production identity, account
 credential, media address, or content key. The wire fixture fixes the process
 clock at `1800000000000`, process nonce at `synthetic`, and random words at
 `0x80000000`, covering all four timestamp-dependent carrier branches.
+
+
+## Local playback resolver host
+
+The optional local JS host uses Goja, goja_nodejs and their reachable dependencies.
+Their license texts are included in `core/cmd/hongguotv/ui/third-party-licenses.txt`
+and are embedded in the distributed core. The generated bundle in
+`core/internal/jsresolver/resolver.js` retains the signing ports and attribution
+described above. Its corresponding source is the allowlisted modules and
+`scripts/resolver_js_codegen/main.go`.
+
+## webOS signed rule worker
+
+Ed25519 verification uses TweetNaCl.js 1.0.3 (Unlicense). The private legacy byte
+adapter uses buffer 4.9.2 and base64-js 1.5.1 (MIT), and ieee754 1.2.1
+(BSD-3-Clause). Published npm distributions were integrity-checked before
+vendoring. Copies, full licenses and provenance under `webos/service/vendor/`
+ship in the IPK. Only buffer dependency paths and its Array.isArray adapter are
+changed; the cryptographic implementation is not modified.
