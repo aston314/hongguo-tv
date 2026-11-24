@@ -102,3 +102,85 @@ turn arbitrary author-signed JS into a memory-isolated process. Offline clients
 cannot receive a new disable until a successful check. Self-tests do not prove
 upstream availability. A script requiring a new host capability still needs an
 app release. Long-duration/low-end/multiplatform rollout remains unaccepted.
+
+## Executed device results
+
+Final tested runtime commit: `9f5106f3107a4458584a8046953cb5ef9eb57456`.
+[Dedicated CI build/lint](https://github.com/aston314/hongguo-tv/actions/runs/45318858206)
+and [Android 5 compatibility CI](https://github.com/aston314/hongguo-tv/actions/runs/45318858173)
+succeeded. The latter is a baseline CI result, not an Android 5 acceptance of
+this diagnostic APK (which remains minSdk 23). The same commit's general CI
+failed on the pre-existing webOS `/api/v1/announcements` parity assertion;
+therefore this report does not claim all CI passed.
+
+APK: 16,408,621 bytes, SHA256
+`2b6b9750206b5735cffcdc76e5ba6b28d9c56664fbe3a19461ef48b0cd070d12`.
+The APK was installed before the measured scenarios; it was never replaced
+during those scenarios. Package
+install/update timestamps and versions were identical before/after all script
+changes, restarts and internet checks. The installer handles a debug-signing-key mismatch by reinstalling only
+the isolated package before measurement, never the production application.
+
+| Observed behavior | Shield / Android 11 / arm64 | Zidoo X9S / Android 6 / arm32 |
+| --- | --- | --- |
+| Deliberately stale embedded algorithm fails, signed JS enables real playback | Pass | Pass |
+| All 15 update/fault scenarios | Pass | Pass |
+| Three local-update media samples, each actually played >10 seconds | Pass; 236 / 245 / 293 decoded frames | Pass; changing screenshots, frame counters unavailable |
+| Offline restart / interrupted download retains accepted script | Pass | Pass |
+| Signed disable / offline restart / old enabled manifest replay rejection | Pass | Pass |
+| Runtime ABI fault restores verified prior script; upstream empty does not roll back | Pass | Pass |
+| Fixed GitHub manifest → existing proxies/direct → downloaded JS → media playback | Pass; >10 sec / 207 decoded frames | Pass; >10 sec / changing screenshots |
+| Internet-downloaded script restored after process restart | Pass | Pass |
+| Same APK throughout measured changes; Go child stopped after tests | Pass | Pass |
+
+The three shared media SHA256 values were identical on both devices, for
+22,013,835; 7,258,839; and 23,540,607 bytes respectively. The downloaded internet
+fixture was 90,442 bytes, version `2026.11.24.100`, SHA256
+`e716eb25d5d2e9a56755d9161c57262694f25d2ec57063cf96804b1b0c337198`.
+Both devices reached it through the real five-route transport with no local
+fixture relay active. We did not record which successful proxy/direct route
+won, so this is not a claim that every proxy was available.
+
+Zidoo's old adbd refused TCP reverse even as the only connected device. For its
+fault-injection phase only, the system's toybox netcat forwarded the app's fixed
+loopback fixture port to a temporary LAN relay restricted to that test device. Both
+relays were stopped before its internet test. No additional APK/native library,
+root setting, or permanent device configuration was installed for the relay.
+Its temporary process and children were removed after use.
+
+The lab and internet fixtures have different URL allowlists. Switching between
+these two *test modes* deliberately rejects the other channel's saved state,
+then starts from embedded before accepting the new channel's signed control.
+The observed `state_rejected` during that one mode change is expected; normal
+same-channel restart restored the accepted script. A production rollout should
+have one stable channel, not switch allowlists this way.
+
+Raw device evidence is kept locally and is deliberately excluded from the
+public repository. Reports include private network identifiers, installation
+metadata and process memory samples; publishing a test APK does not authorize
+publishing those device records. The public summary above reports acceptance
+results only. These short sessions are not a controlled JS-vs-native memory
+comparison or a long-running leak test.
+
+Screenshots were visually checked locally; old WebView counter zeros are not
+presented as zero dropped frames. Additional concurrency shutdown coverage was
+added after the APK build; it changes tests only and passed local
+`go test -race` with the runtime sources above.
+
+Reproduction helpers:
+
+- `node scripts/resolver_js_update_lab.cjs /private/path/to/disposable-key.pem`
+  serves signed local fixtures; the key must match the test-only public key.
+- `node scripts/resolver_js_update_device_study.cjs DEVICE CORE_FORWARD_PORT APK`
+  exercises all fault scenarios. `SKIP_ADB_REVERSE=1` uses a separately prepared
+  loopback relay for old adbd. Never point these scripts at a production package.
+- `node scripts/resolver_js_update_internet_study.cjs DEVICE CORE_FORWARD_PORT`
+  disables ADB reverse, uses the fixed signed GitHub fixture, actually plays
+  media, verifies restart and checks unchanged package install identity.
+- `RESOLVER_JS_EVIDENCE_DIR` selects the evidence output directory. Tests leave
+  the isolated APK installed but stop its Go child. Signing private keys are
+  deliberately not in the repository, CI, APK, or evidence reports.
+
+This completes the isolated update-mechanism experiment. It does not enable
+remote JS in the released application, validate long sessions, or complete
+Windows/Linux/webOS integration. These remain separate rollout gates.

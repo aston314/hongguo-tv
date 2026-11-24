@@ -1,5 +1,5 @@
 // Package jsupdatelab is only imported by the isolated resolverjsprobe executable.
-// It trusts a disposable lab public key and a fixed ADB-reverse loopback fixture.
+// It trusts a disposable lab public key and fixed GitHub/loopback fixtures.
 // No private key, user-entered URL, production channel or resolver server exists.
 package jsupdatelab
 

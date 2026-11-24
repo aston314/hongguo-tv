@@ -41,3 +41,11 @@ The last command checks real resolution only. Physical playback acceptance is
 recorded separately in `docs/playback-resolver-js-current-validation.md`.
 Android native libraries and the isolated APK are built in GitHub Actions;
 production update channels and installed production applications are unchanged.
+
+Signed-update continuation: see
+[`playback-resolver-js-update-validation.md`](../../../docs/playback-resolver-js-update-validation.md).
+The isolated APK now verifies downloaded local JS, preserves a verified rollback,
+and supports signed disable/replay protection. Shield and Zidoo both recovered
+real playback without APK replacement, including a real fixed GitHub fixture
+through the existing proxy/direct routes. This is experimental only; production
+native entrypoints still have no Goja/updater dependency.

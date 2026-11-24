@@ -515,3 +515,44 @@ func TestInvalidCallerInputCannotRollbackScript(t *testing.T) {
 		t.Fatal(e, l.m.Status())
 	}
 }
+
+func TestCloseCancelsUpdateWithoutAbortingCurrentResolve(t *testing.T) {
+	l := newLab(t)
+	entered, unblock := make(chan struct{}), make(chan struct{})
+	l.m.cfg.Transport = func(ctx context.Context, _ resolverwire.HTTPRequest) (resolverwire.HTTPResponse, error) {
+		close(entered)
+		select {
+		case <-unblock:
+			return resolverwire.HTTPResponse{Status: 200}, nil
+		case <-ctx.Done():
+			return resolverwire.HTTPResponse{}, ctx.Err()
+		}
+	}
+	l.offer(1, script("slow", `__resolverHost.http('GET','https://api.fqnovel.com/test',{},Buffer.from(''));`+success("slow")), "slow")
+	l.check()
+	resolveDone := make(chan error, 1)
+	go func() { _, e := l.m.Resolve(context.Background(), resolverwire.Request{VID: "123"}); resolveDone <- e }()
+	<-entered
+	l.offer(2, script("v2", success("v2")), "v2")
+	updateDone := make(chan error, 1)
+	go func() { updateDone <- l.m.Check(context.Background()) }()
+	// The updater may be fetching or waiting for the current Resolve. Either path
+	// must be cancelled by Close; the existing playback request must finish intact.
+	closeDone := make(chan error, 1)
+	go func() { closeDone <- l.m.Close(context.Background()) }()
+	select {
+	case <-resolveDone:
+		t.Fatal("Close aborted the current Resolve")
+	case <-time.After(25 * time.Millisecond):
+	}
+	close(unblock)
+	if e := <-resolveDone; e != nil {
+		t.Fatal(e)
+	}
+	if e := <-closeDone; e != nil {
+		t.Fatal(e)
+	}
+	if e := <-updateDone; e == nil {
+		t.Fatal("update committed during shutdown")
+	}
+}
