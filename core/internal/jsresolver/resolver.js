@@ -1319,9 +1319,12 @@ function register(http) {
     'x-ss-stub': crypto.createHash('md5').update(body).digest('hex').toUpperCase() };
   return http('POST', REGISTER, h, body).then(function (r) {
     if (r.status !== 200) error('DEVICE_REGISTER_HTTP');
-    var bytes = r.body;
-    if (bytes.slice(0, 6).equals(Buffer.from([0x74, 0x63, 5, 0x10, 0, 0]))) bytes = device.ttDecrypt(bytes);
-    var root = device.parseExactJSON(bytes.toString('utf8'));
+    var bytes = r.body, root;
+    try {
+      if (bytes.slice(0, 6).equals(Buffer.from([0x74, 0x63, 5, 0x10, 0, 0]))) bytes = device.ttDecrypt(bytes);
+      root = device.parseExactJSON(bytes.toString('utf8'));
+    } catch (invalidResponse) { error('DEVICE_REGISTER_INVALID'); }
+    if (!root || typeof root !== 'object' || Array.isArray(root)) error('DEVICE_REGISTER_INVALID');
     var did = device.str(root.device_id_str || root.device_id), iid = device.str(root.install_id_str || root.install_id);
     if (!device.validID(did) || !device.validID(iid) || !/[1-9]/.test(did) || !/[1-9]/.test(iid)) error('DEVICE_REGISTER_INVALID');
     var egdi = root.klink_egdi || (root.data && root.data.klink_egdi);

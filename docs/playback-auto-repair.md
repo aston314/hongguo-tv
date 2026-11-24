@@ -147,6 +147,8 @@ These network observations do not guarantee every CDN request succeeds.
 Generation checks, Go tests, resolver/updater/application race checks and 999
 Node tests passed. Tests cover complete query/activation, exact numeric IDs,
 old and new signature vectors, ByteVC2 compatibility, fallback, rule lifecycle
-and the isolated webOS worker. This does not constitute LG-device acceptance,
+and the isolated webOS worker. Malformed registration responses retain upstream
+error classification rather than identifying a healthy script as broken.
+This does not constitute LG-device acceptance,
 an expanded default rollout, or a new device memory benchmark. Raw URLs, media,
 identities and keys stay outside the repository.

@@ -83,6 +83,12 @@ test('official Kotlin vectors cover all carrier branches and gate activation on 
   const vectors=fs.readFileSync(path.join(root,'core/internal/jsresolver/testdata/signing-v5-wire.json'),'utf8');
   assert.equal(bad.selfTest(vectors),0,'new signature corruption must fail installed clients\' four-vector contract');
 });
+test('malformed anonymous registration is an upstream error, without leaking its response',async()=>{
+  const api=create(()=>{throw Error('unexpected network');});
+  for(const text of ['<html>private upstream detail</html>','null','[]','{}','{"device_id":0,"install_id":0}']){
+    await assert.rejects(api.test.official.register(()=>Promise.resolve({status:200,body:Buffer.from(text)})),e=>e.code==='DEVICE_REGISTER_INVALID'&&e.stage==='device_register'&&!e.message.includes('private'));
+  }
+});
 test('same script supports asynchronous HTTP, alternate V5 host and compatible fallback',async()=>{
   let registrations=0,models=0;const codecs=[];
   const model=codec=>({video_id:'123',video_duration:90.5,video_list:{q:{codec_type:codec,vwidth:1920,vheight:1080,definition:'1080P',main_url:'https://cdn.example/episode.mp4'}}});
