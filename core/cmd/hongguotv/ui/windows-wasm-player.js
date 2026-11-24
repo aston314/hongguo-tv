@@ -55,7 +55,8 @@
     var listeners = {}, frames = [], audioQueue = [], sources = [], callbacks = {}, callbackID = 0;
     var worker = null, context = null, canvas = null, paint = null, mode = 'default', source = '', sourceCodec = '';
     var generation = 0, frameLoop = 0, clockTimer = 0, lastTimeEvent = 0, seekTarget = 0, first = true, inputEnd = false;
-    var anchor = null, anchorPTS = 0, scheduledUntil = 0, requestedPlay = false;
+    var anchor = null, anchorPTS = 0, scheduledUntil = 0, nextAudioPTS = null, requestedPlay = false;
+    var audioRate = 0, audioReady = null, resolveAudio = null;
     var state = { currentTime: 0, duration: NaN, paused: true, ended: false, seeking: false, readyState: 0, networkState: 0, videoWidth: 0, videoHeight: 0, volume: dom.volume, muted: dom.muted, playbackRate: dom.playbackRate || 1, error: null, audio: false };
     var stats = { decoded: 0, presented: 0, dropped: 0, decodeMs: 0, lastPTS: 0, avsync: 0 };
     function isWasm() { return mode === 'wasm'; }
@@ -65,10 +66,12 @@
     function release(frame) { if (frame) send({ type: 'credit' }); }
     function stopAudio() {
       sources.forEach(function (node) { try { node.stop(); } catch (_) {} }); sources = [];
-      audioQueue = []; scheduledUntil = 0; anchor = null;
+      audioQueue = []; scheduledUntil = 0; nextAudioPTS = null; anchor = null;
     }
+    function settleAudio(value) { var resolve = resolveAudio; resolveAudio = null; if (resolve) resolve(value); }
     function stop() {
       generation++; requestedPlay = false;
+      settleAudio(null); audioReady = null; audioRate = 0;
       if (worker) worker.terminate(); worker = null;
       if (frameLoop) win.cancelAnimationFrame(frameLoop); frameLoop = 0;
       if (clockTimer) win.clearInterval(clockTimer); clockTimer = 0;
@@ -82,6 +85,7 @@
       requestedPlay = false; state.paused = true; state.networkState = 3;
       state.error = { code: code === 'network' ? 2 : code === 'codec' ? 4 : 3,
         message: text(code === 'codec' ? 'settings.windowsWasmUnsupported' : 'settings.windowsWasmFailed', code === 'codec' ? '此编码暂不支持 CPU 软解，请切回默认播放。' : 'CPU 软解未能播放，请重试或切回默认播放。') };
+      settleAudio(null);
       if (worker) worker.terminate(); worker = null;
       stopAudio(); if (context) context.suspend().catch(function () {});
       emit('error');
@@ -92,20 +96,28 @@
     }
     function audioVolume() { if (context && context.hgGain) context.hgGain.gain.value = state.muted ? 0 : state.volume; }
     function scheduleAudio(chunk) {
+      if (chunk.sampleRate !== audioRate || !Number.isFinite(chunk.pts)) { error('decode'); return; }
       if (anchor === null || state.paused) { audioQueue.push(chunk); return; }
-      var data = new Float32Array(chunk.data), skip = Math.max(0, Math.ceil((seekTarget - chunk.pts) * 48000));
+      // Floating-point PTS subtraction must not discard an extra whole sample.
+      var data = new Float32Array(chunk.data), skip = Math.max(0, Math.ceil((seekTarget - chunk.pts) * audioRate - 1e-7));
       if (skip >= chunk.samples) return;
-      var buffer = context.createBuffer(2, chunk.samples - skip, 48000);
+      var buffer = context.createBuffer(2, chunk.samples - skip, audioRate);
       for (var channel = 0; channel < 2; channel++) { var out = buffer.getChannelData(channel); for (var i = skip; i < chunk.samples; i++) out[i - skip] = data[i * 2 + channel]; }
-      var when = anchor + (chunk.pts + skip / 48000 - anchorPTS) / state.playbackRate;
+      var startPTS = chunk.pts + skip / audioRate;
+      // Join ordinary frame boundaries by sample count, tolerating timestamp
+      // rounding. Retain first-PTS offsets and real gaps/discontinuities.
+      var contiguous = nextAudioPTS !== null && Math.abs(startPTS - nextAudioPTS) <= Math.max(2 / audioRate, .001);
+      var when = contiguous ? scheduledUntil : anchor + (startPTS - anchorPTS) / state.playbackRate;
       var offset = Math.max(0, (context.currentTime - when) * state.playbackRate);
       if (offset >= buffer.duration) return;
       var node = context.createBufferSource(); node.buffer = buffer; node.playbackRate.value = state.playbackRate; node.connect(context.hgGain);
       sources.push(node); node.onended = function () { var i = sources.indexOf(node); if (i >= 0) sources.splice(i, 1); };
-      node.start(Math.max(context.currentTime, when), offset); scheduledUntil = Math.max(scheduledUntil, when + buffer.duration / state.playbackRate);
+      node.start(Math.max(context.currentTime, when), offset);
+      scheduledUntil = when + buffer.duration / state.playbackRate;
+      nextAudioPTS = (contiguous ? nextAudioPTS : startPTS) + buffer.duration;
     }
     function startClock() {
-      if (anchor !== null || state.paused || !frames.length || state.audio && !audioQueue.length) return;
+      if (!context || anchor !== null || state.paused || !frames.length || state.audio && !audioQueue.length) return;
       anchorPTS = seekTarget; anchor = context.currentTime + .10;
       var queue = audioQueue; audioQueue = []; queue.forEach(scheduleAudio);
     }
@@ -146,21 +158,33 @@
       var playing = requestedPlay;
       stop(); requestedPlay = playing; mode = 'wasm';
       seekTarget = Math.max(0, Number(at) || 0); state.currentTime = seekTarget; state.error = null; state.ended = false; state.readyState = 0; state.networkState = 2; first = true; inputEnd = false;
-      state.paused = !requestedPlay; anchor = null;
+      state.paused = !requestedPlay; state.audio = false; anchor = null;
+      audioReady = new Promise(function (resolve) { resolveAudio = resolve; });
       stats = { decoded: 0, presented: 0, dropped: 0, decodeMs: 0, lastPTS: seekTarget, avsync: 0 };
       try {
         if (/^(bytevc2|bvc2)$/i.test(sourceCodec)) { error('codec'); return; }
-        context = new (win.AudioContext || win.webkitAudioContext)({ sampleRate: 48000 });
-        context.hgGain = context.createGain(); context.hgGain.connect(context.destination); audioVolume();
-        if (state.paused) context.suspend().catch(function () {}); else context.resume().catch(function () {});
         canvas = doc.createElement('canvas'); canvas.className = dom.className + ' windows-wasm-picture'; canvas.setAttribute('aria-hidden', 'true');
         dom.parentNode.insertBefore(canvas, dom.nextSibling); dom.style.display = 'none'; paint = renderer(canvas);
         worker = new win.Worker('/windows-wasm-worker.js');
         var observed = generation;
         worker.onerror = function () { if (observed === generation) error('decode'); };
         worker.onmessage = function (event) {
-          var value = event.data; if (observed !== generation || value.generation !== generation) return;
-          if (value.type === 'meta') { state.videoWidth = value.width; state.videoHeight = value.height; state.duration = value.duration; state.audio = value.audio; state.readyState = 1; emit('loadedmetadata'); emit('durationchange'); }
+          var value = event.data; if (observed !== generation || value.generation !== generation || state.error) return;
+          if (value.type === 'meta') {
+            if (context) return;
+            state.videoWidth = value.width; state.videoHeight = value.height; state.duration = value.duration; state.audio = value.audio;
+            audioRate = state.audio ? value.sampleRate : 0;
+            if (state.audio && (!Number.isInteger(audioRate) || audioRate <= 0)) { error('decode'); return; }
+            try {
+              // Metadata arrives before PCM. Create exactly one context using
+              // the source rate, rather than opening a fixed-rate context and
+              // replacing it after a user's play gesture.
+              context = new (win.AudioContext || win.webkitAudioContext)(state.audio ? { sampleRate: audioRate } : undefined);
+              context.hgGain = context.createGain(); context.hgGain.connect(context.destination); audioVolume();
+              if (state.paused) context.suspend().catch(function () {}); else context.resume().catch(function () {});
+            } catch (_) { error('open'); return; }
+            settleAudio(context); state.readyState = 1; emit('loadedmetadata'); emit('durationchange');
+          }
           else if (value.type === 'video') { stats.decoded++; stats.decodeMs += value.decodeMs; if (value.pts < seekTarget - .04) release(value); else frames.push(value); }
           else if (value.type === 'audio') scheduleAudio(value);
           else if (value.type === 'end') inputEnd = true;
@@ -186,19 +210,23 @@
         if (state.error) return Promise.reject(Error(state.error.message));
         requestedPlay = true; state.paused = false; state.ended = false;
         if (!worker) open(state.currentTime);
-        if (!context) return Promise.reject(Error('WASM unavailable'));
-        var observed = generation, audio = context, timeout;
-        var resumed = audio.resume().then(function () { return true; });
-        var blocked = new Promise(function (resolve) { timeout = win.setTimeout(function () { resolve(false); }, 500); });
-        return Promise.race([resumed, blocked]).then(function (running) {
-          win.clearTimeout(timeout);
+        var observed = generation;
+        return Promise.resolve(context || audioReady).then(function (audio) {
+          if (observed === generation && state.error) throw Error(state.error.message);
           if (observed !== generation || !requestedPlay) { var aborted = Error('Playback replaced or paused'); aborted.name = 'AbortError'; throw aborted; }
-          if (!running || audio.state !== 'running') {
-            state.paused = true; requestedPlay = false; send({ type: 'pause' }); emit('pause');
-            var denied = Error('Playback requires a user gesture'); denied.name = 'NotAllowedError'; throw denied;
-          }
-          send({ type: 'resume' }); emit('play'); if (!first && state.readyState >= 2) emit('playing'); if (!frameLoop) frameLoop = win.requestAnimationFrame(draw);
-        }, function (error) { win.clearTimeout(timeout); throw error; });
+          if (!audio || state.error) throw Error(state.error ? state.error.message : 'WASM unavailable');
+          var timeout, resumed = audio.resume().then(function () { return true; });
+          var blocked = new Promise(function (resolve) { timeout = win.setTimeout(function () { resolve(false); }, 500); });
+          return Promise.race([resumed, blocked]).then(function (running) {
+            win.clearTimeout(timeout);
+            if (observed !== generation || !requestedPlay) { var aborted = Error('Playback replaced or paused'); aborted.name = 'AbortError'; throw aborted; }
+            if (!running || audio.state !== 'running') {
+              state.paused = true; requestedPlay = false; send({ type: 'pause' }); emit('pause');
+              var denied = Error('Playback requires a user gesture'); denied.name = 'NotAllowedError'; throw denied;
+            }
+            send({ type: 'resume' }); emit('play'); if (!first && state.readyState >= 2) emit('playing'); if (!frameLoop) frameLoop = win.requestAnimationFrame(draw);
+          }, function (error) { win.clearTimeout(timeout); throw error; });
+        });
       },
       pause: function () { if (!isWasm()) return dom.pause(); state.currentTime = time(); state.paused = true; requestedPlay = false; if (context) context.suspend().catch(function () {}); send({ type: 'pause' }); emit('pause'); },
       setSourceCodec: function (value) { sourceCodec = String(value || ''); if (isWasm() && /^(bytevc2|bvc2)$/i.test(sourceCodec)) error('codec'); },
@@ -242,7 +270,7 @@
       nativeDiagnostics: function () { return isWasm() ? { engine: 'wasm', video_codec: sourceCodec, video_width: state.videoWidth, video_height: state.videoHeight, frame_drop_count: stats.dropped, avsync: stats.avsync } : {}; }
     };
     win.addEventListener('pagehide', stop);
-    var settings = { mode: function () { return preference(win.localStorage); }, choose: function (value) { return choose(win.localStorage, value); }, current: function () { return mode; }, diagnostics: function () { return Object.assign({ mode: mode, audioContext: context && context.state, queuedVideo: frames.length, queuedAudio: audioQueue.length, workers: worker ? 1 : 0 }, stats); } };
+    var settings = { mode: function () { return preference(win.localStorage); }, choose: function (value) { return choose(win.localStorage, value); }, current: function () { return mode; }, diagnostics: function () { return Object.assign({ mode: mode, audioContext: context && context.state, audioSampleRate: audioRate, audioContextSampleRate: context && context.sampleRate, queuedVideo: frames.length, queuedAudio: audioQueue.length, workers: worker ? 1 : 0 }, stats); } };
     win.HongguoWindowsDecoder = settings;
     return settings;
   }
