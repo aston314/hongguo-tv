@@ -1,6 +1,7 @@
 'use strict';
 const fs=require('node:fs'),cp=require('node:child_process');
 const evidenceRoot=process.env.RESOLVER_JS_EVIDENCE_DIR||'/tmp/hongguo-js-update-lab';fs.mkdirSync(evidenceRoot,{recursive:true});
+const expectedRevision=Number(process.env.RESOLVER_JS_EXPECT_REVISION||101);
 const serial=process.argv[2],port=Number(process.argv[3]),pkg='rocks.aston.hongguoresolverjsdiag';
 function adb(...a){return cp.execFileSync('adb',['-P','5038','-s',serial,...a],{encoding:'utf8',timeout:30000}).trim();}
 const shell=s=>adb('shell',s),pause=ms=>new Promise(r=>setTimeout(r,ms));
@@ -16,7 +17,7 @@ async function launch(){
   await pause(500);
   if(first){const logs=adb('logcat','-d','-s','ResolverJSProbe:I','*:S'),ports=[...logs.matchAll(/HONGGUO_TV_READY (\d+) resolver-js-current/g)];if(!ports.length)continue;adb('forward','tcp:'+port,'tcp:'+ports.at(-1)[1]);}
   try{const h=await json('/health',undefined,1500);first=false;if(!evidence.health.length||evidence.health.at(-1).update.event!==h.update.event){evidence.health.push(h);save();console.log(serial,'INTERNET',h.update);}
-  if(h.update.source==='downloaded'&&h.update.version==='2026.11.24.100')return h;
+  if(h.update.source==='downloaded'&&h.update.version==='2026.11.24.100'&&h.update.revision===expectedRevision)return h;
   if(h.update.event==='update_unavailable')throw Error('internet automatic update unavailable');
   }catch(e){if(String(e).includes('automatic update'))throw e;}
  }

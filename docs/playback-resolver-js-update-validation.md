@@ -184,3 +184,41 @@ Reproduction helpers:
 This completes the isolated update-mechanism experiment. It does not enable
 remote JS in the released application, validate long sessions, or complete
 Windows/Linux/webOS integration. These remain separate rollout gates.
+
+## Distribution repository migration
+
+The original `9f5106f` internet test used a temporary source-repository branch.
+To allow that source repository to become private independently, the signed
+files were mirrored to the public release repository at:
+
+- `https://raw.githubusercontent.com/aston314/hongguo-tv-releases/main/experimental/resolver-js/manifest.json`
+- `https://raw.githubusercontent.com/aston314/hongguo-tv-releases/main/experimental/resolver-js/resolver.js`
+
+Release repository commit: `13820d1`. The script bytes and module version are
+unchanged. Because the artifact URL is signed, the manifest was re-signed with
+control revision 101. Client internet configuration now derives from the same
+release-channel root as `jsupdate.ManifestURL`; a regression check rejects the
+old source-repository path. The existing four proxies and direct fallback are
+unchanged. Neither official APK update manifests nor the latest release were
+modified. The disposable experiment key/channel remains separate from any
+future production rollout.
+
+A local probe fetched this release-repository control with the real route
+helper, verified revision 101 and the script's unchanged digest, then resolved
+real HEVC successfully.
+
+The updated test APK at `5decf12` passed
+[build and lint](https://github.com/aston314/hongguo-tv/actions/runs/45322238377).
+Its SHA256 is
+`effe884a0310aa17efef05ade2758cecbb0b03f6fec1f54521f282e6a8b86be3`.
+Both Shield and Zidoo started with the isolated package cache cleared, downloaded
+revision 101 from the release repository through the existing routes, resolved
+real HEVC, and played 1920×1080 media beyond ten seconds. Shield reported
+positive decoded frames; Zidoo's consecutive screenshots visibly changed while
+its old WebView frame counter remained unavailable. Both restored the accepted
+script after process restart, kept package installation identity unchanged
+during the script/restart checks, and stopped the test core afterwards.
+No fixture relay was involved. Raw device reports remain local. The reproduction
+helper requires revision 101 by default (`RESOLVER_JS_EXPECT_REVISION` can select
+an explicitly intended future fixture revision), preventing an old source-repo
+cache from being mistaken for migration success.
