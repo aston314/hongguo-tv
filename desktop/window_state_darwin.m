@@ -5,7 +5,24 @@
 
 static BOOL hongguoMiniAspectSaved, hongguoMiniAspectFitting, hongguoMiniAspectSuspended;
 static NSWindow *hongguoMiniAspectWindow;
-static NSSize hongguoMiniOriginalAspect, hongguoMiniVideoAspect;
+static NSSize hongguoMiniOriginalAspect, hongguoMiniOriginalIncrements, hongguoMiniVideoAspect;
+
+static void hongguoRestoreMiniAspect(NSWindow *window) {
+    // A default (0, 0) aspect is a sentinel, not a valid setter value. Passing
+    // it back to AppKit leaves zero resize increments and can trap on the next
+    // full-screen transition. Restore free resizing through its saved steps.
+    BOOL fitting = hongguoMiniAspectFitting;
+    hongguoMiniAspectFitting = YES;
+    @try {
+        if (hongguoMiniOriginalAspect.width > 0 && hongguoMiniOriginalAspect.height > 0) {
+            if (!NSEqualSizes(window.contentAspectRatio, hongguoMiniOriginalAspect))
+                window.contentAspectRatio = hongguoMiniOriginalAspect;
+        } else if (!NSEqualSizes(window.contentAspectRatio, NSZeroSize) ||
+                   !NSEqualSizes(window.contentResizeIncrements, hongguoMiniOriginalIncrements)) {
+            window.contentResizeIncrements = hongguoMiniOriginalIncrements;
+        }
+    } @finally { hongguoMiniAspectFitting = fitting; }
+}
 static void hongguoApplyMiniAspect(NSWindow *window, BOOL refit);
 
 static NSWindow *hongguoMainWindow(void) {
@@ -38,7 +55,7 @@ static void hongguoOnMain(void (^action)(void)) {
     self.hasFullscreenRestore = YES;
     self.transitioning = YES;
     if (hongguoMiniAspectSaved) {
-        window.contentAspectRatio = hongguoMiniOriginalAspect;
+        hongguoRestoreMiniAspect(window);
         hongguoMiniAspectSuspended = YES;
     }
 }
@@ -56,7 +73,7 @@ static void hongguoOnMain(void (^action)(void)) {
     if (!hongguoMiniAspectSaved || hongguoMiniAspectFitting) return;
     NSWindow *window = note.object;
     if (self.transitioning || window.isZoomed || (window.styleMask & NSWindowStyleMaskFullScreen)) {
-        window.contentAspectRatio = hongguoMiniOriginalAspect;
+        hongguoRestoreMiniAspect(window);
         hongguoMiniAspectSuspended = YES;
     } else if (hongguoMiniAspectSuspended) hongguoApplyMiniAspect(window, YES);
 }
@@ -67,7 +84,7 @@ static HongguoWindowObserver *hongguoWindowObserver;
 static void hongguoApplyMiniAspect(NSWindow *window, BOOL refit) {
     if (hongguoMiniAspectFitting || window != hongguoMiniAspectWindow) return;
     if (hongguoWindowObserver.transitioning || window.isZoomed || (window.styleMask & NSWindowStyleMaskFullScreen)) {
-        window.contentAspectRatio = hongguoMiniOriginalAspect;
+        hongguoRestoreMiniAspect(window);
         hongguoMiniAspectSuspended = YES;
         return;
     }
@@ -102,7 +119,7 @@ int hongguoSetMiniAspect(int width, int height, int refit) {
         if (width == 0 && height == 0) {
             if (hongguoMiniAspectSaved) {
                 if (!window || window != hongguoMiniAspectWindow) return;
-                window.contentAspectRatio = hongguoMiniOriginalAspect;
+                hongguoRestoreMiniAspect(window);
             }
             hongguoMiniAspectSaved = hongguoMiniAspectSuspended = NO;
             hongguoMiniAspectWindow = nil;
@@ -115,6 +132,7 @@ int hongguoSetMiniAspect(int width, int height, int refit) {
             if (!hongguoMiniAspectSaved) {
                 hongguoMiniAspectWindow = window;
                 hongguoMiniOriginalAspect = window.contentAspectRatio;
+                hongguoMiniOriginalIncrements = window.contentResizeIncrements;
                 hongguoMiniAspectSaved = YES;
             }
             hongguoMiniVideoAspect = NSMakeSize((double)width / height, 1);
