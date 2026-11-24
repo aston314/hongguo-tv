@@ -117,3 +117,16 @@ logic replaceable. Remaining latency is measurable interpreter work plus
 network variation; this study does not attribute it entirely to signatures.
 No generic accelerators or new native protocol methods were added. Production
 integration and all-platform acceptance remain separate work.
+
+Optimized experimental commit: `ae23e4e`. GitHub diagnostic build/lint run
+[45315153675](https://github.com/aston314/hongguo-tv/actions/runs/45315153675)
+completed successfully. Its published script digest was checked and exactly
+matches the candidate used on both devices. Local exact-number/escaping tests,
+JS package race checks, Node asynchronous/signing vectors, generation freshness
+and native/JS registration wire parity passed.
+
+The final Shield follow-up was interrupted by an ADB timeout before additional
+playback evidence was collected. The tested Zidoo diagnostic package was stopped.
+A final Shield force-stop could not be confirmed because the device was offline;
+no additional Shield cleanup success or playback result is claimed. Formal
+Android/desktop/webOS apps and main were not changed by this experiment.
