@@ -157,13 +157,58 @@ function proto(values, ts, nonce, q, hash, process) {
   );
   return Buffer.from(p);
 }
-function medusa(values, ts, q, m, n, process) {
+// Official device envelope adapted from OOIUa/hongguo-android v0.8.0
+// (12e373137e33f0155cbc33484dfdfdfa632c9906, GPL-3.0-only).
+// Keep the older envelope available for existing fallback paths and wire vectors.
+function officialProto(values, ts, nonce, q, hash, process) {
+  var device = [], env = [], counters = [], sub = [], p = [];
+  var token = String(process.nonce);
+  if (token.length !== 25 || token.charAt(0) !== 'A') {
+    token = 'A' + (token + 'AAAAAAAAAAAAAAAAAAAAAAAA').slice(0, 24);
+  }
+  var brand = values.device_brand || 'HONOR', type = values.device_type;
+  sint(device, 1, 1); sint(device, 2, 2);
+  text(device, 3, '8662'); text(device, 4, values.device_id);
+  text(device, 5, token); text(device, 6, '!noperm!');
+  sint(device, 7, -888888); sint(device, 8, -888888);
+  sint(device, 9, 3); sint(device, 10, -888888);
+  text(device, 11, '!notset!'); text(device, 12, 'Asia/Shanghai,8');
+  text(device, 13, 'zh_CN'); sint(device, 14, 4);
+  for (var i = 16; i <= 21; i++) {
+    // Six fixed32 floats, each +0.0. Avoid a new host primitive.
+    varint(device, i * 8 + 5); device.push(0, 0, 0, 0);
+  }
+  text(device, 22, values.os_version); sint(device, 23, 41); sint(device, 24, 36);
+  sint(device, 25, process.started); sint(device, 26, process.started);
+  sint(device, 27, process.started); sint(device, 28, process.now);
+  sint(device, 29, -1); text(device, 30, type); text(device, 31, brand);
+  text(device, 32, type); text(device, 33, type); text(device, 34, brand);
+  text(device, 35, brand); text(device, 36, brand); sint(device, 38, 31);
+  sint(env, 1, process.launch); sint(env, 2, 247235599); sint(env, 3, 247235596);
+  sint(env, 5, 7); text(env, 6, 'v04.10.03.04-bugfix');
+  sint(env, 7, process.pid); text(env, 8, values.channel); blob(env, 12, device);
+  sint(sub, 1, ts); sint(sub, 2, -2); sint(sub, 4, 200);
+  blob(env, 13, sub); text(env, 14, values.version_name);
+  sint(counters, 1, 305); sint(counters, 2, 4); sint(counters, 3, 694367);
+  sint(counters, 5, 1621072674);
+  blob(p, 1, MAGIC); sint(p, 2, 5); sint(p, 3, nonce);
+  text(p, 4, '8662'); text(p, 5, values.device_id); text(p, 6, '646637794');
+  text(p, 7, values.version_name); text(p, 8, 'v04.10.03-ml-android');
+  sint(p, 9, 0x040a0300); blob(p, 10, Buffer.from('4480000000000000', 'hex'));
+  sint(p, 12, ts); blob(p, 13, hash); blob(p, 14, q.slice(0, 6));
+  blob(p, 15, counters); text(p, 16, token); sint(p, 17, ts);
+  text(p, 20, 'none'); sint(p, 21, 312); blob(p, 23, env);
+  text(p, 24, '{"cmr":16777216,"cmr2":16777216,"un_h":11,"vpn":0,"kd":0,"dyn":"","do":1,"tk":true}');
+  return Buffer.from(p);
+}
+function medusa(values, ts, q, m, n, process, official) {
   var hash = f13(q, m, ts),
-    message = proto(values, ts, n[0], q, hash, process);
+    message = (official ? officialProto : proto)(values, ts, n[0], q, hash, process);
   var key = passport.sm3(Buffer.concat([KEY, le32(n[1]), KEY])),
     high = (n[1] >>> 16) & 255;
   var seed = le32(~(((high << 11) | (n[1] >>> 24)) ^ (high >>> 5) ^ high));
-  var transformed = Buffer.concat([Buffer.alloc(8), xmxor(message, key)]).reverse();
+  var flags = official ? Buffer.from('4480000000000000', 'hex') : Buffer.alloc(8);
+  var transformed = Buffer.concat([flags, xmxor(message, key)]).reverse();
   for (var i = 0; i < transformed.length; i++) transformed[i] ^= seed[~i & 3];
   var check = (0x18000001 | ((q[0] & 63) << 14) | ((hash[0] & 63) << 8)) >>> 0;
   var packed = Buffer.concat([
@@ -199,7 +244,7 @@ function tune(values, body, stamp) {
     '_rticket'
   ]);
 }
-function tuneKeys(values, body, stamp, keys) {
+function tuneKeys(values, body, stamp, keys, official) {
   for (var offset = 0; offset < 1024; offset++) {
     var query = keys
       .map(function (key) {
@@ -207,16 +252,30 @@ function tuneKeys(values, body, stamp, keys) {
         return (
           key +
           '=' +
-          encodeURIComponent(value).replace(/[!'()*]/g, function (c) {
+          // Android URLEncoder keeps '*' literal; its exact query is signed.
+          encodeURIComponent(value).replace(official ? /[!'()]/g : /[!'()*]/g, function (c) {
             return '%' + c.charCodeAt(0).toString(16).toUpperCase();
           })
         );
       })
       .join('&');
-    var b = passport.branch(query, body, Math.floor(stamp / 1000));
+    var b = official ? officialBranch(query, body, Math.floor(stamp / 1000)) :
+      passport.branch(query, body, Math.floor(stamp / 1000));
     if ((b.iv & 15) === 12) return { query: query, q: b.q, m: b.m };
   }
   throw new Error('unable to select v5 signature branch');
+}
+function officialBranch(query, body, ts) {
+  var q = passport.sm3(Buffer.from(query)), m = md5(body), iv = 0x20230928;
+  // The official GET hashes an empty byte body, rather than using 16 zeros.
+  [q, m, le32(ts)].forEach(function (bytes) {
+    for (var i = 0; i < bytes.length; i++) {
+      iv = (i & 1) ? ~((iv >>> 7) ^ iv ^ (bytes[i] | (iv << 12))) :
+        (iv >>> 4) ^ iv ^ (iv << 6) ^ bytes[i];
+      iv >>>= 0;
+    }
+  });
+  return { iv: iv, q: q, m: m };
 }
 function sign(values, body, stamp) {
   return signKeys(values, body, stamp, [
@@ -254,6 +313,19 @@ function signKeys(values, body, stamp, keys) {
       'X-SS-STUB': tuned.m.toString('hex').toUpperCase()
     }
   };
+}
+function signOfficial(values, body, stamp) {
+  var keys = Object.keys(values).concat(['_rticket']);
+  var tuned = tuneKeys(values, body, stamp, keys, true), ts = Math.floor(stamp / 1000) >>> 0;
+  function random32() { return crypto.randomBytes(4).readUInt32LE(0); }
+  var n = [random32(), random32(), random32(), random32()];
+  var process = { nonce: processNonce, started: started, now: Date.now(),
+    launch: Math.floor(random32() / 4294967296 * 21) + 100,
+    pid: Math.floor(random32() / 4294967296 * 2000) + 10001 };
+  var headers = { 'X-Khronos': String(ts), 'X-Helios': helios(ts, n[3]),
+    'X-Medusa': medusa(values, ts, tuned.q, tuned.m, n, process, true) };
+  if (body.length) headers['X-SS-STUB'] = tuned.m.toString('hex').toUpperCase();
+  return { query: tuned.query, headers: headers };
 }
 function pair(lo, hi) {
   return { lo: lo >>> 0, hi: hi >>> 0 };
@@ -336,4 +408,4 @@ function xmxor(data, key) {
   return out;
 }
 
-module.exports = { sign: sign, signKeys: signKeys, tune: tune, tuneKeys: tuneKeys, f13: f13, medusa: medusa, helios: helios };
+module.exports = { sign: sign, signKeys: signKeys, signOfficial: signOfficial, tune: tune, tuneKeys: tuneKeys, f13: f13, medusa: medusa, helios: helios };

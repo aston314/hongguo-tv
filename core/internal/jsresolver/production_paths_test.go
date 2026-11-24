@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 const tabPath = "/reading/bookapi/video_tab/multi_video_model/v1/"
@@ -26,27 +27,35 @@ func tabFixture(codec string) resolverwire.HTTPResponse {
 	return encoded(map[string]any{"code": 0, "data": map[string]any{"video_model_data": map[string]any{"123": map[string]any{"video_model": fixture(codec, "media-video-id")}}}})
 }
 func TestProductionJSVideoTabFastPath(t *testing.T) {
-	regs, gets := 0, 0
+	regs, gets, activations := 0, 0, 0
 	r := newTest(t, func(ctx context.Context, in resolverwire.HTTPRequest) (resolverwire.HTTPResponse, error) {
 		u, _ := url.Parse(in.URL)
 		if u.Path == "/service/2/device_register/" {
 			regs++
 			return regFixture(regs), nil
 		}
+		if u.Path == "/service/2/app_alert_check/" {
+			activations++
+			deadline, bounded := ctx.Deadline()
+			if in.Method != "GET" || u.Query().Get("device_id") != "1234567891234567" || !bounded || time.Until(deadline) > 3*time.Second {
+				t.Fatal("activation profile or timeout")
+			}
+			return encoded(map[string]any{}), nil
+		}
 		if u.Path != tabPath || in.Method != "GET" {
 			t.Fatalf("unexpected path %s", u.Path)
 		}
 		gets++
-		for k, v := range map[string]string{"video_id": "123", "version_code": "71332", "device_level": "1", "need_all_video_definition": "1"} {
+		for k, v := range map[string]string{"video_id": "123", "version_code": "74332", "device_level": "1", "need_all_video_definition": "1", "resolution": "1920*1080", "host_abi": "arm64-v8a", "os_api": "31", "rom_version": "V417IR+release-keys"} {
 			if u.Query().Get(k) != v {
 				t.Fatal("wrong tab query", k)
 			}
 		}
-		if !strings.Contains(in.Headers["Cookie"], "install_id=") || strings.Contains(in.Headers["Cookie"], "sessionid") {
-			t.Fatal("anonymous cookies incorrect")
+		if in.Headers["Cookie"] != "" || in.Headers["X-SS-STUB"] != "" || len(in.Body) != 0 {
+			t.Fatal("official GET contains cookies, body or body digest header")
 		}
-		if in.Headers["X-Medusa"] != "" {
-			t.Fatal("signed primary tab")
+		if in.Headers["X-Medusa"] == "" || in.Headers["X-Helios"] == "" || in.Headers["X-Khronos"] == "" {
+			t.Fatal("missing official tab signature")
 		}
 		return tabFixture("h265"), nil
 	})
@@ -56,8 +65,8 @@ func TestProductionJSVideoTabFastPath(t *testing.T) {
 			t.Fatal(e)
 		}
 	}
-	if regs != 1 || gets != 2 {
-		t.Fatal(regs, gets)
+	if regs != 1 || gets != 2 || activations != 1 {
+		t.Fatal(regs, gets, activations)
 	}
 }
 func TestProductionJSV5HostsReuseIdentity(t *testing.T) {
@@ -68,6 +77,9 @@ func TestProductionJSV5HostsReuseIdentity(t *testing.T) {
 		if u.Path == "/service/2/device_register/" {
 			regs++
 			return regFixture(regs), nil
+		}
+		if u.Path == "/service/2/app_alert_check/" {
+			return encoded(map[string]any{}), nil
 		}
 		if u.Path == tabPath {
 			return resolverwire.HTTPResponse{Status: 200}, nil
@@ -110,6 +122,9 @@ func TestProductionJSRegisteredSingleFallback(t *testing.T) {
 		u, _ := url.Parse(in.URL)
 		if u.Path == "/service/2/device_register/" {
 			return regFixture(0), nil
+		}
+		if u.Path == "/service/2/app_alert_check/" {
+			return encoded(map[string]any{}), nil
 		}
 		sequence = append(sequence, u.Path)
 		if u.Path != "/novel/player/video_model/v1/" {

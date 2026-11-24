@@ -118,3 +118,35 @@ long-duration playback test. The second, lower-end device was unavailable for
 this normal-app retest. Earlier isolated experiment results do not substitute
 for it. No claim is made that every device, title, codec or desktop player works.
 Raw device reports/screenshots remain local and are not published.
+
+## Device-envelope rule update (2026.11.24.2)
+
+The rule's first `video_tab` GET now uses the complete v5 device query and
+Medusa envelope verified against OOIUa/hongguo-android v0.8.0. Anonymous
+registration includes bounded best-effort activation and optional `klink_egdi`.
+The empty GET body uses MD5(empty), and query escaping preserves Android's
+literal `*`. Existing source fallbacks, native fallback, host API, default-off
+selection and eight-second repair budget remain intact. The native Go baseline
+and embedded webOS provider still require their normal later application update.
+
+Four additional synthetic wire vectors were independently generated with the
+released Kotlin implementation. They run inside the rule's offline self-test
+while retaining the four-vector contract understood by installed clients.
+The legacy envelope remains available and still matches its existing vectors.
+
+One resident Goja instance completed nine consecutive live resolves across six
+episodes, including consecutive episodes, title changes and returning to an
+earlier episode: 9/9 independent JS successes, 181–2235 ms (median 350 ms) in
+this network sample. All six distinct episodes completed full 1080P HEVC/AAC
+decode using returned addresses/keys and the application's unchanged media code,
+across the continuous run and a focused retry. Some CDN responses required the
+existing full-file path instead of Range initialization; one full-file download
+timed out before a separate JS resolve and full-media verification passed.
+These network observations do not guarantee every CDN request succeeds.
+
+Generation checks, Go tests, resolver/updater/application race checks and 999
+Node tests passed. Tests cover complete query/activation, exact numeric IDs,
+old and new signature vectors, ByteVC2 compatibility, fallback, rule lifecycle
+and the isolated webOS worker. This does not constitute LG-device acceptance,
+an expanded default rollout, or a new device memory benchmark. Raw URLs, media,
+identities and keys stay outside the repository.

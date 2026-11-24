@@ -125,6 +125,8 @@ func main() {
 		{"network-diagnostic", mustRead("webos/service/network-diagnostic.js")},
 		{"device-pure", pure("webos/service/account.js", strings.Fields("trim str validID fail parseExactJSON uuid device appQuery sortedQuery le32 protocolDevicePayload deviceKey ttEncrypt ttDecrypt"), "var crypto=require('crypto'),zlib=require('zlib'),UA="+string(ua[1])+";")},
 		{"model-pure", pure("webos/service/provider.js", strings.Fields("trim number fail parseExactJSON bitCount base36 decodeSpade modelString modelRows asMap businessCode modelURL isByteVC2 onlyByteVC2 sameFallbackVideo fallbackCodecURL fallbackAPI playbackQuery videoTabQuery decodeModel videoTabEnvelope videoTabEnvelopeExact"), "var crypto=require('crypto');")},
+		{"official-playback", mustRead("core/internal/jsresolver/source/official-playback.js")},
+		{"official-signing-vectors", append(append([]byte("module.exports="), mustRead("core/internal/jsresolver/testdata/signing-v5-official.json")...), ';')},
 		{"resolver", mustRead("core/internal/jsresolver/source/resolver.js")},
 	}
 	var out bytes.Buffer
