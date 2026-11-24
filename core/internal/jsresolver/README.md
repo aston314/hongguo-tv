@@ -1,5 +1,9 @@
 # Local playback repair rules
 
+For rule authors, use the maintained [generation, acceptance and publication
+specification](../../../docs/playback-rule-authoring.md) and the project's
+`hongguo-playback-rules` skill. Do not edit the generated bundle directly.
+
 Anonymous registration, request signing, provider selection, model/key parsing
 and compatible-codec requests run locally in this generated JS bundle. Generic
 hash/AES/gzip/random byte operations and bounded HTTP remain host capabilities.

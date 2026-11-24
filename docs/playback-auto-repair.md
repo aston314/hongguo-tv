@@ -5,6 +5,12 @@ desktop share one Go service. Settings exposes one persistent switch, current
 native/repair status, last check and manual check/disable actions. The setting
 lives in app-private storage, independent of account and WebView port changes.
 
+Rule maintenance follows the Chinese [authoring, acceptance and publication
+contract](playback-rule-authoring.md), with a reusable project skill at
+`.agents/skills/hongguo-playback-rules/SKILL.md`. It describes the intended path
+towards routine rule delivery without changing default adoption or treating the
+current bounded evidence as full platform acceptance.
+
 Only address/model/registration failures with the switch off offer “启用自动修复
 并重试”. Media I/O, cache, decryption, account and decoder failures do not.
 Enabling saves first, checks in the background and retries the original episode
