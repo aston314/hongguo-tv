@@ -1,0 +1,56 @@
+name: Temporary current production JS resolver test
+on:
+  push:
+    branches: [codex/resolver-js-current-test]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build:
+    if: github.ref != 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25.14"
+          cache: true
+          cache-dependency-path: go.mod
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+      - name: Install SDK and NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;35.0.0" "ndk;27.2.12479018"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+      - name: Verify real script and compile host
+        run: bash scripts/build_resolver_js_diagnostic.sh
+      - name: Build and lint isolated APK
+        run: gradle --no-daemon --max-workers=1 -p android :resolver-js-diagnostic:assembleDebug :resolver-js-diagnostic:lintDebug
+      - name: Verify identity and publish temporary draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_TAG: resolver-js-current-${{ github.run_id }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/resolver-js-probe"
+          apk="$RUNNER_TEMP/resolver-js-probe/Resolver-JS-Test.apk"
+          cp android/resolver-js-diagnostic/build/outputs/apk/debug/resolver-js-diagnostic-debug.apk "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" > "$RUNNER_TEMP/badging.txt"
+          grep -q "package: name='rocks.aston.hongguoresolverjsdiag'" "$RUNNER_TEMP/badging.txt"
+          grep -q "sdkVersion:'23'" "$RUNNER_TEMP/badging.txt"
+          unzip -t "$apk" >/dev/null
+          cp core/internal/jsresolver/resolver.js "$RUNNER_TEMP/resolver-js-probe/"
+          git rev-parse HEAD > "$RUNNER_TEMP/resolver-js-probe/COMMIT.txt"
+          (cd "$RUNNER_TEMP/resolver-js-probe" && sha256sum *.apk *.js > SHA256SUMS.txt)
+          gh release create "$RUN_TAG" "$RUNNER_TEMP/resolver-js-probe/"* \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --draft --latest=false \
+            --title "Temporary JS resolver device test" \
+            --notes "Isolated package, not a production release. Current production source sequence ported to local JS. Native control calls production Go code at fd454dc with the same APK/UI/media path. No native fallback in JS mode. Remove this draft after testing."

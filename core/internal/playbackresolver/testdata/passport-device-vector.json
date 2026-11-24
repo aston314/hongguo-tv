@@ -1,0 +1,7 @@
+{
+  "source": "Independent Python hashlib/gzip and OpenSSL AES-128-CBC, 2026-10-07",
+  "seed": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  "derived_key": "70bf044d2853f0a51dde9276af723096d89e403db9a79aab6fe435399bee8a0d31daced0f57c2ca7800aefd700095fd21f516600f54ec0664bb9f3444a4176e0",
+  "plain": "{\"device_id_str\":\"7390000000000000001\",\"install_id_str\":\"7390000000000000002\"}",
+  "ciphertext": "dGMFEAAAAAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh+xjtU56uAXMNUMGHjJZolOQ4MWNVbYceMt7a6ZPFgxXp+jFA2cxL4qdKiSJSXyip2FRaQV32371MdK7TxyIE8RUnj5eWIcFsXs+kory2ZaCumHYLmFGWwo/gIklRLmrTBbQUQVfMKZqng7m52QCv4h2Z9V/TNh8gbvdBvjucR6XQ=="
+}

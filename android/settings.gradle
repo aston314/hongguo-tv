@@ -17,3 +17,5 @@ dependencyResolutionManagement {
 rootProject.name = "HongguoTv"
 include ":app"
 include ":wasm-diagnostic"
+
+include ":resolver-js-diagnostic"

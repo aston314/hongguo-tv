@@ -51,7 +51,7 @@ type statusResponse struct {
 	Capabilities   []string `json:"capabilities"`
 }
 
-func main() {
+func runApplication() {
 	port := flag.Int("port", 8797, "local HTTP port")
 	instanceID := flag.String("instance-id", "", "Android child process identity")
 	parentPID := flag.Int("parent-pid", 0, "exit when the Android host process ends")

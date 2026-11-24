@@ -1,0 +1,24 @@
+<!doctype html><html lang="zh"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>JS / 当前原生对照 真实算法验证</title>
+<style>body{margin:0;padding:28px;background:#101218;color:#eee;font:19px sans-serif}h1{font-size:28px;margin:0 0 12px}button{padding:14px 22px;margin:5px 10px 14px 0;background:#303544;color:white;border:2px solid #626a81;border-radius:9px;font-size:19px}button:focus{outline:4px solid #f3aa70;outline-offset:3px}video{width:48%;height:52vh;background:black;float:right;margin-left:24px}pre{white-space:pre-wrap;font-size:17px;line-height:1.6;max-height:65vh;overflow:auto}#status{color:#d7b085;margin:10px 0}</style>
+<h1>JS / 当前原生对照 播放解析 · 独立验证</h1><div>注册、签名、模型解析、兼容编码回退均在本地 JS / 当前原生对照 内执行。内置解析回退：关闭。</div><div id="status">正在读取模块状态…</div>
+<button id="start">连续测试切集与切剧</button><button id="retry">重试当前集</button><button id="stop">停止测试</button><video id="video" controls autoplay></video><pre id="log"></pre>
+<script>
+var ids=['7706514645208534041','7706514815799282713','7706514627462433817','7702841946812714008','7702841953875938328','7703473857562151961'];
+var index=0,running=false,busy=false,generation=0,timer=null,video=document.getElementById('video'),statusLabel=document.getElementById('status'),log=document.getElementById('log');
+function line(t){log.textContent+=t+'\n';log.scrollTop=log.scrollHeight;}
+function post(path,value){return fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)}).then(function(r){return r.json();});}
+function report(value){post('/report',value).catch(function(){});}
+function stop(){running=false;generation++;clearTimeout(timer);video.pause();}
+function run(){if(busy)return;busy=true;var token=++generation,vid=ids[index];clearTimeout(timer);video.pause();video.removeAttribute('src');video.load();statusLabel.textContent='正在用 JS / 当前原生对照 获取 '+vid+'…';
+post('/api/run',{vid:vid}).then(function(r){busy=false;if(token!==generation)return;line((index+1)+' / '+ids.length+' '+(r.ok?'成功':'失败')+' · '+r.resolve_ms+'ms · '+(r.codec||r.code)+' · '+(r.media_bytes||0)+'字节');if(!r.ok){statusLabel.textContent='失败：'+r.code;if(running)timer=setTimeout(next,1500);return;}
+statusLabel.textContent='模型与媒体准备成功，等待视频首帧…';video.setAttribute('data-vid',vid);video.src=r.media+'?v='+Date.now();video.play().catch(function(){statusLabel.textContent='按确认播放';});
+}).catch(function(){busy=false;statusLabel.textContent='测试请求失败';});}
+function next(){if(!running)return;index++;if(index>=ids.length){running=false;statusLabel.textContent='本轮结束，可查看每集的解析与播放记录';return;}run();}
+video.addEventListener('playing',function(){statusLabel.textContent='播放中：'+video.videoWidth+'×'+video.videoHeight;});
+video.addEventListener('error',function(){var code=video.error?video.error.code:0;line('系统播放器失败 code='+code);report({vid:video.getAttribute('data-vid'),event:'error',code:code});if(running)timer=setTimeout(next,1500);});
+video.addEventListener('timeupdate',function(){if(video.currentTime>=5&&!video._recorded){video._recorded=true;var frames=video.getVideoPlaybackQuality?video.getVideoPlaybackQuality():{};report({vid:video.getAttribute('data-vid'),event:'playing_5s',position:video.currentTime,width:video.videoWidth,height:video.videoHeight,decoded_frames:frames.totalVideoFrames||video.webkitDecodedFrameCount||0,dropped_frames:frames.droppedVideoFrames||video.webkitDroppedFrameCount||0});line('实际播放 ≥5秒 · '+video.videoWidth+'×'+video.videoHeight);if(running)timer=setTimeout(next,500);}});
+video.addEventListener('loadstart',function(){video._recorded=false;});
+document.getElementById('start').onclick=function(){if(busy)return;stop();index=0;running=true;log.textContent='';run();};document.getElementById('retry').onclick=function(){if(busy)return;stop();run();};document.getElementById('stop').onclick=stop;
+fetch('/health').then(function(r){return r.json();}).then(function(r){statusLabel.textContent='已验签加载 '+(r.wasm_bytes/1048576).toFixed(1)+'MB · '+r.load_ms+'ms · 内置回退关闭';});
+document.getElementById('start').focus();
+</script></html>
