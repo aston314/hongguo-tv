@@ -13,6 +13,13 @@ for software video decoding. Web Audio plays decoded stereo PCM; WebGL renders
 YUV420P video against the audio clock. Speed currently changes the audio pitch,
 as with Web Audio BufferSource, rather than applying a time-stretch filter.
 
+Audio retains the decoded source sample rate end to end: FFmpeg converts only
+the sample format/channel layout to float stereo, and the worker passes the
+rate to both AudioContext and AudioBuffer. There is no application-forced
+44.1-to-48 kHz conversion. The browser/OS can still adapt output to the physical
+device. Consecutive PCM blocks join by their actual sample counts while initial
+audio offsets, seeks and genuine timestamp gaps remain tied to the media clock.
+
 `windows-wasm-worker.js` performs bounded 1 MiB Range reads on the existing
 loopback clear-media route, with at most eight queued frames and approximately
 one second of decode-ahead. Generation IDs discard stale messages. Replacement,
@@ -29,7 +36,8 @@ packages only; it does not update public manifests or publish an app release.
 `--windows-wasm-self-test` is an explicit CI-only test mode requiring isolated
 media, script and output paths. It launches the actual packaged Wails/WebView2
 window. Synthetic 720P/1080P 30fps HEVC/AAC fixtures cover first frames,
-nonblack pixels, pause/resume, seek, speed, volume, natural end, rapid
+nonblack pixels, source-rate 44.1/48 kHz PCM and contiguous audio scheduling,
+pause/resume, seek, speed, volume, natural end, rapid
 replacement, cleanup and restoration of the default H.264 path. The test
 allows autoplay via a test-only browser argument and does not perform subjective
 listening or establish performance on every Windows PC.

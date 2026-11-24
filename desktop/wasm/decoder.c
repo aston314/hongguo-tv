@@ -34,7 +34,7 @@ static struct SwsContext *scale;
 static SwrContext *resample;
 static uint8_t *output;
 static unsigned output_capacity;
-static int pending = -1, eof, drain, width, height, samples, color_space, color_range;
+static int pending = -1, eof, drain, width, height, samples, sample_rate, color_space, color_range;
 static double pts, duration;
 
 EMSCRIPTEN_KEEPALIVE void hg_close(void) {
@@ -43,7 +43,7 @@ EMSCRIPTEN_KEEPALIVE void hg_close(void) {
   if (io) { av_freep(&io->buffer); avio_context_free(&io); }
   av_packet_free(&packet); av_frame_free(&frame);
   sws_freeContext(scale); scale = NULL; swr_free(&resample);
-  av_freep(&output); output_capacity = 0; pending = -1; eof = drain = 0;
+  av_freep(&output); output_capacity = 0; pending = -1; eof = drain = sample_rate = 0;
 }
 EMSCRIPTEN_KEEPALIVE int hg_open(double at) {
   hg_close(); av_log_set_level(AV_LOG_QUIET);
@@ -73,8 +73,12 @@ EMSCRIPTEN_KEEPALIVE int hg_open(double at) {
   width = dec[0]->width; height = dec[0]->height;
   duration = format->duration > 0 ? format->duration / (double)AV_TIME_BASE : 0;
   if (dec[1]) {
+    // Convert sample format/layout only. Keep the source rate so AAC frames
+    // retain their sample counts, with no fractional resampling delay.
+    sample_rate = dec[1]->sample_rate;
+    if (sample_rate <= 0) return -6;
     AVChannelLayout stereo = AV_CHANNEL_LAYOUT_STEREO;
-    if (swr_alloc_set_opts2(&resample, &stereo, AV_SAMPLE_FMT_FLT, 48000, &dec[1]->ch_layout, dec[1]->sample_fmt, dec[1]->sample_rate, 0, NULL) < 0 || swr_init(resample) < 0) return -6;
+    if (swr_alloc_set_opts2(&resample, &stereo, AV_SAMPLE_FMT_FLT, sample_rate, &dec[1]->ch_layout, dec[1]->sample_fmt, sample_rate, 0, NULL) < 0 || swr_init(resample) < 0) return -6;
   }
   packet = av_packet_alloc(); frame = av_frame_alloc();
   if (!packet || !frame) return -1;
@@ -136,6 +140,7 @@ EMSCRIPTEN_KEEPALIVE uintptr_t hg_ptr(void) { return (uintptr_t)output; }
 EMSCRIPTEN_KEEPALIVE int hg_width(void) { return width; }
 EMSCRIPTEN_KEEPALIVE int hg_height(void) { return height; }
 EMSCRIPTEN_KEEPALIVE int hg_samples(void) { return samples; }
+EMSCRIPTEN_KEEPALIVE int hg_sample_rate(void) { return sample_rate; }
 EMSCRIPTEN_KEEPALIVE int hg_audio(void) { return dec[1] != NULL; }
 EMSCRIPTEN_KEEPALIVE int hg_colorspace(void) { return color_space; }
 EMSCRIPTEN_KEEPALIVE int hg_fullrange(void) { return color_range == AVCOL_RANGE_JPEG; }

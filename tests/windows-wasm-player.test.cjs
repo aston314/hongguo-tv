@@ -2,19 +2,23 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {supported,preference,choose,install}=require('../core/cmd/hongguotv/ui/windows-wasm-player.js');
 function fixture(platform='windows'){
- const map=new Map(), events={},workers=[],nodes=[];
+ const map=new Map(), events={},workers=[],nodes=[],contexts=[],audioNodes=[];let animation;
  const gl=new Proxy({COMPILE_STATUS:1,LINK_STATUS:2,getShaderParameter:()=>true,getProgramParameter:()=>true,getAttribLocation:()=>0,getUniformLocation:()=>({}),getExtension:()=>null},{get(o,k){return k in o?o[k]:()=>({})}});
  const classes=new Set(),attrs={};
  const dom={className:'hero-video',classList:{add:x=>classes.add(x),remove:x=>classes.delete(x)},style:{removeProperty(){}},volume:.7,muted:false,playbackRate:1,currentTime:0,paused:true,readyState:0,
   addEventListener:(name,fn)=>(events[name]||(events[name]=[])).push(fn),getAttribute:n=>attrs[n]||null,setAttribute:(n,v)=>attrs[n]=v,removeAttribute:n=>{delete attrs[n];if(n==='src')dom.src=''},load(){},play(){dom.paused=false;return Promise.resolve()},pause(){dom.paused=true},
   parentNode:{insertBefore(node){nodes.push(node)}}};
- const win={HongguoDesktop:{platform,wasmDecoder:true},document:{getElementById:id=>id==='hero-video'?dom:null,createElement:()=>({className:'',setAttribute(){},getContext:()=>gl,remove(){}})},localStorage:{getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)},Event:class {constructor(type){this.type=type}},addEventListener(){},requestAnimationFrame:()=>1,cancelAnimationFrame(){},setInterval:()=>1,clearInterval(){},
+ const win={HongguoDesktop:{platform,wasmDecoder:true},document:{getElementById:id=>id==='hero-video'?dom:null,createElement:()=>({className:'',setAttribute(){},getContext:()=>gl,remove(){}})},localStorage:{getItem:k=>map.get(k),setItem:(k,v)=>map.set(k,v)},Event:class {constructor(type){this.type=type}},addEventListener(){},requestAnimationFrame:fn=>{animation=fn;return 1},cancelAnimationFrame(){animation=null},setInterval:()=>1,clearInterval(){},
   Worker:class {constructor(){this.sent=[];this.terminated=false;workers.push(this)}postMessage(v){this.sent.push(v)}terminate(){this.terminated=true}},
-  AudioContext:class {constructor(){this.currentTime=0;this.state='running';this.destination={}}createGain(){return {gain:{value:1},connect(){}}}resume(){this.state='running';return Promise.resolve()}suspend(){this.state='suspended';return Promise.resolve()}close(){this.state='closed';return Promise.resolve()}}
+  AudioContext:class {constructor(options){this.currentTime=0;this.state='running';this.sampleRate=options?options.sampleRate:48000;this.destination={};contexts.push(this)}createGain(){return {gain:{value:1},connect(){}}}createBuffer(channels,samples,rate){const data=Array.from({length:channels},()=>new Float32Array(samples));return {sampleRate:rate,duration:samples/rate,length:samples,getChannelData:c=>data[c]}}createBufferSource(){const node={playbackRate:{value:1},connect(){},start(when,offset){this.when=when;this.offset=offset;audioNodes.push(this)},stop(){this.stopped=true}};return node}resume(){this.state='running';return Promise.resolve()}suspend(){this.state='suspended';return Promise.resolve()}close(){this.state='closed';return Promise.resolve()}}
  };
  win.setTimeout=setTimeout;win.clearTimeout=clearTimeout;
- const settings=install(win);return {win,dom,workers,settings,nodes,proxy:win.document.getElementById('hero-video')};
+ const settings=install(win);return {win,dom,workers,settings,nodes,contexts,audioNodes,draw:()=>animation(),emit(data,worker=workers.at(-1)){worker.onmessage({data:{generation:worker.sent[0].generation,...data}})},proxy:win.document.getElementById('hero-video')};
 }
+function meta(f,rate=44100){f.emit({type:'meta',width:2,height:2,duration:30,audio:!!rate,sampleRate:rate})}
+function pcm(f,pts,samples=1024,rate=44100){const data=new Float32Array(samples*2);for(let i=0;i<samples;i++)data[i*2]=data[i*2+1]=Math.sin((Math.round(pts*rate)+i)*2*Math.PI*440/rate);f.emit({type:'audio',pts,samples,sampleRate:rate,data:data.buffer})}
+function picture(f,pts=0){f.emit({type:'video',width:2,height:2,pts,data:new Uint8Array(6).buffer})}
+async function startWasm(f,rate=44100){f.settings.choose('wasm');f.proxy.src='one';f.proxy.load();const playing=f.proxy.play();meta(f,rate);await playing}
 test('Windows WASM is opt-in, saved separately, and never installs on Android/macOS/Linux/preview',()=>{
  for(const platform of ['darwin','linux','android','preview']){const f=fixture(platform);assert.equal(f.settings,null);assert.equal(f.proxy,f.dom)}
  assert.equal(supported({platform:'windows'}),false);
@@ -29,9 +33,10 @@ test('default playback delegates to HTML5 and creates no worker, audio context o
 });
 test('the chosen mode applies to the next source; obsolete worker callbacks cannot replace its metadata',async()=>{
  const f=fixture();f.proxy.src='one';f.settings.choose('wasm');assert.equal(f.settings.current(),'default');
- f.proxy.src='http://127.0.0.1:12345/minireel-proxy/media/a.mp4';f.proxy.load();await f.proxy.play();
+ f.proxy.src='http://127.0.0.1:12345/minireel-proxy/media/a.mp4';f.proxy.load();const playing=f.proxy.play();
  const first=f.workers[0],id=first.sent[0].generation;
  first.onmessage({data:{type:'meta',generation:id,width:1920,height:1080,duration:10,audio:false}});
+ await playing;
  assert.equal(f.proxy.videoWidth,1920);
  f.proxy.src='http://127.0.0.1:12345/minireel-proxy/media/b.mp4';f.proxy.load();
  assert.equal(first.terminated,true);first.onmessage({data:{type:'meta',generation:id,width:10,height:20,duration:50,audio:false}});
@@ -59,7 +64,7 @@ test('blocked Web Audio rejects autoplay and allows a subsequent user-initiated 
  const original=f.win.AudioContext.prototype.resume;
  f.win.AudioContext.prototype.resume=function(){if(allow)return original.call(this);this.state='suspended';return new Promise(()=>{})};
  f.proxy.load();
- await assert.rejects(f.proxy.play(),{name:'NotAllowedError'});
+ const denied=f.proxy.play();meta(f);await assert.rejects(denied,{name:'NotAllowedError'});
  assert.equal(f.proxy.paused,true);assert.equal(f.workers[0].sent.at(-1).type,'pause');
  allow=true;await f.proxy.play();assert.equal(f.proxy.paused,false);
  f.proxy.removeAttribute('src');
@@ -69,11 +74,80 @@ test('an early resume cannot decode until asynchronous WASM initialization has f
  const self={postMessage:v=>messages.push(v)};
  const context=vm.createContext({self,URL,Uint8Array,Number,Math,Error,performance:{now:()=>0},setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout(){},importScripts(){},
   XMLHttpRequest:class {open(){}setRequestHeader(){}send(){this.status=206;this.response=new ArrayBuffer(8)}getResponseHeader(){return 'bytes 0-7/8'}},
-  HongguoWasmDecoder:()=>new Promise(resolve=>{finish=()=>resolve({_hg_open:()=>0,_hg_width:()=>1280,_hg_height:()=>720,_hg_duration:()=>10,_hg_audio:()=>1,_hg_step:()=>{steps++;return 0}})})});
+  HongguoWasmDecoder:()=>new Promise(resolve=>{finish=()=>resolve({_hg_open:()=>0,_hg_width:()=>1280,_hg_height:()=>720,_hg_duration:()=>10,_hg_audio:()=>1,_hg_sample_rate:()=>44100,_hg_step:()=>{steps++;return 0}})})});
  vm.runInContext(fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/windows-wasm-worker.js'),'utf8'),context);
  const opening=self.onmessage({data:{type:'open',generation:1,url:'http://127.0.0.1:12345/minireel-proxy/media/a.mp4'}});
  await self.onmessage({data:{type:'resume',generation:1}});
  assert.equal(timers.length,0);assert.equal(steps,0);
- finish();await opening;assert.equal(messages[0].type,'meta');assert.equal(timers.length,1);
+ finish();await opening;assert.equal(messages[0].type,'meta');assert.equal(messages[0].sampleRate,44100);assert.equal(timers.length,1);
  timers.shift()();assert.equal(steps,1);assert.equal(messages.at(-1).type,'end');
+});
+
+test('audio context waits for source metadata and keeps the original 44.1/48 kHz rate',async()=>{
+ for(const rate of [44100,48000]){
+  const f=fixture();f.settings.choose('wasm');f.proxy.src='one';f.proxy.load();
+  assert.equal(f.contexts.length,0);
+  const playing=f.proxy.play();meta(f,rate);await playing;
+  picture(f);pcm(f,0,1024,rate);f.draw();
+  assert.equal(f.contexts.length,1);assert.equal(f.contexts[0].sampleRate,rate);
+  assert.equal(f.audioNodes[0].buffer.sampleRate,rate);assert.equal(f.audioNodes[0].buffer.length,1024);
+  assert.equal(f.settings.diagnostics().audioSampleRate,rate);
+  f.proxy.removeAttribute('src');assert.equal(f.contexts[0].state,'closed');assert.equal(f.audioNodes[0].stopped,true);
+ }
+});
+test('400 PCM blocks remain contiguous at source rate with rounded PTS, retaining a delayed audio start',async()=>{
+ for(const rate of [44100,48000])for(const speed of [1,1.5]){
+  const f=fixture();f.dom.playbackRate=speed;await startWasm(f,rate);picture(f);
+  for(let n=0;n<400;n++)pcm(f,Math.round((.15+n*1024/rate)*1000)/1000,1024,rate);
+  f.draw();assert.equal(f.audioNodes.length,400);
+  assert(Math.abs(f.audioNodes[0].when-(.1+.15/speed))<1e-10);
+  for(let n=1;n<400;n++){
+   const previous=f.audioNodes[n-1],node=f.audioNodes[n];
+   assert(Math.abs(node.when-previous.when-previous.buffer.duration/speed)<1e-10,'gap/overlap at PCM boundary '+n);
+  }
+  f.proxy.removeAttribute('src');
+ }
+});
+test('real audio timestamp gaps remain intact and late audio is trimmed instead of delaying the video clock',async()=>{
+ const f=fixture();await startWasm(f);picture(f);pcm(f,0);pcm(f,.5);f.draw();
+ assert(Math.abs(f.audioNodes[1].when-.6)<1e-10);
+ f.contexts[0].currentTime=.61;pcm(f,.5+1024/44100);
+ assert(Math.abs(f.audioNodes[2].when-(.6+1024/44100))<1e-10);
+ f.contexts[0].currentTime=1;pcm(f,.8,20000);
+ assert.equal(f.audioNodes[3].when,1);assert(Math.abs(f.audioNodes[3].offset-.1)<1e-10);
+ f.proxy.removeAttribute('src');
+});
+test('seek uses source-rate sample offsets and pause/resume keeps the current context',async()=>{
+ const f=fixture();await startWasm(f);
+ f.proxy.currentTime=1.01;const context=f.contexts[0];assert.equal(context.state,'closed');
+ meta(f);picture(f,1.01);pcm(f,1,1024);f.draw();
+ assert.equal(f.audioNodes[0].buffer.length,1024-Math.ceil(.01*44100));
+ const active=f.contexts[1];f.proxy.pause();assert.equal(active.state,'suspended');await f.proxy.play();assert.equal(active.state,'running');assert.equal(f.contexts.length,2);
+ f.proxy.removeAttribute('src');
+});
+test('replacement, pause and decoder failure settle a play waiting for metadata without leaking contexts',async()=>{
+ const f=fixture();f.settings.choose('wasm');f.proxy.src='one';f.proxy.load();
+ const first=assert.rejects(f.proxy.play(),{name:'AbortError'});const obsolete=f.workers[0];
+ f.proxy.src='two';f.proxy.load();await first;meta(f,48000);
+ f.emit({type:'meta',width:2,height:2,audio:true,sampleRate:44100},obsolete);
+ assert.equal(f.contexts.length,1);assert.equal(f.contexts[0].sampleRate,48000);
+ f.proxy.src='three';f.proxy.load();const paused=assert.rejects(f.proxy.play(),{name:'AbortError'});f.proxy.pause();meta(f);await paused;
+ assert.equal(f.contexts.at(-1).state,'suspended');
+ f.proxy.src='four';f.proxy.load();const failed=assert.rejects(f.proxy.play());f.emit({type:'error',code:'decode'});await failed;
+ const count=f.contexts.length;meta(f);assert.equal(f.contexts.length,count);
+ assert.equal(f.settings.diagnostics().workers,0);f.proxy.removeAttribute('src');assert(f.contexts.every(c=>c.state==='closed'));
+});
+test('silent video starts without an audio queue and mismatched PCM rate fails without mislabelling samples',async()=>{
+ const silent=fixture();await startWasm(silent,0);picture(silent);silent.draw();assert.equal(silent.settings.diagnostics().presented,1);silent.proxy.removeAttribute('src');
+ const f=fixture();await startWasm(f,44100);pcm(f,0,1024,48000);assert.equal(f.proxy.error.code,3);assert.equal(f.audioNodes.length,0);assert.equal(f.workers[0].terminated,true);f.proxy.removeAttribute('src');
+});
+test('worker forwards native PCM sample counts and rate without converting the payload',async()=>{
+ const vm=require('node:vm'),fs=require('node:fs'),timers=[],messages=[];let step=0;
+ const bytes=new Uint8Array(new Float32Array([.25,-.25]).buffer),self={postMessage:v=>messages.push(v)};
+ const context=vm.createContext({self,URL,Uint8Array,Number,Math,Error,performance:{now:()=>0},setTimeout:fn=>{timers.push(fn);return timers.length},clearTimeout(){},importScripts(){},
+  XMLHttpRequest:class {open(){}setRequestHeader(){}send(){this.status=206;this.response=new ArrayBuffer(8)}getResponseHeader(){return 'bytes 0-7/8'}},
+  HongguoWasmDecoder:async()=>({_hg_open:()=>0,_hg_width:()=>2,_hg_height:()=>2,_hg_duration:()=>1,_hg_audio:()=>1,_hg_sample_rate:()=>44100,_hg_step:()=>step++?0:2,_hg_pts:()=>0,_hg_ptr:()=>0,_hg_samples:()=>1,HEAPU8:bytes})});
+ vm.runInContext(fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/windows-wasm-worker.js'),'utf8'),context);
+ await self.onmessage({data:{type:'open',generation:1,url:'http://127.0.0.1:12345/minireel-proxy/media/a.mp4'}});timers.shift()();
+ const audio=messages.find(m=>m.type==='audio');assert.equal(audio.sampleRate,44100);assert.equal(audio.samples,1);assert.deepEqual(Array.from(new Float32Array(audio.data)),[.25,-.25]);
 });

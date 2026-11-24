@@ -57,7 +57,7 @@ function pump() {
         const samples = decoder._hg_samples();
         if (samples > 0) {
           const data = decoder.HEAPU8.slice(ptr, ptr + samples * 8).buffer;
-          message({ type: 'audio', generation, pts, samples, data }, [data]);
+          message({ type: 'audio', generation, pts, samples, sampleRate: decoder._hg_sample_rate(), data }, [data]);
         }
       }
     }
@@ -80,7 +80,7 @@ self.onmessage = async function (event) {
       decoder.hgIO = { read, seek };
       const result = decoder._hg_open(clock);
       if (result < 0) { fail(result === -4 ? 'codec' : 'open'); return; }
-      message({ type: 'meta', generation, width: decoder._hg_width(), height: decoder._hg_height(), duration: decoder._hg_duration(), audio: !!decoder._hg_audio() });
+      message({ type: 'meta', generation, width: decoder._hg_width(), height: decoder._hg_height(), duration: decoder._hg_duration(), audio: !!decoder._hg_audio(), sampleRate: decoder._hg_sample_rate() });
       opened = true; schedule();
     } catch (_) { fail('open'); }
   } else if (value.generation === generation) {

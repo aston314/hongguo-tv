@@ -2,7 +2,7 @@
   'use strict';
   var results = [], video = document.getElementById('hero-video'), settings = window.HongguoWindowsDecoder;
   // Observe actual PCM submitted to Web Audio without changing its scheduling.
-  var audioBuffers = 0, audioPeak = 0, createSource = AudioContext.prototype.createBufferSource;
+  var audioBuffers = 0, audioPeak = 0, audioWindow = null, createSource = AudioContext.prototype.createBufferSource;
   AudioContext.prototype.createBufferSource = function () {
     var node = createSource.call(this), start = node.start;
     node.start = function () {
@@ -10,6 +10,17 @@
         audioBuffers++;
         var pcm = node.buffer.getChannelData(0);
         for (var i = 0; i < pcm.length; i += 16) audioPeak = Math.max(audioPeak, Math.abs(pcm[i]));
+        if (audioWindow) {
+          audioWindow.buffers++;
+          if (node.buffer.sampleRate !== audioWindow.sampleRate) audioWindow.wrongRate++;
+          if (audioWindow.end !== null) {
+            var gap = (arguments[0] - audioWindow.end) * node.buffer.sampleRate;
+            audioWindow.maxBoundaryErrorSamples = Math.max(audioWindow.maxBoundaryErrorSamples, Math.abs(gap));
+            if (audioWindow.end < node.context.currentTime - 1 / node.buffer.sampleRate) audioWindow.underflows++;
+            else if (Math.abs(gap) > 1e-6) audioWindow.nonContiguousBoundaries++;
+          }
+          audioWindow.end = arguments[0] + (node.buffer.duration - (arguments[1] || 0)) / node.playbackRate.value;
+        }
       }
       return start.apply(node, arguments);
     };
@@ -22,12 +33,17 @@
     throw Error('timeout: ' + label);
   }
   function load(name) { video.pause(); video.removeAttribute('src'); video.load(); video.src = window.HongguoDesktop.mediaBase + '/minireel-proxy/media/' + name + '.mp4'; video.classList.add('has-source'); video.load(); return video.play(); }
-  async function run(name, width) {
+  async function run(name, width, rate) {
     await load(name);
     await until(function () { return video.currentTime > 2 && video.readyState >= 2; }, name + ' first frames');
     if (video.videoWidth !== width) throw Error('dimensions: ' + name);
     var begin = performance.now(), initialPTS = video.currentTime, initial = settings.diagnostics();
+    rate = rate || initial.audioSampleRate;
+    if (initial.audioSampleRate !== rate || initial.audioContextSampleRate !== rate) throw Error('source/context audio rate: ' + name);
+    audioWindow = { sampleRate:rate, buffers:0, wrongRate:0, nonContiguousBoundaries:0, underflows:0, maxBoundaryErrorSamples:0, end:null };
     await until(function () { return video.currentTime > 6; }, name + ' continuous playback');
+    var audioEvidence = audioWindow; audioWindow = null; delete audioEvidence.end;
+    if (!audioEvidence.buffers || audioEvidence.wrongRate || audioEvidence.nonContiguousBoundaries) throw Error('PCM rate/boundary check: ' + name + ': ' + JSON.stringify(audioEvidence));
     var observed = settings.diagnostics(), elapsed = (performance.now() - begin) / 1000, played = video.currentTime - initialPTS;
     var continuous = { wallSeconds:elapsed, mediaSeconds:played, presented:observed.presented-initial.presented, dropped:observed.dropped-initial.dropped };
     continuous.realtime = elapsed <= played * 1.25 && continuous.presented >= played * 25 && continuous.dropped <= played * 3;
@@ -42,13 +58,13 @@
     gl.readPixels(width >> 1, video.videoHeight >> 1, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
     if (!pixel[0] && !pixel[1] && !pixel[2]) throw Error('black frame');
     await until(function () { return video.ended; }, 'natural end');
-    results.push({ name:name, before:before, continuous:continuous, after:settings.diagnostics(), pixel:Array.from(pixel), width:width, passed:true });
+    results.push({ name:name, before:before, continuous:continuous, audio:audioEvidence, after:settings.diagnostics(), pixel:Array.from(pixel), width:width, passed:true });
   }
   var report;
   try {
     if (!settings || settings.mode() !== 'default') throw Error('default changed');
     if (!settings.choose('wasm')) throw Error('preference');
-    await run('hevc720',1280); await run('hevc1080',1920);
+    await run('hevc720',1280,44100); await run('hevc1080',1920,48000);
     if (window.HongguoWasmProbeReal) { await run('real720',720); await run('real1080',1080); }
     await load('hevc720'); await wait(80); await load('hevc1080'); await wait(80); await load('hevc720');
     await until(function () { return video.currentTime > .5 && video.videoWidth === 1280; },'rapid replacement');

@@ -12,8 +12,8 @@ with tempfile.TemporaryDirectory(prefix='hongguo-wasm-check-') as directory:
     with zipfile.ZipFile(archive) as z:
         member=next(n for n in z.namelist() if n.endswith('/bin/ffmpeg.exe'))
         ffmpeg=work/'ffmpeg.exe'; ffmpeg.write_bytes(z.read(member))
-    for name,codec,size in [('hevc720','libx265','1280x720'),('hevc1080','libx265','1920x1080'),('h264','libx264','1280x720')]:
-        command=[str(ffmpeg),'-hide_banner','-loglevel','error','-y','-f','lavfi','-i',f'testsrc2=size={size}:rate=30','-f','lavfi','-i','sine=frequency=440:sample_rate=48000','-t','10','-c:v',codec,'-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-movflags','+faststart',str(work/(name+'.mp4'))]
+    for name,codec,size,rate in [('hevc720','libx265','1280x720',44100),('hevc1080','libx265','1920x1080',48000),('h264','libx264','1280x720',44100)]:
+        command=[str(ffmpeg),'-hide_banner','-loglevel','error','-y','-f','lavfi','-i',f'testsrc2=size={size}:rate=30','-f','lavfi','-i',f'sine=frequency=440:sample_rate={rate}','-t','10','-c:v',codec,'-preset','ultrafast','-pix_fmt','yuv420p','-c:a','aac','-movflags','+faststart',str(work/(name+'.mp4'))]
         subprocess.run(command,check=True,timeout=180)
     real_media=os.environ.get('HONGGUO_WASM_REAL_MEDIA')
     if real_media:
