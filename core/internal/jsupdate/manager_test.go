@@ -453,3 +453,65 @@ func TestSignatureCoversEveryControlAndModuleField(t *testing.T) {
 		}
 	}
 }
+
+func TestUnverifiedUpdatesDoNotDisplaceVerifiedFallback(t *testing.T) {
+	l := newLab(t)
+	l.offer(1, script("good", success("good")), "good")
+	l.check()
+	l.quality("good")
+	for i := 2; i <= 5; i++ {
+		v := fmt.Sprint(i)
+		l.offer(uint64(i), script(v, `return 'invalid ABI'`), v)
+		l.check()
+	}
+	l.m.Resolve(context.Background(), resolverwire.Request{VID: "123"})
+	l.quality("good")
+}
+
+type roundTripFunc func(*http.Request) (*http.Response, error)
+
+func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+func TestRollbackDuringDownloadCannotReactivateQuarantinedHash(t *testing.T) {
+	l := newLab(t)
+	l.offer(1, script("good", success("good")), "good")
+	l.check()
+	l.quality("good")
+	broken := script("bad", `return 'invalid ABI'`)
+	l.offer(2, broken, "bad")
+	l.check()
+	entered, unblock := make(chan struct{}), make(chan struct{})
+	client := *l.m.cfg.Client
+	base := client.Transport
+	client.Transport = roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path == "/script" {
+			close(entered)
+			select {
+			case <-unblock:
+			case <-r.Context().Done():
+				return nil, r.Context().Err()
+			}
+		}
+		return base.RoundTrip(r)
+	})
+	l.m.cfg.Client = &client
+	l.offer(3, broken, "bad")
+	done := make(chan error, 1)
+	go func() { done <- l.m.Check(context.Background()) }()
+	<-entered
+	l.m.Resolve(context.Background(), resolverwire.Request{VID: "123"})
+	l.quality("good")
+	close(unblock)
+	if e := <-done; e == nil || e.Error() != "module_quarantined" {
+		t.Fatal("race reactivated bad module", e)
+	}
+	l.quality("good")
+}
+func TestInvalidCallerInputCannotRollbackScript(t *testing.T) {
+	l := newLab(t)
+	l.offer(1, script("v1", success("v1")), "v1")
+	l.check()
+	_, e := l.m.Resolve(context.Background(), resolverwire.Request{VID: strings.Repeat("1", resolverwire.MaxRequest+1)})
+	if !errors.Is(e, jsresolver.ErrRequest) || l.m.Status().Version != "v1" {
+		t.Fatal(e, l.m.Status())
+	}
+}

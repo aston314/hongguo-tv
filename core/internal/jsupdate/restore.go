@@ -24,9 +24,7 @@ func readBounded(path string, limit int) ([]byte, error) {
 	return b, nil
 }
 
-type jsLoaded struct{ runtime *jsresolver.Resolver }
-
-func (m *Manager) saved(ctx context.Context, env *Envelope) (*jsLoaded, error) {
+func (m *Manager) saved(ctx context.Context, env *Envelope) (*jsresolver.Resolver, error) {
 	if env == nil {
 		return nil, errors.New("no_saved_module")
 	}
@@ -47,7 +45,7 @@ func (m *Manager) saved(ctx context.Context, env *Envelope) (*jsLoaded, error) {
 	if e != nil {
 		return nil, e
 	}
-	return &jsLoaded{r}, nil
+	return r, nil
 }
 func (m *Manager) restore(ctx context.Context) {
 	b, e := readBounded(filepath.Join(m.cfg.Dir, "state.json"), 4*MaxManifest)
@@ -81,7 +79,7 @@ func (m *Manager) restore(ctx context.Context) {
 	m.setStatus("restoring")
 	if loaded, e := m.saved(ctx, s.Active); e == nil {
 		old := m.runtime
-		m.runtime = loaded.runtime
+		m.runtime = loaded
 		old.Close(context.Background())
 		m.setStatus("restored")
 		return
@@ -114,7 +112,7 @@ func (m *Manager) rollback(ctx context.Context) {
 		}
 	}
 	if old, e := m.saved(ctx, previous); e == nil {
-		next = old.runtime
+		next = old
 		s.Active = previous
 		s.ActiveVerified = true
 	}

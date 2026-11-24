@@ -37,6 +37,8 @@ func Source() []byte { return bytes.Clone(source) }
 const MaxScript = 1024 * 1024
 const Version = "2026.11.24.1"
 
+var ErrRequest = errors.New("invalid resolver request")
+
 type Transport func(context.Context, resolverwire.HTTPRequest) (resolverwire.HTTPResponse, error)
 type Error struct{ Code, Stage string }
 
@@ -139,7 +141,7 @@ func (r *Resolver) run(ctx context.Context, fn func() error) (err error) {
 func (r *Resolver) Resolve(ctx context.Context, request resolverwire.Request) ([]resolverwire.Option, error) {
 	input, e := json.Marshal(request)
 	if e != nil || len(input) > resolverwire.MaxRequest {
-		return nil, errors.New("invalid resolver request")
+		return nil, ErrRequest
 	}
 	var result resolverwire.Response
 	e = r.run(ctx, func() error {

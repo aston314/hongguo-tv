@@ -23,7 +23,8 @@ acceptance, not the lifetime of a previously accepted working algorithm.
 Checks serialize. The current Resolve owns a gate until it finishes; activation
 and old-VM close wait for that gate. Updating cannot change the algorithm in
 mid-request. No request is silently retried with a different algorithm. One VM
-remains resident; at most one candidate is temporarily compiled beside it. A
+remains resident; at most one candidate is temporarily compiled beside it, under the same gate
+so a concurrent rollback cannot create a third VM. A
 rollback copy is retained as a file, not a second idle VM.
 
 The candidate must pass size/digest, compilation, metadata/host compatibility,
@@ -84,7 +85,8 @@ HTTP-200 HTML/redirect/offline, syntax, undefined API/getter exceptions,
 metadata, self-test failure/timeout/forbidden HTTP, revision conflict/replay,
 expiry/API mismatch, atomic activation storage failure, leftover crash files,
 corrupt-active restore, runtime fault rollback/quarantine, provider-empty and
-cancellation classification, concurrent checks/Resolve/Close, repeated module
+cancellation classification, concurrent checks/Resolve/Close, rollback during an artifact download, invalid
+caller input that must not trigger rollback, repeated module
 revision, distinct rollback retention and real optimized-script self-test.
 Device results and CI build identity are added after execution, never inferred
 from these host tests.

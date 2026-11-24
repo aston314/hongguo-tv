@@ -70,6 +70,9 @@ func New(ctx context.Context, cfg Config) (*Manager, error) {
 	if cfg.Dir == "" || len(cfg.PublicKey) != ed25519.PublicKeySize || len(cfg.Embedded) == 0 || cfg.EmbeddedVersion == "" || cfg.VectorCount == 0 || len(cfg.Vectors) == 0 || cfg.Transport == nil {
 		return nil, errors.New("invalid_update_config")
 	}
+	cfg.PublicKey = append(ed25519.PublicKey(nil), cfg.PublicKey...)
+	cfg.Embedded = append([]byte(nil), cfg.Embedded...)
+	cfg.Vectors = append([]byte(nil), cfg.Vectors...)
 	if cfg.Client == nil {
 		cfg.Client = defaultClient()
 	}
@@ -176,8 +179,10 @@ func (m *Manager) Resolve(ctx context.Context, in resolverwire.Request) ([]resol
 	var upstream *jsresolver.Error
 	// A typed business/upstream failure, cancellation, or timeout is NOT evidence
 	// that the script is broken. Only host-observed ABI/execution violations roll back.
-	if e != nil && ctx.Err() == nil && !errors.Is(e, context.Canceled) && !errors.Is(e, context.DeadlineExceeded) && !errors.As(e, &upstream) && m.state.Active != nil {
-		m.rollback(ctx)
+	if e != nil && ctx.Err() == nil && !errors.Is(e, context.Canceled) && !errors.Is(e, context.DeadlineExceeded) && !errors.As(e, &upstream) && !errors.Is(e, jsresolver.ErrRequest) && m.state.Active != nil {
+		repair, stop := context.WithTimeout(m.life, m.cfg.ValidateTimeout)
+		m.rollback(repair)
+		stop()
 	}
 	if e == nil && m.state.Active != nil && !m.state.ActiveVerified {
 		s := m.state
@@ -269,7 +274,6 @@ func (m *Manager) Check(ctx context.Context) error {
 		}
 	}
 	release(m.gate)
-	var next *jsresolver.Resolver
 	var artifactBytes []byte
 	if manifest.Enabled {
 		a := manifest.Module
@@ -282,27 +286,7 @@ func (m *Manager) Check(ctx context.Context) error {
 		if err != nil {
 			return m.event(job, "script_download_failed", err)
 		}
-		next, err = m.load(job, b, a.Version)
-		if err != nil {
-			return m.event(job, "candidate_rejected", err)
-		}
-		defer func() {
-			if next != nil {
-				next.Close(context.Background())
-			}
-		}()
 		artifactBytes = b
-	} else {
-		var err error
-		next, err = m.load(job, m.cfg.Embedded, m.cfg.EmbeddedVersion)
-		if err != nil {
-			return m.event(job, "embedded_load_failed", err)
-		}
-		defer func() {
-			if next != nil {
-				next.Close(context.Background())
-			}
-		}()
 	}
 	// This waits for the entire current Resolve, including any queued VM call.
 	// No old runtime can be closed or mixed into a call already in progress.
@@ -313,6 +297,29 @@ func (m *Manager) Check(ctx context.Context) error {
 	if m.life.Err() != nil || job.Err() != nil {
 		return errors.New("update_cancelled")
 	}
+	// Rollback may have run while bytes were downloading. Recheck the live
+	// quarantine under the activation gate before compiling or persisting them.
+	if manifest.Enabled {
+		for _, bad := range m.state.Quarantine {
+			if bad == manifest.Module.SHA256 {
+				return errors.New("module_quarantined")
+			}
+		}
+	}
+	source, version := m.cfg.Embedded, m.cfg.EmbeddedVersion
+	if manifest.Enabled {
+		source, version = artifactBytes, manifest.Module.Version
+	}
+	next, err := m.load(job, source, version)
+	if err != nil {
+		m.setStatus("candidate_rejected")
+		return err
+	}
+	defer func() {
+		if next != nil {
+			next.Close(context.Background())
+		}
+	}()
 	state := m.state
 	state.Control = &env
 	event := "remote_disabled"
