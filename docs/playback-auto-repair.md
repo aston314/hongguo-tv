@@ -83,3 +83,31 @@ show its issue as fixed. Notices never change consent, execute code or supply
 artifact URLs. “知道了” only dismisses the notice. A notice without a matching
 actual rule stays pending. Identical announcement refreshes and changing repair
 status update text without rebuilding the focused buttons.
+
+## Acceptance evidence (2026-11-24)
+
+- GitHub checks passed for the implementation: Go/JavaScript checks, Android 5,
+  actual Node 0.12/8 webOS runtimes, and macOS/Windows packaging. These are build
+  checks, not desktop-device playback certification.
+- Browser checks at 960×540 and 1280×720 covered the notice/card order, visible
+  focus, and off/on states. A local preview notice located the off switch without
+  enabling it, checked rules when enabled, and changed to ready only after the
+  matching signed revision became active.
+- Side-by-side standard and MPV debug packages on one Android TV device passed
+  actual D-pad navigation through switch/check/disable/adjacent settings. Both
+  accepted stable signed revision 1, module `2026.11.24.1`, and returned to native
+  resolution after disabling. Production packages were not replaced.
+- The normal core's media preparation endpoint returned a usable source with
+  `active_verified` set by a successful rule resolve. Muted HTML playback showed
+  advancing time and positive decoded-frame counts. A separate MPV adapter smoke
+  test produced its presentation-ready event with nonzero dimensions and more
+  than five seconds of advancing playback position. The MPV event is not a
+  measurement of physical first-frame latency.
+- Race checks include twenty rapid enable/disable cycles; the fake-runtime
+  counter observed at most one resident runtime and zero after closure.
+
+This is bounded feature acceptance, not a new latency/memory benchmark or a
+long-duration playback test. The second, lower-end device was unavailable for
+this normal-app retest. Earlier isolated experiment results do not substitute
+for it. No claim is made that every device, title, codec or desktop player works.
+Raw device reports/screenshots remain local and are not published.

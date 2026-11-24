@@ -212,3 +212,41 @@ func TestPlaybackRepairMutationRequiresPrivateLocalRequest(t *testing.T) {
 		t.Fatal("external site could change repair preference", w.Code)
 	}
 }
+
+func TestPlaybackRepairRapidToggleRetiresBeforeNewRuntime(t *testing.T) {
+	s := newPlaybackRepairService(t.TempDir())
+	defer s.close(context.Background())
+	var live, maximum, created atomic.Int32
+	s.factory = func(context.Context) (repairRuntime, error) {
+		n := live.Add(1)
+		for {
+			old := maximum.Load()
+			if n <= old || maximum.CompareAndSwap(old, n) {
+				break
+			}
+		}
+		created.Add(1)
+		return &countedRepairRuntime{fakeRepairRuntime: fakeRepairRuntime{status: jsupdate.Status{Source: "embedded"}}, close: func() { live.Add(-1) }}, nil
+	}
+	for i := 0; i < 20; i++ {
+		if e := s.setEnabled(true); e != nil {
+			t.Fatal(e)
+		}
+		waitRepair(t, s)
+		if e := s.setEnabled(false); e != nil {
+			t.Fatal(e)
+		}
+	}
+	s.close(context.Background())
+	if maximum.Load() != 1 || live.Load() != 0 || created.Load() != 20 {
+		t.Fatal("runtime accumulation", maximum.Load(), live.Load(), created.Load())
+	}
+}
+
+type countedRepairRuntime struct {
+	fakeRepairRuntime
+	once  sync.Once
+	close func()
+}
+
+func (f *countedRepairRuntime) Close(context.Context) error { f.once.Do(f.close); return nil }
