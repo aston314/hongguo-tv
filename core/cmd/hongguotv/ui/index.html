@@ -79,7 +79,7 @@
       </div>
       <div class="sidebar-bottom">
         <button class="side-item side-item-secondary" data-page="account" data-focus="sidebar-account" aria-label="我的" data-i18n-aria-label="nav.account"><svg class="side-icon"><use href="#icon-user" xlink:href="#icon-user"></use></svg><span data-i18n="nav.account">我的</span></button>
-        <button class="side-item side-item-secondary" data-page="settings" data-focus="sidebar-settings" aria-label="设置" data-i18n-aria-label="nav.settings"><svg class="side-icon"><use href="#icon-settings" xlink:href="#icon-settings"></use></svg><span data-i18n="nav.settings">设置</span></button>
+        <button class="side-item side-item-secondary" data-page="settings" data-focus="sidebar-settings" aria-label="设置" data-i18n-aria-label="nav.settings"><svg class="side-icon"><use href="#icon-settings" xlink:href="#icon-settings"></use></svg><span data-i18n="nav.settings">设置</span><span class="side-notification-dot is-hidden" id="announcement-sidebar-badge" aria-hidden="true"></span></button>
       </div>
     </aside>
     <div class="watching-return-tooltip is-hidden" id="watching-return-tooltip" role="tooltip"><span class="watching-return-kicker" data-i18n="watching.continue">继续观看</span><strong id="watching-return-tooltip-title"></strong><span class="watching-return-meta" id="watching-return-tooltip-meta"></span></div>
@@ -358,6 +358,11 @@
 
       <section class="settings-page page-workspace is-hidden" id="settings-page" aria-labelledby="settings-title">
         <div class="settings-heading"><h1 id="settings-title" data-i18n="settings.title">设置</h1></div>
+        <section class="settings-card app-update-card is-hidden" id="system-announcements-card" aria-live="polite">
+          <h2 data-i18n="settings.announcementsTitle">系统公告</h2>
+          <p data-i18n="settings.announcementsDescription">上游服务或应用的重要变化会显示在这里。</p>
+          <div id="system-announcements"></div>
+        </section>
         <div class="settings-card app-update-card" id="sidebar-display-settings">
           <h2 data-i18n="settings.sidebar">侧边栏显示</h2>
           <p data-i18n="settings.sidebarDescription">选择导航栏的显示方式。默认显示菜单文字，也可以只显示图标以扩大内容区域。</p>
@@ -700,6 +705,7 @@
   <script src="/sidebar-settings.js"></script>
   <script src="/watching-return.js"></script>
   <script src="/startup-page.js"></script>
+  <script src="/announcements.js"></script>
   <script src="/episode-wheel.js"></script>
   <script src="/playback-pointer.js"></script>
   <script src="/desktop-mini-player.js"></script>

@@ -875,6 +875,12 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
 .app-update-card { max-width: 70rem; margin-top: 1.5rem; }
 .app-update-actions { display: flex; flex-wrap: wrap; }
 .app-update-actions button { margin: 0 .8rem .6rem 0; }
+.system-announcement { padding: .9rem 0 1rem; border-top: 1px solid rgba(255,255,255,.1); }
+.system-announcement:first-child { padding-top: .1rem; border-top: 0; }
+.system-announcement-title { margin: 0 0 .45rem; color: #f5f5f8; font-size: 1.12rem; }
+.system-announcement-summary { margin: 0 0 .35rem; color: #e1e1e7; }
+.system-announcement-body { margin: 0 0 .75rem; color: #aaaab7; white-space: pre-line; }
+.system-announcement-actions { margin-top: .2rem; }
 .danmaku-size-preview { display: flex; align-items: center; min-height: 88px; padding: 8px 16px; margin: 1rem 0 1.2rem; border: 1px solid #30303a; border-radius: .6rem; background: #101015; overflow: hidden; }
 .danmaku-size-preview .danmaku-line { position: static; left: auto; animation: none; }
 .danmaku-size-actions button { white-space: nowrap; }
