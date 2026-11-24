@@ -41,7 +41,7 @@ module.exports=function(options){
   function filtered(){return items.filter(function(item){return (!item.expires_at||Date.parse(item.expires_at)>now())&&(!Array.isArray(item.platforms)||!item.platforms.length||item.platforms.indexOf('all')>=0||item.platforms.indexOf(platform)>=0)&&before(version,item.before_version);}).slice(0,12);}
   if(fetched&&now()-fetched<300000)return Promise.resolve(filtered());
   if(!pending){
-   var i=0;function next(){if(i>=ROUTES.length)return Promise.reject(new Error('Announcement unavailable'));return Promise.resolve().then(function(){return fetch(ROUTES[i++]+CHANNEL);}).then(function(data){return normalize(data,now());}).catch(next);}
+   var i=0;var next=function(){if(i>=ROUTES.length)return Promise.reject(new Error('Announcement unavailable'));return Promise.resolve().then(function(){return fetch(ROUTES[i++]+CHANNEL);}).then(function(data){return normalize(data,now());}).catch(next);};
    pending=next().then(function(value){items=value;fetched=now();pending=null;},function(){pending=null;});
   }
   return pending.then(filtered);
