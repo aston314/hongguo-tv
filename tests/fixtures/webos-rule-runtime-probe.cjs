@@ -7,6 +7,7 @@ var script=fs.readFileSync(path.join(root,'core/internal/jsresolver/resolver.js'
 var regs=0,tabs=0,fallbackMode=false,v5Calls=0,codecs=[],worker=runtime({http:function(input){
  var u=require('url').parse(input.url,true),body;
  if(u.pathname==='/service/2/device_register/'){regs++;body='{"device_id":7390000000000000001,"install_id":7390000000000000002}';}
+ else if(u.pathname==='/service/2/app_alert_check/'){body='{}';}
  else if(u.pathname==='/fallback'){
   codecs.push(String(u.query.codec_type));var compatible={video_id:'123',video_duration:90,video_list:{q:{codec_type:u.query.codec_type==='3'?'h265':'bytevc2',definition:'720P',vwidth:1280,vheight:720,main_url:'https://cdn.example/episode.mp4'}}};body=JSON.stringify({code:0,video_info:{code:0,data:compatible}});
  }else if(fallbackMode&&u.pathname==='/novel/player/multi_video_model/player/v1'){

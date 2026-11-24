@@ -441,13 +441,58 @@ function proto(values, ts, nonce, q, hash, process) {
   );
   return Buffer.from(p);
 }
-function medusa(values, ts, q, m, n, process) {
+// Official device envelope adapted from OOIUa/hongguo-android v0.8.0
+// (12e373137e33f0155cbc33484dfdfdfa632c9906, GPL-3.0-only).
+// Keep the older envelope available for existing fallback paths and wire vectors.
+function officialProto(values, ts, nonce, q, hash, process) {
+  var device = [], env = [], counters = [], sub = [], p = [];
+  var token = String(process.nonce);
+  if (token.length !== 25 || token.charAt(0) !== 'A') {
+    token = 'A' + (token + 'AAAAAAAAAAAAAAAAAAAAAAAA').slice(0, 24);
+  }
+  var brand = values.device_brand || 'HONOR', type = values.device_type;
+  sint(device, 1, 1); sint(device, 2, 2);
+  text(device, 3, '8662'); text(device, 4, values.device_id);
+  text(device, 5, token); text(device, 6, '!noperm!');
+  sint(device, 7, -888888); sint(device, 8, -888888);
+  sint(device, 9, 3); sint(device, 10, -888888);
+  text(device, 11, '!notset!'); text(device, 12, 'Asia/Shanghai,8');
+  text(device, 13, 'zh_CN'); sint(device, 14, 4);
+  for (var i = 16; i <= 21; i++) {
+    // Six fixed32 floats, each +0.0. Avoid a new host primitive.
+    varint(device, i * 8 + 5); device.push(0, 0, 0, 0);
+  }
+  text(device, 22, values.os_version); sint(device, 23, 41); sint(device, 24, 36);
+  sint(device, 25, process.started); sint(device, 26, process.started);
+  sint(device, 27, process.started); sint(device, 28, process.now);
+  sint(device, 29, -1); text(device, 30, type); text(device, 31, brand);
+  text(device, 32, type); text(device, 33, type); text(device, 34, brand);
+  text(device, 35, brand); text(device, 36, brand); sint(device, 38, 31);
+  sint(env, 1, process.launch); sint(env, 2, 247235599); sint(env, 3, 247235596);
+  sint(env, 5, 7); text(env, 6, 'v04.10.03.04-bugfix');
+  sint(env, 7, process.pid); text(env, 8, values.channel); blob(env, 12, device);
+  sint(sub, 1, ts); sint(sub, 2, -2); sint(sub, 4, 200);
+  blob(env, 13, sub); text(env, 14, values.version_name);
+  sint(counters, 1, 305); sint(counters, 2, 4); sint(counters, 3, 694367);
+  sint(counters, 5, 1621072674);
+  blob(p, 1, MAGIC); sint(p, 2, 5); sint(p, 3, nonce);
+  text(p, 4, '8662'); text(p, 5, values.device_id); text(p, 6, '646637794');
+  text(p, 7, values.version_name); text(p, 8, 'v04.10.03-ml-android');
+  sint(p, 9, 0x040a0300); blob(p, 10, Buffer.from('4480000000000000', 'hex'));
+  sint(p, 12, ts); blob(p, 13, hash); blob(p, 14, q.slice(0, 6));
+  blob(p, 15, counters); text(p, 16, token); sint(p, 17, ts);
+  text(p, 20, 'none'); sint(p, 21, 312); blob(p, 23, env);
+  text(p, 24, '{"cmr":16777216,"cmr2":16777216,"un_h":11,"vpn":0,"kd":0,"dyn":"","do":1,"tk":true}');
+  return Buffer.from(p);
+}
+function medusa(values, ts, q, m, n, process, official) {
   var hash = f13(q, m, ts),
-    message = proto(values, ts, n[0], q, hash, process);
+    message = (official ? officialProto : proto)(values, ts, n[0], q, hash, process);
   var key = passport.sm3(Buffer.concat([KEY, le32(n[1]), KEY])),
     high = (n[1] >>> 16) & 255;
   var seed = le32(~(((high << 11) | (n[1] >>> 24)) ^ (high >>> 5) ^ high));
-  var transformed = Buffer.concat([Buffer.alloc(8), xmxor(message, key)]).reverse();
+  var flags = official ? Buffer.from('4480000000000000', 'hex') : Buffer.alloc(8);
+  var transformed = Buffer.concat([flags, xmxor(message, key)]).reverse();
   for (var i = 0; i < transformed.length; i++) transformed[i] ^= seed[~i & 3];
   var check = (0x18000001 | ((q[0] & 63) << 14) | ((hash[0] & 63) << 8)) >>> 0;
   var packed = Buffer.concat([
@@ -483,7 +528,7 @@ function tune(values, body, stamp) {
     '_rticket'
   ]);
 }
-function tuneKeys(values, body, stamp, keys) {
+function tuneKeys(values, body, stamp, keys, official) {
   for (var offset = 0; offset < 1024; offset++) {
     var query = keys
       .map(function (key) {
@@ -491,16 +536,30 @@ function tuneKeys(values, body, stamp, keys) {
         return (
           key +
           '=' +
-          encodeURIComponent(value).replace(/[!'()*]/g, function (c) {
+          // Android URLEncoder keeps '*' literal; its exact query is signed.
+          encodeURIComponent(value).replace(official ? /[!'()]/g : /[!'()*]/g, function (c) {
             return '%' + c.charCodeAt(0).toString(16).toUpperCase();
           })
         );
       })
       .join('&');
-    var b = passport.branch(query, body, Math.floor(stamp / 1000));
+    var b = official ? officialBranch(query, body, Math.floor(stamp / 1000)) :
+      passport.branch(query, body, Math.floor(stamp / 1000));
     if ((b.iv & 15) === 12) return { query: query, q: b.q, m: b.m };
   }
   throw new Error('unable to select v5 signature branch');
+}
+function officialBranch(query, body, ts) {
+  var q = passport.sm3(Buffer.from(query)), m = md5(body), iv = 0x20230928;
+  // The official GET hashes an empty byte body, rather than using 16 zeros.
+  [q, m, le32(ts)].forEach(function (bytes) {
+    for (var i = 0; i < bytes.length; i++) {
+      iv = (i & 1) ? ~((iv >>> 7) ^ iv ^ (bytes[i] | (iv << 12))) :
+        (iv >>> 4) ^ iv ^ (iv << 6) ^ bytes[i];
+      iv >>>= 0;
+    }
+  });
+  return { iv: iv, q: q, m: m };
 }
 function sign(values, body, stamp) {
   return signKeys(values, body, stamp, [
@@ -538,6 +597,19 @@ function signKeys(values, body, stamp, keys) {
       'X-SS-STUB': tuned.m.toString('hex').toUpperCase()
     }
   };
+}
+function signOfficial(values, body, stamp) {
+  var keys = Object.keys(values).concat(['_rticket']);
+  var tuned = tuneKeys(values, body, stamp, keys, true), ts = Math.floor(stamp / 1000) >>> 0;
+  function random32() { return crypto.randomBytes(4).readUInt32LE(0); }
+  var n = [random32(), random32(), random32(), random32()];
+  var process = { nonce: processNonce, started: started, now: Date.now(),
+    launch: Math.floor(random32() / 4294967296 * 21) + 100,
+    pid: Math.floor(random32() / 4294967296 * 2000) + 10001 };
+  var headers = { 'X-Khronos': String(ts), 'X-Helios': helios(ts, n[3]),
+    'X-Medusa': medusa(values, ts, tuned.q, tuned.m, n, process, true) };
+  if (body.length) headers['X-SS-STUB'] = tuned.m.toString('hex').toUpperCase();
+  return { query: tuned.query, headers: headers };
 }
 function pair(lo, hi) {
   return { lo: lo >>> 0, hi: hi >>> 0 };
@@ -620,7 +692,7 @@ function xmxor(data, key) {
   return out;
 }
 
-module.exports = { sign: sign, signKeys: signKeys, tune: tune, tuneKeys: tuneKeys, f13: f13, medusa: medusa, helios: helios };
+module.exports = { sign: sign, signKeys: signKeys, signOfficial: signOfficial, tune: tune, tuneKeys: tuneKeys, f13: f13, medusa: medusa, helios: helios };
 
 };
 factories["playback-v5-carrier"]=function(module,exports,require){
@@ -1205,20 +1277,317 @@ function videoTabEnvelopeExact(vid, root) {
 module.exports={trim:trim,number:number,fail:fail,parseExactJSON:parseExactJSON,bitCount:bitCount,base36:base36,decodeSpade:decodeSpade,modelString:modelString,modelRows:modelRows,asMap:asMap,businessCode:businessCode,modelURL:modelURL,isByteVC2:isByteVC2,onlyByteVC2:onlyByteVC2,sameFallbackVideo:sameFallbackVideo,fallbackCodecURL:fallbackCodecURL,fallbackAPI:fallbackAPI,playbackQuery:playbackQuery,videoTabQuery:videoTabQuery,decodeModel:decodeModel,videoTabEnvelope:videoTabEnvelope,videoTabEnvelopeExact:videoTabEnvelopeExact,ua:typeof UA==='undefined'?'':UA};
 
 };
+factories["official-playback"]=function(module,exports,require){
+// SPDX-License-Identifier: GPL-3.0-only
+// Anonymous registration and full v5 query adapted from OOIUa/hongguo-android
+// v0.8.0, commit 12e373137e33f0155cbc33484dfdfdfa632c9906.
+'use strict';
+var device = require('./device-pure'), crypto = require('crypto');
+var signer = require('./playback-v5-sign');
+var REGISTER = 'https://log5-applog-lf.fqnovel.com/service/2/device_register/?tt_data=a&cronet_version=8d40f833_2026-03-03&ttnet_version=4.2.243.31-douyin&use_store_region_cookie=1';
+var REGISTER_UA = 'com.phoenix.read/72232 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3)';
+var TAB = 'https://api5-normal-sinfonlineb.fqnovel.com/reading/bookapi/video_tab/multi_video_model/v1/';
+var TAB_UA = 'com.phoenix.read/73932 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
+function error(code) { var e = new Error(code); e.code = code; e.stage = 'device_register'; throw e; }
+function payload(d, stamp) {
+  return Buffer.from(JSON.stringify({ magic_tag: 'ss_app_log', header: {
+    display_name: '红果免费短剧', update_version_code: 73932, manifest_version_code: 73932,
+    app_version_minor: '7.3.9.32', aid: 8662, channel: 'update_64', package: 'com.phoenix.read',
+    app_version: '7.3.9.32', version_code: 73932, sdk_version: '3.7.0-rc.34-fanqie-xiaoshuo',
+    sdk_target_version: 29, git_hash: '3a88f4e', os: 'Android', os_version: '16', os_api: 36,
+    device_model: '25053RT47C', device_brand: 'Redmi', device_manufacturer: 'Redmi',
+    cpu_abi: 'arm64-v8a', release_build: 'b5e187f', density_dpi: 520, display_density: 'mdpi',
+    resolution: '1280x2772', language: 'zh', timezone: 8, access: 'wifi', not_request_sender: 0,
+    carrier: 'CHINA MOBILE', mcc_mnc: '46000', rom: 'eng.root.20231116.160340',
+    rom_version: 'W528JS release-keys', cdid: d.cdid, sig_hash: '56a962410c494bbaf0b58dba20cae56f',
+    openudid: d.openudid, clientudid: d.clientudid, ipv6_list: [], region: 'CN',
+    tz_name: 'Asia/Shanghai', tz_offset: 28800, sim_region: 'cn', sim_serial_number: [],
+    oaid_may_support: false, req_id: device.uuid(), device_platform: 'android',
+    custom: { account_region_src: 'fallback', account_region: 'cn', host_bit: 64, dragon_device_type: 'phone' },
+    pre_installed_channel: '', apk_first_install_time: stamp, is_system_app: 0,
+    sdk_flavor: 'china', guest_mode: 0
+  }, _gen_time: stamp }));
+}
+function register(http) {
+  var d = device.device(), stamp = Date.now();
+  var body = device.ttEncrypt(payload(d, stamp), crypto.randomBytes(32));
+  var h = { 'User-Agent': REGISTER_UA, Accept: 'application/json',
+    'Content-Type': 'application/octet-stream;tt-data=a', 'log-encode-type': 'gzip',
+    'x-ss-dp': '8662', 'x-ss-req-ticket': String(stamp), 'x-vc-bdturing-sdk-version': '4.0.3.cn',
+    lc: '101', 'sdk-version': '2', 'passport-sdk-version': '5051452',
+    'x-neptune': '-8|50:51:59:30:40:47:49:39',
+    'x-ss-stub': crypto.createHash('md5').update(body).digest('hex').toUpperCase() };
+  return http('POST', REGISTER, h, body).then(function (r) {
+    if (r.status !== 200) error('DEVICE_REGISTER_HTTP');
+    var bytes = r.body, root;
+    try {
+      if (bytes.slice(0, 6).equals(Buffer.from([0x74, 0x63, 5, 0x10, 0, 0]))) bytes = device.ttDecrypt(bytes);
+      root = device.parseExactJSON(bytes.toString('utf8'));
+    } catch (invalidResponse) { error('DEVICE_REGISTER_INVALID'); }
+    if (!root || typeof root !== 'object' || Array.isArray(root)) error('DEVICE_REGISTER_INVALID');
+    var did = device.str(root.device_id_str || root.device_id), iid = device.str(root.install_id_str || root.install_id);
+    if (!device.validID(did) || !device.validID(iid) || !/[1-9]/.test(did) || !/[1-9]/.test(iid)) error('DEVICE_REGISTER_INVALID');
+    var egdi = root.klink_egdi || (root.data && root.data.klink_egdi);
+    var identity = { deviceID: did, installID: iid, cdid: d.cdid,
+      egdi: typeof egdi === 'string' && egdi.length <= 8192 ? egdi.trim() : '' };
+    var activate = 'https://log5-applog-lf.fqnovel.com/service/2/app_alert_check/?aid=8662&app_name=novelread&channel=update_64' +
+      '&device_id=' + did + '&iid=' + iid + '&device_platform=android&os=android&version_code=73932&version_name=7.3.9.32&_rticket=' + Date.now();
+    // Activation is best effort and bounded inside the existing episode budget.
+    return http('GET', activate, { 'User-Agent': REGISTER_UA, Accept: 'application/json' }, null, 3000)
+      .then(function () { return identity; }, function () { return identity; });
+  });
+}
+function query(d) {
+  var q = { device_platform: 'android', os: 'android', ssmix: 'a', cdid: d.cdid,
+    channel: 'vivo_8662_64', aid: '8662', app_name: 'novelread', version_code: '74332',
+    version_name: '7.4.3.32', manifest_version_code: '74332', update_version_code: '74332',
+    resolution: '1920*1080', dpi: '280', device_type: 'PGT-AN10', device_brand: 'HONOR',
+    language: 'zh', os_api: '31', os_version: '12', ac: 'wifi', host_abi: 'arm64-v8a',
+    dragon_device_type: 'phone', pv_player: '74332', compliance_status: '0',
+    need_personal_recommend: '1', player_so_load: '1', is_android_pad_screen: '0',
+    rom_version: 'V417IR+release-keys', iid: d.installID, device_id: d.deviceID };
+  if (d.egdi) q.klink_egdi = d.egdi;
+  return q;
+}
+function tab(vid, d, stamp) {
+  var q = query(d);
+  Object.assign(q, { video_id: vid, video_id_type: '0', device_level: '1',
+    need_all_video_definition: '1', need_mp4_align: '0', use_os_player: '0',
+    video_platform: '1024', source: '0', from_video_id: '' });
+  var s = signer.signOfficial(q, Buffer.alloc(0), stamp);
+  return { url: TAB + '?' + s.query,
+    headers: Object.assign({}, s.headers, { 'User-Agent': TAB_UA, Accept: 'application/json' }) };
+}
+function selfTest() {
+  var rows = require('./official-signing-vectors');
+  for (var i = 0; i < rows.length; i++) {
+    var row = rows[i], values = query({ deviceID: '123', installID: '456', cdid: 'synthetic', egdi: 'synthetic+egdi' });
+    Object.assign(values, { video_id: '123', video_id_type: '0', device_level: '1',
+      need_all_video_definition: '1', need_mp4_align: '0', use_os_player: '0',
+      video_platform: '1024', source: '0', from_video_id: '' });
+    var tuned = signer.tuneKeys(values, Buffer.alloc(0), row.stamp, Object.keys(values).concat(['_rticket']), true);
+    var medusa = signer.medusa(values, row.ts, tuned.q, tuned.m,
+      [0x80000000, 0x80000000, 0x80000000],
+      { nonce: 'synthetic', started: 1800000000000, now: 1800000000000, launch: 110, pid: 11001 }, true);
+    if (tuned.query !== row.query || medusa !== row.medusa || signer.helios(row.ts, 0x80000000) !== row.helios) return false;
+  }
+  return rows.length === 4;
+}
+module.exports = { register: register, query: query, tab: tab, payload: payload, selfTest: selfTest };
+
+};
+factories["official-signing-vectors"]=function(module,exports,require){
+module.exports=[
+  {
+    "values": {
+      "manifest_version_code": "74332",
+      "iid": "456",
+      "channel": "vivo_8662_64",
+      "use_os_player": "0",
+      "device_type": "PGT-AN10",
+      "language": "zh",
+      "host_abi": "arm64-v8a",
+      "video_id_type": "0",
+      "need_all_video_definition": "1",
+      "source": "0",
+      "dragon_device_type": "phone",
+      "resolution": "1920*1080",
+      "update_version_code": "74332",
+      "from_video_id": "",
+      "cdid": "synthetic",
+      "pv_player": "74332",
+      "os_api": "31",
+      "klink_egdi": "synthetic+egdi",
+      "dpi": "280",
+      "compliance_status": "0",
+      "ac": "wifi",
+      "os": "android",
+      "device_id": "123",
+      "video_platform": "1024",
+      "os_version": "12",
+      "version_code": "74332",
+      "device_level": "1",
+      "app_name": "novelread",
+      "need_mp4_align": "0",
+      "version_name": "7.4.3.32",
+      "device_brand": "HONOR",
+      "need_personal_recommend": "1",
+      "ssmix": "a",
+      "player_so_load": "1",
+      "device_platform": "android",
+      "is_android_pad_screen": "0",
+      "aid": "8662",
+      "rom_version": "V417IR+release-keys",
+      "video_id": "123"
+    },
+    "query": "device_platform=android&os=android&ssmix=a&cdid=synthetic&channel=vivo_8662_64&aid=8662&app_name=novelread&version_code=74332&version_name=7.4.3.32&manifest_version_code=74332&update_version_code=74332&resolution=1920*1080&dpi=280&device_type=PGT-AN10&device_brand=HONOR&language=zh&os_api=31&os_version=12&ac=wifi&host_abi=arm64-v8a&dragon_device_type=phone&pv_player=74332&compliance_status=0&need_personal_recommend=1&player_so_load=1&is_android_pad_screen=0&rom_version=V417IR%2Brelease-keys&iid=456&device_id=123&klink_egdi=synthetic%2Begdi&video_id=123&video_id_type=0&device_level=1&need_all_video_definition=1&need_mp4_align=0&use_os_player=0&video_platform=1024&source=0&from_video_id=&_rticket=1800000000028",
+    "helios": "AAAAgOldh6XkgPCcSOD+1hk6geYVwA9oX+NbtYeS3DNddvJe",
+    "stamp": 1800000000000,
+    "medusa": "BdJJay2ZBqFJp0QoP2fnRyK/hT0AAAABV8ogAACAgXkIWBPWQF+jWatvLtmOCtggh5j46lKrmYh2l2n9ZSeTX9Mu5urlbBlROmf8fhaZkyT80vC2cVYTbS1dUn0AXrX9cDqLx7OMegPqajfsfLlgEsEZwnxaKMZALfrQtub+ry/l9U2yYyeqAGiyrBBq4OZn19Aa5SrcBUbdmyINw/OZZC9H7RZ5KrtKqlzCkcHar6KcVh0MOMW9GEVIJQOkZDbTXCsWukqeoZHf7cNCZ28zDvRB6B5/+2dwP0Mozo637l2HAwoqXJ2A32jqvakCvOlHJh3G8nIfs6ehqFtZqI3KLXkC5SQHIatMDbIaF0GkZ60pkUxHruEj3pL3y0X5D16W9fEQ94fOFjxusbDEwEkFyEKoXzmk7qTIBuVSPwnXJMPK04XaOSFfWVvBrI3gFCeG9AfqyNsGkWLwT+Ro6smSd+PKqVcINdlGuL17ogermzskz+zFE1d275hxjvZ6Sxetup5KPv8n/h0dN70tlmDrZWsiO1Oe9l9YgynTG7wiQnoqXgm7fnnTpW164zXtUysHZZrstu5zenKJbHsztUStSVaFa8IykY6FWykHDSDSgtKNVNpOl1AX+ElUasMEhI82kBOzMPw4spdDwxY/YCWPQLzfw8GWLXq0XKTsXN6ZZDVH88HmpPkH4NwA4vpSKcfOFYTFp6ONTe6mMdFcYO7oegwhFamzXsHkVoO6tpA7xesRUMjT5y2E6CrLlEE++5ziOuD0vvZWNjRnrg0NFMH+58C4uNSRCwkGUw10FyKPsHT69PRn2h5Yjmtanw4itkMIWm0oujXjaWtjCWGb+MNSCkvzXYcbx9vkgajmYP9/////f3+7AIA=",
+    "ts": 1800000000
+  },
+  {
+    "values": {
+      "manifest_version_code": "74332",
+      "iid": "456",
+      "channel": "vivo_8662_64",
+      "use_os_player": "0",
+      "device_type": "PGT-AN10",
+      "language": "zh",
+      "host_abi": "arm64-v8a",
+      "video_id_type": "0",
+      "need_all_video_definition": "1",
+      "source": "0",
+      "dragon_device_type": "phone",
+      "resolution": "1920*1080",
+      "update_version_code": "74332",
+      "from_video_id": "",
+      "cdid": "synthetic",
+      "pv_player": "74332",
+      "os_api": "31",
+      "klink_egdi": "synthetic+egdi",
+      "dpi": "280",
+      "compliance_status": "0",
+      "ac": "wifi",
+      "os": "android",
+      "device_id": "123",
+      "video_platform": "1024",
+      "os_version": "12",
+      "version_code": "74332",
+      "device_level": "1",
+      "app_name": "novelread",
+      "need_mp4_align": "0",
+      "version_name": "7.4.3.32",
+      "device_brand": "HONOR",
+      "need_personal_recommend": "1",
+      "ssmix": "a",
+      "player_so_load": "1",
+      "device_platform": "android",
+      "is_android_pad_screen": "0",
+      "aid": "8662",
+      "rom_version": "V417IR+release-keys",
+      "video_id": "123"
+    },
+    "query": "device_platform=android&os=android&ssmix=a&cdid=synthetic&channel=vivo_8662_64&aid=8662&app_name=novelread&version_code=74332&version_name=7.4.3.32&manifest_version_code=74332&update_version_code=74332&resolution=1920*1080&dpi=280&device_type=PGT-AN10&device_brand=HONOR&language=zh&os_api=31&os_version=12&ac=wifi&host_abi=arm64-v8a&dragon_device_type=phone&pv_player=74332&compliance_status=0&need_personal_recommend=1&player_so_load=1&is_android_pad_screen=0&rom_version=V417IR%2Brelease-keys&iid=456&device_id=123&klink_egdi=synthetic%2Begdi&video_id=123&video_id_type=0&device_level=1&need_all_video_definition=1&need_mp4_align=0&use_os_player=0&video_platform=1024&source=0&from_video_id=&_rticket=1800000001012",
+    "helios": "AAAAgP8cAFskZQCdtTN/xhkUFMsVwA9oX+NbtYeS3DNddvJe",
+    "stamp": 1800000001000,
+    "medusa": "BNJJayyZBqFIp0QoPmfnRyO/hT0AAAAB38oACACEgSIKGLRRSRbAs8oENR3RDL0HS9umXelDt0d6KqAvGg7NUNAvwOWTxrL6/TSkyRPw7bKCrXHteG+h4coYmnCw1HFVyZ8/zCev389xeAzGGIRtrTl9WY0y4ljOr3xCrcieiqR04mTgi7reHtRtxGfd64lazu4ROGA4NyiEt29OzLjdCxH9NPfSh1Kixccm3OcgAoN2IqBUnwA0EZTPSOAWlj/XWl1YspTs1NALAmHjvIxH1qYbdFSpc+DCsOeTzgNfDPykudjjtB3cuWaIrxuZEgVGE/N/nChvhlgc2HYpVhYgDZdd/ulOrI7gTwytePlM2C61+uSVUMB0RT3jxhFkL6oRnS2ex4hGVa45te86dnYipA7uOUw1V/i1kbZXODYp/FeGJXb3Yf6JyP1l61PX57fXDqE1rLNhUpce9U9racoLuAYm7cm4IjE0g3LIdAK1bm7d1+flKabTEdJBUfhJ0JhqBSDydQ1n6n0yrmpo6UCfprn3Y6T5fGYftskZLUOjyadLpu/0foAc4hw20OB0xAxPxl9tYdHRSEFCBXe6/f+4rmSPJb6b0G/LCPk+9KYP9rxCwMUaLulBM0kbENs+bfq0/+oLLOT8/ClI6VwTR8C5bqNVvMRFtgmkSwy6VlirS340oyz5w/Fm4yfY8UrADXCPxlvq50oCmsWqZnccCG2cWMkpFqmzXsHkVoO6tpA7xesRUMjT5y2E6CrLlEE++5ziOuD0vvZWNjRnrg0NFMH+58C4uNSRCwkGUw10FyKPsHT69PRn2h5Yjmtanw4itkMIWm0oujXjaWtjCWGb+MNSCkvzXYcbx9vkgajmP/9/////f3+7AIA=",
+    "ts": 1800000001
+  },
+  {
+    "values": {
+      "manifest_version_code": "74332",
+      "iid": "456",
+      "channel": "vivo_8662_64",
+      "use_os_player": "0",
+      "device_type": "PGT-AN10",
+      "language": "zh",
+      "host_abi": "arm64-v8a",
+      "video_id_type": "0",
+      "need_all_video_definition": "1",
+      "source": "0",
+      "dragon_device_type": "phone",
+      "resolution": "1920*1080",
+      "update_version_code": "74332",
+      "from_video_id": "",
+      "cdid": "synthetic",
+      "pv_player": "74332",
+      "os_api": "31",
+      "klink_egdi": "synthetic+egdi",
+      "dpi": "280",
+      "compliance_status": "0",
+      "ac": "wifi",
+      "os": "android",
+      "device_id": "123",
+      "video_platform": "1024",
+      "os_version": "12",
+      "version_code": "74332",
+      "device_level": "1",
+      "app_name": "novelread",
+      "need_mp4_align": "0",
+      "version_name": "7.4.3.32",
+      "device_brand": "HONOR",
+      "need_personal_recommend": "1",
+      "ssmix": "a",
+      "player_so_load": "1",
+      "device_platform": "android",
+      "is_android_pad_screen": "0",
+      "aid": "8662",
+      "rom_version": "V417IR+release-keys",
+      "video_id": "123"
+    },
+    "query": "device_platform=android&os=android&ssmix=a&cdid=synthetic&channel=vivo_8662_64&aid=8662&app_name=novelread&version_code=74332&version_name=7.4.3.32&manifest_version_code=74332&update_version_code=74332&resolution=1920*1080&dpi=280&device_type=PGT-AN10&device_brand=HONOR&language=zh&os_api=31&os_version=12&ac=wifi&host_abi=arm64-v8a&dragon_device_type=phone&pv_player=74332&compliance_status=0&need_personal_recommend=1&player_so_load=1&is_android_pad_screen=0&rom_version=V417IR%2Brelease-keys&iid=456&device_id=123&klink_egdi=synthetic%2Begdi&video_id=123&video_id_type=0&device_level=1&need_all_video_definition=1&need_mp4_align=0&use_os_player=0&video_platform=1024&source=0&from_video_id=&_rticket=1800000002017",
+    "helios": "AAAAgIYHv4VhpWqHAYV6IUj2ICoVwA9oX+NbtYeS3DNddvJe",
+    "stamp": 1800000002000,
+    "medusa": "B9JJay+ZBqFLp0QoPWfnRyC/hT0AAAABiMoAABCEAZYIGKFMp3JBWQwaBe4uPrl/nb/60vGa0SPigm64FPvED7Bj4ZFzaU/oiMGEk6G3WVY5zO2pvoEwR3BXfhdPQgJajqjZyn1374CLohJNjg87po//x/I7HT6wsojIbGjYOPOZ1CnxL4JbaGkc+Xs+2MOHj+NxfuIocfxRihfBjtVD7gAvPGgTZxuWvbrHnoSBEvwd/vnyA/6fTBVAt0Yc4Bo07psiqr7Jp2wroVzrE22v6k8+liHE1bfeqhtf3Z/OlJPGVdhPkVjVTsFQoepkxhSkg9fONWRsqjwanFcsD0NVl7aKY5hghk0AiZrVQagVgznwwfZC/Hgd1sg9p+AIe+x/LBb47y+D1F83FOTDxGgAgxVV7XMAlSMtqPckYjEr6xGldtOL4RZO7vE/xUSFZmmmNznG22fwqqHXsSq8CmIvMbYq3VREUC6e1T4YPgBvthZWY7uLtjAQtTTSL5q4+UDFIFKKRGy933oHBMrb1CSLKvE5bRZmdqM/9Pv2DCmRQgmxE+xD3vQfRiZDbRgOLynL/QKwLP59eoQ+I0pxlhN2xHEx5Rp+Gxa3Qr9KHeXMqYF8bGrTyz8Q0x/JrEBe02/m9vDCWIhzZFp7P7nGTM/MtFhEgyw5PVldNE7TX/9tpMcQ28ueWU7xuhh45UrUrWFn/mLr9NPTbzUaE0ySi/+LVooxF6mzXsHkVoO6tpA7xesRUMjT5y2E6CrLlEE++5ziOuD0vvZWNjRnrg0NFMH+58C4uNSRCwkGUw10FyKPsHT69PRn2h5Yjmtanw4itkMIWm0oujXjaWtjCWGb+MNSCkvzXYcbx9vkgajmI/9/////f3+7AIA=",
+    "ts": 1800000002
+  },
+  {
+    "values": {
+      "manifest_version_code": "74332",
+      "iid": "456",
+      "channel": "vivo_8662_64",
+      "use_os_player": "0",
+      "device_type": "PGT-AN10",
+      "language": "zh",
+      "host_abi": "arm64-v8a",
+      "video_id_type": "0",
+      "need_all_video_definition": "1",
+      "source": "0",
+      "dragon_device_type": "phone",
+      "resolution": "1920*1080",
+      "update_version_code": "74332",
+      "from_video_id": "",
+      "cdid": "synthetic",
+      "pv_player": "74332",
+      "os_api": "31",
+      "klink_egdi": "synthetic+egdi",
+      "dpi": "280",
+      "compliance_status": "0",
+      "ac": "wifi",
+      "os": "android",
+      "device_id": "123",
+      "video_platform": "1024",
+      "os_version": "12",
+      "version_code": "74332",
+      "device_level": "1",
+      "app_name": "novelread",
+      "need_mp4_align": "0",
+      "version_name": "7.4.3.32",
+      "device_brand": "HONOR",
+      "need_personal_recommend": "1",
+      "ssmix": "a",
+      "player_so_load": "1",
+      "device_platform": "android",
+      "is_android_pad_screen": "0",
+      "aid": "8662",
+      "rom_version": "V417IR+release-keys",
+      "video_id": "123"
+    },
+    "query": "device_platform=android&os=android&ssmix=a&cdid=synthetic&channel=vivo_8662_64&aid=8662&app_name=novelread&version_code=74332&version_name=7.4.3.32&manifest_version_code=74332&update_version_code=74332&resolution=1920*1080&dpi=280&device_type=PGT-AN10&device_brand=HONOR&language=zh&os_api=31&os_version=12&ac=wifi&host_abi=arm64-v8a&dragon_device_type=phone&pv_player=74332&compliance_status=0&need_personal_recommend=1&player_so_load=1&is_android_pad_screen=0&rom_version=V417IR%2Brelease-keys&iid=456&device_id=123&klink_egdi=synthetic%2Begdi&video_id=123&video_id_type=0&device_level=1&need_all_video_definition=1&need_mp4_align=0&use_os_player=0&video_platform=1024&source=0&from_video_id=&_rticket=1800000003034",
+    "helios": "AAAAgJGyhLcwZ5NBbt3DXJ9OLy8VwA9oX+NbtYeS3DNddvJe",
+    "stamp": 1800000003000,
+    "medusa": "BtJJay6ZBqFKp0QoPGfnRyG/hT0AAAABe4ogCACAgbAIWOANHnyIH2e9ZwGTqvaxKFy+XNlZp9FfkXEHumP2NKvA+bwygJE7QdREb3ah8iVEWi+JedsHWKDIVddid47Nr3xdcjylOOxXKKoLhCF8guHoDbpHPsN+XqsMKZZs+wdpIVSXVqN9OJQLFcLMQ6a+gy9ROTc43qLFWGAZAu4/IPvuZ17/tscnRAJVw9CE/oLrhTPuGarH5qlTmjP6Qp2y3twL6oVIQNB34coW2vaa3FW8hmvGG7QKE8iK50UK9NB9AyaKXXVYN4YLs3m+CRDzNFOa03faODpZ1HEcyHEdu5/nEzzFh7DsnZS7eFvR5lJIcSscVRPt+nmM+UO7A3xzvIbsv7nHaMZvL0XpMqXwwweFeecoWJXfraGLtSYkhJMolFn93G2Q899DNM9qhkmHHlGiwGP79kxssZ8R6jBd8OoJsMCNgu+i9TNQcaK33u1RMjSgcClmOT4O38Ey0mO3lunN1S0GwcOowI81eB/2ymMNWnN+EYCdzJTlP6/W9mM+0UksAivFR0gx3Huk58Xk4JExUZQLU0NnKitz55YJujUJ4Bp7M1CdXWFH17aouy0LOyOqSUJ5lYTXs4oR47kgGllrvMCtWm3MkRPBmnwPH8YvSl372qANb8TAXfpHjrzlb5uIObfebNP0fAIPuxT+4fOKTLdIV2HQEabHh0RSVdu6+KmzXsHkVoO6tpA7xesRUMjT5y2E6CrLlEE++5ziOuD0vvZWNjRnrg0NFMH+58C4uNSRCwkGUw10FyKPsHT69PRn2h5Yjmtanw4itkMIWm0oujXjaWtjCWGb+MNSCkvzXYcbx9vkgajm5/9/////f3+7AIA=",
+    "ts": 1800000003
+  }
+]
+;
+};
 factories["resolver"]=function(module,exports,require){
 'use strict';
-// Experiment only. The production Go source sequence remains the native control.
+// Optional signed playback repair. The production Go sequence remains fallback.
 // All anonymous registration, request construction, signing and model parsing
 // below run in JS; the host exposes only byte primitives and bounded HTTP.
 var device=require('./device-pure'),model=require('./model-pure'),v5=require('./mobile-playback-v5'),sign=require('./passport-sign'),crypto=require('crypto');
 var single=require('./single-playback-profile'),registered=require('./single-registered-profile');
+var official=require('./official-playback');
 var providerDeadline=0;
 var tabIdentity=null,v5Identity=null,singleIdentity=null,singleRefreshAfter=0;
 var playbackUA='com.phoenix.read/71532 (Linux; U; Android 9; SM-N9860; Build/PQ3A.190705.10241111;tt-ok/3.12.13.20)';
 var fallbackUA='com.phoenix.read/71332 (Linux; U; Android 16; zh_CN; 25053RT47C; Build/BP2A.250605.031.A3; Cronet/TTNetVersion:04657795 2026-01-23 QuicVersion:c67e9834 2025-09-08)';
 var tabEndpoint='https://api5-normal-sinfonlineb.fqnovel.com/reading/bookapi/video_tab/multi_video_model/v1/';
 function failure(stage,code){var e=new Error(code);e.code=code;e.stage=stage;throw e;}
-function http(method,url,headers,body){return Promise.resolve().then(function(){var remaining=providerDeadline?Math.min(8000,providerDeadline-Date.now()):8000;if(remaining<=0)failure('resolver_js','UPSTREAM_TIMEOUT');return __resolverHost.http(method,url,headers,body||Buffer.alloc(0),remaining);});}
+function http(method,url,headers,body,timeout){return Promise.resolve().then(function(){var remaining=Math.min(timeout||8000,providerDeadline?providerDeadline-Date.now():8000);if(remaining<=0)failure('resolver_js','UPSTREAM_TIMEOUT');return __resolverHost.http(method,url,headers,body||Buffer.alloc(0),remaining);});}
 function registrationQuery(q){function encode(value){return encodeURIComponent(String(value)).replace(/[!'()*]/g,function(c){return '%'+c.charCodeAt(0).toString(16).toUpperCase();}).replace(/%20/g,'+');}return Object.keys(q).sort().map(function(key){return encode(key)+'='+encode(q[key]);}).join('&');}
 function cookieHeader(cookies){return Object.keys(cookies||{}).filter(function(k){return ['install_id','ttreq','store-region','store-region-src'].indexOf(k)>=0&&cookies[k];}).sort().map(function(k){return k+'='+cookies[k];}).join('; ');}
 function register(profile){
@@ -1258,7 +1627,7 @@ function responseRoot(r,stage){if(r.status!==200)failure(stage,'VIDEO_MODEL_HTTP
 function modelOptions(m,request,stage){if(typeof m==='string'){try{m=model.parseExactJSON(m);}catch(e){m=model.parseExactJSON(Buffer.from(m,'base64').toString('utf8'));}}if(!m||typeof m!=='object')failure(stage,'VIDEO_MODEL_MISSING');return compatible(m,request.codec_mode).then(function(m){var out=options(m,request.codec_mode);if(!out.length)failure(stage,'VIDEO_MODEL_LIST_EMPTY');return out;});}
 function envelopeOptions(root,request,stage,kind){var data=root.data||{},entry;if(kind==='tab'){var env=model.videoTabEnvelopeExact(request.vid,root);if(env)entry=env.data[request.vid];}else if(kind==='v5'){entry=(data[request.content_type]||data)[request.vid];}else{entry=data[request.vid]||data;}
  var m=entry&&entry.video_model;if(m==null&&kind==='single'&&(data.video_list||data.fallback_api))m=data;return modelOptions(m,request,stage);}
-function videoTab(request){var get=tabIdentity?Promise.resolve(tabIdentity):register().then(function(d){tabIdentity=d;return d;});return get.then(function(d){var q=model.videoTabQuery(d,Date.now(),request.vid),h={'User-Agent':playbackUA,'Accept':'application/json; charset=utf-8'},cookie=cookieHeader(d.cookies);if(cookie)h.Cookie=cookie;return http('GET',tabEndpoint+'?'+registrationQuery(q),h);}).then(function(r){return envelopeOptions(responseRoot(r,'video_tab'),request,'video_tab','tab');});}
+function videoTab(request){var get=tabIdentity?Promise.resolve(tabIdentity):official.register(http).then(function(d){tabIdentity=d;return d;});return get.then(function(d){var built=official.tab(request.vid,d,Date.now());return http('GET',built.url,built.headers).then(function(r){if(r.status===401||r.status===403||r.status===200&&!r.body.length)tabIdentity=null;return envelopeOptions(responseRoot(r,'video_tab'),request,'video_tab','tab');});});}
 function v5Request(request,d,alternate){var built=v5.build(request.vid,request.content_type,d,Date.now(),alternate);return http('POST',built.url,built.headers,built.body).then(function(r){return envelopeOptions(responseRoot(r,'multi_video_model'),request,'multi_video_model','v5');});}
 function mobileV5(request){var get=v5Identity?Promise.resolve(v5Identity):register().then(function(d){v5Identity=d;return d;});return get.then(function(d){return v5Request(request,d,false).catch(function(e){if(e.code!=='VIDEO_MODEL_EMPTY'||e.retry_after)throw e;return v5Request(request,d,true).catch(function(alt){if(alt.code!=='VIDEO_MODEL_EMPTY'||alt.retry_after)throw alt;var built=v5.videoTabRecovery(request.vid,d,Date.now());return http('GET',built.url,built.headers).then(function(r){return envelopeOptions(responseRoot(r,'video_tab'),request,'video_tab','tab');});});});});}
 function legacy(request){var hosts=['https://api5-normal-sinfonlineb.fqnovel.com','https://api5-normal-hl.fqnovel.com'];function round(i){return register().then(function(d){function host(n){var stamp=Date.now(),q=model.playbackQuery(d,stamp),ids={};ids[request.content_type]=[request.vid];var body=Buffer.from(JSON.stringify({biz_param:{detail_page_version:0,device_level:3,disable_digg_stat:false,need_all_video_definition:true,need_mp4_align:false,use_os_player:false,use_server_dns:false,video_platform:1024},mixed_video_id_map:ids})),signed=sign.signPlayback(q,body,stamp,d.deviceID),h=Object.assign({},signed.headers,{'User-Agent':playbackUA,'Accept':'application/json; charset=utf-8,application/x-protobuf','Content-Type':'application/json; charset=UTF-8','Passport-Sdk-Version':'50561','X-Tt-Request-Tag':'t=0;n=0','X-Vc-Bdturing-Sdk-Version':'3.7.2.cn'});return http('POST',hosts[n]+'/novel/player/multi_video_model/v1/?'+signed.query,h,body).then(function(r){return envelopeOptions(responseRoot(r,'multi_video_model'),request,'multi_video_model','legacy');}).catch(function(e){if(e.code!=='VIDEO_MODEL_EMPTY')throw e;if(n===0)return host(1);throw e;});}return host(0);}).catch(function(e){if(e.code==='VIDEO_MODEL_EMPTY'&&i===0)return round(1);throw e;});}return round(0);}
@@ -1267,8 +1636,8 @@ function registeredSingle(request){function newIdentity(){return registered.regi
 function oldSingle(request){function attempt(i){return register(single).then(function(d){var stamp=Date.now(),body=Buffer.from(JSON.stringify({video_id:request.vid,biz_param:{video_id_type:0,need_all_video_definition:true,video_platform:3}})),s=sign.signPlayback(single.query(d),body,stamp,d.deviceID),h=Object.assign({},s.headers,{'User-Agent':single.ua,'Content-Type':'application/json; charset=UTF-8',Accept:'application/json; charset=utf-8,application/x-protobuf','Passport-Sdk-Version':'50561','X-Vc-Bdturing-Sdk-Version':'3.7.2.cn','X-Tt-Request-Tag':'t=0;n=0','X-SS-DP':'8662','Lc':'101','X-Reading-Request':String(stamp)+'-'+(crypto.randomBytes(4).readUInt32LE(0)&0x7fffffff)});var cookie=cookieHeader(d.cookies);if(cookie)h.Cookie=cookie;return http('POST',single.endpoint+'?'+s.query,h,body).then(function(r){return envelopeOptions(responseRoot(r,'video_model'),request,'video_model','single');});}).catch(function(e){if(i===0&&fallbackAllowed(e))return attempt(1);throw e;});}return attempt(0);}
 function fallbackAllowed(e){return !e||['VIDEO_MODEL_EMPTY','VIDEO_MODEL_HTTP','VIDEO_MODEL_MISSING','VIDEO_MODEL_LIST_EMPTY','VIDEO_MODEL_MISMATCH','DEVICE_REGISTER_HTTP','DEVICE_REGISTER_INVALID','RESOLVER_SCRIPT_FAILED','UPSTREAM_TIMEOUT'].indexOf(e.code)>=0;}
 function resolve(text){var request;return Promise.resolve().then(function(){request=JSON.parse(text);if(!/^[0-9]{1,32}$/.test(request.vid||''))failure('multi_video_model','INVALID_VIDEO_ID');var modes={'':'default',default:'default',auto:'auto',mpv_auto:'auto',software:'software',mpv_software:'software',standard:'default'};if(!Object.prototype.hasOwnProperty.call(modes,request.codec_mode||''))failure('multi_video_model','INVALID_CODEC_MODE');request.codec_mode=modes[request.codec_mode||''];request.content_type=request.content_type||'1004';if(!/^[0-9]{1,16}$/.test(request.content_type))failure('multi_video_model','INVALID_CONTENT_TYPE');var paths=[videoTab,mobileV5,legacy,registeredSingle,oldSingle],deadline=Date.now()+30000,groupDeadline=0;function next(i){if(i===0)groupDeadline=Date.now()+8000;else if(i===1)groupDeadline=Date.now()+14000;else if(i===3)groupDeadline=Date.now()+8000;providerDeadline=Math.min(deadline,groupDeadline);return paths[i](request).catch(function(e){if(i<paths.length-1&&(i===0||fallbackAllowed(e)))return next(i+1);throw e;});}return next(0);}).then(function(result){return JSON.stringify({options:result});},function(e){return JSON.stringify({error_code:/^[A-Z0-9_]{1,64}$/.test(e.code||'')?e.code:'RESOLVER_SCRIPT_FAILED',error_stage:/^[a-z_]{1,40}$/.test(e.stage||'')?e.stage:'resolver_js'});});}
-function selfTest(text){var rows=JSON.parse(text),s=require('./playback-v5-sign'),q=v5.query({deviceID:'123',installID:'456',cdid:'synthetic'});for(var i=0;i<rows.length;i++){var r=rows[i],t=s.tune(q,Buffer.from(r.body,'hex'),r.ts*1000),med=s.medusa(q,r.ts,t.q,t.m,[0x80000000,0x80000000,0x80000000],{nonce:'synthetic',started:1800000000000});if(t.query!==r.query||med!==r.medusa||s.helios(r.ts,0x80000000)!==r.helios)return 0;}return rows.length;}
-module.exports={resolve:resolve,selfTest:selfTest,metadata:function(){return {name:'hongguo-playback-resolver',version:'2026.11.24.1',protocol:1,native_sm3:!!sign.nativeSM3}},test:{device:device,model:model,options:options}};
+function selfTest(text){var rows=JSON.parse(text),s=require('./playback-v5-sign'),q=v5.query({deviceID:'123',installID:'456',cdid:'synthetic'});for(var i=0;i<rows.length;i++){var r=rows[i],t=s.tune(q,Buffer.from(r.body,'hex'),r.ts*1000),med=s.medusa(q,r.ts,t.q,t.m,[0x80000000,0x80000000,0x80000000],{nonce:'synthetic',started:1800000000000});if(t.query!==r.query||med!==r.medusa||s.helios(r.ts,0x80000000)!==r.helios)return 0;}return official.selfTest()?rows.length:0;}
+module.exports={resolve:resolve,selfTest:selfTest,metadata:function(){return {name:'hongguo-playback-resolver',version:'2026.11.24.1',protocol:1,native_sm3:!!sign.nativeSM3}},test:{device:device,model:model,options:options,official:official,signer:require('./playback-v5-sign')}};
 
 };
 function require(name){if(name.slice(0,2)==='./')name=name.slice(2);if(name==='buffer')return {Buffer:Buffer};if(cache[name])return cache[name].exports;if(!factories[name])throw new Error('module unavailable');var m={exports:{}};cache[name]=m;factories[name](m,m.exports,require);return m.exports;}return require('resolver');})()
