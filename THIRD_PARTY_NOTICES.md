@@ -59,3 +59,17 @@ adapter uses buffer 4.9.2 and base64-js 1.5.1 (MIT), and ieee754 1.2.1
 vendoring. Copies, full licenses and provenance under `webos/service/vendor/`
 ship in the IPK. Only buffer dependency paths and its Array.isArray adapter are
 changed; the cryptographic implementation is not modified.
+
+## Native JSON playback profile
+
+The schema, baseline field tables and data interpreter adapt
+[miaoxiaohu/hongguoTV](https://github.com/miaoxiaohu/hongguoTV), commit
+`312e7f210bf37d3b47236426f0292201eb403199` (release `kotlin-v1.0.0`):
+`PlaybackProfile.kt` and `playback-profile.json`. Covered local files are
+`core/internal/playbackprofile/profile.go`, its generated signing primitives
+from the existing ports above, and `webos/service/playback-profile.{js,json}`.
+They are GPL-3.0-only; preserve this attribution and the corresponding source
+and full license at `licenses/GPL-3.0-only.txt` when distributing covered work.
+The local baseline adds an explicit content-type placeholder instead of a fixed
+1004 request body; validation rejects invalid types and dependencies before
+activation. Original copyright remains with the upstream authors.

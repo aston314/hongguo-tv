@@ -40,8 +40,8 @@ function http(input,signal,timeout) {
  if(bad||body.length>16384||!Number.isSafeInteger(timeout)||timeout<1||timeout>8000)return Promise.reject(fault('RULE_HTTP_REJECTED'));
  return read({url:input.url,method:input.method,headers:headers,body:body},signal,timeout,5242880);
 }
-function fetchRule(raw,limit,accept,signal) {
- if(!verify.official(raw))return Promise.reject(fault('RULE_URL_REJECTED'));
+function fetchRule(raw,limit,accept,signal,kind) {
+ if(!verify.official(raw,kind==='json'))return Promise.reject(fault('RULE_URL_REJECTED'));
  var i=0;
  function next(){if(signal&&signal.aborted)return Promise.reject(fault('RESOLVER_CANCELLED'));if(i>=PROXIES.length)return Promise.reject(fault('RULE_UPDATE_UNAVAILABLE'));
   return read({url:PROXIES[i++]+raw,method:'GET',headers:{Accept:'application/octet-stream','Cache-Control':'no-cache'}},signal,4000,limit).then(function(r){if(r.status!==200)throw fault('RULE_DOWNLOAD_FAILED');accept(r.body);return r.body;}).catch(next);

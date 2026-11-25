@@ -19,6 +19,7 @@ import (
 
 	"github.com/aston314/hongguo-tv/core/internal/jsresolver"
 	"github.com/aston314/hongguo-tv/core/internal/jsupdate"
+	"github.com/aston314/hongguo-tv/core/internal/playbackprofile"
 	"github.com/aston314/hongguo-tv/core/internal/resolverwire"
 )
 
@@ -29,12 +30,16 @@ func main() {
 	}
 }
 func run() error {
+	kind := flag.String("kind", "js", "rule format: js or json")
 	out := flag.String("out", "", "output directory")
 	version := flag.String("version", "", "module version")
 	revision := flag.Uint64("revision", 0, "strictly increasing control revision")
 	previous := flag.String("previous", "", "previous signed manifest, if any")
 	disable := flag.Bool("disable", false, "publish a signed native-only control")
 	flag.Parse()
+	if *kind != "js" && *kind != "json" {
+		return errors.New("invalid rule format")
+	}
 	if *out == "" || *revision == 0 || !*disable && !regexp.MustCompile(`^[A-Za-z0-9._-]{1,64}$`).MatchString(*version) {
 		return errors.New("invalid publication arguments")
 	}
@@ -56,8 +61,23 @@ func run() error {
 	}()
 	now := time.Now().Unix()
 	m := jsupdate.Manifest{Schema: 1, Product: jsupdate.Product, Revision: *revision, Enabled: !*disable, IssuedAt: now - 30, ExpiresAt: now + int64((30*24*time.Hour)/time.Second) - 30}
+	folder, extension := "modules", ".js"
+	verify := jsupdate.VerifyStoredControl
+	if *kind == "json" {
+		m.Product, folder, extension = jsupdate.ProfileProduct, "profiles", ".json"
+		verify = jsupdate.VerifyStoredProfileControl
+	}
 	var script []byte
-	if !*disable {
+	if !*disable && *kind == "json" {
+		script = playbackprofile.Builtin()
+		if _, err := playbackprofile.Parse(script); err != nil {
+			return errors.New("profile validation failed")
+		}
+		hash := sha256.Sum256(script)
+		sha := hex.EncodeToString(hash[:])
+		m.Module = &jsupdate.Artifact{Version: *version, Protocol: 1, HostAPI: jsupdate.HostAPI, URL: jsupdate.ProfileRoot + "profiles/" + sha + ".json", Size: len(script), SHA256: sha}
+	}
+	if !*disable && *kind == "js" {
 		script = jsresolver.Source()
 		needle := []byte("version:'" + jsresolver.Version + "'")
 		if bytes.Count(script, needle) != 1 {
@@ -94,7 +114,7 @@ func run() error {
 		if json.Unmarshal(data, &envelope) != nil {
 			return errors.New("invalid preceding control")
 		}
-		old, err := jsupdate.VerifyStoredControl(envelope, jsupdate.PublicKey())
+		old, err := verify(envelope, jsupdate.PublicKey())
 		if err != nil {
 			return errors.New("preceding control signature rejected")
 		}
@@ -109,14 +129,14 @@ func run() error {
 	if e != nil {
 		return errors.New("control signing failed")
 	}
-	if _, e = jsupdate.VerifyStoredControl(envelope, jsupdate.PublicKey()); e != nil {
+	if _, e = verify(envelope, jsupdate.PublicKey()); e != nil {
 		return errors.New("published control verification failed")
 	}
-	if e = os.MkdirAll(filepath.Join(*out, "modules"), 0755); e != nil {
+	if e = os.MkdirAll(filepath.Join(*out, folder), 0755); e != nil {
 		return e
 	}
 	if m.Module != nil {
-		if e = os.WriteFile(filepath.Join(*out, "modules", m.Module.SHA256+".js"), script, 0644); e != nil {
+		if e = os.WriteFile(filepath.Join(*out, folder, m.Module.SHA256+extension), script, 0644); e != nil {
 			return e
 		}
 	}

@@ -201,13 +201,14 @@ function officialProto(values, ts, nonce, q, hash, process) {
   text(p, 24, '{"cmr":16777216,"cmr2":16777216,"un_h":11,"vpn":0,"kd":0,"dyn":"","do":1,"tk":true}');
   return Buffer.from(p);
 }
-function medusa(values, ts, q, m, n, process, official) {
+function medusa(values, ts, q, m, n, process, official, profile) {
   var hash = f13(q, m, ts),
-    message = (official ? officialProto : proto)(values, ts, n[0], q, hash, process);
-  var key = passport.sm3(Buffer.concat([KEY, le32(n[1]), KEY])),
+    message = profile ? profile.message(values, ts, n[0], q, hash, process) : (official ? officialProto : proto)(values, ts, n[0], q, hash, process);
+  var signKey = profile ? profile.key : KEY, magic = profile ? profile.magic : MAGIC;
+  var key = passport.sm3(Buffer.concat([signKey, le32(n[1]), signKey])),
     high = (n[1] >>> 16) & 255;
   var seed = le32(~(((high << 11) | (n[1] >>> 24)) ^ (high >>> 5) ^ high));
-  var flags = official ? Buffer.from('4480000000000000', 'hex') : Buffer.alloc(8);
+  var flags = profile ? profile.flags : official ? Buffer.from('4480000000000000', 'hex') : Buffer.alloc(8);
   var transformed = Buffer.concat([flags, xmxor(message, key)]).reverse();
   for (var i = 0; i < transformed.length; i++) transformed[i] ^= seed[~i & 3];
   var check = (0x18000001 | ((q[0] & 63) << 14) | ((hash[0] & 63) << 8)) >>> 0;
@@ -218,8 +219,8 @@ function medusa(values, ts, q, m, n, process, official) {
     transformed,
     le32(n[1]).slice(2)
   ]);
-  var encrypted = carrier(packed, ts, md5(KEY.slice(0, 16)), md5(KEY.slice(16)));
-  var prefix = Buffer.concat([le32(5), MAGIC]),
+  var encrypted = carrier(packed, ts, md5(signKey.slice(0, 16)), md5(signKey.slice(16)), profile && profile.sbox);
+  var prefix = Buffer.concat([le32(5), magic]),
     timestamp = le32(ts);
   for (i = 0; i < prefix.length; i++) prefix[i] ^= timestamp[i & 3];
   return Buffer.concat([prefix, le32(n[1]).slice(0, 2), Buffer.from([0, 1]), encrypted]).toString(
@@ -355,7 +356,7 @@ function pairRotl(a, n) {
 function pairRotr(a, n) {
   return pairRotl(a, 64 - (n & 63));
 }
-function helios(ts, nonce) {
+function helios(ts, nonce, license) {
   var key = md5(Buffer.concat([le32(nonce), Buffer.from('8662')]));
   var raw = Buffer.from(key.toString('hex'));
   var k = pairReadLE(raw, 0),
@@ -367,7 +368,7 @@ function helios(ts, nonce) {
     k = pairXor(x, pairRotl(k, 3));
     rounds.push(k);
   }
-  var text = Buffer.from(String(ts) + '-646637794-8662'),
+  var text = Buffer.from(String(ts) + '-' + (license || '646637794') + '-8662'),
     pad = 16 - (text.length % 16),
     plain = Buffer.concat([text, Buffer.alloc(pad, pad)]),
     out = Buffer.concat([le32(nonce), Buffer.alloc(plain.length)]);

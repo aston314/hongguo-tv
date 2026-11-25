@@ -19,6 +19,8 @@ import (
 const Product = "hongguo-playback-resolver"
 const MaxManifest = 8192
 const HostAPI = 1
+const ProfileProduct = "hongguo-playback-profile"
+const MaxProfile = 256 * 1024
 
 type Artifact struct {
 	Version  string `json:"version"`
@@ -66,6 +68,9 @@ func strictJSON(b []byte, v any) error {
 	return nil
 }
 func verify(env Envelope, key ed25519.PublicKey, now time.Time, incoming bool, allowed func(string) bool) (Manifest, error) {
+	return verifyPolicy(env, key, now, incoming, allowed, Product, jsresolver.MaxScript)
+}
+func verifyPolicy(env Envelope, key ed25519.PublicKey, now time.Time, incoming bool, allowed func(string) bool, product string, maxArtifact int) (Manifest, error) {
 	var m Manifest
 	b, e := base64.StdEncoding.DecodeString(env.Payload)
 	sig, se := base64.StdEncoding.DecodeString(env.Signature)
@@ -76,7 +81,7 @@ func verify(env Envelope, key ed25519.PublicKey, now time.Time, incoming bool, a
 		return m, errors.New("manifest_rejected")
 	}
 	canonical, _ := json.Marshal(m)
-	if !bytes.Equal(b, canonical) || m.Schema != 1 || m.Product != Product || m.Revision == 0 || m.Revision > 9007199254740991 || m.IssuedAt <= 0 || m.ExpiresAt <= m.IssuedAt || m.ExpiresAt-m.IssuedAt > int64((30*24*time.Hour)/time.Second) {
+	if !bytes.Equal(b, canonical) || m.Schema != 1 || m.Product != product || m.Revision == 0 || m.Revision > 9007199254740991 || m.IssuedAt <= 0 || m.ExpiresAt <= m.IssuedAt || m.ExpiresAt-m.IssuedAt > int64((30*24*time.Hour)/time.Second) {
 		return m, errors.New("manifest_rejected")
 	}
 	if incoming && (m.IssuedAt > now.Add(5*time.Minute).Unix() || m.ExpiresAt <= now.Unix()) {
@@ -89,7 +94,7 @@ func verify(env Envelope, key ed25519.PublicKey, now time.Time, incoming bool, a
 		return m, nil
 	}
 	a := m.Module
-	if a == nil || !versionRE.MatchString(a.Version) || a.Protocol != 1 || a.HostAPI != HostAPI || a.Size < 1 || a.Size > jsresolver.MaxScript || !digestRE.MatchString(a.SHA256) || !allowed(a.URL) {
+	if a == nil || !versionRE.MatchString(a.Version) || a.Protocol != 1 || a.HostAPI != HostAPI || a.Size < 1 || a.Size > maxArtifact || !digestRE.MatchString(a.SHA256) || !allowed(a.URL) {
 		return m, errors.New("module_rejected")
 	}
 	return m, nil

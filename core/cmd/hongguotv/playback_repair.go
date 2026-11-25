@@ -24,16 +24,17 @@ type repairRuntime interface {
 	Status() jsupdate.Status
 }
 type playbackRepairStatus struct {
-	Revision    uint64 `json:"revision"`
-	Supported   bool   `json:"supported"`
-	Enabled     bool   `json:"enabled"`
-	Checking    bool   `json:"checking"`
-	Source      string `json:"source"`
-	Version     string `json:"version,omitempty"`
-	LastChecked int64  `json:"last_checked,omitempty"`
-	LastUpdated int64  `json:"last_updated,omitempty"`
-	Event       string `json:"event"`
-	Change      uint64 `json:"change"`
+	NativeProfile *jsupdate.Status `json:"native_profile,omitempty"`
+	Revision      uint64           `json:"revision"`
+	Supported     bool             `json:"supported"`
+	Enabled       bool             `json:"enabled"`
+	Checking      bool             `json:"checking"`
+	Source        string           `json:"source"`
+	Version       string           `json:"version,omitempty"`
+	LastChecked   int64            `json:"last_checked,omitempty"`
+	LastUpdated   int64            `json:"last_updated,omitempty"`
+	Event         string           `json:"event"`
+	Change        uint64           `json:"change"`
 }
 type playbackRepairService struct {
 	mu                        sync.Mutex
@@ -79,6 +80,11 @@ func (s *playbackRepairService) status() playbackRepairStatus {
 }
 func (s *playbackRepairService) statusLocked() playbackRepairStatus {
 	out := playbackRepairStatus{Supported: true, Enabled: s.enabled, Checking: s.checking, Source: "native", LastChecked: s.lastChecked, LastUpdated: s.lastUpdated, Event: s.event, Change: s.change}
+	if automatic := defaultNativeProfile.Load(); automatic != nil {
+		state := automatic.manager.Status()
+		state.Format = "json"
+		out.NativeProfile = &state
+	}
 	if s.enabled && s.manager != nil {
 		current := s.manager.Status()
 		out.Revision = current.ActiveRevision
@@ -344,6 +350,9 @@ func (s *server) playbackRepair(w http.ResponseWriter, r *http.Request) {
 		case "disable", "restore":
 			err = s.repair.setEnabled(false)
 		case "check":
+			if automatic := defaultNativeProfile.Load(); automatic != nil {
+				automatic.check()
+			}
 			s.repair.check()
 		default:
 			writeError(w, 400, "invalid repair action")

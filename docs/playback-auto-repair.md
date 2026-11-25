@@ -1,5 +1,11 @@
 # Optional automatic playback repair
 
+The switch and JS behavior documented below are unchanged. The separate
+[data-only native JSON profile](playback-profile-authoring.md) is automatic and
+requires no user preference or custom address. Disabling JS does not disable
+native JSON updates. JSON is interpreted by Go / the existing webOS service,
+without creating a Goja VM or Node worker.
+
 The feature is off by default. Android (including MPV/Android 5 builds) and
 desktop share one Go service. Settings exposes one persistent switch, current
 native/repair status, last check and manual check/disable actions. The setting

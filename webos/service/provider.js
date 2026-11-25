@@ -25,6 +25,8 @@
   var audioMedia = require('./audio-media');
   var audioRange = require('./audio-range'), audioCancel = require('./audio-cancel');
   var playbackRepair = null;
+  var playbackProfile = null;
+  var profileIdentity = newPlaybackIdentity();
 
   var API_BASE = 'https://api5-normal-sinfonlineb.fqnovel.com';
   var WEB_BASE = 'https://hongguoduanju.com';
@@ -936,6 +938,34 @@
       return legacySingleVideoOptions(vid,signal,retry);
     });
   }
+  function resolveProfile(profile, request, signal) {
+    var vid=String(request.vid), content=String(request.content_type||'1004');
+    if(!/^\d{1,32}$/.test(vid)||!/^\d{1,16}$/.test(content))return Promise.reject(fail('分集无效',400,'INVALID_VIDEO_ID'));
+    return profileIdentity.get(signal).then(function(device){
+      var identity={device_id:device.deviceID,iid:device.installID,cdid:device.cdid,klink_egdi:''};
+      var gates=profile.tabHosts.map(function(host){return {tab:true,host:host};}).concat([{tab:false,host:''}]);
+      function next(index){
+        if(signal&&signal.aborted||playbackIdentityClosed)throw preparationCancelled();
+        var gate=gates[index],built=profile.build(identity,vid,content,gate.tab,gate.host),stage=gate.tab?'video_tab':'multi_video_model';
+        return requestBuffer(built.url,built.method,built.headers,built.body,2*1024*1024,signal,3000).then(function(response){
+          if(response.status!==200)throw fail('播放接口暂不可用',502,'VIDEO_MODEL_HTTP',stage);
+          if(!response.body.length)throw fail('播放接口空响应',502,response.headers&&response.headers['retry-after']?'VIDEO_MODEL_THROTTLED':'VIDEO_MODEL_EMPTY',stage);
+          var root=parseExactJSON(response.body.toString('utf8'));
+          if(businessCode(root)&&businessCode(root)!=='0')throw fail('播放接口拒绝请求',502,'VIDEO_MODEL_BUSINESS',stage);
+          var envelope;
+          if(gate.tab)envelope=videoTabEnvelopeExact(vid,root);
+          else{var data=asMap(root.data),entries=asMap(data[content]||data),entry=entries[vid];if(entry&&entry.video_model!=null){var exact={};exact[vid]=entry;envelope={data:exact};}}
+          if(!envelope)throw fail('缺少所选分集',502,'VIDEO_MODEL_MISSING',stage);
+          return optionsFromEnvelope(vid,envelope,signal,stage,function(){});
+        }).catch(function(error){
+          if(signal&&signal.aborted||playbackIdentityClosed||error.name==='AbortError')throw preparationCancelled();
+          if(['VIDEO_MODEL_BUSINESS','VIDEO_MODEL_THROTTLED'].indexOf(error.code)>=0||index+1>=gates.length)throw error;
+          return next(index+1);
+        });
+      }
+      return next(0);
+    });
+  }
   function videoOptions(vid, signal, retry) {
     retry = retry || {}; var state = retry.identityState || (retry.identityState = {});
     retry.startedAt = retry.startedAt || Date.now();
@@ -957,6 +987,11 @@
           return videoOptions(vid,signal,retry);
         });
       }
+    }
+    if (!state.profileTried && playbackProfile) {
+      state.profileTried=true;var profileStarted=Date.now();
+      var profileFinished=function(){state.resolveSpent=(state.resolveSpent||0)+Date.now()-profileStarted;};
+      return playbackProfile.resolve({vid:vid,codec_mode:'default',content_type:String(retry.contentType||'1004')},signal).then(function(options){profileFinished();if(signal&&signal.aborted)throw preparationCancelled();if(options&&options.length){state.source='repair';return options;}return videoOptions(vid,signal,retry);},function(error){profileFinished();if(signal&&signal.aborted||playbackIdentityClosed)throw preparationCancelled();return videoOptions(vid,signal,retry);});
     }
     if (state.cursor >= state.plan.order.length && !state.singleLegacyPending && !state.multiLegacyPending) return Promise.reject(state.lastError || fail('片源已尝试完毕',502,'VIDEO_MODEL_NO_QUALITY'));
     var legacyOnly=!!(state.singleLegacyPending || state.multiLegacyPending);
@@ -2324,14 +2359,16 @@
     radar: radar, library: library, changeLibrary: changeLibrary,
     dataDirectory: dataDirectory,
     setPlaybackRepair: function (repair) { playbackRepair = repair; },
+    setPlaybackProfile: function (profile) { playbackProfile = profile; },
+    resolveProfile: resolveProfile,
     startCache: function () {
       // Luna may wake the same JS Service instance after shutdown, without
       // restarting its process. Never leave its playback identity closed.
-      if (playbackIdentityClosed) { playbackIdentity = newPlaybackIdentity(); registeredSingleIdentity = newRegisteredSingleIdentity(); mobileV5Identity = newPlaybackIdentity(); playbackIdentityClosed = false; }
+      if (playbackIdentityClosed) { playbackIdentity = newPlaybackIdentity(); registeredSingleIdentity = newRegisteredSingleIdentity(); mobileV5Identity = newPlaybackIdentity(); profileIdentity = newPlaybackIdentity(); playbackIdentityClosed = false; }
       ensureCacheRoot(); mediaCache.start();
     },
     closeCache: function () {
-      playbackIdentityClosed = true; playbackIdentity.close(); registeredSingleIdentity.close(); mobileV5Identity.close();
+      playbackIdentityClosed = true; playbackIdentity.close(); registeredSingleIdentity.close(); mobileV5Identity.close(); profileIdentity.close();
       sourceMemory.clear();
       Object.keys(jobs).forEach(function (key) { jobs[key].resolveCancel.abort('PLAYBACK_PREPARATION_CANCELLED'); });
       Object.keys(fullDownloads).forEach(function (key) { fullDownloads[key].cancel.abort('PLAYBACK_PREPARATION_CANCELLED'); });

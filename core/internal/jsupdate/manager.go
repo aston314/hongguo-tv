@@ -28,6 +28,14 @@ type Config struct {
 	Routes                                       func(string) []string
 	Now                                          func() time.Time
 	RouteTimeout, UpdateTimeout, ValidateTimeout time.Duration
+	// Optional data-only runtime. Defaults retain the existing JS wire contract.
+	Product, Extension string
+	MaxArtifact        int
+	Loader             func(context.Context, []byte, string) (Runtime, error)
+}
+type Runtime interface {
+	Resolve(context.Context, resolverwire.Request) ([]resolverwire.Option, error)
+	Close(context.Context) error
 }
 type diskState struct {
 	ActiveVerified bool      `json:"active_verified"`
@@ -38,6 +46,8 @@ type diskState struct {
 	Quarantine     []string  `json:"quarantine"`
 }
 type Status struct {
+	Automatic         bool   `json:"automatic,omitempty"`
+	Format            string `json:"format,omitempty"`
 	ActiveRevision    uint64 `json:"active_revision"`
 	Source            string `json:"source"`
 	Version           string `json:"version"`
@@ -52,8 +62,8 @@ type Manager struct {
 	life          context.Context
 	cancel        context.CancelFunc
 	gate, updater chan struct{}
-	runtime       *jsresolver.Resolver // only gate owner may use/close it
-	state         diskState            // only gate owner may read/write it
+	runtime       Runtime   // only gate owner may use/close it
+	state         diskState // only gate owner may read/write it
 	status        atomic.Value
 }
 
@@ -68,8 +78,23 @@ func acquire(ctx context.Context, gate chan struct{}) error {
 func release(gate chan struct{}) { gate <- struct{}{} }
 
 func New(ctx context.Context, cfg Config) (*Manager, error) {
-	if cfg.Dir == "" || len(cfg.PublicKey) != ed25519.PublicKeySize || len(cfg.Embedded) == 0 || cfg.EmbeddedVersion == "" || cfg.VectorCount == 0 || len(cfg.Vectors) == 0 || cfg.Transport == nil {
+	if cfg.Dir == "" || len(cfg.PublicKey) != ed25519.PublicKeySize || len(cfg.Embedded) == 0 || cfg.EmbeddedVersion == "" || cfg.Loader == nil && (cfg.VectorCount == 0 || len(cfg.Vectors) == 0 || cfg.Transport == nil) {
 		return nil, errors.New("invalid_update_config")
+	}
+	if cfg.Product == "" {
+		cfg.Product = Product
+	}
+	if cfg.Extension == "" {
+		cfg.Extension = ".js"
+	}
+	if cfg.MaxArtifact == 0 {
+		cfg.MaxArtifact = jsresolver.MaxScript
+	}
+	if cfg.Product != Product && cfg.Product != ProfileProduct || cfg.Extension != ".js" && cfg.Extension != ".json" || cfg.MaxArtifact < 1 || cfg.MaxArtifact > jsresolver.MaxScript {
+		return nil, errors.New("invalid_artifact_policy")
+	}
+	if cfg.Product == ProfileProduct && (cfg.Loader == nil || cfg.Extension != ".json" || cfg.MaxArtifact > MaxProfile) {
+		return nil, errors.New("invalid_profile_policy")
 	}
 	cfg.PublicKey = append(ed25519.PublicKey(nil), cfg.PublicKey...)
 	cfg.Embedded = append([]byte(nil), cfg.Embedded...)
@@ -116,9 +141,15 @@ func New(ctx context.Context, cfg Config) (*Manager, error) {
 	m.prune()
 	return m, nil
 }
-func (m *Manager) load(ctx context.Context, b []byte, version string) (*jsresolver.Resolver, error) {
+func (m *Manager) load(ctx context.Context, b []byte, version string) (Runtime, error) {
 	check, stop := context.WithTimeout(ctx, m.cfg.ValidateTimeout)
 	defer stop()
+	if len(b) > m.cfg.MaxArtifact {
+		return nil, errors.New("artifact_size_rejected")
+	}
+	if m.cfg.Loader != nil {
+		return m.cfg.Loader(check, b, version)
+	}
 	// Neither top-level code, metadata nor self-test may make network requests.
 	var live, attempted atomic.Bool
 	do := func(ctx context.Context, in resolverwire.HTTPRequest) (resolverwire.HTTPResponse, error) {
@@ -153,13 +184,17 @@ func (m *Manager) load(ctx context.Context, b []byte, version string) (*jsresolv
 func (m *Manager) Status() Status { return m.status.Load().(Status) }
 func (m *Manager) setStatus(event string) {
 	s := Status{VerifiedByResolve: m.state.ActiveVerified, Source: "embedded", Version: m.cfg.EmbeddedVersion, SHA256: digest(m.cfg.Embedded), Event: event}
+	if m.cfg.Product == ProfileProduct {
+		s.Automatic = true
+		s.Format = "json"
+	}
 	if m.state.Control != nil {
-		c, _ := verify(*m.state.Control, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
+		c, _ := m.verify(*m.state.Control, false)
 		s.Revision = c.Revision
 		s.Enabled = c.Enabled
 	}
 	if m.state.Active != nil {
-		a, _ := verify(*m.state.Active, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
+		a, _ := m.verify(*m.state.Active, false)
 		if a.Module != nil {
 			s.Source = "downloaded"
 			s.ActiveRevision = a.Revision
@@ -236,7 +271,7 @@ func (m *Manager) Check(ctx context.Context) error {
 			return errors.New("manifest_json_rejected")
 		}
 		var err error
-		manifest, err = verify(env, m.cfg.PublicKey, m.cfg.Now(), true, m.cfg.AllowedURL)
+		manifest, err = m.verify(env, true)
 		return err
 	})
 	if e != nil {
@@ -267,7 +302,7 @@ func (m *Manager) Check(ctx context.Context) error {
 		}
 		for _, old := range []*Envelope{m.state.Active, m.state.Previous} {
 			if old != nil {
-				p, _ := verify(*old, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
+				p, _ := m.verify(*old, false)
 				if p.Module != nil && p.Module.Version == manifest.Module.Version && p.Module.SHA256 != manifest.Module.SHA256 {
 					release(m.gate)
 					return errors.New("version_content_conflict")
@@ -327,7 +362,7 @@ func (m *Manager) Check(ctx context.Context) error {
 	event := "remote_disabled"
 	if manifest.Enabled {
 		if state.Active != nil && state.ActiveVerified {
-			previous, _ := verify(*state.Active, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
+			previous, _ := m.verify(*state.Active, false)
 			if previous.Module == nil || previous.Module.SHA256 != manifest.Module.SHA256 {
 				state.Previous = state.Active
 			}
@@ -335,7 +370,7 @@ func (m *Manager) Check(ctx context.Context) error {
 		if state.Active == nil {
 			state.ActiveVerified = false
 		} else {
-			p, _ := verify(*state.Active, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
+			p, _ := m.verify(*state.Active, false)
 			if p.Module == nil || p.Module.SHA256 != manifest.Module.SHA256 {
 				state.ActiveVerified = false
 			}
@@ -370,7 +405,10 @@ func (m *Manager) event(ctx context.Context, event string, err error) error {
 	}
 	return err
 }
-func (m *Manager) path(sha string) string { return filepath.Join(m.cfg.Dir, sha+".js") }
+func (m *Manager) path(sha string) string { return filepath.Join(m.cfg.Dir, sha+m.cfg.Extension) }
+func (m *Manager) verify(env Envelope, incoming bool) (Manifest, error) {
+	return verifyPolicy(env, m.cfg.PublicKey, m.cfg.Now(), incoming, m.cfg.AllowedURL, m.cfg.Product, m.cfg.MaxArtifact)
+}
 func (m *Manager) persist(s diskState) error {
 	b, e := json.Marshal(s)
 	if e != nil {

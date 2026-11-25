@@ -2,11 +2,11 @@
 // v5 carrier; see playback-v5-sign.js for provenance. Not standard AES.
 'use strict';
 var constants = require('./playback-v5-constants.json');
-module.exports = function (data, ts, key, iv) {
+module.exports = function (data, ts, key, iv, profileBox) {
   if (data.length < 248 || key.length !== 16 || iv.length !== 16)
     throw new Error('signature payload is too short');
   var branch = ts & 3,
-    box = Buffer.from(constants.sbox, 'hex').slice(branch * 256, (branch + 1) * 256),
+    box = (profileBox || Buffer.from(constants.sbox, 'hex')).slice(branch * 256, (branch + 1) * 256),
     con = [
       [2, 0, 3, 1],
       [1, 3, 2, 0],

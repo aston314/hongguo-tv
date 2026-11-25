@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/aston314/hongguo-tv/core/internal/jsresolver"
 )
 
 func readBounded(path string, limit int) ([]byte, error) {
@@ -24,11 +22,11 @@ func readBounded(path string, limit int) ([]byte, error) {
 	return b, nil
 }
 
-func (m *Manager) saved(ctx context.Context, env *Envelope) (*jsresolver.Resolver, error) {
+func (m *Manager) saved(ctx context.Context, env *Envelope) (Runtime, error) {
 	if env == nil {
 		return nil, errors.New("no_saved_module")
 	}
-	p, e := verify(*env, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
+	p, e := m.verify(*env, false)
 	if e != nil || !p.Enabled || p.Revision > m.Status().Revision {
 		return nil, errors.New("saved_manifest_rejected")
 	}
@@ -57,7 +55,7 @@ func (m *Manager) restore(ctx context.Context) {
 		m.setStatus("state_rejected")
 		return
 	}
-	c, e := verify(*s.Control, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
+	c, e := m.verify(*s.Control, false)
 	if e != nil {
 		m.setStatus("state_rejected")
 		return
@@ -91,7 +89,7 @@ func (m *Manager) restore(ctx context.Context) {
 func (m *Manager) rollback(ctx context.Context) {
 	s := m.state
 	if s.Active != nil {
-		a, e := verify(*s.Active, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
+		a, e := m.verify(*s.Active, false)
 		if e == nil && a.Module != nil {
 			s.Quarantine = append(append([]string(nil), s.Quarantine...), a.Module.SHA256)
 			if len(s.Quarantine) > 8 {
@@ -102,11 +100,11 @@ func (m *Manager) rollback(ctx context.Context) {
 	s.Active = nil
 	s.ActiveVerified = false
 	s.Previous = nil
-	var next *jsresolver.Resolver
+	var next Runtime
 	previous := m.state.Previous
 	if previous != nil && m.state.Active != nil {
-		a, ae := verify(*m.state.Active, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
-		p, pe := verify(*previous, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
+		a, ae := m.verify(*m.state.Active, false)
+		p, pe := m.verify(*previous, false)
 		if ae == nil && pe == nil && a.Module != nil && p.Module != nil && a.Module.SHA256 == p.Module.SHA256 {
 			previous = nil
 		}
@@ -140,16 +138,16 @@ func (m *Manager) prune() {
 	keep := map[string]bool{}
 	for _, env := range []*Envelope{m.state.Active, m.state.Previous} {
 		if env != nil {
-			p, e := verify(*env, m.cfg.PublicKey, m.cfg.Now(), false, m.cfg.AllowedURL)
+			p, e := m.verify(*env, false)
 			if e == nil && p.Module != nil {
-				keep[p.Module.SHA256+".js"] = true
+				keep[p.Module.SHA256+m.cfg.Extension] = true
 			}
 		}
 	}
 	entries, _ := os.ReadDir(m.cfg.Dir)
 	for _, entry := range entries {
 		name := entry.Name()
-		if !entry.IsDir() && (strings.HasPrefix(name, ".staged-") || strings.HasSuffix(name, ".js") && digestRE.MatchString(strings.TrimSuffix(name, ".js")) && !keep[name]) {
+		if !entry.IsDir() && (strings.HasPrefix(name, ".staged-") || strings.HasSuffix(name, m.cfg.Extension) && digestRE.MatchString(strings.TrimSuffix(name, m.cfg.Extension)) && !keep[name]) {
 			os.Remove(filepath.Join(m.cfg.Dir, name))
 		}
 	}

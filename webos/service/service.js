@@ -26,6 +26,8 @@
       start:function(){},close:function(){return Promise.resolve();},status:function(){return {supported:false,enabled:false,checking:false,source:'native',event:'unsupported',change:0};}
     });
     if(provider.setPlaybackRepair)provider.setPlaybackRepair(repair);
+    var profile=options.playbackProfile || (provider.setPlaybackProfile ? require('./playback-profile-service')({dataDir:provider.dataDirectory(),resolve:provider.resolveProfile}) : {start:function(){},close:function(){return Promise.resolve();},check:function(){}});
+    if(provider.setPlaybackProfile)provider.setPlaybackProfile(profile);
     var port = options.port === undefined ? Number(process.env.HONGGUO_WEBOS_PORT) || DEFAULT_PORT : options.port;
     var bindHost = options.bindHost || process.env.HONGGUO_WEBOS_BIND_HOST || '127.0.0.1';
     var server = null;
@@ -146,6 +148,12 @@
       json(res, Number(error && error.status) || 502, { ok: false, error: String(error && error.code || 'ACCOUNT_ERROR'), message: String(error && error.message || error || '账号请求失败'), data: account.status() }, req);
     }
 
+    function repairStatus() {
+      var status=repair.status();
+      if(profile.status)status.native_profile=profile.status();
+      return status;
+    }
+
     function handleProvider(req, res, pathName) {
       var q = query(req);
       if (!supportedMethod(req)) return json(res, 405, { ok: false, error: 'METHOD_NOT_ALLOWED' }, req);
@@ -154,15 +162,15 @@
         return announcements.active(String(q.platform || 'webos'), String(q.version || '')).then(function(items){data(req,res,{items:items});},function(){data(req,res,{items:[]});});
       }
       if (pathName === '/api/v1/playback/repair') {
-        if(req.method==='GET'||req.method==='HEAD')return data(req,res,repair.status());
+        if(req.method==='GET'||req.method==='HEAD')return data(req,res,repairStatus());
         if(req.method!=='POST')return json(res,405,{ok:false,error:'METHOD_NOT_ALLOWED'},req);
         var origin=req.headers.origin,peer=String(req.socket&&req.socket.remoteAddress||''),host=String(req.headers.host||'');
         if(!/^(127\.0\.0\.1|::1|::ffff:127\.0\.0\.1)$/.test(peer)||['127.0.0.1:'+port,'localhost:'+port,'[::1]:'+port].indexOf(host)<0||origin&&origin!=='null'&&origin!=='http://127.0.0.1:'+port||String(req.headers['content-type']||'').split(';')[0].trim()!=='application/json')return json(res,403,{ok:false,error:'REPAIR_LOCAL_REQUEST_REQUIRED'},req);
         return bodyJSON(req,1024).then(function(body){
           if(!repair.setEnabled)return json(res,409,{ok:false,error:'REPAIR_UNSUPPORTED'},req);
           if(['enable','disable','restore','check'].indexOf(body.action)<0)return json(res,400,{ok:false,error:'REPAIR_ACTION_INVALID'},req);
-          if(body.action==='check')repair.check();else repair.setEnabled(body.action==='enable');
-          data(req,res,repair.status());
+          if(body.action==='check'){repair.check();profile.check();}else repair.setEnabled(body.action==='enable');
+          data(req,res,repairStatus());
         }).catch(function(){json(res,500,{ok:false,error:'REPAIR_SETTING_FAILED'},req);});
       }
       if (pathName === '/api/v1/webos/update') {
@@ -445,6 +453,7 @@
     }
 
     function ensureReady() {
+      profile.start();
       repair.start();
       // Storage failure should be reported by playback, without taking down
       // search, account, and other non-media APIs.
@@ -480,7 +489,7 @@
     function stopServer() {
       if (account.close) account.close();
       if (provider.closeCache) provider.closeCache();
-      var repairClosed = repair.close();
+      var repairClosed = Promise.all([repair.close(),profile.close()]);
       if (!isListening()) { server = null; return repairClosed; }
       var previous = server;
       server = null;
