@@ -45,6 +45,7 @@ function fixture({ loggedIn = true, status = 'ongoing', following = false, fail 
     updateDetailActions() {}, showNotice: value => notices.push(value),
     localizedError: error => error.message, uiText, goFocus() {}
   });
+  require('./helpers/app-text.cjs').installContentText(context);
   vm.runInContext(implementation, context);
   return { context, item, playback, requests, notices, nodes };
 }

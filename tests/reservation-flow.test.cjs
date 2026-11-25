@@ -27,6 +27,7 @@ test('an accepted but unconfirmed reservation remains pending', async () => {
   context.fetchData = async () => { calls++; return { accepted: true, confirmed: false }; };
   const start = source.indexOf('  function writeReservation(');
   const end = source.indexOf('  function applyReservationOverride(', start);
+  require('./helpers/app-text.cjs').installContentText(context);
   vm.runInContext(source.slice(start, end), context);
   const result = await context.writeReservation({ reservation_id: 'season-2' }, true);
   assert.equal(result.accepted, true);
@@ -47,6 +48,7 @@ test('reservation confirmation bridges eventual consistency without becoming per
   });
   const start = source.indexOf('  function rememberReservationOverride(');
   const end = source.indexOf('  function genderParam(', start);
+  require('./helpers/app-text.cjs').installContentText(context);
   vm.runInContext(source.slice(start, end), context);
   const item = { reservation_id: 'season-2', series_id: 'series-2', title: '待上线剧', upcoming: true };
   context.rememberReservationOverride(item, true);
@@ -108,6 +110,7 @@ function reservationConfirmationFixture({ fail = false } = {}) {
   });
   const start = source.indexOf('  function offerNextSeasonReservation(');
   const end = source.indexOf('  function refreshDetailAfterSeason(', start);
+  require('./helpers/app-text.cjs').installContentText(context);
   vm.runInContext(source.slice(start, end), context);
   context.offerNextSeasonReservation(playback, item, 7);
   return { context, calls, item, playback, copy: node('confirm-copy'), remembered: () => remembered };

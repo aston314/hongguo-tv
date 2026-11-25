@@ -34,6 +34,7 @@ test('ranking actor rows expose a selectable works action instead of starting pl
   });
   const start = source.indexOf('  function renderRank(');
   const end = source.indexOf('  function renderNew(', start);
+  require('./helpers/app-text.cjs').installContentText(c);
   vm.runInContext(source.slice(start, end), c);
   const actor = { series_id: 'actor-1234567890123456789', actor_id: '1234567890123456789', title: '测试演员', cover: 'https://avatar' };
   c.renderRank([actor], false);

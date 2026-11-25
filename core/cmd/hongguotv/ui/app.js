@@ -114,6 +114,18 @@
   function uiText(key, fallback, params) {
     return window.HongguoI18n && typeof window.HongguoI18n.t === 'function' ? window.HongguoI18n.t(key, params, fallback) : (fallback === undefined ? key : fallback);
   }
+  function setContentText(element, value, preserve) {
+    if (!element) return;
+    if (window.HongguoContentText) window.HongguoContentText.setText(element, value, preserve);
+    else element.textContent = value == null ? '' : String(value);
+  }
+  function setContentLabel(element, value, preserve) {
+    if (window.HongguoContentText) window.HongguoContentText.setAttribute(element, 'aria-label', value, preserve);
+    else element.setAttribute('aria-label', value);
+  }
+  function contentText(value) {
+    return window.HongguoContentText ? window.HongguoContentText.text(value) : value;
+  }
   function renderCoreStatus() {
     var message = {
       connecting: ['core.connecting', '连接核心服务…'],
@@ -407,6 +419,8 @@
   var confirmationGeneration = 0;
   var activePlayback = null;
   var watchingReturn = window.HongguoWatchingReturn.create({
+    setContentText: setContentText,
+    setContentLabel: setContentLabel,
     resumeEpisode: resumeEpisode,
     view: {
       wrap: document.getElementById('watching-return-wrap'), button: document.getElementById('watching-return'),
@@ -2645,12 +2659,12 @@
       var drama = Object.assign({}, item.drama || {}, { series_id: (item.drama && item.drama.series_id) || item.series_id, title: (item.drama && item.drama.title) || item.title });
       var row = document.createElement('div'); row.className = 'follow-notification-row' + (item.read ? '' : ' is-unread'); row.dataset.notificationId = item.id || '';
       var play = document.createElement('button'); play.type = 'button'; play.className = 'follow-notification-play'; play.dataset.focus = 'follow-notice-play-' + item.id;
-      play.setAttribute('aria-label', uiText('ui.playLabel', '播放：') + (drama.title || item.title || uiText('app.name', '短剧')));
+      setContentLabel(play, uiText('ui.playLabel', '播放：') + (drama.title || item.title || uiText('app.name', '短剧')));
       var image = document.createElement('img'); image.className = 'follow-notification-image'; image.alt = drama.title || uiText('app.name', '短剧'); setCover(image, drama);
       var copy = document.createElement('span'); copy.className = 'follow-notification-copy-block';
-      var title = document.createElement('strong'); title.className = 'follow-notification-title'; title.textContent = drama.title || uiText('ui.dramaUpdate', '短剧更新');
+      var title = document.createElement('strong'); title.className = 'follow-notification-title'; setContentText(title, drama.title || uiText('ui.dramaUpdate', '短剧更新'));
       var meta = document.createElement('span'); meta.className = 'follow-notification-meta'; meta.textContent = dramaMeta(drama);
-      var intro = document.createElement('span'); intro.className = 'follow-notification-intro'; intro.textContent = drama.intro || uiText('ui.noIntro', '暂无简介');
+      var intro = document.createElement('span'); intro.className = 'follow-notification-intro'; setContentText(intro, drama.intro || uiText('ui.noIntro', '暂无简介'));
       var heat = document.createElement('span'); heat.className = 'follow-notification-heat'; heat.textContent = drama.heat || drama.favorite_text || drama.like_text || '';
       var message = document.createElement('span'); message.className = 'follow-notification-message'; message.textContent = item.message || '';
       copy.appendChild(title); copy.appendChild(meta); copy.appendChild(intro); copy.appendChild(heat); copy.appendChild(message);
@@ -3964,7 +3978,7 @@
       var likeBadge = card.querySelector('.library-card-like-badge');
       likeBadge.classList.toggle('is-hidden', kind !== 'likes');
       if (kind === 'likes') likeBadge.textContent = likedEpisodeSummary(entry, entry.drama);
-      card.querySelector('.library-card-title').textContent = entry.drama.title;
+      setContentText(card.querySelector('.library-card-title'), entry.drama.title);
       card.querySelector('.library-card-meta').textContent = entry.last_played_at ? libraryFinished(entry) ? uiText('ui.watchedAll', '已看完 · 全{count}集', { count: entry.drama.episode_count }) : uiText('ui.continueEpisode', '继续第{episode}集', { episode: resumeEpisode(entry, entry.drama) }) + (!entry.completed && entry.position ? ' · ' + clockText(entry.position) : '') : entry.drama.episode_count ? uiText('content.episodeCount', '全{count}集', { count: entry.drama.episode_count }) : uiText('ui.startFirstEpisode', '从第一集播放');
       card.querySelector('.library-card-time').textContent = new Date(libraryTime(entry, kind)).toLocaleDateString();
       card.querySelector('.library-progress').classList.toggle('is-hidden', !entry.last_played_at || !entry.duration);
@@ -4418,14 +4432,14 @@
         setBackdrop(backdrop, item, poster, false);
       } else setBackdrop(backdrop, item, poster);
     }
-    if (title) title.textContent = item.title || uiText('app.name', '红果短剧');
+    setContentText(title, item.title || uiText('app.name', '红果短剧'));
     updateHeroRankBadge(item);
     if (episode) episode.textContent = waitingForProgress ? item.episode_count ? uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : '' : uiText('content.episodeNumber', '第{episode}集', { episode: item.start_episode || 1 }) + (item.episode_count ? ' · ' + uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : '');
-    if (summary) summary.textContent = item.intro || '';
-    if (topTitle) topTitle.textContent = item.title || uiText('app.name', '红果短剧');
+    setContentText(summary, item.intro || '');
+    setContentText(topTitle, item.title || uiText('app.name', '红果短剧'));
     if (topEpisode) topEpisode.textContent = waitingForProgress ? '' : uiText('content.episodeNumber', '第{episode}集', { episode: item.start_episode || 1 });
-    if (placeholderTitle) placeholderTitle.textContent = item.title || uiText('app.name', '红果短剧');
-    if (placeholderSummary) placeholderSummary.textContent = item.intro || '';
+    setContentText(placeholderTitle, item.title || uiText('app.name', '红果短剧'));
+    setContentText(placeholderSummary, item.intro || '');
     updateSavedButtons();
     if (engagement) engagement.select(activePlayback && activePlayback.item.series_id === item.series_id ? { series_id: item.series_id, vid: activePlayback.vid } : null);
     setControlIcon('episodes', uiText('content.episodeCount', '全{count}集', { count: item.episode_count || '--' }), 'icon-episodes');
@@ -4595,9 +4609,9 @@
     clearTimeout(controlsTimer);
     shell.classList.remove('is-controls-hidden');
     hero.classList.add('is-catalog-loading');
-    document.getElementById('hero-placeholder-title').textContent = title;
+    setContentText(document.getElementById('hero-placeholder-title'), title, true);
     var copy = document.getElementById('hero-placeholder-summary');
-    copy.textContent = summary || '';
+    setContentText(copy, summary || '', true);
     copy.classList.toggle('is-hidden', !summary);
     document.getElementById('hero-placeholder').classList.remove('is-hidden');
     setPlayerStatus('');
@@ -4705,7 +4719,7 @@
     var cover = document.getElementById('next-season-cover');
     setCover(cover, model.next);
     cover.alt = '';
-    document.getElementById('next-season-title').textContent = model.next.title || uiText('ui.seasonNumber', '第{season}季', { season: model.season });
+    setContentText(document.getElementById('next-season-title'), model.next.title || uiText('ui.seasonNumber', '第{season}季', { season: model.season }));
     document.getElementById('next-season-position').textContent = model.total ?
       uiText('player.seasonPosition', '第 {season} / {total} 季', { season: model.season, total: model.total }) :
       uiText('ui.seasonNumber', '第{season}季', { season: model.season });
@@ -4750,7 +4764,7 @@
     confirmAfterClose = after || null;
     confirmOpen = true;
     document.getElementById('confirm-title').textContent = uiText('content.followOnEndTitle', '追更这部短剧？');
-    document.getElementById('confirm-copy').textContent = uiText('content.followOnEndCopy', '《{title}》仍在更新。追更后可在“我的 → 追更”中查看更新。', { title: title });
+    document.getElementById('confirm-copy').textContent = uiText('content.followOnEndCopy', '《{title}》仍在更新。追更后可在“我的 → 追更”中查看更新。', { title: contentText(title) });
     var accept = document.getElementById('confirm-accept');
     accept.textContent = uiText('ui.follow', '追更');
     accept.classList.add('confirm-reserve'); accept.classList.remove('confirm-danger');
@@ -4833,7 +4847,7 @@
       var card = document.createElement('button');
       card.className = 'end-recommendation-card'; card.dataset.focus = 'end-related-' + item.series_id;
       var image = document.createElement('img'); setCover(image, item);
-      var title = document.createElement('strong'); title.textContent = item.title;
+      var title = document.createElement('strong'); setContentText(title, item.title);
       var meta = document.createElement('small'); meta.textContent = item.episode_count ? uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : uiText('app.name', '红果短剧');
       var poster = dramaPoster(image, item);
       if (index === 0) {
@@ -5051,7 +5065,7 @@
     ++confirmationGeneration; var generation = confirmationGeneration;
     confirmReturnFocus = document.activeElement; confirmOpen = true;
     document.getElementById('confirm-title').textContent = uiText('content.reserveNextTitle', '预约下一季？');
-    document.getElementById('confirm-copy').textContent = uiText('content.reserveNextCopy', '本季已播放完，{title}尚未上线。确认后会在当前窗口提示预约结果。', { title: item.title });
+    document.getElementById('confirm-copy').textContent = uiText('content.reserveNextCopy', '本季已播放完，{title}尚未上线。确认后会在当前窗口提示预约结果。', { title: contentText(item.title) });
     var accept = document.getElementById('confirm-accept');
     accept.textContent = uiText('content.reserve', '预约') + label; accept.classList.add('confirm-reserve'); accept.classList.remove('confirm-danger');
     document.getElementById('confirm-cancel').textContent = uiText('content.later', '稍后');
@@ -6210,7 +6224,7 @@
       setCover(image, item);
       var title = document.createElement('span');
       title.className = 'catalog-card-title';
-      title.textContent = item.title || uiText('ui.unnamedDrama', '未命名短剧');
+      setContentText(title, item.title || uiText('ui.unnamedDrama', '未命名短剧'));
       var meta = document.createElement('span');
       meta.className = 'catalog-card-meta';
       meta.textContent = catalogMeta(item);
@@ -6256,7 +6270,7 @@
       setCover(image, item);
       var title = document.createElement('span');
       title.className = 'search-result-card-title';
-      title.textContent = item.title || uiText('ui.unnamedDrama', '未命名短剧');
+      setContentText(title, item.title || uiText('ui.unnamedDrama', '未命名短剧'));
       var meta = document.createElement('span');
       meta.className = 'search-result-card-meta';
       meta.textContent = catalogMeta(item);
@@ -6382,7 +6396,7 @@
       button.dataset.focus = 'search-suggestion-' + index;
       button.dataset.suggestionKey = item.key || item.name;
       button.setAttribute('role', 'option'); button.setAttribute('aria-selected', 'false');
-      button.setAttribute('aria-label', uiText('search.suggestionLabel', '搜索{value}', { value: item.name }));
+      setContentLabel(button, uiText('search.suggestionLabel', '搜索{value}', { value: item.name }), item.kind !== 'short_play_name');
       button.addEventListener('focus', function () {
         try { button.scrollIntoView({ block: 'nearest' }); } catch (ignore) { button.scrollIntoView(false); }
         keepSearchSuggestionFocusVisible(button);
@@ -6394,7 +6408,7 @@
         image = createSearchSuggestionIcon(item.kind);
       }
       var copy = document.createElement('span'); copy.className = 'search-suggestion-copy';
-      var name = document.createElement('span'); name.className = 'search-suggestion-name'; name.textContent = item.name;
+      var name = document.createElement('span'); name.className = 'search-suggestion-name'; setContentText(name, item.name, item.kind !== 'short_play_name');
       var meta = document.createElement('span'); meta.className = 'search-suggestion-meta';
       meta.textContent = item.meta || (item.kind === 'short_play_actor' ? uiText('search.suggestionActorMeta', '演员作品') : uiText('search.suggestionSearchMeta', '按此关键词搜索'));
       var kind = document.createElement('span'); kind.className = 'search-suggestion-kind'; kind.textContent = searchSuggestionType(item.kind);
@@ -6969,7 +6983,7 @@
       var card = document.createElement('button');
       card.className = 'actor-work-card'; card.dataset.focus = 'actor-work-' + item.series_id;
       var image = document.createElement('img'); image.className = 'actor-work-image'; setCover(image, item);
-      var title = document.createElement('strong'); title.className = 'actor-work-title'; title.textContent = item.title || uiText('ui.unnamedDrama', '未命名短剧');
+      var title = document.createElement('strong'); title.className = 'actor-work-title'; setContentText(title, item.title || uiText('ui.unnamedDrama', '未命名短剧'));
       var meta = document.createElement('span'); meta.className = 'actor-work-meta'; meta.textContent = dramaMeta(item);
       card.appendChild(image); card.appendChild(title); card.appendChild(meta);
       card.addEventListener('click', function () {
@@ -7091,7 +7105,8 @@
   function radarCell(className, text) {
     var cell = document.createElement('span');
     cell.className = className || 'radar-cell';
-    cell.textContent = text == null || text === '' ? '—' : String(text);
+    if (className === 'radar-title-cell') setContentText(cell, text || '—');
+    else cell.textContent = text == null || text === '' ? '—' : String(text);
     return cell;
   }
   function radarRate(value) { return value == null || value === '' ? '—' : (Number(value) * 100).toFixed(2).replace(/\.00$/, '') + '%'; }
@@ -7101,7 +7116,7 @@
     var item = radarOfficialModel(source, index, kind, growthIndex);
     var row = document.createElement('div');
     row.className = 'radar-row radar-official-row'; row.tabIndex = 0; row.setAttribute('role', 'button');
-    row.setAttribute('aria-label', uiText('ui.playLabel', '播放：') + item.title); row.dataset.focus = 'radar-official-' + item.series_id;
+    setContentLabel(row, uiText('ui.playLabel', '播放：') + item.title); row.dataset.focus = 'radar-official-' + item.series_id;
     row.__radarItem = item;
     row.appendChild(radarCell('radar-rank', item.rank));
     row.appendChild(radarCell('radar-delta ' + (Number(item.delta) > 0 ? 'is-up' : Number(item.delta) < 0 ? 'is-down' : ''), radarDelta(item.delta)));
@@ -7120,7 +7135,7 @@
     var item = Object.assign({}, source, { series_id: source.id, type: source.type || 'unknown', radar_growth: source });
     var row = document.createElement('div');
     row.className = 'radar-row radar-growth-row'; row.tabIndex = 0; row.setAttribute('role', 'button');
-    row.setAttribute('aria-label', uiText('ui.playLabel', '播放：') + (item.title || uiText('ui.unnamedDrama', '未命名短剧'))); row.dataset.focus = 'radar-growth-' + item.series_id;
+    setContentLabel(row, uiText('ui.playLabel', '播放：') + (item.title || uiText('ui.unnamedDrama', '未命名短剧'))); row.dataset.focus = 'radar-growth-' + item.series_id;
     row.__radarItem = item;
     row.appendChild(radarCell('radar-rank', index + 1));
     row.appendChild(radarCell('radar-title-cell', item.title || uiText('ui.unnamedDrama', '未命名短剧')));
@@ -7214,7 +7229,7 @@
       row.className = 'rank-row';
       row.tabIndex = 0;
       row.setAttribute('role', 'button');
-      row.setAttribute('aria-label', (item.actor_id ? uiText('ui.actorLabel', '演员：') : uiText('ui.playLabel', '播放：')) + item.title);
+      setContentLabel(row, (item.actor_id ? uiText('ui.actorLabel', '演员：') : uiText('ui.playLabel', '播放：')) + item.title, !!item.actor_id);
       row.dataset.index = String(index);
       row.dataset.focus = 'rank-item-' + item.series_id;
       row.__rankItem = item;
@@ -7228,13 +7243,13 @@
       copy.className = 'rank-row-copy';
       var title = document.createElement('span');
       title.className = 'rank-row-title';
-      title.textContent = item.title || uiText('ui.unnamedDrama', '未命名短剧');
+      setContentText(title, item.title || uiText('ui.unnamedDrama', '未命名短剧'), !!item.actor_id);
       var meta = document.createElement('span');
       meta.className = 'rank-row-meta';
       meta.textContent = dramaMeta(item);
       var intro = document.createElement('span');
       intro.className = 'rank-row-intro';
-      intro.textContent = item.intro || uiText('ui.noIntro', '暂无简介');
+      setContentText(intro, item.intro || uiText('ui.noIntro', '暂无简介'), !!item.actor_id);
       var heat = document.createElement('span');
       heat.className = 'rank-row-heat';
       heat.textContent = item.heat || item.favorite_text || item.like_text || '';
@@ -7287,7 +7302,7 @@
       card.className = 'follow-card'; card.dataset.focus = 'follow-' + item.series_id;
       var image = document.createElement('img'); image.className = 'follow-card-image'; setCover(image, item);
       var copy = document.createElement('span'); copy.className = 'follow-card-copy';
-      var title = document.createElement('strong'); title.textContent = item.title || uiText('ui.unnamedDrama', '未命名短剧');
+      var title = document.createElement('strong'); setContentText(title, item.title || uiText('ui.unnamedDrama', '未命名短剧'));
       var watched = item.latest_watched_episode || (libraryEntry(item.series_id) || {}).episode || 0;
       var meta = document.createElement('span'); meta.textContent = watched ? uiText('ui.watchedEpisode', '已看第{episode}集', { episode: watched }) : item.episode_count ? uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : uiText('common.updating', '更新中');
       var status = document.createElement('span'); status.className = 'follow-card-status';
@@ -7308,7 +7323,7 @@
       image.className = 'new-card-image'; setCover(image, item);
       var episodeCount = document.createElement('span'); episodeCount.className = 'new-card-episodes'; episodeCount.textContent = item.episode_count ? uiText('ui.totalEpisodes', '共{count}集', { count: item.episode_count }) : '';
       poster.appendChild(image); if (episodeCount.textContent) poster.appendChild(episodeCount); updatePosterSeason(poster, item);
-      var title = document.createElement('span'); title.className = 'new-card-title'; title.textContent = item.title || uiText('ui.unnamedDrama', '未命名短剧');
+      var title = document.createElement('span'); title.className = 'new-card-title'; setContentText(title, item.title || uiText('ui.unnamedDrama', '未命名短剧'));
       var meta = document.createElement('span'); meta.className = 'new-card-meta'; meta.textContent = (item.tags || []).slice(0, 3).join(' · ') || (prefix === 'reservation-' ? uiText('common.online', '已上线') : uiText('ui.newDrama', '新剧'));
       var score = document.createElement('span'); score.className = 'new-card-score'; score.textContent = item.score ? item.score + ' ' + uiText('ui.scoreSuffix', '分') : (item.episode_count ? uiText('ui.totalEpisodes', '共{count}集', { count: item.episode_count }) : '');
       card.appendChild(poster); card.appendChild(title); card.appendChild(meta); card.appendChild(score);
@@ -7477,9 +7492,9 @@
       row.dataset.focus = (reservations ? 'reservation-' : 'calendar-') + (item.reservation_id || item.series_id); row.__item = item;
       var image = document.createElement('img'); image.loading = 'lazy'; setCover(image, item); row.appendChild(image);
       var copy = document.createElement('div'); copy.className = 'publication-copy';
-      var title = document.createElement('strong'); title.textContent = item.title;
+      var title = document.createElement('strong'); setContentText(title, item.title);
       var meta = document.createElement('span'); meta.textContent = dramaMeta(item);
-      var summary = document.createElement('p'); summary.textContent = item.intro || '';
+      var summary = document.createElement('p'); setContentText(summary, item.intro || '');
       var schedule = document.createElement('span'); schedule.className = 'publication-date';
       var scheduled = item.publish_time ? new Date(item.publish_time * 1000) : null;
       var scheduleTime = scheduled && !isNaN(scheduled.getTime()) ? scheduled.toLocaleString('zh-CN', { timeZone: 'Asia/Shanghai', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false }) : '';
@@ -7639,7 +7654,7 @@
     data.guesses.forEach(function (item, index) {
       var button = document.createElement('button');
       button.className = 'search-guess'; button.dataset.focus = 'search-guess-' + index;
-      button.textContent = item.title; bind(button, item); guesses.appendChild(button);
+      setContentText(button, item.title); bind(button, item); guesses.appendChild(button);
     });
     var selected = null;
     data.boards.forEach(function (board) { if (board.id === searchHotBoard) selected = board; });
@@ -7659,7 +7674,7 @@
       button.dataset.focus = 'search-hot-' + searchHotBoard + '-' + item.series_id;
       var copy = document.createElement('span'); copy.className = 'search-hot-copy';
       var position = document.createElement('span'); position.className = 'search-hot-position'; position.textContent = item.position || index + 1;
-      var title = document.createElement('span'); title.className = 'search-hot-title'; title.textContent = item.title;
+      var title = document.createElement('span'); title.className = 'search-hot-title'; setContentText(title, item.title);
       var score = document.createElement('span'); score.className = 'search-hot-score'; score.textContent = item.search_score || '';
       copy.appendChild(position); copy.appendChild(title); copy.appendChild(score); button.appendChild(copy);
       bind(button, item); rows.appendChild(button);
@@ -7988,7 +8003,7 @@
       (currentDetail.related || []).forEach(function (item) {
         var card = document.createElement('button'); card.className = 'related-card'; card.dataset.focus = 'related-' + item.series_id;
         var image = document.createElement('img'); image.className = 'related-card-image'; setCover(image, item);
-        var title = document.createElement('strong'); title.textContent = item.title || uiText('ui.unnamedDrama', '未命名短剧');
+        var title = document.createElement('strong'); setContentText(title, item.title || uiText('ui.unnamedDrama', '未命名短剧'));
         var meta = document.createElement('span'); meta.textContent = item.episode_count ? uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : uiText('app.name', '红果短剧');
         card.appendChild(dramaPoster(image, item)); card.appendChild(title); card.appendChild(meta); card.addEventListener('click', function () { openDetail(item); }); list.appendChild(card);
       });
@@ -8011,7 +8026,7 @@
         var row = document.createElement('button'); row.className = 'series-row'; row.dataset.seriesId = item.series_id; row.dataset.focus = 'series-' + item.series_id;
         var image = document.createElement('img'); image.className = 'series-cover'; image.alt = ''; setCover(image, item);
         var copy = document.createElement('span'); copy.className = 'series-copy';
-        var title = document.createElement('span'); title.className = 'series-title'; title.textContent = item.title;
+        var title = document.createElement('span'); title.className = 'series-title'; setContentText(title, item.title);
         var meta = document.createElement('span'); meta.className = 'series-meta'; meta.textContent = [item.label, item.subtitle || (item.episode_count ? uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : '')].filter(Boolean).join(' · ');
         copy.appendChild(title); copy.appendChild(meta);
         var status = document.createElement('span'); status.className = 'series-status';
@@ -8121,7 +8136,7 @@
     var focused = document.activeElement;
     var focusedIndex = focused && focused.classList.contains('detail-episode') ? focused.dataset.index : null;
     var retryFocused = focused === nodes.retry;
-    nodes.title.textContent = item.title || uiText('modal.selectEpisode', '选集');
+    setContentText(nodes.title, item.title || uiText('modal.selectEpisode', '选集'));
     var cover = document.getElementById('detail-cover');
     if (item.cover || item.cover_fallback) { cover.classList.remove('is-empty'); setCover(cover, item); }
     else { cover.removeAttribute('src'); cover.classList.add('is-empty'); }
@@ -8130,7 +8145,7 @@
     if (item.score) meta.push(item.score + uiText('ui.scoreSuffix', '分'));
     if (item.tags && item.tags.length) meta.push(item.tags.slice(0, 3).join(' · '));
     document.getElementById('detail-meta').textContent = meta.join(' · ') || uiText('app.name', '红果短剧');
-    document.getElementById('detail-intro').textContent = item.intro || '';
+    setContentText(document.getElementById('detail-intro'), item.intro || '');
     document.getElementById('detail-intro').classList.toggle('is-hidden', !item.intro);
     renderDetailActors(item.actors || []);
     updateDetailActions();
@@ -8200,7 +8215,7 @@
     currentDetail = null;
     detailModal.classList.remove('is-hidden');
     detailModal.setAttribute('aria-hidden', 'false');
-    detailElements().title.textContent = item.title || uiText('modal.selectEpisode', '选集');
+    setContentText(detailElements().title, item.title || uiText('modal.selectEpisode', '选集'));
     selectDetailTab(initialTab === 'series' ? 'series' : 'episodes');
     detailFocusPending = detailTab === 'episodes';
     detailModal.classList.toggle('is-playback-drawer', pageMode() === 'player');

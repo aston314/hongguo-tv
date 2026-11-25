@@ -39,7 +39,7 @@ jobs:
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
           echo "WEBOS_LEGACY_NODE=$RUNNER_TEMP/node-v${LEGACY_VERSION}-linux-x64/bin/node" >> "$GITHUB_ENV"
       - name: Test production bootstrap, signature vectors and TLS verification
-        run: node --test tests/webos-legacy-runtime.test.cjs tests/webos-upstream-tls.test.cjs tests/webos-playback-repair.test.cjs
+        run: node --test tests/webos-legacy-runtime.test.cjs tests/webos-upstream-tls.test.cjs tests/webos-playback-repair.test.cjs tests/chinese-content.test.cjs
 
   release-source-windows:
     runs-on: windows-2022
@@ -98,6 +98,8 @@ jobs:
           go test -race ./core/cmd/hongguotv -run 'TestPhoneSearch|TestNumberInput'
       - name: Check TV JavaScript and pagination
         run: |
+          python3 scripts/build_chinese_content.py --check
+          node --check core/cmd/hongguotv/ui/chinese-content.js
           node --check core/cmd/hongguotv/ui/app.js
           node --check core/cmd/hongguotv/ui/native-player.js
           node --check core/cmd/hongguotv/ui/portrait-backdrop.js

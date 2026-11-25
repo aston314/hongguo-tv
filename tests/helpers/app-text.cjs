@@ -20,7 +20,16 @@ function localizedError(error, key, fallback) {
   return apiError(detail ? { error: detail } : null, 0, key, fallback);
 }
 
-module.exports = { uiText, apiError, localizedError };
+// Load the real content-display wrappers into function-only app fixtures.
+// The default window has no display converter, matching Simplified mode.
+function installContentText(context) {
+  const fs = require('node:fs'), vm = require('node:vm');
+  const source = fs.readFileSync(require.resolve('../../core/cmd/hongguotv/ui/app.js'), 'utf8');
+  if (!context.window) context.window = {};
+  vm.runInContext(source.slice(source.indexOf('  function setContentText('), source.indexOf('  function renderCoreStatus(')), context);
+}
+
+module.exports = { uiText, apiError, localizedError, installContentText };
 
 // app.js behavior tests evaluate individual functions in isolated VM contexts.
 // Make the production helper available to those contexts without duplicating

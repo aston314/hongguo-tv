@@ -1,0 +1,38 @@
+{
+  "version": "1.4.2",
+  "tag": "ver.1.4.2",
+  "source": "https://github.com/BYVoid/OpenCC",
+  "tree": "025f371dc76b598d77384fbdab90c937471844d8",
+  "config": "s2twp",
+  "note": "Text exported by official OpenCC 1.4.2 opencc_dict from the same version wheel; default first alternatives are selected at build time. See docs/traditional-content.md.",
+  "files": [
+    {
+      "file": "CJK_Compatibility_Ideographs.txt.gz",
+      "sha256": "e71e477b6deaa509648627d2c489179d597ae5bf8ff9431ff9a14caa6780bf0e"
+    },
+    {
+      "file": "STCharacters.txt.gz",
+      "sha256": "bff64169cf7ee471e9d19d9d84f01bdfa320f21560f6cf195688791a5216f75c"
+    },
+    {
+      "file": "STPhrases.txt.gz",
+      "sha256": "53e20e352b8d2500f726b9e015f61fdd2d73b21c7e2048563c91865eb0ea1b2a"
+    },
+    {
+      "file": "STPhrases_GeneratedFromRegionalPhrases.txt.gz",
+      "sha256": "fc12142a867ba2458415d6d0ac13e6b11f95010283ac729bc8ae8f7d7dc594b7"
+    },
+    {
+      "file": "TWPhrases.txt.gz",
+      "sha256": "a8da736eb574bf391a054142e16739ef4cd9a54f64cf3ff74b8cbe58fc40b9a1"
+    },
+    {
+      "file": "TWVariants.txt.gz",
+      "sha256": "4c270fb0b1330f3e9f495b2a7f5218ac019577e58cec2efcf510c0cafac44b3d"
+    },
+    {
+      "file": "TWVariantsPhrases.txt.gz",
+      "sha256": "eacc38f0d8dfb35f55cad3a79221e4bbaa642864ea71b95b6d54dde5f5d59119"
+    }
+  ]
+}
