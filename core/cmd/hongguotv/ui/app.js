@@ -9527,6 +9527,7 @@
     button.classList.toggle('is-hidden', !show);
   }
   function renderPlaybackRepair(state) {
+    var view = window.HongguoPlaybackRepair.view(state);
     var card = document.getElementById('playback-repair-settings');
     card.classList.toggle('is-hidden', !state.supported);
     var toggle = document.getElementById('playback-repair-toggle');
@@ -9536,17 +9537,19 @@
     var label = repairText(state.enabled ? 'onLabel' : 'offLabel');
     var toggleLabel = toggle.querySelector('.repair-toggle-label');
     if (toggleLabel.textContent !== label) toggleLabel.textContent = label;
-    repairTextContent('playback-repair-badge', repairText(state.source === 'repair' ? 'repair' : 'native'));
-    repairTextContent('playback-repair-current', repairText(state.source === 'repair' ? 'currentRepair' : 'currentNative', { version: state.version || '' }));
-    var when = state.last_checked ? new Date(state.last_checked).toLocaleString() : '';
+    repairTextContent('playback-repair-current', repairText(view.nameKey));
+    repairTextContent('playback-repair-badge', view.format);
+    document.getElementById('playback-repair-badge').classList.toggle('is-hidden', !view.format);
+    repairTextContent('playback-repair-version', view.version ? repairText('version', { version: view.version }) : '');
+    document.getElementById('playback-repair-version').classList.toggle('is-hidden', !view.version);
+    document.getElementById('playback-repair-automatic').classList.toggle('is-hidden', !view.automatic);
+    var when = view.lastChecked ? new Date(view.lastChecked).toLocaleString() : '';
     repairTextContent('playback-repair-checked', repairText(when ? 'checked' : 'notChecked', { time: when }));
-    var statusKey = !state.enabled ? 'off' : state.checking ? 'checking' : state.event === 'check_failed' ? 'failed' :
-      state.event === 'remote_disabled' ? 'disabled' : state.event === 'rolled_back' ? 'rolledBack' : state.source === 'repair' ? state.event === 'updated' ? 'ready' : 'latest' : 'failed';
-    repairTextContent('playback-repair-status', repairText(statusKey));
-    var actions = document.getElementById('playback-repair-actions');
-    if (!state.enabled && actions.contains(document.activeElement)) goFocus(toggle);
-    actions.classList.toggle('is-hidden', !state.enabled);
-    document.getElementById('playback-repair-check').setAttribute('aria-disabled', state.checking ? 'true' : 'false');
+    repairTextContent('playback-repair-status', repairText(view.statusKey));
+    var restore = document.getElementById('playback-repair-restore');
+    if (!state.enabled && document.activeElement === restore) goFocus(document.getElementById('playback-repair-check'));
+    restore.classList.toggle('is-hidden', !state.enabled);
+    document.getElementById('playback-repair-check').setAttribute('aria-disabled', view.checking || repairSaving ? 'true' : 'false');
     updatePlaybackRepairOffer(!document.getElementById('player-retry').classList.contains('is-hidden'));
     if (announcements && announcements.updateRepairStatus) announcements.updateRepairStatus();
   }
@@ -9557,6 +9560,7 @@
     updated: function () { if (!activePlayback || !activePlayback.started) showNotice(repairText('updated')); },
     failed: function () { showNotice(repairText('saveFailed')); }
   });
+  if (window.HongguoI18n && window.HongguoI18n.onChange) window.HongguoI18n.onChange(function () { renderPlaybackRepair(playbackRepair.snapshot()); });
   function changePlaybackRepair(action) {
     if (repairSaving) return;
     repairSaving = true; renderPlaybackRepair(playbackRepair.snapshot());
@@ -9564,7 +9568,7 @@
   }
   document.getElementById('playback-repair-toggle').addEventListener('click', function () { changePlaybackRepair(playbackRepair.snapshot().enabled ? 'disable' : 'enable'); });
   document.getElementById('playback-repair-restore').addEventListener('click', function () { changePlaybackRepair('restore'); });
-  document.getElementById('playback-repair-check').addEventListener('click', function () { if (!playbackRepair.snapshot().checking) changePlaybackRepair('check'); });
+  document.getElementById('playback-repair-check').addEventListener('click', function () { if (!window.HongguoPlaybackRepair.view(playbackRepair.snapshot()).checking) changePlaybackRepair('check'); });
   document.getElementById('player-enable-repair').addEventListener('click', function () {
     if (repairRetrying || !activePlayback || !playbackRepair.eligible(activePlayback.preparationError)) return;
     var playback = activePlayback, request = playbackRequest, generation = feedGeneration, owner = accountEpoch, failure = activePlayback.preparationError;

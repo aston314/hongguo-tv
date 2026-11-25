@@ -14,7 +14,8 @@ module.exports=function(options){
  return {
   start:function(){closed=false;manager.start();},
   check:function(){return manager.check();},
-  status:function(){return Object.assign({},manager.status(),{automatic:true,format:'json'});},
+  // Keep the embedded version aligned with playbackprofile.Version in the Go host.
+  status:function(){var status=manager.status();return Object.assign({},status,{automatic:true,format:'json',version:status.version||'2026.11.25.1'});},
   resolve:function(request,signal){
    if(closed){var error=Error('profile closed');error.name='AbortError';return Promise.reject(error);}
    var control=cancel.create();pending.push(control);var timer=setTimeout(function(){control.abort();},3000);
