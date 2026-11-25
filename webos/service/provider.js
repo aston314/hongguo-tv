@@ -990,8 +990,8 @@
     }
     if (!state.profileTried && playbackProfile) {
       state.profileTried=true;var profileStarted=Date.now();
-      function spent(){state.resolveSpent=(state.resolveSpent||0)+Date.now()-profileStarted;}
-      return playbackProfile.resolve({vid:vid,codec_mode:'default',content_type:String(retry.contentType||'1004')},signal).then(function(options){spent();if(signal&&signal.aborted)throw preparationCancelled();if(options&&options.length){state.source='repair';return options;}return videoOptions(vid,signal,retry);},function(error){spent();if(signal&&signal.aborted||playbackIdentityClosed)throw preparationCancelled();return videoOptions(vid,signal,retry);});
+      var profileFinished=function(){state.resolveSpent=(state.resolveSpent||0)+Date.now()-profileStarted;};
+      return playbackProfile.resolve({vid:vid,codec_mode:'default',content_type:String(retry.contentType||'1004')},signal).then(function(options){profileFinished();if(signal&&signal.aborted)throw preparationCancelled();if(options&&options.length){state.source='repair';return options;}return videoOptions(vid,signal,retry);},function(error){profileFinished();if(signal&&signal.aborted||playbackIdentityClosed)throw preparationCancelled();return videoOptions(vid,signal,retry);});
     }
     if (state.cursor >= state.plan.order.length && !state.singleLegacyPending && !state.multiLegacyPending) return Promise.reject(state.lastError || fail('片源已尝试完毕',502,'VIDEO_MODEL_NO_QUALITY'));
     var legacyOnly=!!(state.singleLegacyPending || state.multiLegacyPending);
