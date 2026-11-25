@@ -103,7 +103,7 @@ def main():
         for name in ("updates.js", "update-manifest.js"):
             if service_root + "/" + name not in names:
                 fail("webOS update checker is missing from package")
-        for name in ("playback-repair.js", "playback-rule-runtime.js", "playback-rule-worker.js",
+        for name in ("playback-profile.js", "playback-profile.json", "playback-profile-service.js", "playback-repair.js", "playback-rule-runtime.js", "playback-rule-worker.js",
                      "playback-rule-network.js", "playback-rule-verifier.js", "playback-rule-trust.js",
                      "vendor/tweetnacl/nacl-fast.js", "vendor/tweetnacl/LICENSE",
                      "vendor/bytes/browser-buffer.js", "vendor/bytes/browser-buffer.LICENSE",

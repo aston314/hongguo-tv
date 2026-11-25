@@ -526,7 +526,10 @@ test('a new foreground request never joins a cancelled recovery still settling',
 
 async function service(f) {
   const create = require(path.join(path.dirname(providerFile), 'service'));
-  const s = create({ service: { register() {} }, provider: f.provider, account: {}, numberInput: { close() {} }, updates: {}, port: 0 });
+  // Keep these fixtures scoped to the retained native retry protocol. The
+  // automatic profile and its fallback have separate signed-profile tests.
+  const playbackProfile={start(){},check(){},close:async()=>{},resolve:async()=>null};
+  const s = create({ playbackProfile, service: { register() {} }, provider: f.provider, account: {}, numberInput: { close() {} }, updates: {}, port: 0 });
   await s.ensureReady(); return s;
 }
 function request(s, prefetch) {

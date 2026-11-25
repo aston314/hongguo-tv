@@ -11,3 +11,6 @@ import (
 func VerifyStoredControl(env Envelope, key ed25519.PublicKey) (Manifest, error) {
 	return verify(env, key, time.Now(), false, OfficialURL)
 }
+func VerifyStoredProfileControl(env Envelope, key ed25519.PublicKey) (Manifest, error) {
+	return verifyPolicy(env, key, time.Now(), false, ProfileURL, ProfileProduct, MaxProfile)
+}

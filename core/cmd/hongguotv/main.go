@@ -71,6 +71,18 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s := &server{instanceID: *instanceID, startedAt: time.Now().UTC(), hongguo: newHongguoClient(), radar: newRadarService(*dataDir, nil), announcementsService: newAnnouncementService(nil), libraryStore: library}
+	if profile, e := newNativeProfileService(*dataDir); e == nil {
+		defaultNativeProfile.Store(profile)
+		profile.check()
+		defer func() {
+			defaultNativeProfile.Store(nil)
+			closeCtx, stop := context.WithTimeout(context.Background(), 35*time.Second)
+			defer stop()
+			_ = profile.close(closeCtx)
+		}()
+	} else {
+		log.Print("native playback profile unavailable; retaining existing sources")
+	}
 	s.repair = newPlaybackRepairService(*dataDir)
 	defaultPlaybackRepair.Store(s.repair)
 	defer func() {

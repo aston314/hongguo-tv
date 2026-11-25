@@ -14,6 +14,20 @@ var Proxies = []string{"https://gh-proxy.com/", "https://v4.gh-proxy.org/", "htt
 
 const ChannelRoot = "https://raw.githubusercontent.com/aston314/hongguo-tv-releases/main/resolver-js/"
 const ManifestURL = ChannelRoot + "manifest.json"
+const ProfileRoot = "https://raw.githubusercontent.com/aston314/hongguo-tv-releases/main/resolver-profile/"
+const ProfileManifestURL = ProfileRoot + "manifest.json"
+
+func ProfileURL(raw string) bool {
+	u, e := url.Parse(raw)
+	if e != nil || u.Scheme != "https" || u.Host != "raw.githubusercontent.com" || u.User != nil || u.RawQuery != "" || u.Fragment != "" || u.RawPath != "" {
+		return false
+	}
+	if raw == ProfileManifestURL {
+		return true
+	}
+	name := strings.TrimPrefix(raw, ProfileRoot+"profiles/")
+	return strings.HasPrefix(raw, ProfileRoot+"profiles/") && strings.HasSuffix(name, ".json") && digestRE.MatchString(strings.TrimSuffix(name, ".json"))
+}
 
 // Only this dedicated path is eligible; a signed artifact cannot redirect downloads
 // to an account endpoint, arbitrary host or an older product's update channel.

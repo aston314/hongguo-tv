@@ -39,7 +39,7 @@ jobs:
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
           echo "WEBOS_LEGACY_NODE=$RUNNER_TEMP/node-v${LEGACY_VERSION}-linux-x64/bin/node" >> "$GITHUB_ENV"
       - name: Test production bootstrap, signature vectors and TLS verification
-        run: node --test tests/webos-legacy-runtime.test.cjs tests/webos-upstream-tls.test.cjs tests/webos-playback-repair.test.cjs tests/chinese-content.test.cjs
+        run: node --test tests/webos-legacy-runtime.test.cjs tests/webos-upstream-tls.test.cjs tests/webos-playback-repair.test.cjs tests/webos-playback-profile.test.cjs tests/chinese-content.test.cjs
 
   release-source-windows:
     runs-on: windows-2022
@@ -88,9 +88,10 @@ jobs:
         run: go test ./...
       - name: Verify playback rule generation and updater concurrency
         run: |
+          go run ./scripts/profile_codegen -check
           go run ./scripts/resolver_js_codegen -check
-          go test -race ./core/internal/jsresolver ./core/internal/jsupdate
-          go test -race ./core/cmd/hongguotv -run 'TestPlaybackRepair|TestMiniReelRepair'
+          go test -race ./core/internal/jsresolver ./core/internal/jsupdate ./core/internal/playbackprofile
+          go test -race ./core/cmd/hongguotv -run 'TestPlaybackRepair|TestMiniReelRepair|TestNativeProfile'
       - name: Check concurrent account login, playback identity recovery and cancellation
         run: |
           go test -race ./core/cmd/hongguotv -run 'Test(QR|Account|UpSMS|NewMFA|LateExpiry|TemporaryMFA)'

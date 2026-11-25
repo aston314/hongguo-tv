@@ -8,13 +8,13 @@ function atomic(file,value){mkdir(path.dirname(file));var temp=file+'.tmp-'+requ
  try{fd=fs.openSync(temp,'wx',384);var written=0;while(written<value.length){var n=fs.writeSync(fd,value,written,value.length-written,null);if(!n)throw fault('RULE_STORAGE_REJECTED');written+=n;}fs.fsyncSync(fd);fs.closeSync(fd);fd=null;fs.renameSync(temp,file);}finally{if(fd!==undefined&&fd!==null)try{fs.closeSync(fd);}catch(ignored){}try{fs.unlinkSync(temp);}catch(ignored2){}}
 }
 function Manager(options){
- this.options=options||{};this.manifests=[];this.dir=path.join(this.options.dataDir,'playback-repair');this.enabled=false;this.started=false;this.closed=false;this.checking=false;this.change=0;this.generation=0;this.event='native';this.lastChecked=0;
+ this.options=options||{};this.profile=this.options.kind==='json';this.extension=this.profile?'.json':'.js';this.manifests=[];this.dir=path.join(this.options.dataDir,this.profile?'playback-profile':'playback-repair');this.enabled=false;this.started=false;this.closed=false;this.checking=false;this.change=0;this.generation=0;this.event='native';this.lastChecked=0;
  this.state={control:null,active:null,previous:null,verified:false,quarantine:[]};this.runtime=null;this.loading=null;this.retired=[];this.checkCancel=null;this.checkPromise=null;this.lastUpdated=0;this.storageError=false;
- try{this.enabled=readJSON(path.join(this.dir,'preference.json'),1024).enabled===true;}catch(ignored){}
+ if(this.profile)this.enabled=true;else try{this.enabled=readJSON(path.join(this.dir,'preference.json'),1024).enabled===true;}catch(ignored){}
 }
-Manager.prototype.control=function(e,stored){var found=stored&&this.manifests.filter(function(row){return row.payload===e.payload&&row.signature===e.signature;})[0];if(found)return found.value;var value=verify.verify(e,{publicKey:this.options.publicKey,stored:!!stored,now:this.options.now?this.options.now():Date.now()});if(stored){this.manifests.push({payload:e.payload,signature:e.signature,value:value});if(this.manifests.length>4)this.manifests.shift();}return value;};
+Manager.prototype.control=function(e,stored){var found=stored&&this.manifests.filter(function(row){return row.payload===e.payload&&row.signature===e.signature;})[0];if(found)return found.value;var value=verify.verify(e,{kind:this.options.kind,publicKey:this.options.publicKey,stored:!!stored,now:this.options.now?this.options.now():Date.now()});if(stored){this.manifests.push({payload:e.payload,signature:e.signature,value:value});if(this.manifests.length>4)this.manifests.shift();}return value;};
 Manager.prototype.artifact=function(e){return e?this.control(e,true).module:null;};
-Manager.prototype.script=function(e){var a=this.artifact(e),file=path.join(this.dir,'modules',a.sha256+'.js'),stat=fs.statSync(file);if(!stat.isFile()||stat.size!==a.size)throw fault('RULE_CACHE_REJECTED');var b=fs.readFileSync(file);if(verify.digest(b)!==a.sha256)throw fault('RULE_CACHE_REJECTED');return b;};
+Manager.prototype.script=function(e){var a=this.artifact(e),file=path.join(this.dir,'modules',a.sha256+this.extension),stat=fs.statSync(file);if(!stat.isFile()||stat.size!==a.size)throw fault('RULE_CACHE_REJECTED');var b=fs.readFileSync(file);if(verify.digest(b)!==a.sha256)throw fault('RULE_CACHE_REJECTED');return b;};
 Manager.prototype.persist=function(state){atomic(path.join(this.dir,'state.json'),Buffer.from(JSON.stringify(state)));};
 Manager.prototype.restore=function(){
  var self=this;self.storageError=false;
@@ -64,25 +64,25 @@ Manager.prototype.check=function(){
  }
  var fetch=self.options.fetch||network.fetch;
  var promise=self.drain().then(function(){valid();if(self.storageError)throw fault('RULE_STORAGE_REJECTED');var active=self.state.active;return active?self.getRuntime(control.signal).catch(function(error){if(error.code==='RESOLVER_SCRIPT_FAILED')self.rollback(active);else throw error;}):null;}).then(function(){
-  return fetch(verify.manifest,8192,incoming,control.signal);
+  return fetch(self.profile?verify.profileManifest:verify.manifest,8192,incoming,control.signal,self.options.kind);
  }).then(function(bytes){valid();var next=incoming(bytes),m=next.manifest,e=next.envelope;
   if(!m.enabled){var off={control:e,active:null,previous:null,verified:false,quarantine:self.state.quarantine};self.persist(off);self.state=off;self.retire(self.runtime);self.runtime=null;self.event='remote_disabled';return;}
   var a=m.module,old=self.state.active&&self.artifact(self.state.active);
   if(old&&a.sha256===old.sha256){if(a.version!==old.version)throw fault('RULE_MODULE_REJECTED');var same={control:e,active:e,previous:self.state.previous,verified:self.state.verified,quarantine:self.state.quarantine};self.persist(same);self.state=same;self.event='up_to_date';return;}
-  return fetch(a.url,1048576,function(b){if(b.length!==a.size||verify.digest(b)!==a.sha256)throw fault('RULE_HASH_REJECTED');},control.signal).then(function(b){valid();candidate=(self.options.runtimeFactory||createRuntime)(self.options.runtimeOptions);return candidate.load(b,a.version,control.signal).then(function(){
+  return fetch(a.url,self.profile?262144:1048576,function(b){if(b.length!==a.size||verify.digest(b)!==a.sha256)throw fault('RULE_HASH_REJECTED');},control.signal,self.options.kind).then(function(b){valid();candidate=(self.options.runtimeFactory||createRuntime)(self.options.runtimeOptions);return candidate.load(b,a.version,control.signal).then(function(){
    valid();if(self.state.quarantine.indexOf(a.sha256)>=0)throw fault('RULE_QUARANTINED');
    // Derive rollback from current state after validation: a concurrent runtime
    // failure must not resurrect a quarantined module captured before download.
    var active=self.state.active,previous=active&&self.state.verified?active:self.state.previous;
    var state={control:e,active:e,previous:previous,verified:false,quarantine:self.state.quarantine};
-   atomic(path.join(self.dir,'modules',a.sha256+'.js'),b);self.persist(state);var retired=self.runtime;self.runtime=candidate;candidate=null;self.state=state;self.retire(retired);self.event='updated';self.lastUpdated=Date.now();self.trim();
+   atomic(path.join(self.dir,'modules',a.sha256+self.extension),b);self.persist(state);var retired=self.runtime;self.runtime=candidate;candidate=null;self.state=state;self.retire(retired);self.event='updated';self.lastUpdated=Date.now();self.trim();
   });});
  }).catch(function(error){if(generation===self.generation&&self.enabled&&!self.closed)self.event='check_failed';}).then(function(){
   clearTimeout(timer);if(candidate)return candidate.close();
  }).then(function(){if(generation===self.generation){self.checking=false;self.checkCancel=null;self.checkPromise=null;self.lastChecked=Date.now();self.change++;}return self.status();});
  self.checkPromise=promise;return promise;
 };
-Manager.prototype.trim=function(){var self=this,keep=[];[self.state.active,self.state.previous].forEach(function(e){if(e)keep.push(self.artifact(e).sha256+'.js');});try{fs.readdirSync(path.join(self.dir,'modules')).forEach(function(name){if(/^[a-f0-9]{64}\.js$/.test(name)&&keep.indexOf(name)<0)fs.unlinkSync(path.join(self.dir,'modules',name));});}catch(ignored){}};
+Manager.prototype.trim=function(){var self=this,keep=[];[self.state.active,self.state.previous].forEach(function(e){if(e)keep.push(self.artifact(e).sha256+self.extension);});try{fs.readdirSync(path.join(self.dir,'modules')).forEach(function(name){if(new RegExp('^[a-f0-9]{64}'+(self.profile?'\\.json':'\\.js')+'$').test(name)&&keep.indexOf(name)<0)fs.unlinkSync(path.join(self.dir,'modules',name));});}catch(ignored){}};
 Manager.prototype.rollback=function(envelope){
  if(!this.state.active||this.artifact(this.state.active).sha256!==this.artifact(envelope).sha256)return;var a=this.artifact(envelope),quarantine=this.state.quarantine.concat([a.sha256]).slice(-8),previous=this.state.previous;
  var state={control:this.state.control,active:previous,previous:null,verified:!!previous,quarantine:quarantine};
