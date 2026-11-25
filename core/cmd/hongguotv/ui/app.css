@@ -1218,8 +1218,13 @@ html.native-playback .hero-video { display: none !important; }
 /* Playback rule repair: stable TV focus targets, no layout-changing animation. */
 .repair-card-heading { display:flex; align-items:center; justify-content:space-between; }
 .repair-card-heading h2 { margin:.35rem 0 .3rem; }
-.repair-eyebrow { color:#c9a27c; font-size:.88rem; letter-spacing:.08em; }
-.repair-badge { padding:.35rem .75rem; border:1px solid #4a4540; border-radius:2rem; color:#d9b68e; font-size:.88rem; white-space:nowrap; margin-left:1rem; }
+.repair-automatic { color:#c9a27c; font-size:.88rem; margin-left:1.2rem; }
+.repair-current { padding:1.2rem 0; }
+.repair-current-label, .repair-current-version { display:block; color:#b7b7c2; font-size:.95rem; }
+.repair-current-rule { display:flex; align-items:center; flex-wrap:wrap; margin:.6rem 0; }
+.repair-current-rule strong { font-size:1.65rem; font-weight:600; }
+.repair-badge { padding:.2rem .5rem; border:1px solid #4a4540; border-radius:.35rem; color:#d9b68e; font-size:.8rem; white-space:nowrap; margin-left:.8rem; }
+.repair-setting-row { border-top:1px solid #30303a; }
 .repair-setting-row { display:flex; align-items:center; justify-content:space-between; padding:1.1rem 0; border-bottom:1px solid #30303a; }
 .repair-setting-row p { margin:.4rem 1.4rem 0 0; font-size:.95rem; }
 .repair-toggle { display:block; white-space:nowrap; background:#26262e; border:1px solid #45454f; border-radius:.65rem; color:#d9d9df; padding:.8rem 1rem; font:inherit; min-width:9rem; flex-shrink:0; }

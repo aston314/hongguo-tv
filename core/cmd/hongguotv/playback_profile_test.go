@@ -6,10 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/aston314/hongguo-tv/core/internal/jsupdate"
 	"io"
 	"net/http"
 	"reflect"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -166,5 +168,64 @@ func TestNativeProfileIndependentOfJSSettingAndMediaFallback(t *testing.T) {
 	out, _ = seq.next(context.Background())
 	if len(out) != 0 {
 		t.Fatal("exhausted sources accepted")
+	}
+}
+
+func TestNativeProfileCheckStatusDoesNotChangeJSState(t *testing.T) {
+	life, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	entered, release := make(chan struct{}), make(chan struct{})
+	f := &fakeRepairRuntime{status: jsupdate.Status{Source: "embedded", Automatic: true, Format: "json", Version: "builtin", SHA256: "old"}}
+	var calls atomic.Int32
+	f.check = func(ctx context.Context) error {
+		calls.Add(1)
+		close(entered)
+		select {
+		case <-release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+		f.setStatus(jsupdate.Status{Source: "downloaded", Automatic: true, Format: "json", Enabled: true, Revision: 2, ActiveRevision: 2, Version: "json.2", SHA256: "new"})
+		return nil
+	}
+	service := &nativeProfileService{manager: f, life: life, cancel: cancel}
+	previous := defaultNativeProfile.Swap(service)
+	defer defaultNativeProfile.Store(previous)
+	js, _, jsCount := repairServiceForTest(t)
+	service.check()
+	<-entered
+	state := js.status()
+	if state.Enabled || state.Checking || state.Revision != 0 || state.NativeProfile == nil || !state.NativeProfile.Checking || state.NativeProfile.Event != "checking" || jsCount.Load() != 0 {
+		t.Fatal("JSON changed JS state", state)
+	}
+	service.check()
+	if calls.Load() != 1 {
+		t.Fatal("duplicate check")
+	}
+	close(release)
+	wait := func() nativeProfileStatus {
+		until := time.Now().Add(time.Second)
+		for time.Now().Before(until) {
+			s := service.status()
+			if !s.Checking {
+				return s
+			}
+			time.Sleep(time.Millisecond)
+		}
+		t.Fatal("check stalled")
+		return nativeProfileStatus{}
+	}
+	current := wait()
+	if current.Event != "updated" || current.LastChecked == 0 || current.LastUpdated == 0 || current.Version != "json.2" {
+		t.Fatal("no completed update metadata", current)
+	}
+	f.check = func(context.Context) error { return errors.New("offline") }
+	service.check()
+	failed := wait()
+	if failed.Event != "check_failed" || failed.Version != "json.2" || failed.LastUpdated != current.LastUpdated || failed.Change <= current.Change {
+		t.Fatal("offline check changed usable version", failed)
+	}
+	if jsCount.Load() != 0 || js.status().Enabled || js.status().Checking {
+		t.Fatal("JSON status loaded JS")
 	}
 }

@@ -227,11 +227,36 @@ func (r *nativeProfileRuntime) Resolve(ctx context.Context, in resolverwire.Requ
 
 // Automatic native profile updates are independent of the optional JS preference.
 type nativeProfileService struct {
-	mu       sync.Mutex
-	checking bool
-	manager  *jsupdate.Manager
-	life     context.Context
-	cancel   context.CancelFunc
+	mu                       sync.Mutex
+	checking                 bool
+	manager                  repairRuntime
+	lastChecked, lastUpdated int64
+	change                   uint64
+	event                    string
+	life                     context.Context
+	cancel                   context.CancelFunc
+}
+
+// Reporting stays separate from the JS service's preference and check state.
+type nativeProfileStatus struct {
+	jsupdate.Status
+	Checking    bool   `json:"checking"`
+	LastChecked int64  `json:"last_checked,omitempty"`
+	LastUpdated int64  `json:"last_updated,omitempty"`
+	Change      uint64 `json:"change"`
+}
+
+func (s *nativeProfileService) status() nativeProfileStatus {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	status := s.manager.Status()
+	if status.Event != "rolled_back" && s.event != "" {
+		status.Event = s.event
+	}
+	if s.checking {
+		status.Event = "checking"
+	}
+	return nativeProfileStatus{Status: status, Checking: s.checking, LastChecked: s.lastChecked, LastUpdated: s.lastUpdated, Change: s.change}
 }
 
 var defaultNativeProfile atomic.Pointer[nativeProfileService]
@@ -253,12 +278,30 @@ func (s *nativeProfileService) check() {
 		return
 	}
 	s.checking = true
+	s.change++
 	s.mu.Unlock()
 	go func() {
-		defer func() { s.mu.Lock(); s.checking = false; s.mu.Unlock() }()
 		ctx, cancel := context.WithTimeout(s.life, 60*time.Second)
 		defer cancel()
-		_ = s.manager.Check(ctx)
+		before := s.manager.Status()
+		err := s.manager.Check(ctx)
+		after := s.manager.Status()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		s.checking = false
+		s.lastChecked = time.Now().UnixMilli()
+		s.change++
+		switch {
+		case err != nil:
+			s.event = "check_failed"
+		case after.Revision > 0 && !after.Enabled:
+			s.event = "remote_disabled"
+		case after.Source == "downloaded" && (before.Source != after.Source || before.SHA256 != after.SHA256):
+			s.event = "updated"
+			s.lastUpdated = s.lastChecked
+		default:
+			s.event = "up_to_date"
+		}
 	}()
 }
 func (s *nativeProfileService) resolve(ctx context.Context, vid, mode, contentType string) ([]miniReelOption, error) {
