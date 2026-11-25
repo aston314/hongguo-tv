@@ -117,6 +117,9 @@ var fs = require('fs');
 var path = require('path');
 var root = process.argv[2];
 var source = process.argv[3];
+['chinese-content.js', 'chinese-content/index.json', 'chinese-content/s2twp.bin', 'chinese-content/LICENSE', 'chinese-content/NOTICE'].forEach(function (file) {
+  if (!fs.readFileSync(path.join(root, 'app', file)).equals(fs.readFileSync(path.join(source, 'core/cmd/hongguotv/ui', file)))) throw new Error('Chinese content asset differs from shared UI: ' + file);
+});
 ['phone-search.html', 'phone-search-page.js'].forEach(function (file) {
   if (!fs.readFileSync(path.join(root, 'service', file)).equals(fs.readFileSync(path.join(source, 'core/cmd/hongguotv/ui', file)))) throw new Error('phone search asset differs from shared UI: ' + file);
 });

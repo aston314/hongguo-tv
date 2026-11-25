@@ -1,0 +1,8 @@
+Open Chinese Convert (OpenCC) dictionary data
+Source: https://github.com/BYVoid/OpenCC/tree/ver.1.4.2
+License: Apache License, Version 2.0 (see LICENSE).
+
+The hongguo-tv maintainers exported the official 1.4.2 dictionaries as text,
+selected the first alternative for default display conversion, and generated
+a compact read-only index. This notice describes those distribution changes;
+it is not an upstream NOTICE file.

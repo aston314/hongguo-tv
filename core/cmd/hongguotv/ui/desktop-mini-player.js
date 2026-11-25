@@ -204,7 +204,8 @@
       if (!active) return;
       if (!s.available && !pending) { request(false); return; }
       syncAspect();
-      title.textContent = s.title || text('app.name', '红果短剧');
+      if (win.HongguoContentText) win.HongguoContentText.setText(title, s.title || text('app.name', '红果短剧'));
+      else title.textContent = s.title || text('app.name', '红果短剧');
       episode.textContent = s.episode ? text('content.episodeNumber', '第{episode}集', { episode: s.episode }) : '';
       ['previousEpisode', 'nextEpisode', 'previousDrama', 'nextDrama'].forEach(function (name) { buttons[name].disabled = pending || !s[name]; });
       buttons.pause.disabled = pending || !s.canPlay;

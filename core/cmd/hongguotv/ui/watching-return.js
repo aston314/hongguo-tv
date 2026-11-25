@@ -30,10 +30,13 @@
       if (hidden) { hovered = false; focused = false; return; }
       var title = current.item.title || options.text('ui.unnamedDrama', '未命名短剧');
       var meta = options.text('watching.episodePosition', '第 {episode} 集 · {position}', { episode: current.episode, position: options.clock(current.position) });
-      view.title.textContent = view.tooltipTitle.textContent = title;
+      if (options.setContentText) { options.setContentText(view.title, title); options.setContentText(view.tooltipTitle, title); }
+      else view.title.textContent = view.tooltipTitle.textContent = title;
       view.meta.textContent = meta;
       view.tooltipMeta.textContent = meta + ' · ' + options.text('watching.fullscreen', '全屏继续');
-      view.button.setAttribute('aria-label', options.text('watching.accessibility', '全屏继续观看《{title}》第{episode}集，从{position}继续', { title: title, episode: current.episode, position: options.clock(current.position) }));
+      var label = options.text('watching.accessibility', '全屏继续观看《{title}》第{episode}集，从{position}继续', { title: title, episode: current.episode, position: options.clock(current.position) });
+      if (options.setContentLabel) options.setContentLabel(view.button, label);
+      else view.button.setAttribute('aria-label', label);
       var key = current.item.series_id + ':' + (current.item.cover_fallback || current.item.cover || '');
       if (key !== coverKey) { coverKey = key; options.cover(view.cover, current.item); }
       tooltip();

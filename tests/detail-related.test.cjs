@@ -39,6 +39,7 @@ function fixture(related) {
     firstVisible(selector) { return selector === '.related-card' ? list.children[0] || null : null; },
     goFocus(node) { c.focused = node; }
   });
+  require('./helpers/app-text.cjs').installContentText(c);
   vm.runInContext(render, c);
   return { c, list, message, tab };
 }

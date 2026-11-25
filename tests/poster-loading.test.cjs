@@ -6,6 +6,7 @@ const source = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'
 const functions = source.slice(source.indexOf('  function setCover('), source.indexOf('  function setFeatured('));
 function posters() {
   const c=vm.createContext({});
+  require('./helpers/app-text.cjs').installContentText(c);
   vm.runInContext(`
     var images=[],frames=[];
     function Image(){this.style={};this.names=[];this.complete=false;this.naturalWidth=0;images.push(this);}
