@@ -85,13 +85,36 @@ test('feedback reuses three noninteractive overlays, replaces timers and clears 
 
 test('manual playback feedback reflects success and does not announce a blocked or replaced source',async()=>{
  const video={src:'a',paused:true,pause(){this.paused=true}};const feedback=[],notices=[];let resolve,reject;
- const c=vm.createContext({document:{getElementById:()=>video},showPlaybackFeedback:a=>feedback.push(a),showNotice:n=>notices.push(n),
+ const c=vm.createContext({document:{getElementById:()=>video},activePlayback:null,playbackLongPauseRecoveryEligible:()=>false,recoverPlaybackAfterError:()=>false,showPlaybackFeedback:a=>feedback.push(a),showNotice:n=>notices.push(n),
   uiText:(_k,fallback)=>fallback,isPlaybackPage:()=>true,playMedia:()=>new Promise((a,b)=>{resolve=a;reject=b})});
  vm.runInContext(app.slice(app.indexOf('  function toggleVideo('),app.indexOf('  function activatePage(')),c);
  c.toggleVideo();assert.deepEqual(feedback,[]);video.paused=false;resolve();await new Promise(r=>setImmediate(r));assert.deepEqual(feedback,['play']);
  c.toggleVideo();assert.deepEqual(feedback,['play','pause']);
  c.toggleVideo();reject(new Error('blocked'));await new Promise(r=>setImmediate(r));assert.equal(notices.length,1);assert.equal(feedback.length,2);
  c.toggleVideo();video.src='b';video.paused=false;resolve();await new Promise(r=>setImmediate(r));assert.equal(feedback.length,2);
+});
+
+test('long paused resume refreshes a stale source once before trying to play it', () => {
+ const video={src:'stale',paused:true,error:{code:2}};let refreshed=0,played=0;
+ const playback={pauseStartedAt:1000,started:true,completed:false,ended:false,resumeAfterPauseRequested:false};
+ const c=vm.createContext({document:{getElementById:()=>video},activePlayback:playback,
+  playbackLongPauseRecoveryEligible:()=>true,
+  recoverPlaybackAfterError:(_playback,options)=>{assert.equal(options.resumeAfterLongPause,true);refreshed++;return true;},
+  playMedia:()=>{played++;return Promise.resolve();},showPlaybackFeedback(){},showNotice(){},isPlaybackPage:()=>true});
+ vm.runInContext(app.slice(app.indexOf('  function toggleVideo('),app.indexOf('  function activatePage(')),c);
+ c.toggleVideo();assert.equal(refreshed,1);assert.equal(played,0);
+});
+
+test('long-pause recovery requires thirty seconds, a live source and the foreground', () => {
+ const video={paused:true,ended:false,getAttribute:()=>'/media/stale.mp4'};
+ let now=30999;
+ const playback={generation:4,started:true,completed:false,ended:false,pauseStartedAt:1000};
+ const c=vm.createContext({activePlayback:playback,feedGeneration:4,applicationInBackground:false,applicationHidden:()=>false,
+  playbackLongPauseRecoveryMs:30000,Date:{now:()=>now},document:{getElementById:()=>video}});
+ vm.runInContext(app.slice(app.indexOf('  function playbackLongPauseRecoveryEligible('),app.indexOf('  function recoverPlaybackAfterError(')),c);
+ assert.equal(c.playbackLongPauseRecoveryEligible(playback),false);
+ now=31000;assert.equal(c.playbackLongPauseRecoveryEligible(playback),true);
+ c.applicationInBackground=true;assert.equal(c.playbackLongPauseRecoveryEligible(playback),false);
 });
 
 test('a failed decorative overlay cannot interrupt playback controls',()=>{

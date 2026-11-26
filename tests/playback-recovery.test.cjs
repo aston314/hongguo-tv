@@ -16,6 +16,13 @@ test('never automatically rebuilds an MPV session', () => {
   assert.equal(recovery.attempts(), 0);
 });
 
+test('allows one explicit MPV refresh after a long paused resume', () => {
+  const recovery = create({maxAttempts: 1});
+  assert.equal(recovery.next({native: 'mpv', resumeAfterLongPause: true}), 'refresh');
+  assert.equal(recovery.attempts(), 1);
+  assert.equal(recovery.next({native: 'mpv', resumeAfterLongPause: true}), 'stop');
+});
+
 test('reset starts a new bounded recovery window', () => {
   const recovery = create({maxAttempts: 1});
   assert.equal(recovery.next({}), 'refresh');

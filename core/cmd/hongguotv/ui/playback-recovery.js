@@ -40,7 +40,12 @@
       reset: function () { attempts = 0; refreshed = false; },
       next: function (context) {
         context = context || {};
-        if (context.native === 'mpv') return 'stop';
+        // MPV normally owns its own bounded media fallback. A source that
+        // expires while the user has left playback paused is different: the
+        // next explicit resume needs one fresh URL, otherwise a stale native
+        // error is shown as a permanent playback failure. Keep this opt-in so
+        // ordinary MPV errors still cannot restart a session loop.
+        if (context.native === 'mpv' && context.resumeAfterLongPause !== true) return 'stop';
         if (!refreshed && attempts < maximum) {
           attempts++;
           refreshed = true;
