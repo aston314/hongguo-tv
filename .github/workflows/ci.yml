@@ -100,6 +100,7 @@ jobs:
           go test -race ./core/cmd/hongguotv -run 'Test(AppSeriesDirectory|SeriesDirectory|SeriesDetail)'
       - name: Check TV JavaScript and pagination
         run: |
+          python3 scripts/select_support_qr.py --check
           python3 scripts/build_chinese_content.py --check
           node --check core/cmd/hongguotv/ui/chinese-content.js
           node --check core/cmd/hongguotv/ui/app.js
