@@ -472,6 +472,10 @@
   var playbackAudioHold = null;
   var playbackTiming = [];
   var playbackRecovery = HongguoPlaybackRecovery.create({ maxAttempts: 1 });
+  // A paused CDN/Range connection can outlive its signed media URL. Only an
+  // explicit resume after a meaningful pause may spend the one extra source
+  // refresh budget; short pauses retain the existing playback path.
+  var playbackLongPauseRecoveryMs = 30000;
   function playbackContentType(item) {
     var value = item && item.content_type;
     // Preserve the album's 1003 identity for details/history; its individual
@@ -5211,15 +5215,27 @@
       });
     });
   }
-  function recoverPlaybackAfterError(playback) {
+  function playbackLongPauseRecoveryEligible(playback) {
+    if (!playback || playback !== activePlayback || playback.generation !== feedGeneration ||
+        !playback.started || playback.completed || playback.ended || applicationInBackground || applicationHidden()) return false;
+    var video = document.getElementById('hero-video');
+    var pausedAt = Number(playback.pauseStartedAt) || 0;
+    return pausedAt > 0 && Date.now() - pausedAt >= playbackLongPauseRecoveryMs &&
+      video.paused && !video.ended && !!video.getAttribute('src');
+  }
+  function recoverPlaybackAfterError(playback, options) {
     if (!playback || playback !== activePlayback || playback.generation !== feedGeneration) return false;
-    var action = playbackRecovery.next({ native: playbackEngineName() });
+    options = options || {};
+    var action = playbackRecovery.next({ native: playbackEngineName(), resumeAfterLongPause: options.resumeAfterLongPause === true });
     if (action !== 'refresh') return false;
     var video = document.getElementById('hero-video');
     var position = Math.max(0, Number(video.currentTime) || Number(playback.position) || 0);
     playback.recoveryAttempts = playbackRecovery.attempts();
     showNotice(uiText('content.sourceRefreshing', '正在刷新播放地址…'));
-    playFeedItem(feedIndex, playback.episode, position, null, null, { recoveryAttempts: playback.recoveryAttempts });
+    playFeedItem(feedIndex, playback.episode, position, null, null, {
+      recoveryAttempts: playback.recoveryAttempts,
+      resumeAfterLongPause: options.resumeAfterLongPause === true
+    });
     return true;
   }
   function recoverPlaybackPreparation(playback, error, generation) {
@@ -5978,6 +5994,7 @@
           episodeCoverAllowed: keepEpisodeCover,
           preserveNativeTransition: sameSeries,
           endedPending: false,
+          pauseStartedAt: 0, resumeAfterPauseRequested: false, longPauseMediaError: false,
           autoRecommendation: autoRecommendation, autoRecommendationRecorded: false,
           orientationContext: orientationContext || null, orientationChecked: !orientationContext,
           mode: '', rangeFallback: '', rangeFallbackAttempted: false, videoWidth: 0, videoHeight: 0,
@@ -8301,10 +8318,25 @@
     var video = document.getElementById('hero-video');
     if (!video.src) { showNotice(uiText('content.noOpenDrama', '请先打开一部短剧并选择集数。')); return; }
     var feedbackSource = video.src;
-    if (video.paused) playMedia(video).then(function () {
+    if (video.paused) {
+      var longPause = playbackLongPauseRecoveryEligible(activePlayback);
+      if (longPause && activePlayback && (activePlayback.longPauseMediaError || video.error)) {
+        activePlayback.resumeAfterPauseRequested = true;
+        if (recoverPlaybackAfterError(activePlayback, { resumeAfterLongPause: true })) return;
+        activePlayback.resumeAfterPauseRequested = false;
+      }
+      if (longPause && activePlayback) activePlayback.resumeAfterPauseRequested = true;
+      playMedia(video).then(function () {
       if (video.src === feedbackSource && !video.paused && isPlaybackPage()) showPlaybackFeedback('play');
-    }).catch(function () { showNotice(uiText('content.playerBlocked', '播放被设备阻止，请再次确认。')); });
-    else { video.pause(); showPlaybackFeedback('pause'); }
+      }).catch(function (error) {
+        var resumed = activePlayback && activePlayback.resumeAfterPauseRequested &&
+          playbackLongPauseRecoveryEligible(activePlayback) && error &&
+          error.name !== 'NotAllowedError' && error.name !== 'AbortError' &&
+          recoverPlaybackAfterError(activePlayback, { resumeAfterLongPause: true });
+        if (!resumed && activePlayback) activePlayback.resumeAfterPauseRequested = false;
+        if (!resumed) showNotice(uiText('content.playerBlocked', '播放被设备阻止，请再次确认。'));
+      });
+    } else { video.pause(); showPlaybackFeedback('pause'); }
   }
 
   function activatePage(item, restoring) {
@@ -9078,6 +9110,11 @@
   media.addEventListener('playing', function () {
     if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(true);
     document.getElementById('danmaku-layer').classList.remove('is-paused'); tickDanmaku();
+    if (activePlayback) {
+      activePlayback.pauseStartedAt = 0;
+      activePlayback.resumeAfterPauseRequested = false;
+      activePlayback.longPauseMediaError = false;
+    }
     markPlaybackStarted(activePlayback);
   });
   media.addEventListener('play', function () { if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(true); });
@@ -9132,7 +9169,13 @@
     if (window.HongguoDesktopPlaybackAwake) window.HongguoDesktopPlaybackAwake(false);
     resetNextSeasonHint();
     if (typeof cancelFullEpisodePrefetchForPlayback === 'function') cancelFullEpisodePrefetchForPlayback(activePlayback);
-    if (activePlayback) activePlayback.stableSince = 0;
+    if (activePlayback) {
+      activePlayback.stableSince = 0;
+      if (activePlayback.started && !activePlayback.completed && !activePlayback.ended &&
+          media.getAttribute('src') && !media.ended && !activePlayback.continuationPending && !activePlayback.pauseStartedAt) {
+        activePlayback.pauseStartedAt = Date.now();
+      }
+    }
     var staticMpvFrame = activePlayback && playbackEngineName() === 'mpv' && !activePlayback.started &&
       activePlayback.presentation && activePlayback.presentation.rendered && activePlayback.presentation.nativeFrameCoreIdle !== true &&
       media.paused && document.getElementById('hero').classList.contains('is-preparing-video');
@@ -9203,6 +9246,16 @@
     resetNextSeasonHint();
     if (!activePlayback || !media.getAttribute('src')) return;
     clearRangeStallTimer();
+    var longPause = typeof playbackLongPauseRecoveryEligible === 'function' && playbackLongPauseRecoveryEligible(activePlayback);
+    // A stale source may report its error while the user is still paused.
+    // Defer the decision until the user explicitly resumes; this avoids
+    // turning an intentional long pause into a failure banner.
+    if (longPause && media.paused && !activePlayback.resumeAfterPauseRequested) {
+      activePlayback.longPauseMediaError = true;
+      setPlayerStatus('');
+      return;
+    }
+    if (longPause && activePlayback.resumeAfterPauseRequested && recoverPlaybackAfterError(activePlayback, { resumeAfterLongPause: true })) return;
     if (fallbackRangePlayback(activePlayback)) return;
     if (recoverPlaybackAfterError(activePlayback)) return;
     setPlayerStatus(uiText('ui.playbackFailed', '这集未能正常播放'), true);
