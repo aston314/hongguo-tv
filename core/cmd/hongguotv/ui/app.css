@@ -265,6 +265,9 @@ html.tv-shell .hero-rank-badge { font-size: 15px; }
 .playback-buttons { position: relative; overflow: visible; }
 .playback-utility-group { display: flex; align-items: center; gap: 13px; margin-left: auto; }
 .playback-utility-group [data-action="fullscreen"] { margin-left: 0; }
+/* Android uses the bottom controls as the menu-key destination. The desktop
+   and webOS shells continue to use the existing right-side command menu. */
+html.android-shell #playback-command-menu { display: none !important; }
 .control-button { min-height: 44px; padding: 9px 10px; color: #ececf2; background: rgba(20,20,25,.68); border-radius: 7px; font-size: 16px; white-space: nowrap; }
 .control-button.has-icon { display: inline-block; vertical-align: middle; line-height: 1.25; }
 /* Old Android WebViews do not consistently apply flex layout to <button>.
