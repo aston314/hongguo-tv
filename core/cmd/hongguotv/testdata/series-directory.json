@@ -1,0 +1,54 @@
+{
+  "code": 0,
+  "data": {
+    "9000000000000000001": {
+      "video_data": {
+        "series_id": 9000000000000000001,
+        "series_id_str": "9000000000000000001",
+        "series_title": "完整目录样例",
+        "series_intro": "App详情简介",
+        "series_cover": "https://example.test/app.jpg",
+        "episode_cnt": 5,
+        "content_type": 1004,
+        "category_schema": "[{\"name\":\"悬疑\"}]",
+        "video_list": [
+          {
+            "series_id": 9000000000000000001,
+            "vid": 9000000000000000011,
+            "vid_index": 1,
+            "disable_play": false,
+            "title": "第1集"
+          },
+          {
+            "series_id": 9000000000000000001,
+            "vid": 9000000000000000012,
+            "vid_index": 2,
+            "disable_play": false,
+            "title": "第2集"
+          },
+          {
+            "series_id": 9000000000000000001,
+            "vid": 9000000000000000013,
+            "vid_index": 3,
+            "disable_play": false,
+            "title": "第3集"
+          },
+          {
+            "series_id": 9000000000000000001,
+            "vid": 9000000000000000014,
+            "vid_index": 4,
+            "disable_play": false,
+            "title": "第4集"
+          },
+          {
+            "series_id": 9000000000000000001,
+            "vid": 9000000000000000015,
+            "vid_index": 5,
+            "disable_play": true,
+            "title": "第5集"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+'use strict';
+var assert=require('assert'),fs=require('fs'),path=require('path');
+var api=require('../../webos/service/series-directory');
+var sid='9000000000000000001';
+var raw=fs.readFileSync(path.join(__dirname,'../../core/cmd/hongguotv/testdata/series-directory.json'),'utf8');
+var p=JSON.parse(raw.replace(/("(?:vid|series_id)"\s*:\s*)(\d{16,})/g,'$1"$2"'));
+var d=api.parse(p,sid).directory;
+assert.strictEqual(d.episodes.length,5);assert.strictEqual(d.vid_list[3],'9000000000000000014');
+assert.strictEqual(d.episodes[4].locked,true);assert.strictEqual(api.complete(d),true);
+p.data[sid].video_data.video_list.pop();assert.throws(function(){api.parse(p,sid);});
+assert.strictEqual(api.complete({episode_count:5,vid_list:['v1_preview']}),false);
+console.log(process.version+': exact ordered full directory PASS');

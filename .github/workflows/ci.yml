@@ -39,7 +39,7 @@ jobs:
           tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP"
           echo "WEBOS_LEGACY_NODE=$RUNNER_TEMP/node-v${LEGACY_VERSION}-linux-x64/bin/node" >> "$GITHUB_ENV"
       - name: Test production bootstrap, signature vectors and TLS verification
-        run: node --test tests/webos-legacy-runtime.test.cjs tests/webos-upstream-tls.test.cjs tests/webos-playback-repair.test.cjs tests/webos-playback-profile.test.cjs tests/chinese-content.test.cjs
+        run: node --test tests/webos-legacy-runtime.test.cjs tests/webos-upstream-tls.test.cjs tests/webos-playback-repair.test.cjs tests/webos-playback-profile.test.cjs tests/webos-series-directory.test.cjs tests/chinese-content.test.cjs
 
   release-source-windows:
     runs-on: windows-2022
@@ -97,6 +97,7 @@ jobs:
           go test -race ./core/cmd/hongguotv -run 'Test(QR|Account|UpSMS|NewMFA|LateExpiry|TemporaryMFA)'
           go test -race ./core/cmd/hongguotv -run 'TestMiniReel(PlaybackDevice|IdentityRecovery|FreshFallback|VideoTab|SingleRegistered|MobileV5)|TestPlaybackPreparation|TestSearchDiscovery|TestWatchStatistics'
           go test -race ./core/cmd/hongguotv -run 'TestPhoneSearch|TestNumberInput'
+          go test -race ./core/cmd/hongguotv -run 'Test(AppSeriesDirectory|SeriesDirectory|SeriesDetail)'
       - name: Check TV JavaScript and pagination
         run: |
           python3 scripts/build_chinese_content.py --check
