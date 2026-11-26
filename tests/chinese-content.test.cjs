@@ -7,6 +7,7 @@ const crypto = require('node:crypto');
 const childProcess = require('node:child_process');
 const ui = path.resolve(__dirname, '../core/cmd/hongguotv/ui');
 const source = fs.readFileSync(path.join(ui, 'chinese-content.js'), 'utf8');
+const appSource = fs.readFileSync(path.join(ui, 'app.js'), 'utf8');
 const moduleAPI = require(path.join(ui, 'chinese-content.js'));
 const index = JSON.parse(fs.readFileSync(path.join(ui, 'chinese-content/index.json')));
 const bytes = fs.readFileSync(path.join(ui, 'chinese-content/s2twp.bin'));
@@ -52,6 +53,15 @@ test('committed OpenCC data is deterministic, versioned and checksum verified', 
   assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), index.sha256);
   childProcess.execFileSync('python3', ['scripts/build_chinese_content.py', '--check'], { cwd: path.join(__dirname, '..') });
   assert.ok(fs.readFileSync(path.join(ui, 'chinese-content/LICENSE'), 'utf8').includes('Apache License'));
+});
+
+test('series season subtitles use the shared Traditional display binding', () => {
+  const start = appSource.indexOf('seriesItems.forEach(function (item) {');
+  const end = appSource.indexOf('row.addEventListener(\'click\'', start);
+  assert.ok(start >= 0 && end > start, 'series season renderer exists');
+  const block = appSource.slice(start, end);
+  assert.match(block, /setContentText\(meta,/);
+  assert.doesNotMatch(block, /meta\.textContent\s*=/);
 });
 
 test('packed s2twp matches official OpenCC test cases and golden text', () => {

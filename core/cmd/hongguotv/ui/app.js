@@ -8061,7 +8061,8 @@
         var image = document.createElement('img'); image.className = 'series-cover'; image.alt = ''; setCover(image, item);
         var copy = document.createElement('span'); copy.className = 'series-copy';
         var title = document.createElement('span'); title.className = 'series-title'; setContentText(title, item.title);
-        var meta = document.createElement('span'); meta.className = 'series-meta'; meta.textContent = [item.label, item.subtitle || (item.episode_count ? uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : '')].filter(Boolean).join(' · ');
+        var meta = document.createElement('span'); meta.className = 'series-meta';
+        setContentText(meta, [item.label, item.subtitle || (item.episode_count ? uiText('content.episodeCount', '全{count}集', { count: item.episode_count }) : '')].filter(Boolean).join(' · '));
         copy.appendChild(title); copy.appendChild(meta);
         var status = document.createElement('span'); status.className = 'series-status';
         row.appendChild(image); row.appendChild(copy); row.appendChild(status);
