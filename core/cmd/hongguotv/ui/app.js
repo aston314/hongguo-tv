@@ -220,10 +220,14 @@
   var playbackMenuHintCandidate = false;
   var playbackMenuHintTimer = 0;
   var playbackMenuHintPreviewForced = /(?:^|[?&])show-playback-menu-hint=1(?:&|$)/.test((window.location && window.location.search) || '');
-  var playbackMenuHintAvailable = androidShell || webosShell || playbackMenuHintPreviewForced;
+  // Android keeps the menu key as a shortcut to the bottom playback controls;
+  // the old right-side menu hint would describe an interaction that no longer
+  // exists there. webOS and browser previews retain the existing hint.
+  var playbackMenuHintAvailable = webosShell || playbackMenuHintPreviewForced;
   function applicationHidden() { return desktopShell ? !!window.HongguoDesktop.background : !!document.hidden; }
   document.documentElement.classList.toggle('desktop-shell', desktopShell);
   document.documentElement.classList.toggle('tv-shell', androidShell || webosShell);
+  document.documentElement.classList.toggle('android-shell', androidShell);
   var numericKeypad;
   var accountNumberScan;
   var accountPhoneCountries = window.HongguoPhoneCountries || [];
@@ -1119,6 +1123,7 @@
   }
 
   function openPlaybackCommandMenu(focusAction, preserveReturnFocus) {
+    if (androidShell) return false;
     if (!playbackCommandMenuAvailable() || !playbackCommandMenu || detailModalOpen || confirmOpen || discussionOpen || supportModalOpen || rankFilterOpen || detailCastOpen || playerOptionsOpen || scanModalOpen() || (typeof actorWorksOpen !== 'undefined' && actorWorksOpen) || (endRecommendations && endRecommendations.isOpen())) return false;
     if (playbackCommandMenuOpen) return true;
     if (!preserveReturnFocus) {
@@ -1137,9 +1142,21 @@
     return true;
   }
 
+  function focusAndroidPlaybackControls() {
+    if (!androidShell || !playbackCommandMenuAvailable() || detailModalOpen || confirmOpen || discussionOpen || supportModalOpen || rankFilterOpen || detailCastOpen || playerOptionsOpen || scanModalOpen() || (typeof actorWorksOpen !== 'undefined' && actorWorksOpen) || (endRecommendations && endRecommendations.isOpen())) return false;
+    revealControls();
+    var current = remoteFocusTarget() || document.activeElement;
+    var target = current && zoneOf(current) === 'controls' && !current.classList.contains('is-hidden') && current.getClientRects().length ? current : null;
+    if (!target && lastPlaybackControl && !lastPlaybackControl.classList.contains('is-hidden') && lastPlaybackControl.getClientRects().length) target = lastPlaybackControl;
+    if (!target) target = firstVisible('[data-action="pause"]') || firstVisible('.playback-buttons .control-button');
+    if (target) goFocus(target);
+    return !!target;
+  }
+
   function togglePlaybackCommandMenu() {
     var existingHint = document.getElementById('playback-menu-hint');
     if (existingHint && !existingHint.classList.contains('is-hidden') && typeof closePlaybackMenuHint === 'function') closePlaybackMenuHint();
+    if (androidShell) return focusAndroidPlaybackControls();
     return playbackCommandMenuOpen ? closePlaybackCommandMenu(true) : openPlaybackCommandMenu();
   }
 

@@ -5,6 +5,7 @@ const vm = require('node:vm');
 
 const app = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'), 'utf8');
 const css = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.css'), 'utf8');
+const html = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/index.html'), 'utf8');
 
 test('menu hint labels use readable fixed sizes instead of shrinking with the SVG', () => {
   assert.match(css, /\.playback-menu-hint-label\s*\{[^}]*font-size:\s*16px/);
@@ -12,6 +13,21 @@ test('menu hint labels use readable fixed sizes instead of shrinking with the SV
   assert.match(css, /\.playback-menu-hint-card\s*>\s*p\s*\{[^}]*font-size:\s*18px/);
   assert.match(css, /\.playback-menu-hint-card\s*>\s*p\s*\+\s*p\s*\{[^}]*font-size:\s*16px/);
   assert.doesNotMatch(css, /\.playback-menu-hint-label\s*\{[^}]*font-size:\s*\d+(?:\.\d+)?%/);
+});
+
+test('the Android shell hides the right-side playback menu', () => {
+  assert.match(css, /html\.android-shell\s+#playback-command-menu\s*\{[^}]*display:\s*none\s*!important/);
+  assert.match(app, /document\.documentElement\.classList\.toggle\('android-shell',\s*androidShell\)/);
+});
+
+test('send-danmaku follows the danmaku toggle in the shared playback controls', () => {
+  const danmaku = html.indexOf('data-action="danmaku"');
+  const send = html.indexOf('data-action="send-danmaku"');
+  const fullscreen = html.indexOf('data-action="fullscreen"', send);
+  const episodes = html.indexOf('data-action="episodes"');
+  assert.ok(danmaku >= 0 && send > danmaku && fullscreen > send);
+  assert.ok(episodes >= 0 && episodes < send);
+  assert.equal((html.match(/data-action="send-danmaku"/g) || []).length, 1);
 });
 
 function functionSource(name, nextName) {
@@ -106,4 +122,31 @@ test('dedicated player page keeps the playback menu available during source prep
   });
   vm.runInContext(functionSource('playbackCommandMenuAvailable', 'playbackCommandMenuSeasonButton'), context);
   assert.equal(context.playbackCommandMenuAvailable(), true);
+});
+
+test('Android menu key focuses the existing bottom playback controls', () => {
+  const classes = new Set();
+  const focused = [];
+  const button = {
+    classList: { contains(name) { return classes.has(name); } },
+    getClientRects() { return [{}]; }
+  };
+  const context = vm.createContext({
+    androidShell: true,
+    playbackCommandMenuAvailable: () => true,
+    detailModalOpen: false, confirmOpen: false, discussionOpen: false,
+    supportModalOpen: false, rankFilterOpen: false, detailCastOpen: false,
+    playerOptionsOpen: false, scanModalOpen: () => false,
+    actorWorksOpen: false, endRecommendations: { isOpen: () => false },
+    revealControls() { focused.push('reveal'); },
+    remoteFocusTarget: () => null,
+    document: { activeElement: {}, getElementById() { return null; } },
+    zoneOf: () => 'feed',
+    lastPlaybackControl: null,
+    firstVisible(selector) { return selector === '[data-action="pause"]' ? button : null; },
+    goFocus(target) { focused.push(target); }
+  });
+  vm.runInContext(functionSource('focusAndroidPlaybackControls', 'togglePlaybackCommandMenu'), context);
+  assert.equal(context.focusAndroidPlaybackControls(), true);
+  assert.deepEqual(focused, ['reveal', button]);
 });
