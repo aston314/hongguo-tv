@@ -13,6 +13,7 @@
   var querystring = require('querystring');
   var createAccount = require('./account');
   var creatorAlbum = require('./creator-album');
+  var seriesDirectory = require('./series-directory');
   var passportSign = require('./passport-sign');
   var createPlaybackIdentity = require('./playback-identity');
   var singleProfile = require('./single-playback-profile');
@@ -219,7 +220,7 @@
       }
       headers['X-XS-From-Web'] = '0'; headers['Sdk-Version'] = '2'; headers['X-SS-DP'] = '8662';
       headers['X-Tt-Store-Region'] = 'cn'; headers['X-Tt-Store-Region-Src'] = 'did';
-      return requestBuffer(API_BASE + pathName + '?' + signed.query, method || 'GET', headers, raw.length ? raw : null, MAX_JSON, null, policy && policy.timeout).then(function (response) {
+      return requestBuffer(API_BASE + pathName + '?' + signed.query, method || 'GET', headers, raw.length ? raw : null, MAX_JSON, policy && policy.signal, policy && policy.timeout).then(function (response) {
         if (response.status < 200 || response.status >= 300) throw fail('红果接口 HTTP ' + response.status);
         var text = response.body.toString('utf8');
         if (!trim(text)) {
@@ -1595,7 +1596,7 @@
   }
 
   function jsonResponse(res, status, payload) { var body = JSON.stringify(payload); res.statusCode = status; res.setHeader('Content-Type', 'application/json; charset=utf-8'); res.setHeader('Cache-Control', 'no-store'); res.setHeader('Access-Control-Allow-Origin', '*'); res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Range'); res.setHeader('Access-Control-Allow-Methods', 'GET, POST, HEAD, OPTIONS'); res.end(body); }
-  function fetchHTML(target) { return requestBuffer(target, 'GET', { 'User-Agent': 'Googlebot', Accept: 'text/html' }, null, 12 * 1024 * 1024).then(function (response) { if (response.status < 200 || response.status >= 300) throw fail('官网 HTTP ' + response.status); return response.body.toString('utf8'); }); }
+  function fetchHTML(target, signal, timeout) { return requestBuffer(target, 'GET', { 'User-Agent': 'Googlebot', Accept: 'text/html' }, null, 12 * 1024 * 1024, signal, timeout).then(function (response) { if (response.status < 200 || response.status >= 300) throw fail('官网 HTTP ' + response.status); return response.body.toString('utf8'); }); }
   function routerData(html) { var marker = html.indexOf('_ROUTER_DATA'); if (marker < 0) throw fail('页面缺少 _ROUTER_DATA'); var start = html.indexOf('{', marker); if (start < 0) throw fail('页面数据起点无效'); var depth = 0, string = false, escaped = false, end = start; for (; end < html.length; end++) { var c = html.charAt(end); if (string) { if (escaped) escaped = false; else if (c === '\\') escaped = true; else if (c === '"') string = false; continue; } if (c === '"') string = true; else if (c === '{' || c === '[') depth++; else if (c === '}' || c === ']') { depth--; if (!depth) break; } } try { return parseExactJSON(html.slice(start, end + 1)); } catch (error) { throw fail('页面数据解析失败'); } }
   function findObject(value, key) { if (!value || typeof value !== 'object') return null; if (!Array.isArray(value) && value[key] && typeof value[key] === 'object' && !Array.isArray(value[key])) return value[key]; var keys = Object.keys(value); for (var i = 0; i < keys.length; i++) { var found = findObject(value[keys[i]], key); if (found) return found; } return null; }
   function findArray(value, key) { if (!value || typeof value !== 'object') return null; if (!Array.isArray(value) && Array.isArray(value[key])) return value[key]; var keys = Object.keys(value); for (var i = 0; i < keys.length; i++) { var found = findArray(value[keys[i]], key); if (found) return found; } return null; }
@@ -2010,7 +2011,7 @@
     });
   }
   function detail(seriesID, contentType) {
-    if (!validID(seriesID)) return Promise.reject(fail('series_id 无效'));
+    if (!validID(seriesID) || String(seriesID) === '0') return Promise.reject(fail('series_id 无效'));
     if (String(contentType) === '1003') {
       return signedJSON('/novel/player/album_detail/v1/', 'POST', {}, { album_id: seriesID, series_ids: [], need_video_detail_info: true, biz_param: { video_platform: 3 } }).then(function (payload) {
         var item = creatorAlbum.parse(payload, seriesID);
@@ -2019,7 +2020,39 @@
         return item;
       });
     }
-    return fetchHTML(WEB_BASE + '/detail?series_id=' + encodeURIComponent(seriesID)).then(function (html) { var router = routerData(html); var raw = findObject(router, 'seriesDetail'); var drama = normalize(raw); if (!drama || drama.series_id !== seriesID) throw fail('详情响应缺少剧集信息'); drama.episodes = (drama.vid_list || []).map(function (vid, index) { var inferredLocked = index >= drama.accessible_episode_cnt; return { index: index + 1, video_id: vid, title: '第' + (index + 1) + '集', locked: inferredLocked, locked_inferred: inferredLocked }; }); var actors = normalizeSeriesActors(raw); if (!actors.length) actors = normalizeSeriesActors(router); return { series_id: drama.series_id, title: drama.title, cover: drama.cover, cover_fallback: drama.cover_fallback, intro: drama.intro, score: drama.score, play_count: drama.play_count, episode_count: drama.episode_count, accessible_episode_cnt: drama.accessible_episode_cnt, vid: drama.vid, vid_list: drama.vid_list, episodes: drama.episodes, tags: drama.tags, actors: actors, related: normalizeRelatedDramas(router, seriesID), reviews: normalizeSeriesReviews(router) }; });
+    var web = null, webCancel = audioCancel.create(), directoryCancel = audioCancel.create();
+    var webTimer = setTimeout(function () { webCancel.abort(); }, 6000);
+    var totalTimer = setTimeout(function () { directoryCancel.abort(); webCancel.abort(); }, 20000);
+    function cleanup() { clearTimeout(webTimer); clearTimeout(totalTimer); }
+    return fetchHTML(WEB_BASE + '/detail?series_id=' + encodeURIComponent(seriesID), webCancel.signal, 6000).then(function (html) {
+      var router = routerData(html), raw = findObject(router, 'seriesDetail'), drama = normalize(raw);
+      if (!drama) throw fail('详情响应缺少剧集信息');
+      if (drama.series_id !== seriesID) throw fail('详情返回的剧集与请求不一致', 502, 'DETAIL_IDENTITY_MISMATCH');
+      drama.episodes = (drama.vid_list || []).map(function (vid, index) { var inferred = index >= drama.accessible_episode_cnt; return { index: index + 1, video_id: vid, title: '第' + (index + 1) + '集', locked: inferred, locked_inferred: inferred }; });
+      var actors = normalizeSeriesActors(raw); if (!actors.length) actors = normalizeSeriesActors(router);
+      drama.actors = actors; drama.related = normalizeRelatedDramas(router, seriesID); drama.reviews = normalizeSeriesReviews(router);
+      web = drama;
+    }).catch(function (error) {
+      if (error.code === 'DETAIL_IDENTITY_MISMATCH') throw error;
+      // The App directory remains usable if website metadata is unavailable.
+    }).then(function () {
+      clearTimeout(webTimer);
+      if (directoryCancel.signal.aborted) throw fail('分集目录读取超时，请重试', 504, 'DETAIL_TIMEOUT');
+      if (web && seriesDirectory.complete(web)) return web;
+      return signedJSON('/novel/player/multi_video_detail/preload/v1', 'POST', {}, {
+        dr_scene: 'preload', series_id: seriesID,
+        biz_param: { detail_page_version: 0, disable_digg_stat: false, disable_video_relate_book: false, need_all_video_definition: false, need_mp4_align: false, source: 7, use_os_player: false, use_server_dns: false }
+      }, { attempts: 1, timeout: 12000, signal: directoryCancel.signal }).then(function (payload) {
+        if (directoryCancel.signal.aborted) throw fail('分集目录读取超时，请重试', 504, 'DETAIL_TIMEOUT');
+        var parsed = seriesDirectory.parse(payload, seriesID), app = normalize(parsed.video), result = web || app;
+        Object.keys(parsed.directory).forEach(function (key) { result[key] = parsed.directory[key]; });
+        if (!result.actors || !result.actors.length) result.actors = normalizeSeriesActors(parsed.video);
+        if (!result.tags || !result.tags.length) result.tags = app.tags;
+        if (!result.content_type) result.content_type = app.content_type;
+        if (!result.video_category_type) result.video_category_type = app.video_category_type;
+        return result;
+      });
+    }).then(function (result) { cleanup(); return result; }, function (error) { cleanup(); throw error; });
   }
 
   function fallbackSeason(seriesID, error) {

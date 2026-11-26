@@ -495,7 +495,7 @@ func (c *hongguoClient) Rank(ctx context.Context, request RankRequest) (Category
 	return result, nil
 }
 
-func (c *hongguoClient) SeriesDetail(ctx context.Context, seriesID string) (SeriesDetailResult, error) {
+func (c *hongguoClient) webSeriesDetail(ctx context.Context, seriesID string) (SeriesDetailResult, error) {
 	if !validID(seriesID) {
 		return SeriesDetailResult{}, errors.New("series_id 无效")
 	}
@@ -516,7 +516,7 @@ func (c *hongguoClient) SeriesDetail(ctx context.Context, seriesID string) (Seri
 		return SeriesDetailResult{}, errors.New("详情响应缺少剧集信息")
 	}
 	if drama.SeriesID != seriesID {
-		return SeriesDetailResult{}, errors.New("详情返回的剧集与请求不一致")
+		return SeriesDetailResult{}, errSeriesDetailIdentity
 	}
 	if drama.EpisodeCount == 0 {
 		drama.EpisodeCount = len(drama.VidList)

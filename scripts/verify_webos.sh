@@ -6,6 +6,7 @@ node_bin=${NODE:-node}
 
 "$node_bin" --check "$repo_dir/scripts/run_webos_http_direct_service.js"
 "$node_bin" --check "$repo_dir/webos/service/watch-statistics.js"
+"$node_bin" --check "$repo_dir/webos/service/series-directory.js"
 "$node_bin" --check "$repo_dir/webos/service/range-media.js"
 "$node_bin" --check "$repo_dir/webos/service/account-scan.js"
 "$node_bin" --check "$repo_dir/webos/app/webos-updates.js"
@@ -85,6 +86,7 @@ NODE
 
 "$node_bin" "$repo_dir/webos/service/passport-sign.test.js"
 "$node_bin" --test "$repo_dir/tests/webos-mobile-v5.test.cjs"
+"$node_bin" --test "$repo_dir/tests/webos-series-directory.test.cjs"
 "$node_bin" "$repo_dir/webos/service/provider.test.js"
 "$node_bin" "$repo_dir/webos/service/search-season.test.js"
 "$node_bin" --test "$repo_dir/webos/service/search-discovery.test.js"
@@ -148,7 +150,7 @@ var audioAt = html.indexOf('src="./webos-audio.js"');
 if (controllerAt < 0 || localAt <= controllerAt || audioAt <= localAt || audioAt >= html.indexOf('src="./app.js"')) throw new Error('webOS audio modules must load before the shared application');
 if (!fs.existsSync(path.join(root, 'app', 'webos-audio-local.js'))) throw new Error('webOS local audio asset missing');
 ['webos-audio-worker.js', 'webos-wsola.js'].forEach(function (file) { if (!fs.existsSync(path.join(root, 'app', file))) throw new Error('audio worker asset missing'); });
-['audio-media.js', 'audio-range.js', 'audio-cancel.js', 'audio-multipart.js'].forEach(function (file) { if (!fs.existsSync(path.join(root, 'service', file))) throw new Error('audio service asset missing'); });
+['series-directory.js', 'audio-media.js', 'audio-range.js', 'audio-cancel.js', 'audio-multipart.js'].forEach(function (file) { if (!fs.existsSync(path.join(root, 'service', file))) throw new Error('service asset missing: ' + file); });
 if (fs.readFileSync(path.join(root, 'app', 'webos-simulator-config.js'), 'utf8').indexOf('http://127.0.0.1:17658/report') < 0) throw new Error('staging report URL was not injected');
 console.log('webOS staged configuration: PASS');
 NODE
