@@ -1,6 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
-const {create,createHardwareHevc} = require('../core/cmd/hongguotv/ui/playback-settings.js');
+const {create,createHardwareHevc,createPlaybackRoute} = require('../core/cmd/hongguotv/ui/playback-settings.js');
 
 function fixture(engine='mpv', initial='mpv_auto') {
   let stored=initial; const writes=[], states=[];
@@ -64,4 +64,39 @@ test('HEVC settings do not report success when the native preference write is re
   assert.equal(f.settings.choose('hardware'),false);assert.equal(f.states.at(-1).mode,'standard');
   assert.match(f.states.at(-1).message,/未能保存/);
   f.bridge.setHardwareHevcPreferred=()=>{throw Error('bridge unavailable')};assert.equal(f.settings.choose('hardware'),false);
+});
+
+function routeFixture(engine='webview_media3', supported=true, initial='auto') {
+  let stored=initial;const writes=[],states=[];
+  const bridge={engine:()=>engine,supportsPlaybackMode:()=>supported,
+    playbackMode:()=>stored,setPlaybackMode:value=>{stored=value;writes.push(value)},
+    setDecoderMode:()=>{throw Error('decoder mode must be preserved')},
+    setHardwareHevcPreferred:()=>{throw Error('HEVC preference must be preserved')},
+    play:()=>{throw Error('settings must not interrupt playback')},stop:()=>{throw Error('settings must not stop playback')}};
+  return {bridge,writes,states,settings:createPlaybackRoute({bridge,render:s=>states.push(s)})};
+}
+test('manual playback route is available only on a standard bridge with the new capability',()=>{
+  const f=routeFixture();assert.equal(f.states[0].supported,true);assert.equal(f.states[0].mode,'auto');
+  for(const engine of ['mpv','media3','desktop','webos','']) {
+    const other=routeFixture(engine);assert.equal(other.states[0].supported,false);
+    assert.equal(other.settings.choose('media3'),false);assert.deepEqual(other.writes,[]);
+  }
+  for(const bridge of [undefined,{engine:()=> 'webview_media3'},routeFixture('webview_media3',false).bridge]) {
+    const states=[];const controller=createPlaybackRoute({bridge,render:s=>states.push(s)});
+    assert.equal(states[0].supported,false);assert.equal(controller.choose('media3'),false);
+  }
+});
+test('manual playback route persists independently without changing the active player or decoder',()=>{
+  const f=routeFixture();assert.equal(f.settings.choose('media3'),true);
+  assert.equal(f.states.at(-1).mode,'media3');assert.match(f.states.at(-1).message,/下次播放或切集/);
+  const restored=[];createPlaybackRoute({bridge:f.bridge,render:s=>restored.push(s)});
+  assert.equal(restored[0].mode,'media3');
+  assert.equal(f.settings.choose('auto'),true);assert.deepEqual(f.writes,['media3','auto']);
+  assert.equal(f.settings.choose('mpv_auto'),false);assert.equal(f.settings.choose('hardware'),false);
+});
+test('a failed playback route write preserves the previous selection and reports failure',()=>{
+  const f=routeFixture();f.bridge.setPlaybackMode=()=>{};
+  assert.equal(f.settings.choose('media3'),false);assert.equal(f.states.at(-1).mode,'auto');
+  assert.match(f.states.at(-1).message,/未能保存/);
+  f.bridge.setPlaybackMode=()=>{throw Error('write failed')};assert.equal(f.settings.choose('media3'),false);
 });

@@ -122,7 +122,7 @@ test('remote paths enter and leave the new card, including wrapped rows and hidd
     scanModalOpen:()=>false,accountKeypadOpen:()=>false,zoneOf:n=>n.zone,firstVisible:s=>visible.has(s)?s:null,
     activeSidebar:()=> 'sidebar',moveWithinZone:()=>null,moveGrid:()=>null
   });
-  vm.runInContext(slice('moveFrom','accountKeypadFocus'),c);
+  vm.runInContext(slice('selectedStandardPlayback','selectedSidebarDisplay')+slice('moveFrom','accountKeypadFocus'),c);
   const move=(zone,direction)=>c.moveFrom({zone},direction);
   assert.equal(move('danmakuRegion','down'),'.danmaku-size-action');
   assert.equal(move('danmakuSize','up'),'.danmaku-region-action');

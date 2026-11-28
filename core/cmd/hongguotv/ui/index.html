@@ -444,6 +444,12 @@
           <div class="app-update-actions"><button class="episode-prefetch-action account-action" id="episode-prefetch-range" data-mode="range" data-focus="episode-prefetch-range" aria-pressed="false" data-i18n="settings.episodePrefetchRange">边播边下</button><button class="episode-prefetch-action account-action" id="episode-prefetch-full" data-mode="full" data-focus="episode-prefetch-full" aria-pressed="false" data-i18n="settings.episodePrefetchFull">整集预下载</button></div>
           <p id="episode-prefetch-state" role="status" aria-live="polite"></p>
         </div>
+        <div class="settings-card app-update-card is-hidden" id="playback-route-settings">
+          <h2 data-i18n="settings.playbackRoute">播放方式</h2>
+          <p data-i18n="settings.playbackRouteDescription">自动优先使用 HTML5；播放不流畅时可尝试原生播放器（Media3）。失败后仍会尝试另一种方式，下次播放或切集时生效。</p>
+          <div class="app-update-actions"><button class="playback-route-action account-action" data-mode="auto" data-focus="playback-route-auto" aria-pressed="true" data-i18n="settings.autoDecodeDefault">自动（默认）</button><button class="playback-route-action account-action" data-mode="media3" data-focus="playback-route-media3" aria-pressed="false" data-i18n="settings.nativePlaybackPriority">原生播放器优先</button></div>
+          <p id="playback-route-state" role="status" aria-live="polite"></p>
+        </div>
         <div class="settings-card app-update-card is-hidden" id="hevc-playback-settings">
           <h2 data-i18n="settings.hevcDecode">HEVC 解码</h2>
           <p data-i18n="settings.hevcPlaybackDescription">仅影响原生播放器的 HEVC 解码。默认沿用兼容策略；卡顿时可尝试硬件优先，画面异常请切回自动。下次播放或切集时生效。</p>

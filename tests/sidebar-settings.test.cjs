@@ -90,18 +90,22 @@ test('settings remote focus follows the visible card order and keeps version upd
   const portraitBlack = node('portraitBlack', ['portrait-background-action', 'account-action']);
   const portraitBlur = node('portraitBlur', ['portrait-background-action', 'account-action']);
   const decode = node('decode', ['playback-mode-action', 'account-action']);
+  const routeAuto = node('routeAuto', ['playback-route-action', 'account-action']);
+  const routeMedia3 = node('routeMedia3', ['playback-route-action', 'account-action']);
+  const hevcAuto = node('hevcAuto', ['hevc-hardware-action', 'account-action']);
+  const hevcHardware = node('hevcHardware', ['hevc-hardware-action', 'account-action']);
   const sidebar = node('sidebar', ['side-item']);
-  const zones = { startupPage: startupPages, sidebarDisplay: [expanded, icons], localeActions: [locale], recommendationDirection: [directionAll, directionLandscape], appUpdates: [update], autoCinema: [autoCinema], recommendationAutoCinema: [recommendationAutoCinema], webosAudio: [webosAudio], portraitBackground: [portraitBlack, portraitBlur], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], sidebar: [sidebar] };
-  const visible = { update: true, autoCinema: true, recommendationAutoCinema: false, webosAudio: true, portrait: false, prefetch: true, decode: true };
+  const zones = { startupPage: startupPages, sidebarDisplay: [expanded, icons], localeActions: [locale], recommendationDirection: [directionAll, directionLandscape], appUpdates: [update], autoCinema: [autoCinema], recommendationAutoCinema: [recommendationAutoCinema], webosAudio: [webosAudio], portraitBackground: [portraitBlack, portraitBlur], episodePrefetch: [prefetchRange, prefetchFull], playbackModes: [decode], playbackRoute: [routeAuto,routeMedia3], hevcHardware: [hevcAuto,hevcHardware], sidebar: [sidebar] };
+  const visible = { update: true, autoCinema: true, recommendationAutoCinema: false, webosAudio: true, portrait: false, prefetch: true, decode: true, route: false, hevc: false };
   const c = vm.createContext({
     coreConnectionModalOpen: false,
     scanModalOpen: () => false, supportModalOpen: false, confirmOpen: false,
     rankFilterOpen: false, playerOptionsOpen: false, detailModalOpen: false, discussionOpen: false,
     selectedSidebarDisplay: () => icons, activeSidebar: () => sidebar,
-    firstVisible: selector => selector.includes('startup-page-action') ? startupHistory : selector.includes('recommendation-direction-action') ? directionAll : selector.includes('locale-action') ? locale : selector.includes('app-update') ? visible.update ? update : null : selector.includes('recommendation-auto-cinema') ? visible.recommendationAutoCinema ? recommendationAutoCinema : null : selector.includes('auto-cinema') ? visible.autoCinema ? autoCinema : null : selector.includes('webos-audio') ? visible.webosAudio ? webosAudio : null : selector.includes('portrait-background') ? visible.portrait ? portraitBlack : null : selector.includes('episode-prefetch') ? visible.prefetch ? prefetchRange : null : selector.includes('playback-mode') ? visible.decode ? decode : null : null,
+    firstVisible: selector => selector.includes('startup-page-action') ? startupHistory : selector.includes('recommendation-direction-action') ? directionAll : selector.includes('locale-action') ? locale : selector.includes('app-update') ? visible.update ? update : null : selector.includes('recommendation-auto-cinema') ? visible.recommendationAutoCinema ? recommendationAutoCinema : null : selector.includes('auto-cinema') ? visible.autoCinema ? autoCinema : null : selector.includes('webos-audio') ? visible.webosAudio ? webosAudio : null : selector.includes('portrait-background') ? visible.portrait ? portraitBlack : null : selector.includes('episode-prefetch') ? visible.prefetch ? prefetchRange : null : selector.includes('playback-route') ? visible.route ? routeAuto : null : selector.includes('hevc-hardware') ? visible.hevc ? hevcAuto : null : selector.includes('playback-mode') ? visible.decode ? decode : null : null,
     moveWithinZone: (zone, current, direction) => zones[zone][zones[zone].indexOf(current) + (direction === 'left' ? -1 : 1)] || null
   });
-  vm.runInContext(fn('zoneOf', 'goFocus') + fn('moveFrom', 'accountKeypadOpen'), c);
+  vm.runInContext(fn('selectedStandardPlayback', 'selectedSidebarDisplay') + fn('zoneOf', 'goFocus') + fn('moveFrom', 'accountKeypadOpen'), c);
   assert.equal(c.zoneOf(icons), 'sidebarDisplay');
   assert.equal(c.moveFrom(expanded, 'right'), icons);
   assert.equal(c.moveFrom(icons, 'left'), expanded);
@@ -160,4 +164,22 @@ test('settings remote focus follows the visible card order and keeps version upd
   visible.webosAudio = false;
   visible.autoCinema = false;
   assert.equal(c.moveFrom(prefetchRange, 'up'), directionAll);
+  visible.route = true;
+  assert.equal(c.zoneOf(routeAuto),'playbackRoute');
+  assert.equal(c.moveFrom(prefetchRange,'down'),routeAuto);
+  assert.equal(c.moveFrom(routeAuto,'right'),routeMedia3);
+  assert.equal(c.moveFrom(routeMedia3,'left'),routeAuto);
+  assert.equal(c.moveFrom(routeAuto,'left'),sidebar);
+  assert.equal(c.moveFrom(routeMedia3,'up'),prefetchRange);
+  assert.equal(c.moveFrom(routeAuto,'down'),update,'Android 10+ hides the HEVC choice');
+  assert.equal(c.moveFrom(update,'up'),routeAuto);
+  visible.hevc = true;
+  assert.equal(c.zoneOf(hevcAuto),'hevcHardware');
+  assert.equal(c.moveFrom(routeMedia3,'down'),hevcAuto);
+  assert.equal(c.moveFrom(hevcAuto,'right'),hevcHardware);
+  assert.equal(c.moveFrom(hevcHardware,'left'),hevcAuto);
+  assert.equal(c.moveFrom(hevcAuto,'left'),sidebar);
+  assert.equal(c.moveFrom(hevcAuto,'up'),routeAuto);
+  assert.equal(c.moveFrom(hevcHardware,'down'),update);
+  assert.equal(c.moveFrom(update,'up'),hevcAuto,'Android 7–9 returns to the last visible playback card');
 });

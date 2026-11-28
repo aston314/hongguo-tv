@@ -7,6 +7,7 @@ const source = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/native-
 const appSource = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'), 'utf8');
 const mpvBridgeSource = fs.readFileSync(require.resolve('../android/app/src/mpv/java/rocks/aston/hongguotv/MpvPlayerBridge.java'), 'utf8');
 const mpvTransitionSource = fs.readFileSync(require.resolve('../android/app/src/mpv/java/rocks/aston/hongguotv/MpvTransitionState.java'), 'utf8');
+const {createPlaybackRoute} = require('../core/cmd/hongguotv/ui/playback-settings.js');
 
 function FakeClock() {
   this.time = 10000;
@@ -35,6 +36,7 @@ FakeClock.prototype.advance = function (duration) {
 };
 
 function fixture(engine = 'webview_media3', options = {}) {
+  let playbackMode = options.playbackMode || 'auto';
   const listeners = {};
   const frameCallbacks = [];
   const classNames = new Set();
@@ -64,7 +66,7 @@ function fixture(engine = 'webview_media3', options = {}) {
     clearMedia3Preference() { delete nativePreferences.media3; }
   } : null;
   const domVideo = {
-    src: '', currentSrc: '', currentTime: 0, duration: 0, paused: true, playbackRate: 1, volume: 1, muted: true,
+    src: '', currentSrc: '', currentTime: 0, duration: 0, paused: true, ended: false, playbackRate: 1, volume: 1, muted: true,
     readyState: 0, videoWidth: 0, videoHeight: 0, bufferedEnd: 0,
     buffered: { get length() { return domVideo.bufferedEnd > 0 ? 1 : 0; }, start() { return 0; }, end() { return domVideo.bufferedEnd; } },
     classList: {
@@ -74,7 +76,7 @@ function fixture(engine = 'webview_media3', options = {}) {
     addEventListener(name, listener) { (listeners[name] ||= []).push(listener); },
     getAttribute() { return null; },
     setAttribute() {},
-    removeAttribute() {},
+    removeAttribute(name) { if (name === 'src') { this.src = ''; this.currentSrc = ''; } },
     load() { this.readyState = 0; this.currentTime = 0; },
     requestVideoFrameCallback(callback) { frameCallbacks.push(callback); },
     play() { this.paused = false; return Promise.resolve(); },
@@ -92,7 +94,10 @@ function fixture(engine = 'webview_media3', options = {}) {
   const bridge = {
     isAvailable() { return true; },
     engine() { return engine; },
-    primaryPlayback() { return engine === 'media3'; },
+    primaryPlayback() { return engine === 'media3' || engine === 'webview_media3' && playbackMode === 'media3'; },
+    supportsPlaybackMode() { return engine === 'webview_media3'; },
+    playbackMode() { return playbackMode; },
+    setPlaybackMode(value) { playbackMode = value; },
     diagnostics() { return JSON.stringify(this.diagnostic || {}); },
     bounds() {},
     begin() { this.begins++; },
@@ -355,6 +360,94 @@ test('Media3-primary mode retries for a new source after HTML5 fallback', async 
   assert.equal(f.bridge.plays, 2);
   assert.notEqual(f.bridge.lastId, firstId);
   assert.equal(f.bridge.lastPayload.source, 'http://127.0.0.1/media/second.mp4');
+});
+
+test('manual route selection waits for a new source and preserves audio and history position', async () => {
+  const f=fixture(),video=f.document.getElementById('hero-video'),adapter=f.context.window.HongguoNativePlaybackAdapter;
+  const controller=createPlaybackRoute({bridge:f.bridge,render(){}});
+  video.src='/media/first.mp4';await video.play();
+  video.volume=.6;video.muted=false;video.playbackRate=1.5;
+  assert.equal(controller.choose('media3'),true);
+  assert.equal(adapter.isNative(),false);assert.equal(f.bridge.plays,0);assert.equal(video.paused,false);
+  video.src='/media/next.mp4';adapter.setStartPosition(42.5);video.load();await video.play();
+  assert.equal(adapter.isNative(),true);assert.equal(adapter.engine,'media3');
+  assert.equal(f.domVideo.paused,true);assert.equal(f.domVideo.src,'','release the old HTML5 media');
+  assert.equal(f.bridge.lastPayload.start_position,42.5);
+  assert.equal(f.bridge.lastPayload.speed,1.5);assert.equal(video.volume,.6);assert.equal(video.muted,false);
+  assert.deepEqual(f.bridge.volumeCalls.at(-1),{volume:.6,muted:false});
+  const id=f.bridge.lastId;
+  assert.equal(controller.choose('auto'),true);
+  assert.equal(adapter.isNative(),true);assert.equal(f.bridge.lastId,id,'changing settings cannot replace the active source');
+  video.src='/media/third.mp4';await video.play();
+  assert.equal(adapter.isNative(),false);assert.equal(adapter.engine,'webview_media3');
+  assert.equal(f.domVideo.volume,.6);assert.equal(f.domVideo.muted,false);
+  f.context.window.HongguoNativePlayback.event(id,'ended');
+  assert.equal(video.ended,false,'callbacks from the retired native source must be ignored');
+});
+
+test('manual Media3 failures keep the user preference, resume HTML5 once, and retry Media3 for the next source', async () => {
+  const f=fixture('webview_media3',{playbackMode:'media3'}),video=f.document.getElementById('hero-video');
+  const adapter=f.context.window.HongguoNativePlaybackAdapter;
+  video.src='/media/first.mp4';await video.play();
+  const id=f.bridge.lastId;
+  f.context.window.HongguoNativePlayback.progress(id,12500,120000);
+  f.context.window.HongguoNativePlayback.event(id,'error',{kind:'decoder'});
+  assert.equal(adapter.isNative(),false);assert.equal(video.currentTime,12.5);
+  assert.equal(f.bridge.playbackMode(),'media3');
+  await video.play();f.emit('error');
+  assert.equal(f.bridge.plays,1,'HTML5 failure must not cycle back into Media3 for this source');
+  video.src='/media/next.mp4';await video.play();
+  assert.equal(f.bridge.plays,2);assert.notEqual(f.bridge.lastId,id);
+  f.context.window.HongguoNativePlayback.event(id,'error',{kind:'decoder'});
+  assert.equal(adapter.isNative(),true,'late errors must not stop the new source');
+});
+
+test('switching an automatic Media3 fallback to manual priority keeps native audio authoritative', async () => {
+  const {f,video}=nativeAfterAudioRelease();
+  f.bridge.setPlaybackMode('media3');
+  video.src='/media/second.mp4';await video.play();
+  assert.equal(video.muted,false);assert.equal(video.volume,.65);
+  assert.deepEqual(f.bridge.volumeCalls.at(-1),{volume:.65,muted:false});
+  video.src='';
+  assert.ok(f.bridge.stops>0,'clearing a manual Media3 source must stop its native playback');
+  assert.deepEqual(Object.keys(f.context.window.HongguoNativePlaybackAdapter.nativeDiagnostics()),[]);
+});
+
+test('manual route persistence survives page reload and manual failure does not alter the learned route', async () => {
+  const nativePreferences={media3:{engine:'media3',webview:'122.0.6261.94',expires_at:999999999}};
+  const f=fixture('webview_media3',{playbackMode:'media3',nativePreferences});
+  const video=f.document.getElementById('hero-video');video.src='/media/first.mp4';await video.play();
+  f.context.window.HongguoNativePlayback.event(f.bridge.lastId,'error',{kind:'decoder'});
+  assert.equal(f.bridge.playbackMode(),'media3');
+  assert.ok(nativePreferences.media3,'the manual choice does not overwrite automatic route learning');
+  const reloaded=fixture('webview_media3',{playbackMode:f.bridge.playbackMode(),origin:'http://127.0.0.1:59999'});
+  const next=reloaded.document.getElementById('hero-video');next.src='/media/reloaded.mp4';await next.play();
+  assert.equal(reloaded.bridge.plays,1);
+});
+
+test('a deliberate reload of the same native URL can apply an automatic route choice', async () => {
+  const f=fixture('webview_media3',{playbackMode:'media3'}),video=f.document.getElementById('hero-video');
+  video.src='/media/same.mp4';await video.play();
+  f.bridge.setPlaybackMode('auto');video.src='/media/same.mp4';video.load();await video.play();
+  assert.equal(f.context.window.HongguoNativePlaybackAdapter.isNative(),false);
+  assert.equal(f.domVideo.src,'/media/same.mp4');assert.equal(f.bridge.plays,1);
+});
+
+test('manual source changes keep mute holds and restored playback speed in both directions', async () => {
+  for(const [volume,muted] of [[.7,true],[0,false],[.7,false]]) {
+    const f=fixture(),video=f.document.getElementById('hero-video');
+    installTransitionAudio(f);
+    video.src='/media/first.mp4';await video.play();
+    video.volume=volume;video.muted=muted;video.playbackRate=1.75;
+    f.context.holdPlaybackAudio(10);
+    f.bridge.setPlaybackMode('media3');video.src='/media/next.mp4';await video.play();
+    assert.equal(video.muted,true,'a live transition stays muted');
+    f.context.releasePlaybackAudio({generation:10});
+    assert.equal(video.muted,muted);assert.equal(video.volume,volume);
+    assert.equal(f.bridge.lastPayload.speed,1.75);
+    f.bridge.setPlaybackMode('auto');video.src='/media/third.mp4';await video.play();
+    assert.equal(video.muted,muted);assert.equal(video.volume,volume);assert.equal(video.playbackRate,1.75);
+  }
 });
 
 test('WebView media error switches to Media3 once and keeps the playback position', () => {
