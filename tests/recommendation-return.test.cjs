@@ -99,6 +99,72 @@ test('leaving and returning restores the list, index, episode and position witho
   assert.equal(f.calls.filter(x => x.kind === 'recommend').length, 0);
   assert.equal(f.c.document.activeElement, f.channel);
 });
+
+test('opaque recommendation preview IDs load their own directory; valid first VID retains the fast path', async () => {
+  for(const preview of ['v1_preview','0','', '9000000000000000011']){
+    const f=fixture(),sid='9000000000000000001';let detailCalls=0;
+    vm.runInContext(slice('firstVid','getDetail'),f.c);
+    f.c.feedItems=[{series_id:sid,title:'相关推荐',episode_count:3,vid:preview}];
+    f.c.getDetail=async item=>{detailCalls++;assert.equal(item.series_id,sid);return {...item,vid:'9000000000000000011',vid_list:['9000000000000000011','9000000000000000012','9000000000000000013']}};
+    f.c.playFeedItem(0);await f.flush();
+    const requests=f.calls.filter(x=>x.kind==='source');
+    assert.equal(requests.length,1);assert.equal(requests[0].vid,'9000000000000000011');
+    assert.equal(detailCalls,preview==='9000000000000000011'?0:1);
+  }
+});
+
+test('home-style playback lacking a total recomputes history after detail without requesting episode N+1',async()=>{
+  for(const args of [
+    {episode:3,completed:true,expect:1,position:0},
+    {episode:2,completed:true,expect:3,position:0},
+    {episode:2,completed:false,expect:2,position:17}
+  ]){
+    const f=fixture(),sid='9000000000000000001';let details=0;
+    f.c.activePlayback=null;
+    vm.runInContext(slice('firstVid','getDetail'),f.c);
+    f.c.feedItems=[{series_id:sid,title:'首页入口'}];
+    f.c.libraryData.entries=[{drama:{series_id:sid},last_played_at:1,episode:args.episode,completed:args.completed,position:17}];
+    f.c.getDetail=async item=>{details++;return {...item,episode_count:3,vid:'9000000000000000011',vid_list:['9000000000000000011','9000000000000000012','9000000000000000013']}};
+    f.c.playFeedItem(0);await f.flush();
+    assert.equal(details,1);assert.equal(f.c.activePlayback.episode,args.expect);
+    assert.equal(f.c.activePlayback.position,args.position);
+    assert.equal(f.calls.filter(x=>x.kind==='source').length,1);
+    assert.equal(f.calls.find(x=>x.kind==='source').vid,'900000000000000001'+args.expect);
+  }
+});
+
+test('missing home totals never override an explicit episode choice or a captured resume position',async()=>{
+  for(const captured of [false,true]){
+    const f=fixture(),sid='9000000000000000001';
+    f.c.activePlayback=null;
+    vm.runInContext(slice('firstVid','getDetail'),f.c);
+    f.c.feedItems=[{series_id:sid,title:'首页入口'}];
+    f.c.libraryData.entries=[{drama:{series_id:sid},last_played_at:1,episode:3,completed:true,position:90}];
+    f.c.getDetail=async item=>({...item,episode_count:3,vid:'9000000000000000011',
+      vid_list:['9000000000000000011','9000000000000000012','9000000000000000013']});
+    if(captured)f.c.recommendationResume=()=>({episode:2,position:23});
+    f.c.playFeedItem(0,captured?undefined:2,captured?undefined:7,null,captured?{ready:Promise.resolve()}:null);
+    await f.flush();
+    assert.equal(f.c.activePlayback.episode,2);
+    assert.equal(f.c.activePlayback.position,captured?23:7);
+    assert.equal(f.calls.filter(x=>x.kind==='source').length,1);
+    assert.equal(f.calls.find(x=>x.kind==='source').vid,'9000000000000000012');
+  }
+});
+
+test('a failed or superseded preview detail never resolves media with its opaque ID',async()=>{
+  for(const outcome of ['fail','leave','account']){
+    const f=fixture(),sid='9000000000000000001',gate=deferred();
+    vm.runInContext(slice('firstVid','getDetail'),f.c);
+    f.c.feedItems=[{series_id:sid,title:'相关推荐',vid:'v1_preview'}];
+    f.c.getDetail=async()=>{await gate.promise;if(outcome==='fail')throw Error('directory unavailable');return {series_id:sid,vid:'9000000000000000011',episode_count:1}};
+    f.c.playFeedItem(0);await f.flush();
+    if(outcome!=='fail'){f.c.cancelPlaybackPreparation();f.c.feedGeneration++;if(outcome==='account')f.c.accountEpoch++;}
+    gate.resolve();await f.flush();
+    assert.equal(f.calls.filter(x=>x.kind==='source').length,0);
+    assert.equal(f.c.activePlayback,null);
+  }
+});
 test('another-page single-drama playback cannot overwrite the recommendation list or move its current slot', async () => {
   const f = fixture(); f.c.activatePage(f.c.pages.search); await f.flush();
   f.c.startPlayer({ series_id: 'other', title: 'Other', vid: 'other-1', episode_count: 3 }); await f.flush();

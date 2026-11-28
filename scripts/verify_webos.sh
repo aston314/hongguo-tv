@@ -87,6 +87,7 @@ NODE
 "$node_bin" "$repo_dir/webos/service/passport-sign.test.js"
 "$node_bin" --test "$repo_dir/tests/webos-mobile-v5.test.cjs"
 "$node_bin" --test "$repo_dir/tests/webos-series-directory.test.cjs"
+"$node_bin" --test "$repo_dir/tests/related-seasons.test.cjs"
 "$node_bin" "$repo_dir/webos/service/provider.test.js"
 "$node_bin" "$repo_dir/webos/service/search-season.test.js"
 "$node_bin" --test "$repo_dir/webos/service/search-discovery.test.js"

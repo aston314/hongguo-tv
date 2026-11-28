@@ -4697,8 +4697,8 @@
 
   function firstVid(item) {
     if (!item) return '';
-    if (item.vid) return item.vid;
-    if (item.vid_list && item.vid_list.length) return item.vid_list[0];
+    if (/^[1-9][0-9]{0,31}$/.test(String(item.vid || ''))) return item.vid;
+    if (item.vid_list && /^[1-9][0-9]{0,31}$/.test(String(item.vid_list[0] || ''))) return item.vid_list[0];
     return '';
   }
 
@@ -4768,9 +4768,9 @@
       playbackVideoReady(playback, playback.presentation, video));
     nextSeasonHint.update(playback, video, items, allowed);
   }
-  function offerEndRecommendations(playback, detail) {
+  function offerEndRecommendations(playback, detail, manualOnly) {
     if (pageMode() !== 'player' || !endRecommendations || !HongguoEndRecommendations.itemsFor(detail.related, playback.item.series_id).length) return false;
-    endRecommendations.offer(playback, detail.related);
+    endRecommendations.offer(playback, detail.related, { manualOnly: !!manualOnly });
     return true;
   }
   function offerFollowAtEnd(playback, detail, after) {
@@ -4976,6 +4976,7 @@
     }
     playback.continuationPending = true;
     playback.continuationToken = ++continuationGeneration;
+    var completionDetail = null, checkingSeasons = false;
     beginPrefetchedEpisodeHint(playback.item, playback.episode + 1, playback.generation, Date.now(), playback.generation);
     setPlayerStatus(episodeLoadingText(playback.item.episode_count > playback.episode ? playback.episode + 1 : 0));
     getDetail(playback.item).then(function (detail) {
@@ -4988,12 +4989,21 @@
       if (!detail.vid_list || !detail.vid_list.length || playback.episode < Math.max(detail.episode_count || 0, detail.vid_list.length)) {
         throw new Error(uiText('content.seriesIncomplete', '本季集列表不完整'));
       }
+      completionDetail = detail;
+      checkingSeasons = true;
       setPlayerStatus(episodeLoadingText());
       var epoch = accountEpoch;
       return fetchData('/api/v1/series/seasons?series_id=' + encodeURIComponent(playback.item.series_id)).then(function (series) {
         if (!canContinuePlayback(playback)) { deferContinuation(playback); return; }
         if (epoch !== accountEpoch) return;
         if (!Array.isArray(series.items)) throw new Error(uiText('content.seriesInvalid', '系列剧响应无效'));
+        if (!series.items.length && series.source === 'related-no-seasons') {
+          setPlayerStatus(''); revealControls();
+          // This scene confirms no season relation, not a complete catalog.
+          // Leave the viewer in control instead of starting another drama.
+          offerEndRecommendations(playback, detail, true);
+          return;
+        }
         if (!series.items.length) throw new Error(uiText('content.seriesInvalid', '系列剧响应无效'));
         var currentRows = series.items.filter(function (item) { return item.series_id === playback.item.series_id; });
         if (currentRows.length > 1) throw new Error(uiText('content.seasonMismatch', '系列季号不一致'));
@@ -5040,6 +5050,10 @@
             showNotice(uiText('content.continueSeason', '继续播放第{season}季', { season: successor.season_index }));
           } else {
             setPlayerStatus(''); revealControls();
+            if (series.source === 'related-seasons') {
+              offerEndRecommendations(playback, detail, true);
+              return;
+            }
             if (pageMode() === 'recommend' && feedItems.length > 1) playFeedItem(feedIndex + 1, undefined, undefined, null, null, null, newRecommendationOrientationContext());
             else {
               var recommendations = false;
@@ -5071,6 +5085,7 @@
       if (!canContinuePlayback(playback)) { deferContinuation(playback); return; }
       setPlayerStatus(''); revealControls();
       showNotice(uiText('content.continuationPaused', '连续播放已暂停：{error}', { error: localizedError(error, 'common.operationFailed', '操作未完成，请重试。') }));
+      if (checkingSeasons && completionDetail && pageMode() === 'player' && playback.owner === accountEpoch) offerEndRecommendations(playback, completionDetail, true);
     }).then(finishContinuation, finishContinuation);
   }
 
@@ -5979,9 +5994,19 @@
       playbackRequest.episode = episode; playbackRequest.position = position;
       setFeatured(Object.assign({}, item, { start_episode: episode }), false, 'refresh');
       setPlayerStatus(episodeLoadingText(episode));
-      var source = episode === 1 && firstVid(item) && String(item.content_type) !== '1003' ? Promise.resolve(item) : getDetail(item, request.signal);
+      var needsResumeDetail = !forcedEpisode && !resumed &&
+        entry && entry.last_played_at && !(Number(item.episode_count) > 0);
+      var source = !needsResumeDetail && episode === 1 && firstVid(item) && String(item.content_type) !== '1003' ? Promise.resolve(item) : getDetail(item, request.signal);
       return source.then(function (detail) {
         if (generation !== feedGeneration || request.signal.aborted) return null;
+        if (needsResumeDetail) {
+          var resumeItem = Object.assign({}, item, detail);
+          if (!(Number(resumeItem.episode_count) > 0) && detail.vid_list) resumeItem.episode_count = detail.vid_list.length;
+          episode = resumed ? resumed.episode : resumeEpisode(entry, resumeItem);
+          position = forcedPosition !== undefined ? forcedPosition : resumed ? resumed.position : entry && episode === entry.episode && !entry.completed ? entry.position || 0 : 0;
+          playbackRequest.episode = episode; playbackRequest.position = position;
+          setPlayerStatus(episodeLoadingText(episode));
+        }
         var vid = episode === 1 ? firstVid(detail) : detail.vid_list && detail.vid_list[episode - 1];
         if (!vid) throw new Error(uiText('content.episodeNoVideo', '第{episode}集暂无视频数据', { episode: episode }));
         // The detail response is authoritative. An early preview based on
@@ -7911,7 +7936,9 @@
         seen[item.series_id] = true; applyReservationOverride(item); return true;
       });
       entry.pending = false; entry.expires = Date.now() + 120000;
-      entry.items.forEach(function (item) { rememberSeasonCatalog(item.series_id, entry); });
+      // Related-work catalogs are relative to the requested drama and must not
+      // authorize autoplay from a sibling without its own reciprocal check.
+      if (!result.source || result.source.indexOf('related-') !== 0) entry.items.forEach(function (item) { rememberSeasonCatalog(item.series_id, entry); });
       rememberSeasonCatalog(id, entry);
       updateNextSeasonHint(document.getElementById('hero-video'));
       if (playbackMenuHintCandidate || (document.getElementById('playback-menu-hint') && !document.getElementById('playback-menu-hint').classList.contains('is-hidden'))) updatePlaybackMenuHintCopy(activePlayback);

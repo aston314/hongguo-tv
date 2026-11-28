@@ -455,10 +455,8 @@ async function run() {
     } finally { rangeMedia.downloadFile = diskDownload; }
 
     var seasons = await provider.seasons(seriesID);
-    assert.strictEqual(seasons.source, 'webos-detail-fallback');
-    assert.strictEqual(seasons.items.length, 1);
-    assert.strictEqual(seasons.items[0].series_id, seriesID);
-    assert.strictEqual(seasons.items[0].playable, true);
+    assert.strictEqual(seasons.source, 'related-no-seasons');
+    assert.strictEqual(seasons.items.length, 0, 'valid empty related metadata must not invent season one');
 
     var drama = { series_id: seriesID, title: '接口回归短剧' };
     var liked = provider.changeLibrary({ action: 'like', drama: drama, video_id: '2234567890123456789', episode: 1, value: true });

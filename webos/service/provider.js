@@ -14,6 +14,7 @@
   var createAccount = require('./account');
   var creatorAlbum = require('./creator-album');
   var seriesDirectory = require('./series-directory');
+  var relatedSeasons = require('./related-seasons');
   var passportSign = require('./passport-sign');
   var createPlaybackIdentity = require('./playback-identity');
   var singleProfile = require('./single-playback-profile');
@@ -209,7 +210,7 @@
       var params = appQuery(device);
       Object.keys(values || {}).forEach(function (key) { params[key] = String(values[key]); });
       params._rticket = String(stamp);
-      var signed = passportSign.sign(params, raw, stamp, device.deviceID);
+      var signed = passportSign.sign(params, raw, stamp, device.deviceID, policy && policy.signatureVersion);
       var headers = signed.headers;
       headers['User-Agent'] = APP_UA;
       headers.Accept = 'application/json';
@@ -220,7 +221,7 @@
       }
       headers['X-XS-From-Web'] = '0'; headers['Sdk-Version'] = '2'; headers['X-SS-DP'] = '8662';
       headers['X-Tt-Store-Region'] = 'cn'; headers['X-Tt-Store-Region-Src'] = 'did';
-      return requestBuffer(API_BASE + pathName + '?' + signed.query, method || 'GET', headers, raw.length ? raw : null, MAX_JSON, policy && policy.signal, policy && policy.timeout).then(function (response) {
+      return requestBuffer((policy && policy.base || API_BASE) + pathName + '?' + signed.query, method || 'GET', headers, raw.length ? raw : null, MAX_JSON, policy && policy.signal, policy && policy.timeout).then(function (response) {
         if (response.status < 200 || response.status >= 300) throw fail('红果接口 HTTP ' + response.status);
         var text = response.body.toString('utf8');
         if (!trim(text)) {
@@ -2055,17 +2056,6 @@
     }).then(function (result) { cleanup(); return result; }, function (error) { cleanup(); throw error; });
   }
 
-  function fallbackSeason(seriesID, error) {
-    return detail(seriesID).then(function (item) {
-      item.season_index = Number(item.season_index) || 1;
-      item.label = '第' + item.season_index + '季';
-      item.playable = true;
-      item.upcoming = false;
-      item.is_multi_season = false;
-      return { items: [item], source: 'webos-detail-fallback', fallback_reason: String(error && error.message || error || '官方系列剧列表为空') };
-    });
-  }
-
   function seasonLabelRows(value) {
     return (Array.isArray(value) ? value : []).map(function (entry) {
       if (entry && typeof entry === 'object') return first(entry.content, entry.name, entry.show_name, entry.text);
@@ -2100,10 +2090,13 @@
     return items;
   }
 
-  function loadSeasonRows(seriesID) {
+  function loadSeasonRows(seriesID, complete) {
     var params = { scene: '10', from: 'single_col_same_ip_series', offset: '0', limit: '0', total_chapter_num: '0', current_chapter_num: '0', post_id: '0', is_horizontal_screen: 'false', bookstore_tab: '0', bookstore_tab_type: '0', book_id: seriesID, filter_ids: seriesID };
-    params.from = 'series_short_play_info';
-    return miniJSON('/reading/bookapi/plan/v', params).then(parseOfficialSeasons).then(function (items) {
+    // Keep the legacy nextSeason route unchanged; only the complete selector
+    // uses the signed same-series request shared with the Go implementation.
+    if (!complete) params.from = 'series_short_play_info';
+    var reading = complete ? signedJSON('/reading/bookapi/plan/v', 'GET', params, null, { attempts: 1, timeout: 6000 }) : miniJSON('/reading/bookapi/plan/v', params);
+    return reading.then(parseOfficialSeasons).then(function (items) {
       if (!items.length) throw fail('官方系列剧列表为空');
       return items;
     });
@@ -2111,13 +2104,25 @@
 
   function seriesSeasons(seriesID) {
     if (!validID(seriesID)) return Promise.reject(fail('series_id 无效'));
-    return loadSeasonRows(seriesID).then(function (items) {
+    return loadSeasonRows(seriesID, true).then(function (items) {
       return { items: items, source: 'webos-plan' };
-    }).catch(function (error) {
-      // Some webOS networks receive an empty plan response even though the
-      // public detail page is available. Keep the season selector truthful by
-      // exposing the confirmed current season instead of inventing siblings.
-      return fallbackSeason(seriesID, error);
+    }).catch(function () {
+      var cancel = audioCancel.create(), deadline = setTimeout(function () { cancel.abort(); }, 12000);
+      var related = relatedSeasons.create({
+        normalize: normalize,
+        request: function (values) {
+          var hosts = ['https://api5-normal-sinfonlinec.fqnovel.com', 'https://api5-normal-hl.fqnovel.com', 'https://api5-normal-lf.fqnovel.com'], index = 0;
+          function attempt() {
+            if (cancel.signal.aborted) return Promise.reject(fail('相关作品读取超时'));
+            return signedJSON('/reading/bookapi/plan/v:version/', 'GET', values, null, { attempts: 1, timeout: 4000, signal: cancel.signal, base: hosts[index++], signatureVersion: '7.2.2.32' }).then(function (payload) {
+              relatedSeasons.parse(payload, values.book_id, normalize);
+              return payload;
+            }).catch(function (error) { if (index < hosts.length && !cancel.signal.aborted) return attempt(); throw error; });
+          }
+          return attempt();
+        }
+      });
+      return related.load(seriesID).then(function (result) { clearTimeout(deadline); return result; }, function (error) { clearTimeout(deadline); throw error; });
     });
   }
 

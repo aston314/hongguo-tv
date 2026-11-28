@@ -105,3 +105,26 @@ test('the app only consumes account-scoped cached data on the current fullscreen
   playback.owner = 2; context.updateNextSeasonHint(video); assert.equal(calls.at(-1)[3], false);
   playback.owner = 1; context.accountEpoch = 2; context.updateNextSeasonHint(video); assert.equal(calls.at(-1)[2], false);
 });
+
+test('related-work catalogs require a separate request for each sibling while complete catalogs keep shared caching', async () => {
+  const app = fs.readFileSync(require.resolve('../core/cmd/hongguotv/ui/app.js'), 'utf8');
+  for (const source of ['', 'webos-plan', 'related-seasons']) {
+    const requests = [];
+    const context = vm.createContext({
+      AbortController, Date, accountEpoch: 1, seasonCatalogCache: {}, seasonCatalogKeys: [], seasonCatalogRequests: [],
+      fetchData: async url => { requests.push(url); return { items: seasons, source }; },
+      applyReservationOverride() {}, updateNextSeasonHint() {},
+      playbackMenuHintCandidate: false,
+      document: { getElementById() { return null; } }
+    });
+    vm.runInContext(
+      app.slice(app.indexOf('  function rememberSeasonCatalog('), app.indexOf('  function updateSeasonReservation(')) +
+      app.slice(app.indexOf('  function getSeasonCatalog('), app.indexOf('  function updateSeasonControl(')), context);
+    await context.getSeasonCatalog('2');
+    await context.getSeasonCatalog('2');
+    assert.equal(requests.length, 1, 'same drama retains its cache');
+    await context.getSeasonCatalog('3');
+    assert.equal(requests.length, source === 'related-seasons' ? 2 : 1,
+      'a direction-specific relation must not authorize a sibling without its own check');
+  }
+});

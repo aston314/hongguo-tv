@@ -31,11 +31,12 @@ type accountSession struct {
 }
 
 type passportClient struct {
-	uid        string
-	http       *http.Client
-	base       string
-	deviceBase string
-	session    accountSession
+	uid              string
+	http             *http.Client
+	base             string
+	deviceBase       string
+	session          accountSession
+	signatureVersion string
 }
 
 var errPassportEmptyResponse = errors.New("上游响应为空")
@@ -90,7 +91,7 @@ func (c *passportClient) requestWithSignatureHeaders(ctx context.Context, path, 
 	if mode == passportSignatureInternational {
 		raw, h, err = signInternationalPassportRequest(q, body, stamp)
 	} else {
-		raw, h, err = signPassportRequest(q, body, stamp, c.session.DeviceID)
+		raw, h, err = signPassportRequestVersion(q, body, stamp, c.session.DeviceID, firstNonEmpty(c.signatureVersion, "7.3.5.32"))
 	}
 	if err != nil {
 		return nil, err

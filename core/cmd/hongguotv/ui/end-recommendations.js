@@ -39,7 +39,7 @@
       options.show(entry.items);
       return true;
     }
-    function offer(playback, rows) {
+    function offer(playback, rows, policy) {
       if (!options.isCurrent(playback)) return false;
       if (entry && entry.playback === playback) return flush();
       // Background/reset can remove the view without changing playback.
@@ -49,7 +49,7 @@
       if (!items.length) return false;
       cancelAutoplay();
       lastPlayback = playback;
-      entry = { playback: playback, items: items, shown: false, canceled: false, started: false };
+      entry = { playback: playback, items: items, shown: false, canceled: !!(policy && policy.manualOnly), started: false };
       return flush();
     }
     // The view calls ready only after opening and settling the first cover.
