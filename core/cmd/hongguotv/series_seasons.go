@@ -18,7 +18,8 @@ type SeriesSeason struct {
 }
 
 type SeriesSeasonsResult struct {
-	Items []SeriesSeason `json:"items"`
+	Items  []SeriesSeason `json:"items"`
+	Source string         `json:"source,omitempty"`
 }
 
 func seriesSeasonsQuery(id string) url.Values {
@@ -106,10 +107,17 @@ func (c *passportClient) SeriesSeasons(ctx context.Context, id string) (SeriesSe
 		return SeriesSeasonsResult{}, errors.New("series_id 无效")
 	}
 	p, err := c.cloudJSON(ctx, "/reading/bookapi/plan/v", http.MethodGet, seriesSeasonsQuery(id), nil)
-	if err != nil {
-		return SeriesSeasonsResult{}, err
+	if err == nil {
+		var result SeriesSeasonsResult
+		result, err = parseSeriesSeasons(p)
+		if err == nil && len(result.Items) > 0 {
+			return result, nil
+		}
 	}
-	return parseSeriesSeasons(p)
+	if ctx.Err() != nil {
+		return SeriesSeasonsResult{}, ctx.Err()
+	}
+	return c.relatedSeasons(ctx, id)
 }
 
 func (s *server) seriesSeasons(w http.ResponseWriter, r *http.Request) {

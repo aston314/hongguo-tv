@@ -72,6 +72,13 @@ test('reservation or active controls delay both the sheet and its full countdown
   assert.equal(f.panel.ready(),false);f.advance(90000);assert.equal(f.jobs.size,0);
   f.state.safe=true;f.panel.flush();f.panel.ready();assert.deepEqual(f.calls.at(-1),['countdown',30]);
 });
+test('uncertain season metadata offers manual recommendations without any countdown or automatic play',()=>{
+  const f=timedFixture();
+  assert.equal(f.panel.offer(f.playback,related,{manualOnly:true}),true);
+  assert.equal(f.panel.ready(),false);f.advance(120000);
+  assert.equal(f.jobs.size,0);assert.equal(f.calls.filter(c=>c[0]==='play').length,0);
+  f.panel.choose(2);assert.deepEqual(f.calls.at(-1),['play',related[2]]);
+});
 test('manual browsing before or after readiness cancels permanently, including returning to the first card',()=>{
   for(const started of [false,true]){
     const f=timedFixture();f.panel.offer(f.playback,related);if(started){f.panel.ready();f.advance(8000)}
@@ -144,7 +151,7 @@ test('Back and native requestBack close the sheet before fullscreen or player na
   assert.equal(f.c.handleBack(),true);assert.equal(f.panel.isOpen(),false);
 });
 
-async function completion({mode='player',episode=2,season=1,successor=null,includeCurrent=true,relationSeason=1,relationNext=null,relationError=false,relatedRows=related,incomplete=false,late=false,followPrompt=false}={}){
+async function completion({mode='player',episode=2,season=1,successor=null,includeCurrent=true,relationSeason=1,relationNext=null,relationError=false,relatedRows=related,incomplete=false,late=false,followPrompt=false,selectorError=false,selectorEmpty=false,seasonSource='',selectorGate=null}={}){
   const calls=[],notices=[],playback={item:{series_id:'self',episode_count:2},episode,owner:1,generation:1,completed:true,started:true};
   let relationCalls=0;
   const c=vm.createContext({Promise,Object,Array,encodeURIComponent,activePlayback:playback,feedGeneration:1,accountEpoch:1,
@@ -155,8 +162,8 @@ async function completion({mode='player',episode=2,season=1,successor=null,inclu
     uiText:(key,fallback,values)=>Object.keys(values||{}).reduce((text,name)=>text.replace('{'+name+'}',values[name]),fallback),localizedError:error=>error.message,
     playFeedItem:(index,ep)=>calls.push(['play',index,ep]),refreshDetailAfterSeason(){},
     fetch:async()=>{relationCalls++;if(relationError)throw new Error('upstream response empty');return {ok:true,json:async()=>({ok:true,data:{next:relationNext,current_season:relationSeason}})}},
-    fetchData:async()=>({items:[...(includeCurrent?[{series_id:'self',season_index:season}]:[]),...(successor?[successor]:[])]}),
-    offerNextSeasonReservation:()=>{calls.push(['reservation']);return true},offerFollowAtEnd:(p,d,after)=>{if(!followPrompt)return false;calls.push(['follow',p,d]);c.confirmAfterClose=after;return true},offerEndRecommendations:(p,d)=>calls.push(['related',p,d.related])});
+    fetchData:async()=>{if(selectorGate)await selectorGate(c);if(selectorError)throw Error('云端未确认请求成功（101116）');return {source:seasonSource,items:selectorEmpty?[]:[...(includeCurrent?[{series_id:'self',season_index:season}]:[]),...(successor?[successor]:[])]}},
+    offerNextSeasonReservation:()=>{calls.push(['reservation']);return true},offerFollowAtEnd:(p,d,after)=>{if(!followPrompt)return false;calls.push(['follow',p,d]);c.confirmAfterClose=after;return true},offerEndRecommendations:(p,d,manual)=>calls.push(['related',p,d.related,manual])});
   vm.runInContext(slice('canContinuePlayback','offerNextSeasonReservation'),c);
   c.continueAfterEpisode(playback);for(let i=0;i<6;i++)await tick();return {calls,notices,c,playback,relationCalls};
 }
@@ -219,4 +226,24 @@ test('terminal card playback sequences reservation, follow and recommendations a
 test('recommendation feed, incomplete season data and stale completion callbacks do not offer a row',async()=>{
   const recommend=await completion({mode:'recommend'});assert.equal(recommend.calls.filter(c=>c[0]==='related').length,0);
   for(const args of [{incomplete:true},{late:true}])assert.deepEqual((await completion(args)).calls,[]);
+});
+test('selector failure and a successful no-relation fallback preserve manual recommendations and never switch drama',async()=>{
+  for(const args of [{selectorError:true},{selectorEmpty:true,seasonSource:'related-no-seasons'}]){
+    const f=await completion(args);
+    assert.deepEqual(f.calls.map(c=>c[0]),['related']);
+    assert.equal(f.calls[0][3],true);assert.equal(f.relationCalls,0);
+    assert.equal(f.playback.continuationPending,false);
+  }
+});
+test('uncertain recommendation-feed completion never auto switches and late/account/background results cannot offer cards',async()=>{
+  const feed=await completion({selectorError:true,mode:'recommend'});
+  assert.deepEqual(feed.calls,[]);
+  for(const mutation of [
+    c=>{c.activePlayback=null;},c=>{c.feedGeneration++;},c=>{c.accountEpoch++;},
+    c=>{c.applicationInBackground=true;},c=>{c.continuationGeneration++;},
+    c=>{c.seasonSwitchRequest={};c.continuationGeneration++;}
+  ]){
+    const f=await completion({selectorError:true,selectorGate:async c=>mutation(c)});
+    assert.deepEqual(f.calls,[]);
+  }
 });

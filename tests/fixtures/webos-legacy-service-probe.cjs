@@ -74,6 +74,19 @@ reservation.listen(0, '127.0.0.1', function () {
       // International signer previously used String#padStart on this path.
       var international = require(path.join(serviceRoot, 'passport-sign')).signInternational({ aid: '8662' }, Buffer.alloc(0), 1800000000000);
       assert(/^00-[a-f0-9]{26}-[a-f0-9]{16}-01$/.test(international.headers['X-TT-Trace-Id']));
+      var related = require(path.join(serviceRoot, 'related-seasons'));
+      var seasonFixtures = require(path.join(root, 'core/cmd/hongguotv/testdata/related-seasons-20261128.json'));
+      function normalizeRelated(row) {
+        return { series_id: String(row.series_id), title: row.title, season_index: Number(row.season_index) || 0,
+          episode_count: Number(row.episode_cnt) || 0, vid: row.vid || '' };
+      }
+      var relatedRows = related.parse(seasonFixtures['7700477891418524696'], '7700477891418524696', normalizeRelated);
+      assert.strictEqual(relatedRows.length, 3);
+      assert.strictEqual(relatedRows[1].series_id, '7708355462780947518');
+      assert.strictEqual(relatedRows[1].playable, true);
+      assert.strictEqual(relatedRows[2].upcoming, true);
+      assert.strictEqual(relatedRows[2].vid, '');
+      assert.strictEqual(related.parse(seasonFixtures['7710278988953832472'], '7710278988953832472', normalizeRelated).length, 0);
     } catch (error) { failed(error); return; }
     Promise.all([method('ping'), method('ping')]).then(function (replies) {
       replies.forEach(function (reply) { assert.strictEqual(reply.returnValue, true); assert.strictEqual(reply.ready, true); });
