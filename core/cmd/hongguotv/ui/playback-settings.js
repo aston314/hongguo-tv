@@ -57,7 +57,37 @@
       }
     } };
   }
-  var api = { create: create, createHardwareHevc: createHardwareHevc };
+  function createPlaybackRoute(options) {
+    var bridge = options.bridge, supported = false, mode = 'auto', message = '';
+    function text(key, fallback, params) {
+      return root.HongguoI18n && typeof root.HongguoI18n.t === 'function' ? root.HongguoI18n.t(key, params, fallback) : fallback;
+    }
+    function read() {
+      if (!bridge || typeof bridge.engine !== 'function' || bridge.engine() !== 'webview_media3' ||
+          typeof bridge.supportsPlaybackMode !== 'function' || !bridge.supportsPlaybackMode() ||
+          typeof bridge.playbackMode !== 'function' || typeof bridge.setPlaybackMode !== 'function') return false;
+      var value = bridge.playbackMode();
+      if (value !== 'auto' && value !== 'media3') return false;
+      mode = value; return true;
+    }
+    function render() { options.render({ supported: supported, mode: mode, message: message }); }
+    try { supported = read(); } catch (ignored) { supported = false; }
+    render();
+    return { choose: function (value) {
+      if (!supported || value !== 'auto' && value !== 'media3') return false;
+      try {
+        bridge.setPlaybackMode(value);
+        if (!read() || mode !== value) throw new Error('Preference not saved');
+        message = text('settings.playbackRouteApplied', '已选择{mode}，下次播放或切集时生效。', {
+          mode: mode === 'media3' ? text('settings.nativePlaybackPriority', '原生播放器优先') : text('settings.autoDecodeDefault', '自动（默认）')
+        });
+        render(); return true;
+      } catch (ignoredSave) {
+        message = text('settings.saveFailed', '设置未能保存，请重试。'); render(); return false;
+      }
+    } };
+  }
+  var api = { create: create, createHardwareHevc: createHardwareHevc, createPlaybackRoute: createPlaybackRoute };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.HongguoPlaybackSettings = api;
 }(this));

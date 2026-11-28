@@ -456,7 +456,22 @@ final class PlayerBridge implements NativePlayerAdapter {
         }catch(Exception ignored){}
     }
     @JavascriptInterface public String diagnostics(){return diagnostic;}
-    @JavascriptInterface public boolean primaryPlayback(){return PlayerRendererPolicy.primaryPlayback();}
+    @JavascriptInterface public boolean supportsPlaybackMode(){
+        return PlaybackRoutePreferencePolicy.supported(engine(),isAvailable());
+    }
+    @JavascriptInterface public String playbackMode(){
+        return PlaybackRoutePreferencePolicy.normalize(preferences.getString("playback_route","auto"));
+    }
+    @JavascriptInterface public void setPlaybackMode(String mode){
+        if(!supportsPlaybackMode()||!PlaybackRoutePreferencePolicy.valid(mode))
+            throw new IllegalArgumentException("invalid playback route");
+        if(!preferences.edit().putString("playback_route",mode).commit())
+            throw new IllegalStateException("playback route was not saved");
+    }
+    @JavascriptInterface public boolean primaryPlayback(){
+        return PlayerRendererPolicy.primaryPlayback()
+                || PlaybackRoutePreferencePolicy.primary(engine(),isAvailable(),playbackMode());
+    }
     @JavascriptInterface public String decoderMode(){return preferences.getString("decoder_mode","standard");}
     @JavascriptInterface public boolean supportsHardwareHevcPreference(){return "webview_media3".equals(engine())&&PlaybackCodecPolicy.supportsHardwareHevcPreference(Build.VERSION.SDK_INT);}
     @JavascriptInterface public boolean hardwareHevcPreferred(){return supportsHardwareHevcPreference()&&preferences.getBoolean("hevc_hardware_priority",false);}

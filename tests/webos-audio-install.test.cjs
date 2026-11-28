@@ -152,6 +152,6 @@ test('the actual webOS speed menu accepts remote selection after opt-in and uses
 test('actual remote focus graph enters the experiment and returns from update controls',()=>{
  const cinema={},audio={},updates={},sidebar={};const c={coreConnectionModalOpen:false,scanModalOpen:()=>false,supportModalOpen:false,confirmOpen:false,rankFilterOpen:false,playerOptionsOpen:false,detailModalOpen:false,discussionOpen:false,
  zoneOf:n=>n===cinema?'autoCinema':n===audio?'webosAudio':'appUpdates',firstVisible:s=>({'.webos-audio-action':audio,'.auto-cinema-action':cinema,'.app-update-action':updates})[s]||null,activeSidebar:()=>sidebar};
- const a=source.indexOf('  function moveFrom(');vm.runInNewContext(source.slice(a,source.indexOf('  function accountKeypadOpen(',a)),c);
+ const a=source.indexOf('  function moveFrom(');vm.runInNewContext(source.slice(source.indexOf('  function selectedStandardPlayback('),source.indexOf('  function selectedSidebarDisplay('))+source.slice(a,source.indexOf('  function accountKeypadOpen(',a)),c);
  assert.equal(c.moveFrom(cinema,'down'),audio);assert.equal(c.moveFrom(audio,'up'),cinema);assert.equal(c.moveFrom(audio,'down'),updates);assert.equal(c.moveFrom(updates,'up'),audio);assert.equal(c.moveFrom(audio,'left'),sidebar);
 });

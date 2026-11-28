@@ -5,8 +5,8 @@
     return i18n && i18n.t ? i18n.t(key, params, fallback) : fallback;
   }
 
-  // WebView HTML video is the default on every supported Android version.
-  // Media3 is kept as a bounded fallback for devices whose WebView cannot
+  // Automatic mode starts with WebView HTML video on every supported Android version.
+  // Media3 is a manual primary choice or a bounded fallback for devices whose WebView cannot
   // load the media. The Android version alone does not prove which decoder or
   // surface path is stable on a vendor TV build.
   var domVideo = document.getElementById('hero-video');
@@ -23,8 +23,12 @@
   var fixedNative = false, sourceCodec = '';
   try { nativeEnabled = !!(bridge && bridge.isAvailable && bridge.isAvailable()); } catch (ignored) {}
   try { fixedNative = !!(nativeEnabled && bridge.engine && bridge.engine() === 'mpv'); } catch (ignoredEngine) {}
-  var primaryMedia3 = false;
-  try { primaryMedia3 = !!(nativeEnabled && !fixedNative && bridge.primaryPlayback && bridge.primaryPlayback()); } catch (ignoredPrimary) {}
+  function prefersPrimaryMedia3() {
+    try { return !!(nativeEnabled && !fixedNative && bridge.primaryPlayback && bridge.primaryPlayback()); }
+    catch (ignoredPrimary) { return false; }
+  }
+  // Snapshot the manual choice only at a source boundary, never during playback.
+  var primaryMedia3 = prefersPrimaryMedia3();
   var primaryNative = fixedNative || primaryMedia3;
   if (!domVideo || !nativeEnabled) {
     window.HongguoNativePlaybackAdapter = { enabled: false, video: function () { return domVideo; } };
@@ -83,6 +87,7 @@
     } catch (ignoredStorage) { return false; }
   }
   function clearMedia3Preference() {
+    if (primaryNative) return;
     var preferences = preferenceBridge();
     if (preferences) {
       try { preferences.clearMedia3Preference(); } catch (ignoredNativePreference) {}
@@ -390,6 +395,9 @@
     nativeRequested = false;
     nativeDiagnosticId = '';
     loadId = 'hongguo-' + (++sequence);
+    var wasNative = isNative();
+    primaryMedia3 = prefersPrimaryMedia3();
+    primaryNative = fixedNative || primaryMedia3;
     if (isNative() && !primaryMedia3) {
       clearFallbackTimer();
       try {
@@ -404,16 +412,29 @@
         // that stale mute for the user's preference.
         domVideo.volume = state.volume;
         domVideo.muted = state.muted;
+        domVideo.playbackRate = state.playbackRate;
       }
       usingNative = fixedNative;
       if (!fixedNative) document.documentElement.classList.remove('native-playback');
     }
     if (primaryMedia3) {
       clearFallbackTimer();
-      try { if (next && bridge.begin) bridge.begin(loadId); } catch (ignoredBegin) {}
+      try {
+        if (next && bridge.begin) bridge.begin(loadId);
+        else if (!next && wasNative && bridge.stop) bridge.stop();
+      } catch (ignoredBegin) {}
       usingNative = true;
       document.documentElement.classList.add('native-playback');
+      if (!wasNative) {
+        state.volume = Number(domVideo.volume);
+        state.muted = !!domVideo.muted;
+        state.playbackRate = Number(domVideo.playbackRate) || 1;
+        try { domVideo.pause(); } catch (ignoredPause) {}
+        try { domVideo.removeAttribute('src'); domVideo.load(); } catch (ignoredUnload) {}
+      }
+      try { if (bridge.setVolume) bridge.setVolume(state.volume, state.muted); } catch (ignoredVolume) {}
     }
+    if (window.HongguoNativePlaybackAdapter) window.HongguoNativePlaybackAdapter.engine = fixedNative ? 'mpv' : primaryMedia3 ? 'media3' : 'webview_media3';
     attempt = newAttempt();
     nativeAttempted = primaryMedia3;
     state.source = next;
@@ -496,7 +517,7 @@
       if (!isNative()) {
         resetToDomSource(next); return;
       }
-      if (next !== state.source) { resetToDomSource(next); return; }
+      if (next !== state.source || prefersPrimaryMedia3() !== primaryMedia3) { resetToDomSource(next); return; }
       state.source = next; proxy.networkState = state.source ? 2 : 0; if (!state.source) setClass('has-source', false);
     } },
     currentTime: { get: function () { return isNative() ? state.currentTime : domVideo.currentTime; }, set: function (value) { if (!isNative()) { domVideo.currentTime = value; return; } var next = Number(value); if (!isFinite(next)) return; state.seeking = true; state.seekPending = true; state.currentTime = Math.max(0, next); dispatch('seeking'); if (bridge.seekTo) try { bridge.seekTo(state.currentTime); } catch (ignored) {} } },
